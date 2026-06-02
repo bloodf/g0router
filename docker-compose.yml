@@ -1,0 +1,26 @@
+services:
+  g0router:
+    build: .
+    image: g0router:latest
+    container_name: g0router
+    restart: unless-stopped
+    ports:
+      - "20128:20128"
+    volumes:
+      - g0router-data:/data
+    environment:
+      PORT: "20128"
+      DATA_DIR: "/data"
+      JWT_SECRET: "${JWT_SECRET}"
+      API_KEY_SECRET: "${API_KEY_SECRET}"
+      REQUIRE_API_KEY: "true"
+      RTK_ENABLED: "true"
+    healthcheck:
+      test: ["/g0router", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  g0router-data:
