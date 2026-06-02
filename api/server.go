@@ -217,6 +217,20 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, "")
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "clients":
 		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, parts[3])
+	case path == "/api/mcp/instances":
+		handlers.MCPInstances(ctx, s.config.Store, "")
+	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances":
+		handlers.MCPInstances(ctx, s.config.Store, parts[3])
+	case len(parts) == 6 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances" && parts[4] == "auth" && parts[5] == "start":
+		if !requireMethod(ctx, fasthttp.MethodPost) {
+			return
+		}
+		handlers.MCPOAuthStart(ctx, s.config.Store, parts[3])
+	case len(parts) == 5 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances" && parts[4] == "accounts":
+		if !requireMethod(ctx, fasthttp.MethodGet) {
+			return
+		}
+		handlers.MCPOAuthAccounts(ctx, s.config.Store, parts[3])
 	case path == "/api/mcp/tools":
 		handlers.MCPTools(ctx, s.config.Store, s.config.MCPToolManager, "")
 	case len(parts) == 5 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "tools" && parts[4] == "execute":

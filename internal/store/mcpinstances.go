@@ -121,6 +121,14 @@ func (s *Store) UpdateMCPInstanceManifest(id string, manifest mcp.Manifest) erro
 	return requireRowsAffected(result)
 }
 
+func (s *Store) DeleteMCPInstance(id string) error {
+	result, err := s.db.Exec("DELETE FROM mcp_instances WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("delete mcp instance: %w", err)
+	}
+	return requireRowsAffected(result)
+}
+
 func (i *MCPInstance) Config() mcp.InstanceConfig {
 	cfg := mcp.InstanceConfig{
 		ID:           i.ID,

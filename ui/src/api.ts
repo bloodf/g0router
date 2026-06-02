@@ -43,7 +43,7 @@ const apiPaths = {
   usage: "/api/usage",
   quota: "/api/quota",
   combos: "/api/combos",
-  mcpServers: "/api/mcp/servers",
+  mcpServers: "/api/mcp/instances",
   settings: "/api/settings"
 } as const;
 

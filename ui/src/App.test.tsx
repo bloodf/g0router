@@ -44,7 +44,7 @@ describe("api helpers", () => {
     expect(getUsagePath()).toBe("/api/usage");
     expect(getQuotaPath()).toBe("/api/quota");
     expect(getCombosPath()).toBe("/api/combos");
-    expect(getMcpServersPath()).toBe("/api/mcp/servers");
+    expect(getMcpServersPath()).toBe("/api/mcp/instances");
     expect(getSettingsPath()).toBe("/api/settings");
   });
 });

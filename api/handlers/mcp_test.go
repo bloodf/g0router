@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/store"
@@ -177,6 +179,170 @@ func TestMCPToolsExecuteMissingTool(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
 	}
+}
+
+func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
+	s := openMCPHandlerStore(t)
+
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances")
+	ctx.Request.SetBodyString(`{"name":"atlassian-a","server_key":"atlassian","launch_type":"http","transport":"streamable-http","url":"https://mcp.atlassian.com/mcp","headers":{"Authorization":"Bearer secret"},"env":{"API_TOKEN":"secret"},"account_label":"account-a","is_active":true}`)
+	MCPInstances(ctx, s, "")
+
+	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var created store.MCPInstance
+	if err := json.Unmarshal(ctx.Response.Body(), &created); err != nil {
+		t.Fatalf("unmarshal created: %v", err)
+	}
+	if created.Name != "atlassian-a" || created.AccountLabel == nil || *created.AccountLabel != "account-a" {
+		t.Fatalf("created = %+v, want account-a instance", created)
+	}
+
+	ctx = newHandlerCtx(fasthttp.MethodGet, "/api/mcp/instances")
+	MCPInstances(ctx, s, "")
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("list status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if strings.Contains(string(ctx.Response.Body()), "secret") {
+		t.Fatalf("list leaked secret: %s", ctx.Response.Body())
+	}
+
+	ctx = newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances/"+created.ID+"/auth/start")
+	ctx.Request.SetBodyString(`{"authorization_url":"https://auth.example/authorize","resource_uri":"https://mcp.atlassian.com","redirect_uri":"http://localhost:3000/api/mcp/oauth/callback"}`)
+	MCPOAuthStart(ctx, s, created.ID)
+	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+		t.Fatalf("auth status = %d, want 201; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if strings.Contains(string(ctx.Response.Body()), "secret") {
+		t.Fatalf("auth response leaked secret: %s", ctx.Response.Body())
+	}
+}
+
+func TestMCPInstanceAccountsRedactTokens(t *testing.T) {
+	s := openMCPHandlerStore(t)
+	instance := createHandlerMCPInstance(t, s, "atlassian-a", "account-a")
+	if err := s.UpsertMCPOAuthAccount(&store.MCPOAuthAccount{
+		InstanceID:   instance.ID,
+		AccountLabel: "account-a",
+		ResourceURI:  "https://mcp.atlassian.com",
+		AccessToken:  "access-secret",
+		RefreshToken: "refresh-secret",
+		ExpiresAt:    time.Now().Add(time.Hour),
+		AuthMetadata: map[string]string{"token_endpoint": "https://auth.example/token"},
+	}); err != nil {
+		t.Fatalf("UpsertMCPOAuthAccount: %v", err)
+	}
+
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/mcp/instances/"+instance.ID+"/accounts")
+	MCPOAuthAccounts(ctx, s, instance.ID)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "account-a") {
+		t.Fatalf("body = %s, want account label", body)
+	}
+	if strings.Contains(body, "access-secret") || strings.Contains(body, "refresh-secret") {
+		t.Fatalf("account response leaked token: %s", body)
+	}
+}
+
+func TestMCPInstanceToolsFilterByInstanceAndAccountWithStableDuplicateNames(t *testing.T) {
+	s := openMCPHandlerStore(t)
+	first := createHandlerMCPInstance(t, s, "atlassian-a", "account-a")
+	second := createHandlerMCPInstance(t, s, "atlassian-b", "account-b")
+	manifest := func(id string) mcp.Manifest {
+		return mcp.Manifest{ClientID: id, Tools: []mcp.Tool{{Name: "search", Description: "Search"}}}
+	}
+	if err := s.UpdateMCPInstanceManifest(first.ID, manifest(first.ID)); err != nil {
+		t.Fatalf("UpdateMCPInstanceManifest first: %v", err)
+	}
+	if err := s.UpdateMCPInstanceManifest(second.ID, manifest(second.ID)); err != nil {
+		t.Fatalf("UpdateMCPInstanceManifest second: %v", err)
+	}
+
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/mcp/tools?instance_id="+first.ID+"&account_label=account-a")
+	MCPTools(ctx, s, nil, "")
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var listed struct {
+		Data []struct {
+			Function struct {
+				Name string `json:"name"`
+			} `json:"function"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &listed); err != nil {
+		t.Fatalf("unmarshal tools: %v", err)
+	}
+	if len(listed.Data) != 1 || listed.Data[0].Function.Name != first.ID+"__search" {
+		t.Fatalf("tools = %+v, want first stable tool name", listed.Data)
+	}
+
+	ctx = newHandlerCtx(fasthttp.MethodGet, "/api/mcp/tools")
+	MCPTools(ctx, s, nil, "")
+	if err := json.Unmarshal(ctx.Response.Body(), &listed); err != nil {
+		t.Fatalf("unmarshal all tools: %v", err)
+	}
+	if len(listed.Data) != 2 || listed.Data[0].Function.Name == listed.Data[1].Function.Name {
+		t.Fatalf("tools = %+v, want two distinct stable names", listed.Data)
+	}
+}
+
+func TestMCPInstancesDeleteRemovesAccountsAndCachedToolsOnlyForOneInstance(t *testing.T) {
+	s := openMCPHandlerStore(t)
+	first := createHandlerMCPInstance(t, s, "atlassian-a", "account-a")
+	second := createHandlerMCPInstance(t, s, "atlassian-b", "account-b")
+	for _, instance := range []*store.MCPInstance{first, second} {
+		if err := s.UpdateMCPInstanceManifest(instance.ID, mcp.Manifest{ClientID: instance.ID, Tools: []mcp.Tool{{Name: "search", Description: "Search"}}}); err != nil {
+			t.Fatalf("UpdateMCPInstanceManifest: %v", err)
+		}
+		if err := s.UpsertMCPOAuthAccount(&store.MCPOAuthAccount{InstanceID: instance.ID, AccountLabel: *instance.AccountLabel, AccessToken: "token", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+			t.Fatalf("UpsertMCPOAuthAccount: %v", err)
+		}
+	}
+
+	ctx := newHandlerCtx(fasthttp.MethodDelete, "/api/mcp/instances/"+first.ID)
+	MCPInstances(ctx, s, first.ID)
+	if ctx.Response.StatusCode() != fasthttp.StatusNoContent {
+		t.Fatalf("delete status = %d, want 204; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if accounts, err := s.ListMCPOAuthAccounts(first.ID); err != nil || len(accounts) != 0 {
+		t.Fatalf("first accounts = %+v err=%v, want none", accounts, err)
+	}
+	if accounts, err := s.ListMCPOAuthAccounts(second.ID); err != nil || len(accounts) != 1 {
+		t.Fatalf("second accounts = %+v err=%v, want one", accounts, err)
+	}
+
+	ctx = newHandlerCtx(fasthttp.MethodGet, "/api/mcp/tools")
+	MCPTools(ctx, s, nil, "")
+	if strings.Contains(string(ctx.Response.Body()), first.ID+"__search") || !strings.Contains(string(ctx.Response.Body()), second.ID+"__search") {
+		t.Fatalf("tools after delete = %s, want only sibling tools", ctx.Response.Body())
+	}
+}
+
+func createHandlerMCPInstance(t *testing.T, s *store.Store, name, accountLabel string) *store.MCPInstance {
+	t.Helper()
+	instance := &store.MCPInstance{
+		Name:         name,
+		ServerKey:    "atlassian",
+		LaunchType:   mcp.LaunchHTTP,
+		Transport:    mcp.TransportStreamableHTTP,
+		URL:          stringPtr(accountLabelURL()),
+		AccountLabel: stringPtr(accountLabel),
+		IsActive:     true,
+	}
+	if err := s.CreateMCPInstance(instance); err != nil {
+		t.Fatalf("CreateMCPInstance: %v", err)
+	}
+	return instance
+}
+
+func accountLabelURL() string {
+	return "https://mcp.atlassian.com/mcp"
 }
 
 func openMCPHandlerStore(t *testing.T) *store.Store {
