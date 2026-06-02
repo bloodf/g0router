@@ -30,8 +30,8 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 2
-current_wave: "2.A"
-last_updated: "2026-06-02T17:30:15Z"
+current_wave: "2.B"
+last_updated: "2026-06-02T17:44:41Z"
 last_agent: "orchestrator"
 ```
 
@@ -167,7 +167,7 @@ tasks:
 
 ```yaml
 wave: "2.A"
-status: PENDING
+status: DONE
 max_agents: 8
 depends_on: ["1.B"]
 gate: "go test ./... && go vet ./..."
@@ -175,9 +175,12 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "2.1"
     name: "fasthttp server skeleton"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Erdos"
+    completed_at: "2026-06-02T17:44:41Z"
     files_owned:
+      - go.mod
+      - go.sum
       - api/server.go
       - api/server_test.go
       - api/handlers/health.go
@@ -185,8 +188,9 @@ tasks:
 
   - id: "2.3"
     name: "Proxy engine core"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Raman"
+    completed_at: "2026-06-02T17:44:41Z"
     files_owned:
       - internal/proxy/engine.go
       - internal/proxy/pool.go
@@ -195,8 +199,9 @@ tasks:
 
   - id: "2.4"
     name: "OpenAI provider implementation"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Socrates"
+    completed_at: "2026-06-02T17:44:41Z"
     files_owned:
       - internal/providers/openai/openai.go
       - internal/providers/openai/types.go
@@ -206,8 +211,9 @@ tasks:
 
   - id: "2.5"
     name: "Shared provider utilities"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Noether"
+    completed_at: "2026-06-02T17:44:41Z"
     files_owned:
       - internal/providers/utils/http.go
       - internal/providers/utils/http_test.go
@@ -218,8 +224,9 @@ tasks:
 
   - id: "2.6"
     name: "Streaming accumulator"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Aristotle"
+    completed_at: "2026-06-02T17:44:41Z"
     files_owned:
       - internal/streaming/accumulator.go
       - internal/streaming/chat.go
@@ -228,8 +235,9 @@ tasks:
 
   - id: "5.1"
     name: "OAuth types and interface"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Gibbs"
+    completed_at: "2026-06-02T17:44:41Z"
     files_owned:
       - internal/provider/oauth/types.go
       - internal/provider/oauth/types_test.go
@@ -237,8 +245,9 @@ tasks:
 
   - id: "7.1"
     name: "RTK autodetect"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Cicero"
+    completed_at: "2026-06-02T17:44:41Z"
     files_owned:
       - internal/rtk/autodetect.go
       - internal/rtk/autodetect_test.go
@@ -247,8 +256,9 @@ tasks:
 
   - id: "8.1+8.2"
     name: "Usage extraction + pricing catalog"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Franklin"
+    completed_at: "2026-06-02T17:44:41Z"
     files_owned:
       - internal/usage/tracker.go
       - internal/usage/tracker_test.go
