@@ -61,6 +61,15 @@ func TestAuthLoginRejectsUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestAuthCommandDoesNotExposeUnimplementedLogout(t *testing.T) {
+	cmd := NewAuthCommand()
+	names := commandNames(cmd.Commands())
+
+	if names["logout"] {
+		t.Fatal("auth logout should not be exposed until it has a credential-store implementation")
+	}
+}
+
 func commandNames(commands []*cobra.Command) map[string]bool {
 	names := make(map[string]bool, len(commands))
 	for _, cmd := range commands {

@@ -18,7 +18,6 @@ func NewAuthCommand() *cobra.Command {
 	}
 	cmd.AddCommand(newAuthListCommand())
 	cmd.AddCommand(newAuthLoginCommand("login"))
-	cmd.AddCommand(newAuthLogoutCommand())
 	return cmd
 }
 
@@ -59,17 +58,6 @@ func newAuthLoginCommand(use string) *cobra.Command {
 
 			printAuthSession(cmd, session)
 			return nil
-		},
-	}
-}
-
-func newAuthLogoutCommand() *cobra.Command {
-	return &cobra.Command{
-		Use:   "logout <provider>",
-		Short: "Remove provider credentials",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return fmt.Errorf("auth logout not yet implemented")
 		},
 	}
 }

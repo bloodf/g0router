@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 )
@@ -33,18 +34,50 @@ func TestRootCommandIncludesExpectedSubcommands(t *testing.T) {
 	}
 }
 
-func TestServeCommandPreservesSingleBinaryPlaceholder(t *testing.T) {
-	cmd := NewRootCommand("0.1.0-test")
+func TestServeCommandStartsServerRunner(t *testing.T) {
+	var got serveConfig
+	called := false
+	cmd := newRootCommand(rootConfig{
+		Version: "0.1.0-test",
+		Serve: func(ctx context.Context, config serveConfig) error {
+			called = true
+			got = config
+			return nil
+		},
+	})
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
 	cmd.SetArgs([]string{"serve", "--port", "20128", "--data-dir", t.TempDir()})
 
-	if err := cmd.Execute(); err == nil {
-		t.Fatal("execute error is nil")
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
 	}
 
-	if got := out.String(); !strings.Contains(got, "not yet implemented") {
-		t.Fatalf("output = %q, want placeholder message", got)
+	if !called {
+		t.Fatal("serve runner was not called")
+	}
+	if got.Port != 20128 {
+		t.Fatalf("port = %d, want 20128", got.Port)
+	}
+	if got.Version != "0.1.0-test" {
+		t.Fatalf("version = %q, want 0.1.0-test", got.Version)
+	}
+	if got.DataDir == "" {
+		t.Fatal("data dir should be passed to serve runner")
+	}
+}
+
+func TestExpandServeDataDirExpandsHome(t *testing.T) {
+	got, err := expandServeDataDir("~/.g0router")
+	if err != nil {
+		t.Fatalf("expandServeDataDir: %v", err)
+	}
+
+	if strings.Contains(got, "~") {
+		t.Fatalf("expanded path = %q, should not contain ~", got)
+	}
+	if !strings.HasSuffix(got, ".g0router") {
+		t.Fatalf("expanded path = %q, want .g0router suffix", got)
 	}
 }
