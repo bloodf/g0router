@@ -13,6 +13,7 @@ import (
 
 	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/api/handlers"
+	appconfig "github.com/bloodf/g0router/internal/config"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
@@ -25,9 +26,12 @@ type rootConfig struct {
 }
 
 type serveConfig struct {
-	Port    int
-	DataDir string
-	Version string
+	Port          int
+	BindAddress   string
+	DataDir       string
+	Version       string
+	RequireAPIKey bool
+	APIKeySecret  string
 }
 
 type serveRunner func(context.Context, serveConfig) error
@@ -77,7 +81,7 @@ func newRootCommand(config rootConfig) *cobra.Command {
 }
 
 func newServeCommand(version string, serve serveRunner, rootDataDir *string) *cobra.Command {
-	port := envInt("PORT", 20128)
+	port := 20128
 
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -86,15 +90,62 @@ func newServeCommand(version string, serve serveRunner, rootDataDir *string) *co
 			if serve == nil {
 				return fmt.Errorf("serve runner unavailable")
 			}
+			restoreEnv := applyServeFlagEnv(cmd, port, *rootDataDir)
+			defer restoreEnv()
+			loaded, err := appconfig.Load()
+			if err != nil {
+				return err
+			}
 			return serve(cmd.Context(), serveConfig{
-				Port:    port,
-				DataDir: *rootDataDir,
-				Version: version,
+				Port:          loaded.Port,
+				BindAddress:   loaded.BindAddress,
+				DataDir:       loaded.DataDir,
+				Version:       version,
+				RequireAPIKey: loaded.RequireAPIKey,
+				APIKeySecret:  loaded.APIKeySecret,
 			})
 		},
 	}
 	cmd.Flags().IntVar(&port, "port", port, "HTTP port")
 	return cmd
+}
+
+func applyServeFlagEnv(cmd *cobra.Command, port int, dataDir string) func() {
+	values := make(map[string]string)
+	if commandFlagChanged(cmd, "port") {
+		values["PORT"] = strconv.Itoa(port)
+	}
+	if commandFlagChanged(cmd, "data-dir") {
+		values["DATA_DIR"] = dataDir
+	}
+	return setTemporaryEnv(values)
+}
+
+func commandFlagChanged(cmd *cobra.Command, name string) bool {
+	flag := cmd.Flag(name)
+	return flag != nil && flag.Changed
+}
+
+func setTemporaryEnv(values map[string]string) func() {
+	type previousValue struct {
+		value string
+		ok    bool
+	}
+	previous := make(map[string]previousValue, len(values))
+	for key, value := range values {
+		old, ok := os.LookupEnv(key)
+		previous[key] = previousValue{value: old, ok: ok}
+		_ = os.Setenv(key, value)
+	}
+	return func() {
+		for key, old := range previous {
+			if old.ok {
+				_ = os.Setenv(key, old.value)
+				continue
+			}
+			_ = os.Unsetenv(key)
+		}
+	}
 }
 
 func envString(key, defaultValue string) string {
@@ -103,33 +154,6 @@ func envString(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
-}
-
-func envInt(key string, defaultValue int) int {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-	parsed, err := strconv.Atoi(value)
-	if err != nil {
-		return defaultValue
-	}
-	return parsed
-}
-
-func envBool(key string, defaultValue bool) bool {
-	value := strings.ToLower(os.Getenv(key))
-	if value == "" {
-		return defaultValue
-	}
-	switch value {
-	case "true", "1", "yes":
-		return true
-	case "false", "0", "no":
-		return false
-	default:
-		return defaultValue
-	}
 }
 
 func runServer(ctx context.Context, config serveConfig) error {
@@ -143,9 +167,10 @@ func runServer(ctx context.Context, config serveConfig) error {
 	}
 	defer s.Close()
 
-	ln, err := net.Listen("tcp", ":"+strconv.Itoa(config.Port))
+	listenAddress := net.JoinHostPort(config.BindAddress, strconv.Itoa(config.Port))
+	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
-		return fmt.Errorf("listen on port %d: %w", config.Port, err)
+		return fmt.Errorf("listen on %s: %w", listenAddress, err)
 	}
 
 	server := api.NewServer(newServerConfig(config, s))
@@ -165,8 +190,8 @@ func newServerConfig(config serveConfig, s *store.Store) api.ServerConfig {
 	return api.ServerConfig{
 		Port:            config.Port,
 		Version:         config.Version,
-		RequireAPIKey:   envBool("REQUIRE_API_KEY", true),
-		APIKeySecret:    localAPIKeySecret(),
+		RequireAPIKey:   config.RequireAPIKey,
+		APIKeySecret:    config.APIKeySecret,
 		APIKeyValidator: storeAPIKeyValidator{s: s},
 		Store:           s,
 		ModelSource:     staticModelSource{},

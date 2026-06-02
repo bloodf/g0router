@@ -15,6 +15,7 @@ func clearEnv(t *testing.T) {
 		"JWT_SECRET",
 		"API_KEY_SECRET",
 		"REQUIRE_API_KEY",
+		"BIND_ADDRESS",
 		"ENABLE_REQUEST_LOGS",
 		"RTK_ENABLED",
 		"CAVEMAN_ENABLED",
@@ -40,6 +41,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.DataDir != filepath.Join(os.Getenv("HOME"), ".g0router") {
 		t.Errorf("DataDir = %q, want home .g0router", cfg.DataDir)
 	}
+	if cfg.BindAddress != "127.0.0.1" {
+		t.Errorf("BindAddress = %q, want 127.0.0.1", cfg.BindAddress)
+	}
 	if cfg.RequireAPIKey != true {
 		t.Error("RequireAPIKey should default true")
 	}
@@ -62,6 +66,7 @@ func TestLoadFromEnv(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "data")
 	t.Setenv("PORT", "8080")
 	t.Setenv("DATA_DIR", dir)
+	t.Setenv("BIND_ADDRESS", "0.0.0.0")
 	t.Setenv("JWT_SECRET", "jwt-secret")
 	t.Setenv("API_KEY_SECRET", "api-key-secret")
 	t.Setenv("REQUIRE_API_KEY", "false")
@@ -80,6 +85,9 @@ func TestLoadFromEnv(t *testing.T) {
 	}
 	if cfg.DataDir != dir {
 		t.Errorf("DataDir = %q, want %q", cfg.DataDir, dir)
+	}
+	if cfg.BindAddress != "0.0.0.0" {
+		t.Errorf("BindAddress = %q, want 0.0.0.0", cfg.BindAddress)
 	}
 	if cfg.JWTSecret != "jwt-secret" {
 		t.Errorf("JWTSecret = %q", cfg.JWTSecret)
@@ -139,6 +147,21 @@ func TestLoadInvalidPort(t *testing.T) {
 		t.Fatal("Load should fail")
 	}
 	if !strings.Contains(err.Error(), "port must be 1-65535") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestLoadInvalidBindAddress(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
+	t.Setenv("BIND_ADDRESS", "not an ip")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load should fail")
+	}
+	if !strings.Contains(err.Error(), "BIND_ADDRESS must be an IP address") {
 		t.Fatalf("error = %q", err)
 	}
 }

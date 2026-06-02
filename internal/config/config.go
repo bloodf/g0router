@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 type Config struct {
 	Port              int
 	DataDir           string
+	BindAddress       string
 	JWTSecret         string
 	APIKeySecret      string
 	RequireAPIKey     bool
@@ -35,6 +37,11 @@ func Load() (*Config, error) {
 	}
 	if err := ensureWritableDir(dataDir); err != nil {
 		return nil, err
+	}
+
+	bindAddress := envString("BIND_ADDRESS", "127.0.0.1")
+	if net.ParseIP(bindAddress) == nil {
+		return nil, fmt.Errorf("BIND_ADDRESS must be an IP address")
 	}
 
 	requireAPIKey, err := envBool("REQUIRE_API_KEY", true)
@@ -67,6 +74,7 @@ func Load() (*Config, error) {
 	return &Config{
 		Port:              port,
 		DataDir:           dataDir,
+		BindAddress:       bindAddress,
 		JWTSecret:         os.Getenv("JWT_SECRET"),
 		APIKeySecret:      apiKeySecret,
 		RequireAPIKey:     requireAPIKey,

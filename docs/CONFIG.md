@@ -7,6 +7,7 @@ All configuration via environment variables. Runtime overrides via the `settings
 | Variable | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `PORT` | int | No | `20128` | HTTP listen port. Range: 1–65535. |
+| `BIND_ADDRESS` | IP address | No | `127.0.0.1` | HTTP listen address. Use `0.0.0.0` or `::` only when public exposure is intentional and protected by Docker host binding, firewall, or reverse proxy controls. |
 | `DATA_DIR` | path | No | `~/.g0router` | Directory for SQLite database and any persistent data. Created automatically if missing. `~` is expanded to `$HOME`. |
 | `JWT_SECRET` | string | For dashboard auth | — | HMAC secret for signing JWT session tokens. Min 32 chars recommended. Generate: `openssl rand -hex 32`. |
 | `API_KEY_SECRET` | string | When `REQUIRE_API_KEY=true` | — | HMAC secret for hashing gateway API keys. Same generation method as JWT_SECRET. **Different secret from JWT.** |
@@ -80,6 +81,7 @@ All boolean env vars accept (case-insensitive):
 | Rule | Condition | Error |
 |------|-----------|-------|
 | Port range | `PORT` < 1 or > 65535 | `"port must be 1-65535"` |
+| Bind address | `BIND_ADDRESS` is not an IP address, or includes a port | `"BIND_ADDRESS must be an IP address"` |
 | API key secret required | `REQUIRE_API_KEY=true` and `API_KEY_SECRET` empty | `"API_KEY_SECRET required when REQUIRE_API_KEY=true"` |
 | Caveman level | `CAVEMAN_LEVEL` not in `{lite, full, ultra}` | `"caveman level must be lite, full, or ultra"` |
 | Data dir writable | `DATA_DIR` path not writable | `"data dir not writable: <path>"` |
@@ -102,6 +104,7 @@ To force an env var value and prevent runtime override, don't expose that settin
 type Config struct {
     Port              int    // Default: 20128
     DataDir           string // Default: ~/.g0router (expanded)
+    BindAddress       string // Default: 127.0.0.1
     JWTSecret         string // From JWT_SECRET env
     APIKeySecret      string // From API_KEY_SECRET env
     RequireAPIKey     bool   // Default: true
@@ -122,6 +125,7 @@ func Load() (*Config, error)  // Reads env, applies defaults, validates
 
 # ─── Server ───
 PORT=20128
+BIND_ADDRESS=127.0.0.1
 DATA_DIR=~/.g0router
 
 # ─── Security (REQUIRED in production) ───
@@ -145,6 +149,10 @@ CAVEMAN_LEVEL=full   # lite | full | ultra
 # ─── Network ───
 # HTTPS_PROXY=http://proxy:8080
 ```
+
+## Docker Binding
+
+The checked-in `docker-compose.yml` publishes `127.0.0.1:20128:20128` on the host and sets `BIND_ADDRESS=0.0.0.0` inside the container. This keeps the default compose deployment local to the host while making the container listener explicit. To publish the control plane publicly, change the host port binding deliberately only with firewall or reverse-proxy protection in place; keep `REQUIRE_API_KEY=true` with `API_KEY_SECRET` set for inference routes.
 
 ## SQLite Settings Table
 
