@@ -18,12 +18,15 @@ func NewInstallCommand() *cobra.Command {
 			if user {
 				fmt.Fprintln(out, "Install plan: user service")
 				fmt.Fprintln(out, "Unit: ~/.config/systemd/user/g0router.service")
+				fmt.Fprintln(out, "Template: deploy/g0router.service")
 				fmt.Fprintln(out, "Data: ~/.g0router")
 				return nil
 			}
 
 			fmt.Fprintln(out, "Install plan: system service")
 			fmt.Fprintln(out, "Unit: /etc/systemd/system/g0router.service")
+			fmt.Fprintln(out, "Environment: /etc/default/g0router")
+			fmt.Fprintln(out, "Templates: deploy/g0router.service deploy/g0router.default")
 			fmt.Fprintln(out, "Data: /var/lib/g0router")
 			return nil
 		},
@@ -39,6 +42,8 @@ func newUninstallCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			out := cmd.OutOrStdout()
 			fmt.Fprintln(out, "Remove systemd service")
+			fmt.Fprintln(out, "Run: systemctl disable --now g0router")
+			fmt.Fprintln(out, "Remove: /etc/systemd/system/g0router.service /etc/default/g0router /usr/local/bin/g0router")
 			fmt.Fprintln(out, "Data: keeps data")
 			return nil
 		},

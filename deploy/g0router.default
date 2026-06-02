@@ -1,0 +1,15 @@
+# /etc/default/g0router
+PORT=20128
+DATA_DIR=/var/lib/g0router
+
+# Generate secrets with: openssl rand -hex 32
+JWT_SECRET=
+API_KEY_SECRET=
+
+REQUIRE_API_KEY=true
+ENABLE_REQUEST_LOGS=false
+RTK_ENABLED=true
+CAVEMAN_ENABLED=false
+CAVEMAN_LEVEL=full
+
+# HTTPS_PROXY=http://proxy:8080

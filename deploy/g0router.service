@@ -1,0 +1,35 @@
+[Unit]
+Description=g0router LLM Gateway
+Documentation=https://github.com/bloodf/g0router
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=g0router
+Group=g0router
+EnvironmentFile=-/etc/default/g0router
+ExecStart=/usr/local/bin/g0router serve
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/g0router
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+MemoryDenyWriteExecute=true
+LockPersonality=true
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=g0router
+
+[Install]
+WantedBy=multi-user.target
