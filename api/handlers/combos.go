@@ -1,0 +1,87 @@
+package handlers
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/bloodf/g0router/internal/store"
+	"github.com/valyala/fasthttp"
+)
+
+type comboRequest struct {
+	Name     string            `json:"name"`
+	Steps    []store.ComboStep `json:"steps"`
+	IsActive bool              `json:"is_active"`
+}
+
+func Combos(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
+	if s == nil {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+
+	switch string(ctx.Method()) {
+	case fasthttp.MethodGet:
+		combos, err := s.ListCombos()
+		if err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list combos: %v", err))
+			return
+		}
+		writeJSON(ctx, fasthttp.StatusOK, listResponse[*store.Combo]{Data: combos})
+	case fasthttp.MethodPost:
+		combo, ok := decodeComboRequest(ctx)
+		if !ok {
+			return
+		}
+		if err := s.CreateCombo(combo); err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create combo: %v", err))
+			return
+		}
+		writeJSON(ctx, fasthttp.StatusCreated, combo)
+	case fasthttp.MethodPut:
+		if id == "" {
+			writeError(ctx, fasthttp.StatusBadRequest, "combo id required")
+			return
+		}
+		combo, ok := decodeComboRequest(ctx)
+		if !ok {
+			return
+		}
+		combo.ID = id
+		if err := s.UpdateCombo(combo); err != nil {
+			writeStoreError(ctx, "update combo", err)
+			return
+		}
+		got, err := s.GetCombo(id)
+		if err != nil {
+			writeStoreError(ctx, "get combo", err)
+			return
+		}
+		writeJSON(ctx, fasthttp.StatusOK, got)
+	case fasthttp.MethodDelete:
+		if id == "" {
+			writeError(ctx, fasthttp.StatusBadRequest, "combo id required")
+			return
+		}
+		if err := s.DeleteCombo(id); err != nil {
+			writeStoreError(ctx, "delete combo", err)
+			return
+		}
+		ctx.SetStatusCode(fasthttp.StatusNoContent)
+	default:
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+	}
+}
+
+func decodeComboRequest(ctx *fasthttp.RequestCtx) (*store.Combo, bool) {
+	var req comboRequest
+	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
+		return nil, false
+	}
+	return &store.Combo{
+		Name:     req.Name,
+		Steps:    req.Steps,
+		IsActive: req.IsActive,
+	}, true
+}
