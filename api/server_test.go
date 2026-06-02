@@ -7,7 +7,9 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,14 +67,89 @@ func TestUnknownRoute(t *testing.T) {
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Stop() })
 
-	resp, err := httpClient().Get("http://" + localhostAddr(t, ln) + "/nope")
+	resp, err := httpClient().Get("http://" + localhostAddr(t, ln) + "/api/nope")
 	if err != nil {
-		t.Fatalf("GET /nope: %v", err)
+		t.Fatalf("GET /api/nope: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestServerServesEmbeddedUI(t *testing.T) {
+	_, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test"})
+
+	resp, err := httpClient().Get(baseURL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET / status = %d, want 200", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.Contains(got, "text/html") {
+		t.Fatalf("GET / content-type = %q, want text/html", got)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read / body: %v", err)
+	}
+	content := string(body)
+	if !strings.Contains(content, `<div id="root"></div>`) {
+		t.Fatalf("GET / did not serve UI index: %q", content)
+	}
+
+	assetPath := firstUIAssetPath(t, content)
+	assetResp, err := httpClient().Get(baseURL + assetPath)
+	if err != nil {
+		t.Fatalf("GET %s: %v", assetPath, err)
+	}
+	defer assetResp.Body.Close()
+
+	if assetResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want 200", assetPath, assetResp.StatusCode)
+	}
+}
+
+func TestServerServesUIIndexForClientRoutes(t *testing.T) {
+	_, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test"})
+
+	resp, err := httpClient().Get(baseURL + "/settings")
+	if err != nil {
+		t.Fatalf("GET /settings: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /settings status = %d, want 200", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read /settings body: %v", err)
+	}
+	if !strings.Contains(string(body), `<div id="root"></div>`) {
+		t.Fatalf("GET /settings did not serve UI index: %q", string(body))
+	}
+}
+
+func TestServerDoesNotServeUIForAPIRoutes(t *testing.T) {
+	_, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test"})
+
+	tests := []string{"/api/missing", "/v1/missing"}
+	for _, path := range tests {
+		resp, err := httpClient().Get(baseURL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("GET %s status = %d, want 404", path, resp.StatusCode)
+		}
 	}
 }
 
@@ -168,6 +245,16 @@ func localhostAddr(t *testing.T, ln net.Listener) string {
 		t.Fatalf("listener addr is %T, want *net.TCPAddr", ln.Addr())
 	}
 	return net.JoinHostPort("127.0.0.1", strconv.Itoa(tcpAddr.Port))
+}
+
+func firstUIAssetPath(t *testing.T, content string) string {
+	t.Helper()
+
+	match := regexp.MustCompile(`/(assets/[^"]+)`).FindStringSubmatch(content)
+	if len(match) != 2 {
+		t.Fatalf("index.html does not reference an asset: %q", content)
+	}
+	return "/" + match[1]
 }
 
 func newAPITestStore(t *testing.T) *store.Store {
