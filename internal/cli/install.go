@@ -66,6 +66,11 @@ func runInstall(options installOptions) error {
 	options = normalizeInstallOptions(options)
 	paths := installPaths(options)
 
+	if !options.User {
+		if err := ensureSystemUser(options.RunCommand); err != nil {
+			return err
+		}
+	}
 	if err := os.MkdirAll(filepath.Dir(paths.Binary), 0o755); err != nil {
 		return fmt.Errorf("create binary dir: %w", err)
 	}
@@ -74,6 +79,11 @@ func runInstall(options installOptions) error {
 	}
 	if err := os.MkdirAll(paths.DataDir, 0o755); err != nil {
 		return fmt.Errorf("create data dir: %w", err)
+	}
+	if !options.User {
+		if err := options.RunCommand("chown", "g0router:g0router", paths.DataDir); err != nil {
+			return fmt.Errorf("set data dir owner: %w", err)
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(paths.Service), 0o755); err != nil {
 		return fmt.Errorf("create service dir: %w", err)
@@ -208,6 +218,16 @@ func serviceTemplate(binary, dataDir string) (string, error) {
 	service := strings.ReplaceAll(string(content), "/usr/local/bin/g0router", binary)
 	service = strings.ReplaceAll(service, "/var/lib/g0router", dataDir)
 	return service, nil
+}
+
+func ensureSystemUser(run func(string, ...string) error) error {
+	if err := run("id", "-u", "g0router"); err == nil {
+		return nil
+	}
+	if err := run("useradd", "--system", "--no-create-home", "--shell", "/usr/sbin/nologin", "g0router"); err != nil {
+		return fmt.Errorf("create g0router user: %w", err)
+	}
+	return nil
 }
 
 func readDeployTemplate(name string) ([]byte, error) {

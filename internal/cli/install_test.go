@@ -11,7 +11,7 @@ import (
 func TestInstallSystemWritesFilesAndRunsSystemctl(t *testing.T) {
 	root := t.TempDir()
 	binary := writeExecutable(t, root)
-	recorder := &commandRecorder{}
+	recorder := &commandRecorder{fail: map[string]bool{"id -u g0router": true}}
 
 	var out bytes.Buffer
 	err := runInstall(installOptions{
@@ -33,6 +33,8 @@ func TestInstallSystemWritesFilesAndRunsSystemctl(t *testing.T) {
 	}
 	recorder.assertRan(t, "systemctl daemon-reload")
 	recorder.assertRan(t, "systemctl enable --now g0router")
+	recorder.assertRan(t, "useradd --system --no-create-home --shell /usr/sbin/nologin g0router")
+	recorder.assertRan(t, "chown g0router:g0router "+filepath.Join(root, "var/lib/g0router"))
 	if got := out.String(); !strings.Contains(got, "installed system service") {
 		t.Fatalf("output = %q, want installed system service", got)
 	}
@@ -134,10 +136,15 @@ func TestDeployTemplatesExist(t *testing.T) {
 
 type commandRecorder struct {
 	commands []string
+	fail     map[string]bool
 }
 
 func (r *commandRecorder) run(name string, args ...string) error {
-	r.commands = append(r.commands, strings.TrimSpace(name+" "+strings.Join(args, " ")))
+	command := strings.TrimSpace(name + " " + strings.Join(args, " "))
+	r.commands = append(r.commands, command)
+	if r.fail[command] {
+		return os.ErrNotExist
+	}
 	return nil
 }
 
