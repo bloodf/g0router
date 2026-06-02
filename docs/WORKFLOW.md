@@ -285,6 +285,7 @@ tasks:
     completed_at: "2026-06-02T17:59:59Z"
     depends_on_tasks: ["2.1"]
     files_owned:
+      - api/server.go
       - api/middleware.go
       - api/middleware_test.go
     phase_doc: "docs/phases/phase-02-http-server-proxy-engine.md"
@@ -422,6 +423,7 @@ tasks:
     files_owned:
       - internal/provider/oauth/github.go
       - internal/provider/oauth/github_test.go
+    phase_doc: "docs/phases/phase-05-oauth-flows-cli.md"
 
   - id: "5.5"
     name: "Cursor PKCE OAuth"
@@ -431,6 +433,7 @@ tasks:
     files_owned:
       - internal/provider/oauth/cursor.go
       - internal/provider/oauth/cursor_test.go
+    phase_doc: "docs/phases/phase-05-oauth-flows-cli.md"
 
   - id: "5.6"
     name: "Google OAuth (Gemini CLI, Antigravity)"
@@ -442,6 +445,7 @@ tasks:
       - internal/provider/oauth/antigravity.go
       - internal/provider/oauth/gemini_test.go
       - internal/provider/oauth/antigravity_test.go
+    phase_doc: "docs/phases/phase-05-oauth-flows-cli.md"
 
   - id: "4.3"
     name: "Combos store + resolver"
@@ -450,7 +454,9 @@ tasks:
     files_owned:
       - internal/store/combos.go
       - internal/store/combos_test.go
+      - internal/proxy/combo.go
     phase_doc: "docs/phases/phase-04-persistence-provider-registry.md"
+    notes: "Owns combo resolver in Wave 2.C. Later Task 6.2 must serialize or split any additional internal/proxy/combo.go changes."
 ```
 
 **Checkpoint**: `PHASE_2_COMPLETE`, `PHASE_7_COMPLETE` → advance to STAGE 3
