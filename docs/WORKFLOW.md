@@ -30,8 +30,8 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 5
-current_wave: "5.A"
-last_updated: "2026-06-02T20:53:07Z"
+current_wave: "5.B"
+last_updated: "2026-06-02T20:59:58Z"
 last_agent: "orchestrator"
 ```
 
@@ -745,7 +745,7 @@ tasks:
 
 ```yaml
 wave: "5.A"
-status: PENDING
+status: DONE
 max_agents: 3
 depends_on: ["4.B"]
 gate: "make test && make build"
@@ -753,17 +753,23 @@ gate: "make test && make build"
 tasks:
   - id: "11.1"
     name: "Makefile"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T20:59:58Z"
     files_owned: ["Makefile"]
 
   - id: "11.2"
     name: "systemd service + install CLI"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T20:59:58Z"
     files_owned: ["deploy/g0router.service", "deploy/g0router.default", "internal/cli/install.go", "internal/cli/install_test.go"]
 
   - id: "11.3"
     name: "Docker support"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T20:59:58Z"
     files_owned: ["Dockerfile", "docker-compose.yml", ".dockerignore"]
 ```
 
