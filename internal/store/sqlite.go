@@ -176,6 +176,39 @@ func (s *Store) migrate() error {
 			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_mcp_instances_server_key ON mcp_instances(server_key)`,
+		`CREATE TABLE IF NOT EXISTS mcp_oauth_accounts (
+			id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+			instance_id TEXT NOT NULL,
+			account_label TEXT NOT NULL DEFAULT 'default',
+			subject TEXT,
+			email TEXT,
+			issuer TEXT,
+			resource_uri TEXT,
+			scopes TEXT,
+			access_token TEXT NOT NULL,
+			refresh_token TEXT,
+			expires_at TEXT,
+			auth_metadata TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(instance_id, account_label),
+			FOREIGN KEY (instance_id) REFERENCES mcp_instances(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_mcp_oauth_accounts_instance ON mcp_oauth_accounts(instance_id)`,
+		`CREATE TABLE IF NOT EXISTS mcp_oauth_flows (
+			id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+			instance_id TEXT NOT NULL,
+			state_hash TEXT NOT NULL,
+			code_verifier_secret TEXT NOT NULL,
+			redirect_uri TEXT,
+			authorization_url TEXT,
+			resource_uri TEXT,
+			expires_at TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			UNIQUE(instance_id, state_hash),
+			FOREIGN KEY (instance_id) REFERENCES mcp_instances(id) ON DELETE CASCADE
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_mcp_oauth_flows_instance ON mcp_oauth_flows(instance_id)`,
 	}
 
 	for _, stmt := range ddl {
