@@ -116,13 +116,27 @@ func TestManagementRoutesRequireAPIKey(t *testing.T) {
 	}{
 		{method: http.MethodGet, path: "/api/keys"},
 		{method: http.MethodDelete, path: "/api/keys/key-1"},
+		{method: http.MethodGet, path: "/api/providers"},
+		{method: http.MethodGet, path: "/api/providers/openai/models"},
 		{method: http.MethodGet, path: "/api/settings"},
 		{method: http.MethodGet, path: "/api/connections"},
 		{method: http.MethodPut, path: "/api/connections/conn-1"},
+		{method: http.MethodGet, path: "/api/combos"},
+		{method: http.MethodDelete, path: "/api/combos/combo-1"},
+		{method: http.MethodPost, path: "/api/oauth/minimax/authorize"},
+		{method: http.MethodGet, path: "/api/oauth/minimax/poll"},
+		{method: http.MethodPost, path: "/api/oauth/minimax/exchange"},
+		{method: http.MethodGet, path: "/api/usage"},
+		{method: http.MethodGet, path: "/api/usage/summary"},
+		{method: http.MethodGet, path: "/api/usage/quota/openai"},
+		{method: http.MethodGet, path: "/api/logs"},
 		{method: http.MethodGet, path: "/api/mcp/clients"},
 		{method: http.MethodDelete, path: "/api/mcp/clients/client-1"},
 		{method: http.MethodGet, path: "/api/mcp/instances"},
 		{method: http.MethodDelete, path: "/api/mcp/instances/instance-1"},
+		{method: http.MethodPost, path: "/api/mcp/instances/instance-1/auth/start"},
+		{method: http.MethodGet, path: "/api/mcp/instances/instance-1/accounts"},
+		{method: http.MethodPost, path: "/api/mcp/instances/instance-1/oauth/complete"},
 		{method: http.MethodGet, path: "/api/mcp/tools"},
 		{method: http.MethodPost, path: "/api/mcp/tools/search/execute"},
 	}
@@ -170,6 +184,32 @@ func TestManagementRoutesAcceptValidAPIKey(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+}
+
+func TestOAuthCallbacksBypassManagementAuth(t *testing.T) {
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:          0,
+		Version:       "test",
+		RequireAPIKey: true,
+		APIKeySecret:  "test-secret",
+		APIKeyValidator: fakeAPIKeyValidator{
+			validKeys: map[string]bool{"g0r_valid": true},
+		},
+	})
+
+	for _, path := range []string{
+		"/api/oauth/callback",
+		"/api/mcp/oauth/callback",
+	} {
+		resp, err := httpClient().Get(baseURL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusUnauthorized {
+			t.Fatalf("GET %s status = 401, want callback to bypass management auth", path)
+		}
 	}
 }
 

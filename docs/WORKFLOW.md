@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: COMPLETE
-current_stage: 6
-current_wave: "6.A"
-last_updated: "2026-06-02T22:32:54Z"
+project_status: REMEDIATION_IN_PROGRESS
+current_stage: 7
+current_wave: "7.B"
+last_updated: "2026-06-02T23:05:26Z"
 last_agent: "orchestrator"
 ```
 
@@ -869,6 +869,107 @@ tasks:
 ```
 
 **Checkpoint**: `PHASE_12_COMPLETE` → **PROJECT COMPLETE**
+
+---
+
+## STAGE 7 — Principal Engineer Remediation
+
+Stage 7 exists because the green tree still left release-blocking runtime and security gaps. It follows the same wave model as earlier stages, with evaluator prompts after each completed wave.
+
+### Wave 7.A — Stop The Bleeding
+
+```yaml
+wave: "7.A"
+status: DONE
+max_agents: 2
+depends_on: ["6.A"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.A.1"
+    name: "Protect management API, tighten CORS, redact connection credentials"
+    status: DONE
+    agent: "Linnaeus"
+    completed_at: "2026-06-02T23:05:26Z"
+    files_owned:
+      - api/middleware.go
+      - api/middleware_test.go
+      - api/handlers/connections.go
+      - api/handlers/connections_test.go
+
+  - id: "7.A.2"
+    name: "Validated serve config and localhost-default binding"
+    status: DONE
+    agent: "Herschel"
+    completed_at: "2026-06-02T23:05:26Z"
+    files_owned:
+      - internal/config/config.go
+      - internal/config/config_test.go
+      - internal/cli/root.go
+      - internal/cli/root_test.go
+      - docker-compose.yml
+      - docs/CONFIG.md
+
+  - id: "7.A.3"
+    name: "Orchestrator integration fixes and evaluator prompt"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T23:05:26Z"
+    files_owned:
+      - e2e_test.go
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-7A-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 7.A complete → advance to Wave 7.B.
+
+### Wave 7.B — Make `g0router serve` A Real Gateway
+
+```yaml
+wave: "7.B"
+status: PENDING
+max_agents: 3
+depends_on: ["7.A"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+
+tasks:
+  - id: "7.B.1"
+    name: "Wire real inference engine and provider registry in serve startup"
+    status: PENDING
+  - id: "7.B.2"
+    name: "Wire MCP runtime managers in serve startup"
+    status: PENDING
+  - id: "7.B.3"
+    name: "Propagate request contexts through inference, models, and MCP handlers"
+    status: PENDING
+```
+
+### Waves 7.C-7.I — Remaining Remediation Backlog
+
+```yaml
+waves:
+  - wave: "7.C"
+    name: "OAuth and credential lifecycle"
+    status: PENDING
+  - wave: "7.D"
+    name: "Provider and model parity matrix"
+    status: PENDING
+  - wave: "7.E"
+    name: "Real 9Router-style dispatch pipeline"
+    status: PENDING
+  - wave: "7.F"
+    name: "Provider correctness"
+    status: PENDING
+  - wave: "7.G"
+    name: "Real MCP runtime"
+    status: PENDING
+  - wave: "7.H"
+    name: "Real dashboard"
+    status: PENDING
+  - wave: "7.I"
+    name: "Usage, cost, logs, and quotas"
+    status: PENDING
+```
 
 ---
 

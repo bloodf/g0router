@@ -82,28 +82,10 @@ func (s *Server) requiresAuth(ctx *fasthttp.RequestCtx) bool {
 }
 
 func isProtectedManagementPath(requestPath string) bool {
-	switch {
-	case pathIsOrBelow(requestPath, "/api/keys"):
-		return true
-	case requestPath == "/api/settings":
-		return true
-	case pathIsOrBelow(requestPath, "/api/connections"):
-		return true
-	case pathIsOrBelow(requestPath, "/api/mcp/clients"):
-		return true
-	case pathIsOrBelow(requestPath, "/api/mcp/instances"):
-		return true
-	case requestPath == "/api/mcp/tools":
-		return true
-	case strings.HasPrefix(requestPath, "/api/mcp/tools/") && strings.HasSuffix(requestPath, "/execute"):
-		return true
-	default:
+	if requestPath == "/api/oauth/callback" || requestPath == "/api/mcp/oauth/callback" {
 		return false
 	}
-}
-
-func pathIsOrBelow(requestPath, prefix string) bool {
-	return requestPath == prefix || strings.HasPrefix(requestPath, prefix+"/")
+	return requestPath == "/api" || strings.HasPrefix(requestPath, "/api/")
 }
 
 func (s *Server) validAPIKey(ctx *fasthttp.RequestCtx) (bool, error) {

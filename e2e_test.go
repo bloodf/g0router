@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -32,7 +31,7 @@ func TestE2EServerAPIKeyRequestAndUsage(t *testing.T) {
 		UsageStore:      s,
 	})
 
-	rawKey := createE2EAPIKey(t, baseURL, "default")
+	rawKey := createE2EAPIKey(t, s, apiKeySecret, "default")
 	response := postE2EChatCompletion(t, baseURL, rawKey)
 
 	if response.Model != "gpt-4o" {
@@ -42,7 +41,7 @@ func TestE2EServerAPIKeyRequestAndUsage(t *testing.T) {
 		t.Fatalf("usage = %+v, want total tokens", response.Usage)
 	}
 
-	summary := getE2EUsageSummary(t, baseURL)
+	summary := getE2EUsageSummary(t, baseURL, rawKey)
 	if summary.RequestCount != 1 {
 		t.Fatalf("request count = %d, want 1", summary.RequestCount)
 	}
@@ -118,27 +117,16 @@ func startE2EServer(t *testing.T, config api.ServerConfig) (*api.Server, string)
 	return srv, "http://" + ln.Addr().String()
 }
 
-func createE2EAPIKey(t *testing.T, baseURL, name string) string {
+func createE2EAPIKey(t *testing.T, s *store.Store, secret, name string) string {
 	t.Helper()
-	resp, err := http.Post(baseURL+"/api/keys", "application/json", bytes.NewBufferString(fmt.Sprintf(`{"name":%q}`, name)))
+	_, raw, err := s.CreateAPIKey(name, secret)
 	if err != nil {
-		t.Fatalf("POST /api/keys: %v", err)
+		t.Fatalf("CreateAPIKey: %v", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("POST /api/keys status = %d, want 201; body = %s", resp.StatusCode, readBody(t, resp.Body))
-	}
-
-	var decoded struct {
-		Raw string `json:"raw"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
-		t.Fatalf("decode api key: %v", err)
-	}
-	if decoded.Raw == "" {
+	if raw == "" {
 		t.Fatal("raw api key is empty")
 	}
-	return decoded.Raw
+	return raw
 }
 
 func postE2EChatCompletion(t *testing.T, baseURL, rawKey string) providers.ChatResponse {
@@ -170,12 +158,17 @@ func postE2EChatCompletion(t *testing.T, baseURL, rawKey string) providers.ChatR
 	return decoded
 }
 
-func getE2EUsageSummary(t *testing.T, baseURL string) struct {
+func getE2EUsageSummary(t *testing.T, baseURL, rawKey string) struct {
 	RequestCount int64 `json:"request_count"`
 	TotalTokens  int64 `json:"total_tokens"`
 } {
 	t.Helper()
-	resp, err := httpClient().Get(baseURL + "/api/usage/summary")
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/usage/summary", nil)
+	if err != nil {
+		t.Fatalf("new usage summary request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+rawKey)
+	resp, err := httpClient().Do(req)
 	if err != nil {
 		t.Fatalf("GET /api/usage/summary: %v", err)
 	}

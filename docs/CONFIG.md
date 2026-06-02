@@ -11,7 +11,7 @@ All configuration via environment variables. Runtime overrides via the `settings
 | `DATA_DIR` | path | No | `~/.g0router` | Directory for SQLite database and any persistent data. Created automatically if missing. `~` is expanded to `$HOME`. |
 | `JWT_SECRET` | string | For dashboard auth | — | HMAC secret for signing JWT session tokens. Min 32 chars recommended. Generate: `openssl rand -hex 32`. |
 | `API_KEY_SECRET` | string | When `REQUIRE_API_KEY=true` | — | HMAC secret for hashing gateway API keys. Same generation method as JWT_SECRET. **Different secret from JWT.** |
-| `REQUIRE_API_KEY` | bool | No | `true` | When true, all `/v1/*` inference endpoints require a valid API key via `Authorization: Bearer <key>` or `X-API-Key` header. Management API (`/api/*`) is always accessible (dashboard auth separate). |
+| `REQUIRE_API_KEY` | bool | No | `true` | When true, all `/v1/*` inference endpoints and `/api/*` management endpoints require a valid API key via `Authorization: Bearer <key>` or `X-API-Key` header. OAuth callback endpoints remain public so provider redirects can complete. |
 | `ENABLE_REQUEST_LOGS` | bool | No | `false` | Store request/response metadata in `request_log` table. Increases disk usage. Does NOT store request/response bodies — only metadata (tokens, cost, latency, model, etc.). |
 | `RTK_ENABLED` | bool | No | `true` | Enable Response Token Kompression. Autodetects tool output format and applies compression filters. See [Phase 7](phases/phase-07-rtk-caveman.md). |
 | `CAVEMAN_ENABLED` | bool | No | `false` | Inject caveman-mode system prompt to compress LLM output. See [Phase 7](phases/phase-07-rtk-caveman.md). |
@@ -152,7 +152,7 @@ CAVEMAN_LEVEL=full   # lite | full | ultra
 
 ## Docker Binding
 
-The checked-in `docker-compose.yml` publishes `127.0.0.1:20128:20128` on the host and sets `BIND_ADDRESS=0.0.0.0` inside the container. This keeps the default compose deployment local to the host while making the container listener explicit. To publish the control plane publicly, change the host port binding deliberately only with firewall or reverse-proxy protection in place; keep `REQUIRE_API_KEY=true` with `API_KEY_SECRET` set for inference routes.
+The checked-in `docker-compose.yml` publishes `127.0.0.1:20128:20128` on the host and sets `BIND_ADDRESS=0.0.0.0` inside the container. This keeps the default compose deployment local to the host while making the container listener explicit. To publish the control plane publicly, change the host port binding deliberately only with firewall or reverse-proxy protection in place; keep `REQUIRE_API_KEY=true` with `API_KEY_SECRET` set for inference and management routes.
 
 ## SQLite Settings Table
 
