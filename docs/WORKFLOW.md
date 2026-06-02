@@ -2,406 +2,717 @@
 
 ## How to Use This File
 
-Any AI agent (Claude, Codex, Gemini, or human) starting work on g0router:
-
 1. Read `CLAUDE.md` for behavioral rules.
-2. Read this file to find current state.
-3. Pick up the next `PENDING` task.
-4. Update status to `IN_PROGRESS` with your agent ID and timestamp.
-5. Complete the task following TDD (test first).
-6. Run `go test ./...` + `go vet ./...`.
-7. Commit: `phase-N/task-M: <description>`.
-8. Update status to `DONE` with timestamp.
-9. If a phase checkpoint is reached, update phase status.
-10. Move to next task.
+2. Read `docs/ORCHESTRATION.md` for the parallel execution model.
+3. Find current stage and wave below.
+4. Pick up the next `PENDING` task **in the current wave**.
+5. Update status to `IN_PROGRESS` with your agent ID.
+6. Complete the task following TDD.
+7. Run `go test ./... && go vet ./...`.
+8. Commit: `phase-N/task-M: <description>`.
+9. Update status to `DONE`.
+10. When ALL tasks in a wave are `DONE`, orchestrator merges and advances.
 
 ## Status Values
 
 | Status | Meaning |
 |--------|---------|
 | `PENDING` | Not started |
-| `IN_PROGRESS` | Agent is actively working on it |
-| `BLOCKED` | Cannot proceed — reason documented |
+| `IN_PROGRESS` | Agent is actively working |
+| `BLOCKED` | Cannot proceed — reason in notes |
 | `DONE` | Complete, tests pass, committed |
-| `SKIPPED` | Deliberately not doing (with reason) |
+| `SKIPPED` | Deliberately not doing (reason in notes) |
+
+---
 
 ## Current State
 
 ```yaml
 project_status: DOCS_COMPLETE
-current_phase: null
-last_updated: 2026-06-02T16:15:00Z
-last_agent: composer
-notes: "22 markdown docs: README, CLAUDE, 9 docs/, 12 phase docs. Implementation not started."
-
-phases:
-  phase_0:
-    status: PENDING
-    name: "Project Bootstrap"
-    checkpoint: PHASE_0_COMPLETE
-    tasks:
-      - id: "0.1"
-        name: "Initialize Go module and directory structure"
-        status: PENDING
-        agent: null
-        started_at: null
-        completed_at: null
-        notes: null
-
-  phase_1:
-    status: PENDING
-    name: "Core Types + SQLite Store"
-    checkpoint: PHASE_1_COMPLETE
-    depends_on: [phase_0]
-    tasks:
-      - id: "1.1"
-        name: "Define core types"
-        status: PENDING
-      - id: "1.2"
-        name: "SQLite store foundation"
-        status: PENDING
-      - id: "1.3"
-        name: "Connection CRUD"
-        status: PENDING
-        depends_on: ["1.2"]
-      - id: "1.4"
-        name: "Settings + API keys store"
-        status: PENDING
-        depends_on: ["1.2"]
-      - id: "1.5"
-        name: "Usage log store"
-        status: PENDING
-        depends_on: ["1.2"]
-      - id: "1.6"
-        name: "Config loading"
-        status: PENDING
-
-  phase_2:
-    status: PENDING
-    name: "HTTP Server + Proxy Engine"
-    checkpoint: PHASE_2_COMPLETE
-    depends_on: [phase_1]
-    tasks:
-      - id: "2.1"
-        name: "fasthttp server skeleton"
-        status: PENDING
-      - id: "2.2"
-        name: "Middleware (CORS, auth, request ID)"
-        status: PENDING
-        depends_on: ["2.1"]
-      - id: "2.3"
-        name: "Proxy engine core"
-        status: PENDING
-      - id: "2.4"
-        name: "OpenAI provider implementation"
-        status: PENDING
-      - id: "2.5"
-        name: "Shared provider utilities"
-        status: PENDING
-      - id: "2.6"
-        name: "Streaming accumulator"
-        status: PENDING
-      - id: "2.7"
-        name: "Inference handler"
-        status: PENDING
-        depends_on: ["2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
-
-  phase_3:
-    status: PENDING
-    name: "Multi-Provider Support"
-    checkpoint: PHASE_3_COMPLETE
-    depends_on: [phase_2]
-    tasks:
-      - id: "3.1"
-        name: "Anthropic provider"
-        status: PENDING
-      - id: "3.2"
-        name: "Format translation engine"
-        status: PENDING
-      - id: "3.3"
-        name: "OpenAI-compatible providers (13 total)"
-        status: PENDING
-      - id: "3.4"
-        name: "Gemini provider"
-        status: PENDING
-      - id: "3.5"
-        name: "Gemini format translation"
-        status: PENDING
-        depends_on: ["3.2", "3.4"]
-      - id: "3.6"
-        name: "Vertex AI provider"
-        status: PENDING
-      - id: "3.7"
-        name: "AWS Bedrock provider"
-        status: PENDING
-      - id: "3.8"
-        name: "Azure OpenAI provider"
-        status: PENDING
-      - id: "3.9"
-        name: "Mistral, Ollama, Cohere, Replicate"
-        status: PENDING
-      - id: "3.10"
-        name: "Responses API support"
-        status: PENDING
-
-  phase_4:
-    status: PENDING
-    name: "Persistence + Provider Registry"
-    checkpoint: PHASE_4_COMPLETE
-    depends_on: [phase_1]
-    parallel_with: [phase_3, phase_5]
-    tasks:
-      - id: "4.1"
-        name: "Provider registry"
-        status: PENDING
-      - id: "4.2"
-        name: "Connection management with round-robin"
-        status: PENDING
-      - id: "4.3"
-        name: "Combos store + resolver"
-        status: PENDING
-      - id: "4.4"
-        name: "Model aliases + pricing overrides"
-        status: PENDING
-      - id: "4.5"
-        name: "Management API handlers"
-        status: PENDING
-        depends_on: ["4.1", "4.2", "4.3", "4.4"]
-
-  phase_5:
-    status: PENDING
-    name: "OAuth Flows + CLI"
-    checkpoint: PHASE_5_COMPLETE
-    depends_on: [phase_1]
-    parallel_with: [phase_3, phase_4]
-    tasks:
-      - id: "5.1"
-        name: "OAuth types and interface"
-        status: PENDING
-      - id: "5.2"
-        name: "Anthropic OAuth (Claude Code)"
-        status: PENDING
-        depends_on: ["5.1"]
-      - id: "5.3"
-        name: "OpenAI Codex OAuth"
-        status: PENDING
-        depends_on: ["5.1"]
-      - id: "5.4"
-        name: "GitHub Copilot OAuth"
-        status: PENDING
-        depends_on: ["5.1"]
-      - id: "5.5"
-        name: "Cursor PKCE OAuth"
-        status: PENDING
-        depends_on: ["5.1"]
-      - id: "5.6"
-        name: "Google OAuth (Gemini CLI, Antigravity)"
-        status: PENDING
-        depends_on: ["5.1"]
-      - id: "5.7"
-        name: "xAI, DeepSeek, GitLab, Kiro OAuth"
-        status: PENDING
-        depends_on: ["5.1"]
-      - id: "5.8"
-        name: "Chinese provider OAuth (Qwen, Kimi, MiniMax, etc.)"
-        status: PENDING
-        depends_on: ["5.1"]
-      - id: "5.9"
-        name: "Token refresh with dedup"
-        status: PENDING
-        depends_on: ["5.1"]
-      - id: "5.10"
-        name: "OAuth HTTP endpoints"
-        status: PENDING
-      - id: "5.11"
-        name: "CLI commands (cobra)"
-        status: PENDING
-
-  phase_6:
-    status: PENDING
-    name: "Account Fallback + Combos"
-    checkpoint: PHASE_6_COMPLETE
-    depends_on: [phase_2, phase_4]
-    parallel_with: [phase_7, phase_8]
-    tasks:
-      - id: "6.1"
-        name: "Account fallback engine"
-        status: PENDING
-      - id: "6.2"
-        name: "Combo model resolution"
-        status: PENDING
-
-  phase_7:
-    status: PENDING
-    name: "RTK + Caveman"
-    checkpoint: PHASE_7_COMPLETE
-    depends_on: [phase_1]
-    parallel_with: [phase_6, phase_8]
-    tasks:
-      - id: "7.1"
-        name: "RTK autodetect"
-        status: PENDING
-      - id: "7.2"
-        name: "RTK filters (11 total)"
-        status: PENDING
-      - id: "7.3"
-        name: "RTK message compression"
-        status: PENDING
-        depends_on: ["7.1", "7.2"]
-      - id: "7.4"
-        name: "Caveman prompt injection"
-        status: PENDING
-
-  phase_8:
-    status: PENDING
-    name: "Usage Tracking + Cost + Logging"
-    checkpoint: PHASE_8_COMPLETE
-    depends_on: [phase_1]
-    parallel_with: [phase_6, phase_7]
-    tasks:
-      - id: "8.1"
-        name: "Usage extraction from responses"
-        status: PENDING
-      - id: "8.2"
-        name: "Model pricing catalog"
-        status: PENDING
-      - id: "8.3"
-        name: "Cost calculation"
-        status: PENDING
-        depends_on: ["8.1", "8.2"]
-      - id: "8.4"
-        name: "Provider quota fetchers"
-        status: PENDING
-      - id: "8.5"
-        name: "Request/response logging"
-        status: PENDING
-      - id: "8.6"
-        name: "Usage + logging API handlers"
-        status: PENDING
-        depends_on: ["8.1", "8.2", "8.3", "8.4", "8.5"]
-
-  phase_9:
-    status: PENDING
-    name: "MCP Gateway"
-    checkpoint: PHASE_9_COMPLETE
-    depends_on: [phase_2]
-    tasks:
-      - id: "9.1"
-        name: "MCP client manager"
-        status: PENDING
-      - id: "9.2"
-        name: "MCP tool manager"
-        status: PENDING
-      - id: "9.3"
-        name: "MCP tool discovery (compact manifests)"
-        status: PENDING
-        depends_on: ["9.1", "9.2"]
-      - id: "9.4"
-        name: "MCP agent loop"
-        status: PENDING
-        depends_on: ["9.1", "9.2"]
-      - id: "9.5"
-        name: "MCP health monitor"
-        status: PENDING
-        depends_on: ["9.1"]
-      - id: "9.6"
-        name: "MCP API handlers + store"
-        status: PENDING
-        depends_on: ["9.1", "9.2", "9.3", "9.4", "9.5"]
-
-  phase_10:
-    status: PENDING
-    name: "Dashboard UI"
-    checkpoint: PHASE_10_COMPLETE
-    depends_on: [phase_2]
-    parallel_with: [phase_3, phase_4, phase_5, phase_6, phase_7, phase_8, phase_9]
-    tasks:
-      - id: "10.1"
-        name: "UI scaffold"
-        status: PENDING
-      - id: "10.2"
-        name: "Dashboard overview page"
-        status: PENDING
-      - id: "10.3"
-        name: "Endpoint page"
-        status: PENDING
-      - id: "10.4"
-        name: "Providers page"
-        status: PENDING
-      - id: "10.5"
-        name: "Usage page"
-        status: PENDING
-      - id: "10.6"
-        name: "Quota page"
-        status: PENDING
-      - id: "10.7"
-        name: "Combos, MCP, Settings, Profile pages"
-        status: PENDING
-      - id: "10.8"
-        name: "Embed UI in Go binary"
-        status: PENDING
-        depends_on: ["10.1", "10.2", "10.3", "10.4", "10.5", "10.6", "10.7"]
-
-  phase_11:
-    status: PENDING
-    name: "Packaging, Deployment + Polish"
-    checkpoint: PHASE_11_COMPLETE
-    depends_on: [phase_0, phase_1, phase_2, phase_3, phase_4, phase_5, phase_6, phase_7, phase_8, phase_9, phase_10]
-    tasks:
-      - id: "11.1"
-        name: "Makefile (build, test, install, docker)"
-        status: PENDING
-      - id: "11.2"
-        name: "systemd service unit + install/uninstall CLI"
-        status: PENDING
-      - id: "11.3"
-        name: "Docker + docker-compose"
-        status: PENDING
-      - id: "11.4"
-        name: ".env.example + README + DEPLOYMENT.md"
-        status: PENDING
-      - id: "11.5"
-        name: "Final integration test suite"
-        status: PENDING
+current_stage: 0
+current_wave: "0.A"
+last_updated: "2026-06-02T18:00:00Z"
+last_agent: null
 ```
 
-## Parallelization Map
+---
 
+## STAGE 0 — Bootstrap
+
+### Wave 0.A
+
+```yaml
+wave: "0.A"
+status: PENDING
+max_agents: 1
+gate: "go build ./cmd/g0router && go vet ./..."
+
+tasks:
+  - id: "0.1"
+    name: "Initialize Go module and directory structure"
+    status: PENDING
+    agent: null
+    started_at: null
+    completed_at: null
+    files_owned:
+      - go.mod
+      - cmd/g0router/main.go
+      - .gitignore
+      - .env.example
+    phase_doc: "docs/phases/phase-00-project-bootstrap.md"
 ```
-Phase 0 ──► Phase 1 ──► Phase 2 ──┬──► Phase 3
-                    │              ├──► Phase 9
-                    │              ├──► Phase 10 (UI, independent)
-                    ├──► Phase 4 ──┤
-                    ├──► Phase 5   ├──► Phase 6
-                    ├──► Phase 7   │
-                    └──► Phase 8   │
-                                   └──► Phase 11 (after all)
+
+**Checkpoint**: `PHASE_0_COMPLETE` → advance to STAGE 1
+
+---
+
+## STAGE 1 — Core Foundation
+
+### Wave 1.A — Independent foundation (3 agents)
+
+```yaml
+wave: "1.A"
+status: PENDING
+max_agents: 3
+depends_on: ["0.A"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "1.1"
+    name: "Define core types"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/types_test.go
+      - internal/providers/interface.go
+    phase_doc: "docs/phases/phase-01-core-types-sqlite-store.md"
+
+  - id: "1.2"
+    name: "SQLite store foundation"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/store/sqlite.go
+      - internal/store/sqlite_test.go
+    phase_doc: "docs/phases/phase-01-core-types-sqlite-store.md"
+
+  - id: "1.6"
+    name: "Config loading"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/config/config.go
+      - internal/config/config_test.go
+    phase_doc: "docs/phases/phase-01-core-types-sqlite-store.md"
 ```
+
+### Wave 1.B — Store CRUD (3 agents)
+
+```yaml
+wave: "1.B"
+status: PENDING
+max_agents: 3
+depends_on: ["1.A"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "1.3"
+    name: "Connection CRUD"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["1.2"]
+    files_owned:
+      - internal/store/connections.go
+      - internal/store/connections_test.go
+      - internal/store/errors.go
+    phase_doc: "docs/phases/phase-01-core-types-sqlite-store.md"
+
+  - id: "1.4"
+    name: "Settings + API keys store"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["1.2"]
+    files_owned:
+      - internal/store/settings.go
+      - internal/store/settings_test.go
+      - internal/store/apikeys.go
+      - internal/store/apikeys_test.go
+    phase_doc: "docs/phases/phase-01-core-types-sqlite-store.md"
+
+  - id: "1.5"
+    name: "Usage log store"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["1.2"]
+    files_owned:
+      - internal/store/usage.go
+      - internal/store/usage_test.go
+    phase_doc: "docs/phases/phase-01-core-types-sqlite-store.md"
+```
+
+**Checkpoint**: `PHASE_1_COMPLETE` → advance to STAGE 2
+
+---
+
+## STAGE 2 — Server + Parallel Streams
+
+### Wave 2.A — HTTP foundations + independent streams (up to 8 agents)
+
+```yaml
+wave: "2.A"
+status: PENDING
+max_agents: 8
+depends_on: ["1.B"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "2.1"
+    name: "fasthttp server skeleton"
+    status: PENDING
+    agent: null
+    files_owned:
+      - api/server.go
+      - api/server_test.go
+      - api/handlers/health.go
+    phase_doc: "docs/phases/phase-02-http-server-proxy-engine.md"
+
+  - id: "2.3"
+    name: "Proxy engine core"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/proxy/engine.go
+      - internal/proxy/pool.go
+      - internal/proxy/engine_test.go
+    phase_doc: "docs/phases/phase-02-http-server-proxy-engine.md"
+
+  - id: "2.4"
+    name: "OpenAI provider implementation"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/providers/openai/openai.go
+      - internal/providers/openai/types.go
+      - internal/providers/openai/errors.go
+      - internal/providers/openai/openai_test.go
+    phase_doc: "docs/phases/phase-02-http-server-proxy-engine.md"
+
+  - id: "2.5"
+    name: "Shared provider utilities"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/providers/utils/http.go
+      - internal/providers/utils/http_test.go
+      - internal/providers/utils/sse.go
+      - internal/providers/utils/sse_test.go
+      - internal/providers/utils/errors.go
+    phase_doc: "docs/phases/phase-02-http-server-proxy-engine.md"
+
+  - id: "2.6"
+    name: "Streaming accumulator"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/streaming/accumulator.go
+      - internal/streaming/chat.go
+      - internal/streaming/accumulator_test.go
+    phase_doc: "docs/phases/phase-02-http-server-proxy-engine.md"
+
+  - id: "5.1"
+    name: "OAuth types and interface"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/provider/oauth/types.go
+      - internal/provider/oauth/types_test.go
+    phase_doc: "docs/phases/phase-05-oauth-flows-cli.md"
+
+  - id: "7.1"
+    name: "RTK autodetect"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/rtk/autodetect.go
+      - internal/rtk/autodetect_test.go
+      - internal/rtk/constants.go
+    phase_doc: "docs/phases/phase-07-rtk-caveman.md"
+
+  - id: "8.1+8.2"
+    name: "Usage extraction + pricing catalog"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/usage/tracker.go
+      - internal/usage/tracker_test.go
+      - internal/modelcatalog/pricing.go
+      - internal/modelcatalog/catalog.go
+      - internal/modelcatalog/pricing_test.go
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
+```
+
+### Wave 2.B — Middleware + dependent tasks (up to 8 agents)
+
+```yaml
+wave: "2.B"
+status: PENDING
+max_agents: 8
+depends_on: ["2.A"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "2.2"
+    name: "Middleware (CORS, auth, request ID)"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["2.1"]
+    files_owned:
+      - api/middleware.go
+      - api/middleware_test.go
+    phase_doc: "docs/phases/phase-02-http-server-proxy-engine.md"
+
+  - id: "4.1"
+    name: "Provider registry"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/provider/registry.go
+      - internal/provider/registry_test.go
+    phase_doc: "docs/phases/phase-04-persistence-provider-registry.md"
+
+  - id: "4.2"
+    name: "Connection management with round-robin"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/provider/connection.go
+      - internal/provider/connection_test.go
+    phase_doc: "docs/phases/phase-04-persistence-provider-registry.md"
+
+  - id: "7.2"
+    name: "RTK filters (11 total)"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["7.1"]
+    files_owned:
+      - internal/rtk/filters/*.go
+    phase_doc: "docs/phases/phase-07-rtk-caveman.md"
+
+  - id: "7.4"
+    name: "Caveman prompt injection"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/rtk/caveman.go
+      - internal/rtk/caveman_test.go
+      - internal/rtk/prompts.go
+    phase_doc: "docs/phases/phase-07-rtk-caveman.md"
+
+  - id: "8.3"
+    name: "Cost calculation"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["8.1+8.2"]
+    files_owned:
+      - internal/usage/cost.go
+      - internal/usage/cost_test.go
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
+
+  - id: "5.2"
+    name: "Anthropic OAuth (Claude Code)"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["5.1"]
+    files_owned:
+      - internal/provider/oauth/anthropic.go
+      - internal/provider/oauth/anthropic_test.go
+    phase_doc: "docs/phases/phase-05-oauth-flows-cli.md"
+
+  - id: "5.3"
+    name: "OpenAI Codex OAuth"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["5.1"]
+    files_owned:
+      - internal/provider/oauth/codex.go
+      - internal/provider/oauth/codex_test.go
+    phase_doc: "docs/phases/phase-05-oauth-flows-cli.md"
+```
+
+### Wave 2.C — Integration + more OAuth (up to 8 agents)
+
+```yaml
+wave: "2.C"
+status: PENDING
+max_agents: 8
+depends_on: ["2.B"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "2.7"
+    name: "Inference handler"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["2.1", "2.2", "2.3", "2.5", "2.6"]
+    files_owned:
+      - api/handlers/inference.go
+      - api/handlers/inference_test.go
+      - api/handlers/models.go
+    phase_doc: "docs/phases/phase-02-http-server-proxy-engine.md"
+
+  - id: "7.3"
+    name: "RTK message compression"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["7.1", "7.2"]
+    files_owned:
+      - internal/rtk/rtk.go
+      - internal/rtk/rtk_test.go
+    phase_doc: "docs/phases/phase-07-rtk-caveman.md"
+
+  - id: "8.4"
+    name: "Provider quota fetchers"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/usage/quota.go
+      - internal/usage/quota_test.go
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
+
+  - id: "8.5"
+    name: "Request/response logging"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/logging/logger.go
+      - internal/logging/requestlog.go
+      - internal/logging/logger_test.go
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
+
+  - id: "5.4"
+    name: "GitHub Copilot OAuth"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["5.1"]
+    files_owned:
+      - internal/provider/oauth/github.go
+      - internal/provider/oauth/github_test.go
+
+  - id: "5.5"
+    name: "Cursor PKCE OAuth"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["5.1"]
+    files_owned:
+      - internal/provider/oauth/cursor.go
+      - internal/provider/oauth/cursor_test.go
+
+  - id: "5.6"
+    name: "Google OAuth (Gemini CLI, Antigravity)"
+    status: PENDING
+    agent: null
+    depends_on_tasks: ["5.1"]
+    files_owned:
+      - internal/provider/oauth/gemini.go
+      - internal/provider/oauth/antigravity.go
+      - internal/provider/oauth/gemini_test.go
+      - internal/provider/oauth/antigravity_test.go
+
+  - id: "4.3"
+    name: "Combos store + resolver"
+    status: PENDING
+    agent: null
+    files_owned:
+      - internal/store/combos.go
+      - internal/store/combos_test.go
+    phase_doc: "docs/phases/phase-04-persistence-provider-registry.md"
+```
+
+**Checkpoint**: `PHASE_2_COMPLETE`, `PHASE_7_COMPLETE` → advance to STAGE 3
+
+---
+
+## STAGE 3 — Providers + MCP + UI
+
+### Wave 3.A — Provider implementations (up to 8 agents)
+
+```yaml
+wave: "3.A"
+status: PENDING
+max_agents: 8
+depends_on: ["2.C"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "3.1"
+    name: "Anthropic provider"
+    status: PENDING
+    files_owned: ["internal/providers/anthropic/*"]
+
+  - id: "3.2"
+    name: "Format translation engine"
+    status: PENDING
+    files_owned: ["internal/translate/detect.go", "internal/translate/openai.go", "internal/translate/anthropic.go", "internal/translate/detect_test.go", "internal/translate/anthropic_test.go"]
+
+  - id: "3.3"
+    name: "OpenAI-compatible providers (batch)"
+    status: PENDING
+    files_owned: ["internal/providers/openaicompat/*"]
+
+  - id: "3.4"
+    name: "Gemini provider"
+    status: PENDING
+    files_owned: ["internal/providers/gemini/*"]
+
+  - id: "3.7"
+    name: "AWS Bedrock provider"
+    status: PENDING
+    files_owned: ["internal/providers/bedrock/*"]
+
+  - id: "3.8"
+    name: "Azure OpenAI provider"
+    status: PENDING
+    files_owned: ["internal/providers/azure/*"]
+
+  - id: "9.1+9.2"
+    name: "MCP client manager + tool manager"
+    status: PENDING
+    files_owned: ["internal/mcp/clientmanager.go", "internal/mcp/clientmanager_test.go", "internal/mcp/toolmanager.go", "internal/mcp/toolmanager_test.go"]
+
+  - id: "10.1"
+    name: "UI scaffold (Vite + React + Tailwind)"
+    status: PENDING
+    files_owned: ["ui/**"]
+```
+
+### Wave 3.B — Translation + remaining providers + OAuth + management (up to 8 agents)
+
+```yaml
+wave: "3.B"
+status: PENDING
+max_agents: 8
+depends_on: ["3.A"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "3.5"
+    name: "Gemini format translation"
+    status: PENDING
+    depends_on_tasks: ["3.2", "3.4"]
+    files_owned: ["internal/translate/gemini.go", "internal/translate/gemini_test.go"]
+
+  - id: "3.6"
+    name: "Vertex AI provider"
+    status: PENDING
+    depends_on_tasks: ["3.4"]
+    files_owned: ["internal/providers/vertex/*"]
+
+  - id: "3.9"
+    name: "Mistral, Ollama, Cohere, Replicate"
+    status: PENDING
+    files_owned: ["internal/providers/mistral/*", "internal/providers/ollama/*", "internal/providers/cohere/*", "internal/providers/replicate/*"]
+
+  - id: "4.4"
+    name: "Model aliases + pricing overrides"
+    status: PENDING
+    files_owned: ["internal/store/aliases.go", "internal/store/aliases_test.go", "internal/store/pricing.go", "internal/store/pricing_test.go"]
+
+  - id: "5.7"
+    name: "xAI, DeepSeek, GitLab, Kiro OAuth"
+    status: PENDING
+    depends_on_tasks: ["5.1"]
+    files_owned: ["internal/provider/oauth/xai.go", "internal/provider/oauth/deepseek.go", "internal/provider/oauth/gitlab.go", "internal/provider/oauth/kiro.go"]
+
+  - id: "5.8"
+    name: "Chinese provider OAuth"
+    status: PENDING
+    depends_on_tasks: ["5.1"]
+    files_owned: ["internal/provider/oauth/kimi.go", "internal/provider/oauth/minimax.go", "internal/provider/oauth/alibaba.go", "internal/provider/oauth/zhipu.go", "internal/provider/oauth/xiaomi.go"]
+
+  - id: "5.9"
+    name: "Token refresh with dedup"
+    status: PENDING
+    depends_on_tasks: ["5.1"]
+    files_owned: ["internal/provider/refresh.go", "internal/provider/refresh_test.go"]
+
+  - id: "10.2-10.7"
+    name: "UI pages (Dashboard, Endpoint, Providers, Usage, Quota, etc.)"
+    status: PENDING
+    depends_on_tasks: ["10.1"]
+    files_owned: ["ui/src/pages/*", "ui/src/components/*", "ui/src/api/*"]
+```
+
+**Checkpoint**: `PHASE_3_COMPLETE` → advance to STAGE 4
+
+---
+
+## STAGE 4 — Integration + Final Features
+
+### Wave 4.A — Handlers + CLI + fallback (up to 6 agents)
+
+```yaml
+wave: "4.A"
+status: PENDING
+max_agents: 6
+depends_on: ["3.B"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "4.5"
+    name: "Management API handlers"
+    status: PENDING
+    depends_on_tasks: ["4.1", "4.2", "4.3", "4.4"]
+    files_owned: ["api/handlers/providers.go", "api/handlers/connections.go", "api/handlers/settings.go", "api/handlers/apikeys.go", "api/handlers/combos.go"]
+
+  - id: "5.10"
+    name: "OAuth HTTP endpoints"
+    status: PENDING
+    files_owned: ["api/handlers/oauth.go", "api/handlers/oauth_test.go"]
+
+  - id: "5.11"
+    name: "CLI commands (cobra)"
+    status: PENDING
+    files_owned: ["internal/cli/*.go", "cmd/g0router/main.go"]
+
+  - id: "6.1"
+    name: "Account fallback engine"
+    status: PENDING
+    depends_on_tasks: ["4.2"]
+    files_owned: ["internal/provider/fallback.go", "internal/provider/fallback_test.go"]
+
+  - id: "6.2"
+    name: "Combo model resolution"
+    status: PENDING
+    depends_on_tasks: ["4.3"]
+    files_owned: ["internal/proxy/combo.go", "internal/proxy/combo_test.go"]
+
+  - id: "8.6"
+    name: "Usage + logging API handlers"
+    status: PENDING
+    depends_on_tasks: ["8.1+8.2", "8.3", "8.4", "8.5"]
+    files_owned: ["api/handlers/usage.go", "api/handlers/logging.go"]
+```
+
+### Wave 4.B — MCP completion + Responses + UI embed (up to 6 agents)
+
+```yaml
+wave: "4.B"
+status: PENDING
+max_agents: 6
+depends_on: ["4.A"]
+gate: "go test ./... && go vet ./..."
+
+tasks:
+  - id: "3.10"
+    name: "Responses API support"
+    status: PENDING
+    files_owned: ["internal/providers/openai/responses.go", "internal/streaming/responses.go", "internal/translate/responses.go"]
+
+  - id: "9.3"
+    name: "MCP tool discovery (compact manifests)"
+    status: PENDING
+    depends_on_tasks: ["9.1+9.2"]
+    files_owned: ["internal/mcp/discovery.go", "internal/mcp/discovery_test.go"]
+
+  - id: "9.4"
+    name: "MCP agent loop"
+    status: PENDING
+    depends_on_tasks: ["9.1+9.2"]
+    files_owned: ["internal/mcp/agent.go", "internal/mcp/agent_test.go"]
+
+  - id: "9.5"
+    name: "MCP health monitor"
+    status: PENDING
+    depends_on_tasks: ["9.1+9.2"]
+    files_owned: ["internal/mcp/healthmonitor.go", "internal/mcp/healthmonitor_test.go"]
+
+  - id: "9.6"
+    name: "MCP API handlers + store"
+    status: PENDING
+    depends_on_tasks: ["9.1+9.2", "9.3", "9.4", "9.5"]
+    files_owned: ["api/handlers/mcp.go", "internal/store/mcpclients.go", "internal/store/mcpclients_test.go"]
+
+  - id: "10.8"
+    name: "Embed UI in Go binary"
+    status: PENDING
+    depends_on_tasks: ["10.2-10.7"]
+    files_owned: ["embed.go"]
+```
+
+**Checkpoint**: `PHASE_4_COMPLETE`, `PHASE_5_COMPLETE`, `PHASE_6_COMPLETE`, `PHASE_8_COMPLETE`, `PHASE_9_COMPLETE`, `PHASE_10_COMPLETE`
+
+---
+
+## STAGE 5 — Packaging
+
+### Wave 5.A — Final packaging (3 agents)
+
+```yaml
+wave: "5.A"
+status: PENDING
+max_agents: 3
+depends_on: ["4.B"]
+gate: "make test && make build"
+
+tasks:
+  - id: "11.1"
+    name: "Makefile"
+    status: PENDING
+    files_owned: ["Makefile"]
+
+  - id: "11.2"
+    name: "systemd service + install CLI"
+    status: PENDING
+    files_owned: ["deploy/g0router.service", "deploy/g0router.default", "internal/cli/install.go", "internal/cli/install_test.go"]
+
+  - id: "11.3"
+    name: "Docker support"
+    status: PENDING
+    files_owned: ["Dockerfile", "docker-compose.yml", ".dockerignore"]
+```
+
+### Wave 5.B — Polish + E2E (2 agents)
+
+```yaml
+wave: "5.B"
+status: PENDING
+max_agents: 2
+depends_on: ["5.A"]
+gate: "make test && make build && make docker"
+
+tasks:
+  - id: "11.4"
+    name: ".env.example + README polish"
+    status: PENDING
+    files_owned: ["README.md", ".env.example", "docs/DEPLOYMENT.md"]
+
+  - id: "11.5"
+    name: "Final integration test suite"
+    status: PENDING
+    files_owned: ["e2e_test.go"]
+```
+
+**Checkpoint**: `PHASE_11_COMPLETE` → **PROJECT COMPLETE**
+
+---
 
 ## Verification Protocol
 
 Before marking any task DONE:
 
 ```bash
-# 1. Tests pass
-go test ./...
-
-# 2. Vet passes
-go vet ./...
-
-# 3. Build succeeds
-go build ./cmd/g0router
-
-# 4. New tests exist for new code
-# (check that _test.go files were created BEFORE implementation)
+go test ./... -count=1    # All tests pass
+go vet ./...              # Clean
+go build ./cmd/g0router   # Binary builds
 ```
 
 ## Recovery Protocol
 
-If you find the project in a broken state:
+If project is in a broken state:
 
-1. Run `go test ./...` to identify failures.
-2. Check `git log --oneline -10` for last successful commit.
-3. Read this WORKFLOW.md to find which task is IN_PROGRESS.
-4. Fix the failing tests before proceeding.
-5. Never skip a broken test — fix it or revert the change.
+1. `go test ./...` → identify failures
+2. `git log --oneline -10` → last good commit
+3. Read WORKFLOW.md → find IN_PROGRESS task
+4. Fix failing tests before proceeding
+5. Never skip a broken test — fix or revert
