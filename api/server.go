@@ -2,10 +2,14 @@ package api
 
 import (
 	"fmt"
+	"io/fs"
+	"mime"
 	"net"
+	"path"
 	"strconv"
 	"strings"
 
+	"github.com/bloodf/g0router"
 	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
@@ -31,10 +35,13 @@ type ServerConfig struct {
 type Server struct {
 	config ServerConfig
 	server *fasthttp.Server
+	uiFS   fs.FS
+	uiErr  error
 }
 
 func NewServer(config ServerConfig) *Server {
-	srv := &Server{config: config}
+	uiFS, err := g0router.UI()
+	srv := &Server{config: config, uiFS: uiFS, uiErr: err}
 	srv.server = &fasthttp.Server{
 		Handler: srv.handle,
 	}
@@ -84,6 +91,10 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 		}
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 	default:
+		if strings.HasPrefix(string(ctx.Path()), "/v1/") {
+			ctx.SetStatusCode(fasthttp.StatusNotFound)
+			return
+		}
 		s.handleAPI(ctx)
 	}
 }
@@ -140,8 +151,56 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 	case path == "/api/logs":
 		handlers.Logs(ctx, s.config.UsageStore)
 	default:
-		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		if strings.HasPrefix(path, "/api/") || path == "/api" {
+			ctx.SetStatusCode(fasthttp.StatusNotFound)
+			return
+		}
+		s.handleUI(ctx)
 	}
+}
+
+func (s *Server) handleUI(ctx *fasthttp.RequestCtx) {
+	if s.uiErr != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		_, _ = ctx.WriteString(s.uiErr.Error())
+		return
+	}
+	if string(ctx.Method()) != fasthttp.MethodGet && string(ctx.Method()) != fasthttp.MethodHead {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		return
+	}
+
+	filePath := cleanUIPath(string(ctx.Path()))
+	body, err := fs.ReadFile(s.uiFS, filePath)
+	if err != nil {
+		if strings.HasPrefix(filePath, "assets/") {
+			ctx.SetStatusCode(fasthttp.StatusNotFound)
+			return
+		}
+		body, err = fs.ReadFile(s.uiFS, "index.html")
+		filePath = "index.html"
+	}
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		_, _ = ctx.WriteString(fmt.Errorf("serve ui: %w", err).Error())
+		return
+	}
+
+	if contentType := mime.TypeByExtension(path.Ext(filePath)); contentType != "" {
+		ctx.SetContentType(contentType)
+	}
+	if string(ctx.Method()) == fasthttp.MethodHead {
+		return
+	}
+	_, _ = ctx.Write(body)
+}
+
+func cleanUIPath(requestPath string) string {
+	cleaned := strings.TrimPrefix(path.Clean("/"+requestPath), "/")
+	if cleaned == "" || cleaned == "." {
+		return "index.html"
+	}
+	return cleaned
 }
 
 func pathParts(path string) []string {
