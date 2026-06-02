@@ -53,7 +53,10 @@ func newAuthListCommand() *cobra.Command {
 }
 
 func newAuthLoginCommand(use string) *cobra.Command {
-	return &cobra.Command{
+	var device bool
+	var key bool
+
+	cmd := &cobra.Command{
 		Use:   use + " <provider>",
 		Short: "Start provider authentication",
 		Args:  cobra.ExactArgs(1),
@@ -72,6 +75,9 @@ func newAuthLoginCommand(use string) *cobra.Command {
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&device, "device", false, "start device authorization flow")
+	cmd.Flags().BoolVar(&key, "key", false, "start API key credential flow")
+	return cmd
 }
 
 func newAuthLogoutCommand(dataDir *string) *cobra.Command {

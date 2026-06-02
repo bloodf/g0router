@@ -31,3 +31,16 @@ func NewInstallCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&user, "user", false, "install as a user systemd service")
 	return cmd
 }
+
+func newUninstallCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "uninstall",
+		Short: "Print systemd removal targets",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
+			fmt.Fprintln(out, "Remove systemd service")
+			fmt.Fprintln(out, "Data: keeps data")
+			return nil
+		},
+	}
+}

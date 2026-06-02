@@ -27,7 +27,7 @@ func TestRootCommandIncludesExpectedSubcommands(t *testing.T) {
 	cmd := NewRootCommand("0.1.0-test")
 	names := commandNames(cmd.Commands())
 
-	for _, want := range []string{"auth", "install", "keys", "login", "logout", "providers", "serve", "status", "version"} {
+	for _, want := range []string{"auth", "healthcheck", "install", "keys", "login", "logout", "providers", "serve", "status", "uninstall", "version"} {
 		if !names[want] {
 			t.Fatalf("missing subcommand %q in %v", want, names)
 		}
@@ -111,5 +111,21 @@ func TestStatusCommandUsesDataDir(t *testing.T) {
 
 	if got := out.String(); !strings.Contains(got, "store: ok") {
 		t.Fatalf("output = %q, want store status", got)
+	}
+}
+
+func TestHealthcheckCommandAcceptsDefaultConfiguration(t *testing.T) {
+	cmd := NewRootCommand("test")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"healthcheck"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got := out.String(); !strings.Contains(got, "healthcheck: ok") {
+		t.Fatalf("output = %q, want healthcheck status", got)
 	}
 }

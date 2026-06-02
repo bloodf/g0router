@@ -62,8 +62,10 @@ func newRootCommand(config rootConfig) *cobra.Command {
 	cmd.AddCommand(newKeysCommand(&dataDir))
 	cmd.AddCommand(newProvidersCommand())
 	cmd.AddCommand(newStatusCommand(&dataDir))
+	cmd.AddCommand(newHealthcheckCommand())
 	cmd.AddCommand(newVersionCommand(config.Version))
 	cmd.AddCommand(NewInstallCommand())
+	cmd.AddCommand(newUninstallCommand())
 	cmd.AddCommand(newServeCommand(config.Version, config.Serve, &dataDir))
 
 	return cmd
@@ -297,6 +299,17 @@ func newStatusCommand(dataDir *string) *cobra.Command {
 			}
 			defer s.Close()
 			fmt.Fprintln(cmd.OutOrStdout(), "store: ok")
+			return nil
+		},
+	}
+}
+
+func newHealthcheckCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "healthcheck",
+		Short: "Check local server health",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintln(cmd.OutOrStdout(), "healthcheck: ok")
 			return nil
 		},
 	}

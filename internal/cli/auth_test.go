@@ -64,6 +64,26 @@ func TestAuthLoginRejectsUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestLoginCommandAcceptsAdvertisedFlags(t *testing.T) {
+	for _, args := range [][]string{
+		{"login", "minimax", "--device"},
+		{"login", "minimax", "--key"},
+	} {
+		cmd := NewRootCommand("test")
+		var out bytes.Buffer
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		cmd.SetArgs(args)
+
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("%v execute: %v", args, err)
+		}
+		if got := out.String(); !strings.Contains(got, "minimax") {
+			t.Fatalf("%v output = %q, want provider", args, got)
+		}
+	}
+}
+
 func TestAuthCommandExposesLogout(t *testing.T) {
 	cmd := NewAuthCommand()
 	names := commandNames(cmd.Commands())
