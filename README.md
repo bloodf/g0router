@@ -16,7 +16,8 @@ Single-binary Go LLM gateway that unifies multiple AI provider APIs behind one e
 ## Quick Start
 
 ```bash
-# Build
+# Build and test
+make test
 make build
 
 # Login to a provider
@@ -35,6 +36,25 @@ curl http://localhost:20128/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}'
 ```
+
+## Deployment
+
+```bash
+# systemd service
+sudo ./g0router install
+sudo systemctl status g0router
+
+# Docker image
+make docker
+docker run --rm -p 20128:20128 \
+  -e API_KEY_SECRET="$(openssl rand -hex 32)" \
+  g0router:latest
+
+# Docker Compose
+API_KEY_SECRET="$(openssl rand -hex 32)" docker compose up -d
+```
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, Docker, logs, health checks, and upgrade steps.
 
 ## Supported Providers
 

@@ -13,7 +13,7 @@ make build
 
 ```bash
 # System-wide (requires root)
-sudo g0router install
+sudo ./g0router install
 
 # Creates:
 #   /usr/local/bin/g0router               (binary)
@@ -23,7 +23,7 @@ sudo g0router install
 #   g0router system user                  (runs as non-root)
 
 # User-level (no root required)
-g0router install --user
+./g0router install --user
 # Installs to ~/.config/systemd/user/g0router.service
 # Data at ~/.g0router/
 ```
@@ -59,6 +59,9 @@ sudo journalctl -u g0router -f
 ```bash
 sudo g0router uninstall
 # Stops service, removes unit + binary. Data in /var/lib/g0router/ preserved.
+
+g0router uninstall --user
+# Stops user service and preserves ~/.g0router/.
 ```
 
 ### systemd Unit (deploy/g0router.service)
@@ -140,7 +143,7 @@ docker run -d \
   g0router
 ```
 
-### Docker Compose (deploy/docker-compose.yml)
+### Docker Compose (docker-compose.yml)
 
 ```yaml
 services:
@@ -174,7 +177,6 @@ volumes:
 ### Dockerfile
 
 ```dockerfile
-# Stage 1: Build UI
 FROM node:22-alpine AS ui-builder
 WORKDIR /app/ui
 COPY ui/package.json ui/package-lock.json ./
@@ -182,22 +184,20 @@ RUN npm ci
 COPY ui/ ./
 RUN npm run build
 
-# Stage 2: Build Go binary
 FROM golang:1.26-alpine AS go-builder
-RUN apk add --no-cache gcc musl-dev
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=ui-builder /app/ui/dist ./ui/dist
-RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o g0router ./cmd/g0router
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o g0router ./cmd/g0router
 
-# Stage 3: Runtime
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=go-builder /app/g0router /g0router
-VOLUME /data
+VOLUME ["/data"]
 EXPOSE 20128
-ENV DATA_DIR=/data PORT=20128
+ENV DATA_DIR=/data
+ENV PORT=20128
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/g0router", "healthcheck"]
 ENTRYPOINT ["/g0router"]
 CMD ["serve"]
