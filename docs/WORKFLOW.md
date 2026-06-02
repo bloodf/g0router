@@ -29,9 +29,9 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 3
-current_wave: "3.B"
-last_updated: "2026-06-02T19:07:47Z"
+current_stage: 4
+current_wave: "4.A"
+last_updated: "2026-06-02T19:31:59Z"
 last_agent: "orchestrator"
 ```
 
@@ -545,7 +545,7 @@ tasks:
 
 ```yaml
 wave: "3.B"
-status: PENDING
+status: DONE
 max_agents: 8
 depends_on: ["3.A"]
 gate: "go test ./... && go vet ./..."
@@ -553,47 +553,63 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "3.5"
     name: "Gemini format translation"
-    status: PENDING
+    status: DONE
+    agent: "Boole"
+    completed_at: "2026-06-02T19:31:59Z"
     depends_on_tasks: ["3.2", "3.4"]
     files_owned: ["internal/translate/gemini.go", "internal/translate/gemini_test.go"]
 
   - id: "3.6"
     name: "Vertex AI provider"
-    status: PENDING
+    status: DONE
+    agent: "Popper"
+    completed_at: "2026-06-02T19:31:59Z"
     depends_on_tasks: ["3.4"]
     files_owned: ["internal/providers/vertex/*"]
 
   - id: "3.9"
     name: "Mistral, Ollama, Cohere, Replicate"
-    status: PENDING
+    status: DONE
+    agent: "Confucius"
+    completed_at: "2026-06-02T19:31:59Z"
     files_owned: ["internal/providers/mistral/*", "internal/providers/ollama/*", "internal/providers/cohere/*", "internal/providers/replicate/*"]
 
   - id: "4.4"
     name: "Model aliases + pricing overrides"
-    status: PENDING
+    status: DONE
+    agent: "Mill"
+    completed_at: "2026-06-02T19:31:59Z"
     files_owned: ["internal/store/aliases.go", "internal/store/aliases_test.go", "internal/store/pricing.go", "internal/store/pricing_test.go"]
 
   - id: "5.7"
     name: "xAI, DeepSeek, GitLab, Kiro OAuth"
-    status: PENDING
+    status: DONE
+    agent: "James"
+    completed_at: "2026-06-02T19:31:59Z"
     depends_on_tasks: ["5.1"]
     files_owned: ["internal/provider/oauth/xai.go", "internal/provider/oauth/deepseek.go", "internal/provider/oauth/gitlab.go", "internal/provider/oauth/kiro.go"]
 
   - id: "5.8"
     name: "Chinese provider OAuth"
-    status: PENDING
+    status: DONE
+    agent: "Hooke"
+    completed_at: "2026-06-02T19:31:59Z"
     depends_on_tasks: ["5.1"]
     files_owned: ["internal/provider/oauth/kimi.go", "internal/provider/oauth/minimax.go", "internal/provider/oauth/alibaba.go", "internal/provider/oauth/zhipu.go", "internal/provider/oauth/xiaomi.go"]
 
   - id: "5.9"
     name: "Token refresh with dedup"
-    status: PENDING
+    status: DONE
+    agent: "Ampere"
+    completed_at: "2026-06-02T19:31:59Z"
     depends_on_tasks: ["5.1"]
     files_owned: ["internal/provider/refresh.go", "internal/provider/refresh_test.go"]
 
   - id: "10.2-10.7"
     name: "UI pages (Dashboard, Endpoint, Providers, Usage, Quota, etc.)"
-    status: PENDING
+    status: DONE
+    agent: "Turing"
+    completed_at: "2026-06-02T19:31:59Z"
     depends_on_tasks: ["10.1"]
     files_owned: ["ui/src/pages/*", "ui/src/components/*", "ui/src/api/*"]
 ```
