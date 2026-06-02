@@ -13,6 +13,23 @@ type listResponse[T any] struct {
 	Data []T `json:"data"`
 }
 
+type connectionResponse struct {
+	ID                   string
+	Provider             string
+	Name                 string
+	AuthType             store.AuthType
+	ExpiresAt            *int64
+	IsActive             bool
+	ProviderSpecificData map[string]any
+	AccountID            *string
+	Email                *string
+	UnavailableUntil     *int64
+	BackoffLevel         int
+	ModelLocks           map[string]int64
+	CreatedAt            string
+	UpdatedAt            string
+}
+
 type connectionRequest struct {
 	Provider             string           `json:"provider"`
 	Name                 string           `json:"name"`
@@ -43,7 +60,7 @@ func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list connections: %v", err))
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusOK, listResponse[*store.Connection]{Data: connections})
+		writeJSON(ctx, fasthttp.StatusOK, listResponse[connectionResponse]{Data: redactConnections(connections)})
 	case fasthttp.MethodPost:
 		conn, ok := decodeConnectionRequest(ctx)
 		if !ok {
@@ -53,7 +70,7 @@ func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create connection: %v", err))
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusCreated, conn)
+		writeJSON(ctx, fasthttp.StatusCreated, redactConnection(conn))
 	case fasthttp.MethodPut:
 		if id == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "connection id required")
@@ -73,7 +90,7 @@ func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 			writeStoreError(ctx, "get connection", err)
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusOK, got)
+		writeJSON(ctx, fasthttp.StatusOK, redactConnection(got))
 	case fasthttp.MethodDelete:
 		if id == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "connection id required")
@@ -111,6 +128,33 @@ func decodeConnectionRequest(ctx *fasthttp.RequestCtx) (*store.Connection, bool)
 		BackoffLevel:         req.BackoffLevel,
 		ModelLocks:           req.ModelLocks,
 	}, true
+}
+
+func redactConnections(connections []*store.Connection) []connectionResponse {
+	responses := make([]connectionResponse, 0, len(connections))
+	for _, conn := range connections {
+		responses = append(responses, redactConnection(conn))
+	}
+	return responses
+}
+
+func redactConnection(conn *store.Connection) connectionResponse {
+	return connectionResponse{
+		ID:                   conn.ID,
+		Provider:             conn.Provider,
+		Name:                 conn.Name,
+		AuthType:             conn.AuthType,
+		ExpiresAt:            conn.ExpiresAt,
+		IsActive:             conn.IsActive,
+		ProviderSpecificData: conn.ProviderSpecificData,
+		AccountID:            conn.AccountID,
+		Email:                conn.Email,
+		UnavailableUntil:     conn.UnavailableUntil,
+		BackoffLevel:         conn.BackoffLevel,
+		ModelLocks:           conn.ModelLocks,
+		CreatedAt:            conn.CreatedAt,
+		UpdatedAt:            conn.UpdatedAt,
+	}
 }
 
 func listConnections(s *store.Store) ([]*store.Connection, error) {

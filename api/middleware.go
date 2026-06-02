@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/rand"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/valyala/fasthttp"
@@ -20,9 +21,7 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 	}
 
 	ctx.Response.Header.Set("X-Request-ID", requestID)
-	ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
-	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-Key")
-	ctx.Response.Header.Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	s.applyCORS(ctx)
 
 	if string(ctx.Method()) == fasthttp.MethodOptions {
 		ctx.SetStatusCode(fasthttp.StatusNoContent)
@@ -44,11 +43,67 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 	return true
 }
 
+func (s *Server) applyCORS(ctx *fasthttp.RequestCtx) {
+	if origin := string(ctx.Request.Header.Peek("Origin")); isAllowedLocalOrigin(origin) {
+		ctx.Response.Header.Set("Access-Control-Allow-Origin", origin)
+	}
+	ctx.Response.Header.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-API-Key")
+	ctx.Response.Header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+}
+
+func isAllowedLocalOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	switch parsed.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *Server) requiresAuth(ctx *fasthttp.RequestCtx) bool {
 	if !s.config.RequireAPIKey {
 		return false
 	}
-	return strings.HasPrefix(string(ctx.Path()), "/v1/")
+	requestPath := strings.TrimRight(string(ctx.Path()), "/")
+	if requestPath == "" {
+		requestPath = "/"
+	}
+	return strings.HasPrefix(requestPath, "/v1/") || isProtectedManagementPath(requestPath)
+}
+
+func isProtectedManagementPath(requestPath string) bool {
+	switch {
+	case pathIsOrBelow(requestPath, "/api/keys"):
+		return true
+	case requestPath == "/api/settings":
+		return true
+	case pathIsOrBelow(requestPath, "/api/connections"):
+		return true
+	case pathIsOrBelow(requestPath, "/api/mcp/clients"):
+		return true
+	case pathIsOrBelow(requestPath, "/api/mcp/instances"):
+		return true
+	case requestPath == "/api/mcp/tools":
+		return true
+	case strings.HasPrefix(requestPath, "/api/mcp/tools/") && strings.HasSuffix(requestPath, "/execute"):
+		return true
+	default:
+		return false
+	}
+}
+
+func pathIsOrBelow(requestPath, prefix string) bool {
+	return requestPath == prefix || strings.HasPrefix(requestPath, prefix+"/")
 }
 
 func (s *Server) validAPIKey(ctx *fasthttp.RequestCtx) (bool, error) {
