@@ -8,60 +8,105 @@ import (
 	"testing"
 )
 
-func TestInstallCommandPrintsUserPlan(t *testing.T) {
-	cmd := NewInstallCommand()
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"--user"})
+func TestInstallSystemWritesFilesAndRunsSystemctl(t *testing.T) {
+	root := t.TempDir()
+	binary := writeExecutable(t, root)
+	recorder := &commandRecorder{}
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("execute: %v", err)
+	var out bytes.Buffer
+	err := runInstall(installOptions{
+		Root:       root,
+		HomeDir:    filepath.Join(root, "home"),
+		Executable: binary,
+		RunCommand: recorder.run,
+		Out:        &out,
+	})
+	if err != nil {
+		t.Fatalf("install: %v", err)
 	}
 
-	output := out.String()
-	for _, want := range []string{"user service", ".config/systemd/user/g0router.service", ".g0router", "deploy/g0router.service"} {
-		if !strings.Contains(output, want) {
-			t.Fatalf("output = %q, want %q", output, want)
-		}
+	assertFileContains(t, filepath.Join(root, "usr/local/bin/g0router"), "test binary")
+	assertFileContains(t, filepath.Join(root, "etc/systemd/system/g0router.service"), "ExecStart=/usr/local/bin/g0router serve")
+	assertFileContains(t, filepath.Join(root, "etc/default/g0router"), "DATA_DIR=/var/lib/g0router")
+	if _, err := os.Stat(filepath.Join(root, "var/lib/g0router")); err != nil {
+		t.Fatalf("data dir missing: %v", err)
+	}
+	recorder.assertRan(t, "systemctl daemon-reload")
+	recorder.assertRan(t, "systemctl enable --now g0router")
+	if got := out.String(); !strings.Contains(got, "installed system service") {
+		t.Fatalf("output = %q, want installed system service", got)
 	}
 }
 
-func TestInstallCommandPrintsSystemPlan(t *testing.T) {
-	cmd := NewInstallCommand()
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs([]string{})
+func TestInstallUserWritesFilesAndRunsUserSystemctl(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	binary := writeExecutable(t, root)
+	recorder := &commandRecorder{}
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("execute: %v", err)
+	var out bytes.Buffer
+	err := runInstall(installOptions{
+		User:       true,
+		Root:       root,
+		HomeDir:    home,
+		Executable: binary,
+		RunCommand: recorder.run,
+		Out:        &out,
+	})
+	if err != nil {
+		t.Fatalf("install: %v", err)
 	}
 
-	output := out.String()
-	for _, want := range []string{"system service", "/etc/systemd/system/g0router.service", "/etc/default/g0router", "/var/lib/g0router", "deploy/g0router.default"} {
-		if !strings.Contains(output, want) {
-			t.Fatalf("output = %q, want %q", output, want)
-		}
+	assertFileContains(t, filepath.Join(home, ".local/bin/g0router"), "test binary")
+	assertFileContains(t, filepath.Join(home, ".config/systemd/user/g0router.service"), filepath.Join(home, ".local/bin/g0router")+" serve")
+	if _, err := os.Stat(filepath.Join(home, ".g0router")); err != nil {
+		t.Fatalf("data dir missing: %v", err)
+	}
+	recorder.assertRan(t, "systemctl --user daemon-reload")
+	recorder.assertRan(t, "systemctl --user enable --now g0router")
+	if got := out.String(); !strings.Contains(got, "installed user service") {
+		t.Fatalf("output = %q, want installed user service", got)
 	}
 }
 
-func TestUninstallCommandPrintsRemovalPlan(t *testing.T) {
-	cmd := NewRootCommand("test")
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"uninstall"})
+func TestUninstallSystemDisablesAndRemovesManagedFiles(t *testing.T) {
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "usr/local/bin/g0router"), "binary")
+	mustWrite(t, filepath.Join(root, "etc/systemd/system/g0router.service"), "unit")
+	mustWrite(t, filepath.Join(root, "etc/default/g0router"), "defaults")
+	dataDir := filepath.Join(root, "var/lib/g0router")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatalf("mkdir data: %v", err)
+	}
+	recorder := &commandRecorder{}
 
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("execute: %v", err)
+	var out bytes.Buffer
+	err := runUninstall(installOptions{
+		Root:       root,
+		HomeDir:    filepath.Join(root, "home"),
+		RunCommand: recorder.run,
+		Out:        &out,
+	})
+	if err != nil {
+		t.Fatalf("uninstall: %v", err)
 	}
 
-	output := out.String()
-	for _, want := range []string{"Remove systemd service", "systemctl disable --now g0router", "keeps data"} {
-		if !strings.Contains(output, want) {
-			t.Fatalf("output = %q, want %q", output, want)
+	for _, removed := range []string{
+		filepath.Join(root, "usr/local/bin/g0router"),
+		filepath.Join(root, "etc/systemd/system/g0router.service"),
+		filepath.Join(root, "etc/default/g0router"),
+	} {
+		if _, err := os.Stat(removed); !os.IsNotExist(err) {
+			t.Fatalf("%s still exists or stat failed: %v", removed, err)
 		}
+	}
+	if _, err := os.Stat(dataDir); err != nil {
+		t.Fatalf("data dir should be preserved: %v", err)
+	}
+	recorder.assertRan(t, "systemctl disable --now g0router")
+	recorder.assertRan(t, "systemctl daemon-reload")
+	if got := out.String(); !strings.Contains(got, "kept data") {
+		t.Fatalf("output = %q, want kept data", got)
 	}
 }
 
@@ -84,5 +129,55 @@ func TestDeployTemplatesExist(t *testing.T) {
 		if !strings.Contains(string(defaults), want) {
 			t.Fatalf("defaults = %q, want %q", string(defaults), want)
 		}
+	}
+}
+
+type commandRecorder struct {
+	commands []string
+}
+
+func (r *commandRecorder) run(name string, args ...string) error {
+	r.commands = append(r.commands, strings.TrimSpace(name+" "+strings.Join(args, " ")))
+	return nil
+}
+
+func (r *commandRecorder) assertRan(t *testing.T, want string) {
+	t.Helper()
+	for _, got := range r.commands {
+		if got == want {
+			return
+		}
+	}
+	t.Fatalf("commands = %#v, want %q", r.commands, want)
+}
+
+func writeExecutable(t *testing.T, dir string) string {
+	t.Helper()
+	path := filepath.Join(dir, "g0router-test")
+	mustWrite(t, path, "test binary")
+	if err := os.Chmod(path, 0o755); err != nil {
+		t.Fatalf("chmod binary: %v", err)
+	}
+	return path
+}
+
+func mustWrite(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func assertFileContains(t *testing.T, path, want string) {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if !strings.Contains(string(content), want) {
+		t.Fatalf("%s = %q, want %q", path, string(content), want)
 	}
 }
