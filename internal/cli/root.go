@@ -116,6 +116,21 @@ func envInt(key string, defaultValue int) int {
 	return parsed
 }
 
+func envBool(key string, defaultValue bool) bool {
+	value := strings.ToLower(os.Getenv(key))
+	if value == "" {
+		return defaultValue
+	}
+	switch value {
+	case "true", "1", "yes":
+		return true
+	case "false", "0", "no":
+		return false
+	default:
+		return defaultValue
+	}
+}
+
 func runServer(ctx context.Context, config serveConfig) error {
 	dataDir, err := expandServeDataDir(config.DataDir)
 	if err != nil {
@@ -147,14 +162,26 @@ func runServer(ctx context.Context, config serveConfig) error {
 
 func newServerConfig(config serveConfig, s *store.Store) api.ServerConfig {
 	return api.ServerConfig{
-		Port:          config.Port,
-		Version:       config.Version,
-		Store:         s,
-		ModelSource:   staticModelSource{},
-		OAuthFlows:    defaultOAuthFlows(),
-		UsageStore:    s,
-		QuotaFetchers: defaultQuotaFetchers(),
+		Port:            config.Port,
+		Version:         config.Version,
+		RequireAPIKey:   envBool("REQUIRE_API_KEY", true),
+		APIKeySecret:    localAPIKeySecret(),
+		APIKeyValidator: storeAPIKeyValidator{s: s},
+		Store:           s,
+		ModelSource:     staticModelSource{},
+		OAuthFlows:      defaultOAuthFlows(),
+		UsageStore:      s,
+		QuotaFetchers:   defaultQuotaFetchers(),
 	}
+}
+
+type storeAPIKeyValidator struct {
+	s *store.Store
+}
+
+func (v storeAPIKeyValidator) ValidateAPIKey(key, secret string) (bool, error) {
+	_, ok, err := v.s.ValidateAPIKey(key, secret)
+	return ok, err
 }
 
 func expandServeDataDir(path string) (string, error) {

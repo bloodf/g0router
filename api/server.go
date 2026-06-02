@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -8,6 +9,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bloodf/g0router"
 	"github.com/bloodf/g0router/api/handlers"
@@ -83,7 +85,7 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 		handlers.Health(ctx, s.config.Version)
 	case "/v1/chat/completions":
 		if string(ctx.Method()) == fasthttp.MethodPost {
-			handlers.Inference(ctx, s.config.InferenceEngine)
+			s.handleInference(ctx)
 			return
 		}
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
@@ -100,6 +102,64 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 		}
 		s.handleAPI(ctx)
 	}
+}
+
+func (s *Server) handleInference(ctx *fasthttp.RequestCtx) {
+	started := time.Now()
+	handlers.Inference(ctx, s.config.InferenceEngine)
+	s.logInferenceUsage(ctx, started)
+}
+
+func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time) {
+	usageStore, ok := s.config.UsageStore.(requestLogStore)
+	if !ok || usageStore == nil || ctx.Response.StatusCode() != fasthttp.StatusOK {
+		return
+	}
+
+	var response providers.ChatResponse
+	if err := json.Unmarshal(ctx.Response.Body(), &response); err != nil || response.Usage == nil {
+		return
+	}
+
+	entry := store.RequestLogEntry{
+		RequestID:    string(ctx.Response.Header.Peek("X-Request-ID")),
+		Timestamp:    started.UTC(),
+		Provider:     providerFromModel(response.Model),
+		Model:        response.Model,
+		AuthType:     authTypeForRequest(s.config.RequireAPIKey),
+		InputTokens:  intPtr(response.Usage.PromptTokens),
+		OutputTokens: intPtr(response.Usage.CompletionTokens),
+		TotalTokens:  intPtr(response.Usage.TotalTokens),
+		LatencyMS:    intPtr(int(time.Since(started) / time.Millisecond)),
+		StatusCode:   intPtr(ctx.Response.StatusCode()),
+	}
+	_ = usageStore.LogRequest(&entry)
+}
+
+type requestLogStore interface {
+	LogRequest(entry *store.RequestLogEntry) error
+}
+
+func providerFromModel(model string) string {
+	switch {
+	case strings.HasPrefix(model, "gpt-"):
+		return providers.ProviderOpenAI.String()
+	case strings.HasPrefix(model, "claude-"):
+		return providers.ProviderAnthropic.String()
+	default:
+		return ""
+	}
+}
+
+func authTypeForRequest(requireAPIKey bool) string {
+	if requireAPIKey {
+		return "api_key"
+	}
+	return "noauth"
+}
+
+func intPtr(value int) *int {
+	return &value
 }
 
 func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {

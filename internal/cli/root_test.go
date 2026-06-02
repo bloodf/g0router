@@ -237,3 +237,33 @@ func TestDefaultServerConfigWiresWave4ADependencies(t *testing.T) {
 		t.Fatal("openai quota fetcher should be wired")
 	}
 }
+
+func TestDefaultServerConfigUsesAuthEnvironment(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+	t.Setenv("REQUIRE_API_KEY", "true")
+	t.Setenv("API_KEY_SECRET", "env-secret")
+
+	cfg := newServerConfig(serveConfig{Port: 20128, Version: "test"}, s)
+	if !cfg.RequireAPIKey {
+		t.Fatal("RequireAPIKey = false, want true")
+	}
+	if cfg.APIKeySecret != "env-secret" {
+		t.Fatalf("APIKeySecret = %q, want env-secret", cfg.APIKeySecret)
+	}
+	if cfg.APIKeyValidator == nil {
+		t.Fatal("APIKeyValidator is nil")
+	}
+
+	_, raw, err := s.CreateAPIKey("default", "env-secret")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	ok, err := cfg.APIKeyValidator.ValidateAPIKey(raw, cfg.APIKeySecret)
+	if err != nil {
+		t.Fatalf("ValidateAPIKey: %v", err)
+	}
+	if !ok {
+		t.Fatal("ValidateAPIKey = false, want true")
+	}
+}

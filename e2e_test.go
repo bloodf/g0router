@@ -33,27 +33,13 @@ func TestE2EServerAPIKeyRequestAndUsage(t *testing.T) {
 	})
 
 	rawKey := createE2EAPIKey(t, baseURL, "default")
-	response, requestID := postE2EChatCompletion(t, baseURL, rawKey)
+	response := postE2EChatCompletion(t, baseURL, rawKey)
 
 	if response.Model != "gpt-4o" {
 		t.Fatalf("model = %q, want gpt-4o", response.Model)
 	}
 	if response.Usage == nil || response.Usage.TotalTokens != 7 {
 		t.Fatalf("usage = %+v, want total tokens", response.Usage)
-	}
-
-	if err := s.LogRequest(&store.RequestLogEntry{
-		RequestID:    requestID,
-		Timestamp:    time.Now().UTC(),
-		Provider:     providers.ProviderOpenAI.String(),
-		Model:        response.Model,
-		AuthType:     "api_key",
-		InputTokens:  intPtr(response.Usage.PromptTokens),
-		OutputTokens: intPtr(response.Usage.CompletionTokens),
-		TotalTokens:  intPtr(response.Usage.TotalTokens),
-		StatusCode:   intPtr(http.StatusOK),
-	}); err != nil {
-		t.Fatalf("LogRequest: %v", err)
 	}
 
 	summary := getE2EUsageSummary(t, baseURL)
@@ -155,7 +141,7 @@ func createE2EAPIKey(t *testing.T, baseURL, name string) string {
 	return decoded.Raw
 }
 
-func postE2EChatCompletion(t *testing.T, baseURL, rawKey string) (providers.ChatResponse, string) {
+func postE2EChatCompletion(t *testing.T, baseURL, rawKey string) providers.ChatResponse {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/chat/completions", bytes.NewBufferString(`{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}`))
 	if err != nil {
@@ -181,7 +167,7 @@ func postE2EChatCompletion(t *testing.T, baseURL, rawKey string) (providers.Chat
 	if requestID == "" {
 		t.Fatal("X-Request-ID header is empty")
 	}
-	return decoded, requestID
+	return decoded
 }
 
 func getE2EUsageSummary(t *testing.T, baseURL string) struct {
@@ -219,8 +205,4 @@ func readBody(t *testing.T, r io.Reader) string {
 		t.Fatalf("read body: %v", err)
 	}
 	return string(body)
-}
-
-func intPtr(value int) *int {
-	return &value
 }
