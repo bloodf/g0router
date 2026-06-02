@@ -221,6 +221,16 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		handlers.MCPTools(ctx, s.config.Store, s.config.MCPToolManager, "")
 	case len(parts) == 5 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "tools" && parts[4] == "execute":
 		handlers.MCPTools(ctx, s.config.Store, s.config.MCPToolManager, parts[3])
+	case path == "/api/mcp/oauth/callback":
+		if !requireMethod(ctx, fasthttp.MethodGet) {
+			return
+		}
+		handlers.MCPOAuthCallback(ctx, mcp.NewOAuthEngine(s.config.Store, nil))
+	case len(parts) == 6 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances" && parts[4] == "oauth" && parts[5] == "complete":
+		if !requireMethod(ctx, fasthttp.MethodPost) {
+			return
+		}
+		handlers.MCPOAuthComplete(ctx, mcp.NewOAuthEngine(s.config.Store, nil), parts[3])
 	default:
 		if strings.HasPrefix(path, "/api/") || path == "/api" {
 			ctx.SetStatusCode(fasthttp.StatusNotFound)

@@ -64,6 +64,7 @@ func newRootCommand(config rootConfig) *cobra.Command {
 	cmd.AddCommand(newLoginCommand())
 	cmd.AddCommand(newLogoutCommand(&dataDir))
 	cmd.AddCommand(newKeysCommand(&dataDir))
+	cmd.AddCommand(newMCPCommand(&dataDir))
 	cmd.AddCommand(newProvidersCommand())
 	cmd.AddCommand(newStatusCommand(&dataDir))
 	cmd.AddCommand(newHealthcheckCommand())
