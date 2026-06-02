@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: IN_PROGRESS
-current_stage: 5
-current_wave: "5.B"
-last_updated: "2026-06-02T21:28:21Z"
+project_status: COMPLETE
+current_stage: 6
+current_wave: "6.A"
+last_updated: "2026-06-02T22:32:54Z"
 last_agent: "orchestrator"
 ```
 
@@ -798,7 +798,77 @@ tasks:
     files_owned: ["e2e_test.go"]
 ```
 
-**Checkpoint**: `PHASE_11_COMPLETE` → **PROJECT COMPLETE**
+**Checkpoint**: `PHASE_11_COMPLETE` → advance to STAGE 6
+
+---
+
+## STAGE 6 — Advanced MCP Gateway
+
+### Wave 6.A — Future MCP instance + OAuth gateway (1 agent, sequential)
+
+```yaml
+wave: "6.A"
+status: DONE
+max_agents: 1
+depends_on: ["5.B"]
+gate: "go test ./... && go vet ./... && go build ./cmd/g0router"
+
+tasks:
+  - id: "12.1"
+    name: "MCP instance model + store"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T22:17:31Z"
+    files_owned: ["internal/store/mcpinstances.go", "internal/store/mcpinstances_test.go", "internal/mcp/instances.go", "internal/mcp/instances_test.go"]
+    phase_doc: "docs/phases/phase-12-advanced-mcp-gateway.md"
+
+  - id: "12.2"
+    name: "MCP launchers for command, npx, docker, and HTTP"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T22:20:03Z"
+    depends_on_tasks: ["12.1"]
+    files_owned: ["internal/mcp/launcher.go", "internal/mcp/launcher_test.go", "internal/mcp/process.go", "internal/mcp/http.go"]
+    phase_doc: "docs/phases/phase-12-advanced-mcp-gateway.md"
+
+  - id: "12.3"
+    name: "MCP OAuth account engine"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T22:22:31Z"
+    depends_on_tasks: ["12.1"]
+    files_owned: ["internal/mcp/oauth.go", "internal/mcp/oauth_test.go", "internal/store/mcpoauth.go", "internal/store/mcpoauth_test.go"]
+    phase_doc: "docs/phases/phase-12-advanced-mcp-gateway.md"
+
+  - id: "12.4"
+    name: "MCP OAuth callback URL completion"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T22:25:41Z"
+    depends_on_tasks: ["12.3"]
+    files_owned: ["api/handlers/mcpoauth.go", "api/handlers/mcpoauth_test.go", "internal/cli/mcp_auth.go"]
+    phase_doc: "docs/phases/phase-12-advanced-mcp-gateway.md"
+
+  - id: "12.5"
+    name: "MCP management surfaces"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T22:29:46Z"
+    depends_on_tasks: ["12.1", "12.2", "12.3", "12.4"]
+    files_owned: ["api/handlers/mcp.go", "internal/cli/mcp.go", "ui/src/pages/*", "ui/src/components/*"]
+    phase_doc: "docs/phases/phase-12-advanced-mcp-gateway.md"
+
+  - id: "12.6"
+    name: "Advanced MCP integration tests + docs"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T22:32:54Z"
+    depends_on_tasks: ["12.2", "12.3", "12.4", "12.5"]
+    files_owned: ["internal/mcp/*integration*_test.go", "docs/SCHEMA.md", "docs/CONFIG.md", "docs/DEPLOYMENT.md", "README.md"]
+    phase_doc: "docs/phases/phase-12-advanced-mcp-gateway.md"
+```
+
+**Checkpoint**: `PHASE_12_COMPLETE` → **PROJECT COMPLETE**
 
 ---
 
