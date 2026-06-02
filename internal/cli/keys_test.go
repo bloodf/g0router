@@ -8,6 +8,7 @@ import (
 
 func TestKeysAddListRemove(t *testing.T) {
 	dataDir := t.TempDir()
+	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
 
 	add := NewRootCommand("test")
 	var addOut bytes.Buffer
@@ -51,5 +52,20 @@ func TestKeysAddListRemove(t *testing.T) {
 	}
 	if got := afterOut.String(); strings.Contains(got, "local") {
 		t.Fatalf("keys list output = %q, should not contain removed key", got)
+	}
+}
+
+func TestKeysAddRequiresAPIKeySecret(t *testing.T) {
+	cmd := NewRootCommand("test")
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--data-dir", t.TempDir(), "keys", "add", "local"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("keys add should require API_KEY_SECRET")
+	}
+	if !strings.Contains(err.Error(), "API_KEY_SECRET required") {
+		t.Fatalf("error = %q", err)
 	}
 }

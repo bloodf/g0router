@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.B"
-last_updated: "2026-06-02T23:05:26Z"
+last_updated: "2026-06-02T23:14:52Z"
 last_agent: "orchestrator"
 ```
 
@@ -919,6 +919,20 @@ tasks:
       - e2e_test.go
       - docs/WORKFLOW.md
       - docs/evaluations/wave-7A-evaluator-prompt.md
+
+  - id: "7.A.4"
+    name: "Evaluator clean-checkout gate fix"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T23:14:52Z"
+    files_owned:
+      - .gitignore
+      - ui/dist/**
+      - internal/cli/root.go
+      - internal/cli/keys_test.go
+      - README.md
+      - docs/DEPLOYMENT.md
+      - docs/WORKFLOW.md
 ```
 
 **Checkpoint**: Wave 7.A complete → advance to Wave 7.B.

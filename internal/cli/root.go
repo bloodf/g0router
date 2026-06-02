@@ -236,11 +236,11 @@ func openCLIStore(dataDir string) (*store.Store, error) {
 	return s, nil
 }
 
-func localAPIKeySecret() string {
+func localAPIKeySecret() (string, error) {
 	if secret := os.Getenv("API_KEY_SECRET"); secret != "" {
-		return secret
+		return secret, nil
 	}
-	return "g0router-local"
+	return "", fmt.Errorf("API_KEY_SECRET required to create API keys")
 }
 
 func newKeysCommand(dataDir *string) *cobra.Command {
@@ -266,7 +266,11 @@ func newKeysAddCommand(dataDir *string) *cobra.Command {
 			}
 			defer s.Close()
 
-			key, raw, err := s.CreateAPIKey(args[0], localAPIKeySecret())
+			secret, err := localAPIKeySecret()
+			if err != nil {
+				return err
+			}
+			key, raw, err := s.CreateAPIKey(args[0], secret)
 			if err != nil {
 				return fmt.Errorf("create api key: %w", err)
 			}

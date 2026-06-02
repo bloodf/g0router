@@ -135,10 +135,11 @@ docker build -t g0router .
 docker run -d \
   --name g0router \
   --restart unless-stopped \
-  -p 20128:20128 \
+  -p 127.0.0.1:20128:20128 \
   -v g0router-data:/data \
   -e JWT_SECRET=$(openssl rand -hex 32) \
   -e API_KEY_SECRET=$(openssl rand -hex 32) \
+  -e BIND_ADDRESS=0.0.0.0 \
   -e REQUIRE_API_KEY=true \
   g0router
 ```
@@ -153,14 +154,15 @@ services:
     container_name: g0router
     restart: unless-stopped
     ports:
-      - "20128:20128"
+      - "127.0.0.1:20128:20128"
     volumes:
       - g0router-data:/data
     environment:
       PORT: "20128"
+      BIND_ADDRESS: "0.0.0.0"
       DATA_DIR: "/data"
       JWT_SECRET: "${JWT_SECRET}"
-      API_KEY_SECRET: "${API_KEY_SECRET}"
+      API_KEY_SECRET: "${API_KEY_SECRET:?API_KEY_SECRET is required for docker-compose}"
       REQUIRE_API_KEY: "true"
       RTK_ENABLED: "true"
     healthcheck:

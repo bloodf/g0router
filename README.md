@@ -24,7 +24,8 @@ make build
 ./g0router login anthropic    # Opens browser for OAuth
 ./g0router login openai --key # Prompts for API key
 
-# Generate gateway API key
+# Generate gateway API key. Keep this same secret for serve.
+export API_KEY_SECRET="$(openssl rand -hex 32)"
 ./g0router keys add default
 
 # Start serving

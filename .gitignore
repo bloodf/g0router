@@ -10,7 +10,6 @@ data/
 *.db-shm
 
 # UI
-ui/dist/
 ui/node_modules/
 
 # Environment
