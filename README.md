@@ -53,8 +53,9 @@ sudo systemctl status g0router
 
 # Docker image
 make docker
-docker run --rm -p 20128:20128 \
+docker run --rm -p 127.0.0.1:20128:20128 \
   -e API_KEY_SECRET="$(openssl rand -hex 32)" \
+  -e BIND_ADDRESS=0.0.0.0 \
   g0router:latest
 
 # Docker Compose
