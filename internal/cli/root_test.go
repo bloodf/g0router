@@ -42,6 +42,7 @@ func TestRootCommandIncludesExpectedSubcommands(t *testing.T) {
 func TestServeCommandStartsServerRunner(t *testing.T) {
 	var got serveConfig
 	called := false
+	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
 	cmd := newRootCommand(rootConfig{
 		Version: "0.1.0-test",
 		Serve: func(ctx context.Context, config serveConfig) error {
@@ -65,8 +66,17 @@ func TestServeCommandStartsServerRunner(t *testing.T) {
 	if got.Port != 20128 {
 		t.Fatalf("port = %d, want 20128", got.Port)
 	}
+	if got.BindAddress != "127.0.0.1" {
+		t.Fatalf("bind address = %q, want 127.0.0.1", got.BindAddress)
+	}
 	if got.Version != "0.1.0-test" {
 		t.Fatalf("version = %q, want 0.1.0-test", got.Version)
+	}
+	if !got.RequireAPIKey {
+		t.Fatal("RequireAPIKey = false, want true")
+	}
+	if got.APIKeySecret != "test-api-key-secret" {
+		t.Fatalf("APIKeySecret = %q, want test-api-key-secret", got.APIKeySecret)
 	}
 	if got.DataDir == "" {
 		t.Fatal("data dir should be passed to serve runner")
@@ -78,6 +88,8 @@ func TestServeCommandUsesEnvironmentDefaults(t *testing.T) {
 	dataDir := filepath.Join(t.TempDir(), "env-data")
 	t.Setenv("PORT", "22345")
 	t.Setenv("DATA_DIR", dataDir)
+	t.Setenv("BIND_ADDRESS", "0.0.0.0")
+	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
 	cmd := newRootCommand(rootConfig{
 		Version: "0.1.0-test",
 		Serve: func(ctx context.Context, config serveConfig) error {
@@ -96,6 +108,9 @@ func TestServeCommandUsesEnvironmentDefaults(t *testing.T) {
 	if got.Port != 22345 {
 		t.Fatalf("port = %d, want env port", got.Port)
 	}
+	if got.BindAddress != "0.0.0.0" {
+		t.Fatalf("bind address = %q, want env bind address", got.BindAddress)
+	}
 	if got.DataDir != dataDir {
 		t.Fatalf("data dir = %q, want env data dir %q", got.DataDir, dataDir)
 	}
@@ -106,6 +121,7 @@ func TestServeCommandFlagsOverrideEnvironmentDefaults(t *testing.T) {
 	flagDataDir := filepath.Join(t.TempDir(), "flag-data")
 	t.Setenv("PORT", "22345")
 	t.Setenv("DATA_DIR", filepath.Join(t.TempDir(), "env-data"))
+	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
 	cmd := newRootCommand(rootConfig{
 		Version: "0.1.0-test",
 		Serve: func(ctx context.Context, config serveConfig) error {
@@ -126,6 +142,73 @@ func TestServeCommandFlagsOverrideEnvironmentDefaults(t *testing.T) {
 	}
 	if got.DataDir != flagDataDir {
 		t.Fatalf("data dir = %q, want flag data dir %q", got.DataDir, flagDataDir)
+	}
+}
+
+func TestServeCommandFailsInvalidPortEnv(t *testing.T) {
+	t.Setenv("PORT", "99999")
+	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
+	cmd := newRootCommand(rootConfig{
+		Version: "0.1.0-test",
+		Serve: func(ctx context.Context, config serveConfig) error {
+			t.Fatal("serve runner should not be called")
+			return nil
+		},
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"serve"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("execute should fail")
+	}
+	if !strings.Contains(err.Error(), "port must be 1-65535") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestServeCommandFailsInvalidBooleanEnv(t *testing.T) {
+	t.Setenv("RTK_ENABLED", "maybe")
+	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
+	cmd := newRootCommand(rootConfig{
+		Version: "0.1.0-test",
+		Serve: func(ctx context.Context, config serveConfig) error {
+			t.Fatal("serve runner should not be called")
+			return nil
+		},
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"serve"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("execute should fail")
+	}
+	if !strings.Contains(err.Error(), "RTK_ENABLED must be a boolean") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestServeCommandRequiresAPIKeySecretByDefault(t *testing.T) {
+	cmd := newRootCommand(rootConfig{
+		Version: "0.1.0-test",
+		Serve: func(ctx context.Context, config serveConfig) error {
+			t.Fatal("serve runner should not be called")
+			return nil
+		},
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"serve", "--data-dir", t.TempDir()})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("execute should fail")
+	}
+	if !strings.Contains(err.Error(), "API_KEY_SECRET required when REQUIRE_API_KEY=true") {
+		t.Fatalf("error = %q", err)
 	}
 }
 
@@ -241,10 +324,13 @@ func TestDefaultServerConfigWiresWave4ADependencies(t *testing.T) {
 func TestDefaultServerConfigUsesAuthEnvironment(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
-	t.Setenv("REQUIRE_API_KEY", "true")
-	t.Setenv("API_KEY_SECRET", "env-secret")
 
-	cfg := newServerConfig(serveConfig{Port: 20128, Version: "test"}, s)
+	cfg := newServerConfig(serveConfig{
+		Port:          20128,
+		Version:       "test",
+		RequireAPIKey: true,
+		APIKeySecret:  "env-secret",
+	}, s)
 	if !cfg.RequireAPIKey {
 		t.Fatal("RequireAPIKey = false, want true")
 	}
