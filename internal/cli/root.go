@@ -4,14 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bloodf/g0router/api"
+	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/usage"
 	"github.com/spf13/cobra"
 )
 
@@ -108,12 +112,7 @@ func runServer(ctx context.Context, config serveConfig) error {
 		return fmt.Errorf("listen on port %d: %w", config.Port, err)
 	}
 
-	server := api.NewServer(api.ServerConfig{
-		Port:       config.Port,
-		Version:    config.Version,
-		Store:      s,
-		UsageStore: s,
-	})
+	server := api.NewServer(newServerConfig(config, s))
 
 	go func() {
 		<-ctx.Done()
@@ -124,6 +123,18 @@ func runServer(ctx context.Context, config serveConfig) error {
 		return fmt.Errorf("run server: %w", err)
 	}
 	return nil
+}
+
+func newServerConfig(config serveConfig, s *store.Store) api.ServerConfig {
+	return api.ServerConfig{
+		Port:          config.Port,
+		Version:       config.Version,
+		Store:         s,
+		ModelSource:   staticModelSource{},
+		OAuthFlows:    defaultOAuthFlows(),
+		UsageStore:    s,
+		QuotaFetchers: defaultQuotaFetchers(),
+	}
 }
 
 func expandServeDataDir(path string) (string, error) {
@@ -305,14 +316,33 @@ func newStatusCommand(dataDir *string) *cobra.Command {
 }
 
 func newHealthcheckCommand() *cobra.Command {
-	return &cobra.Command{
+	var port int
+	var url string
+
+	cmd := &cobra.Command{
 		Use:   "healthcheck",
 		Short: "Check local server health",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			target := url
+			if target == "" {
+				target = "http://127.0.0.1:" + strconv.Itoa(port) + "/healthz"
+			}
+			client := &http.Client{Timeout: 2 * time.Second}
+			resp, err := client.Get(target)
+			if err != nil {
+				return fmt.Errorf("healthcheck %s: %w", target, err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+				return fmt.Errorf("healthcheck %s: %s", target, resp.Status)
+			}
 			fmt.Fprintln(cmd.OutOrStdout(), "healthcheck: ok")
 			return nil
 		},
 	}
+	cmd.Flags().IntVar(&port, "port", 20128, "HTTP port")
+	cmd.Flags().StringVar(&url, "url", "", "healthcheck URL")
+	return cmd
 }
 
 func newVersionCommand(version string) *cobra.Command {
@@ -352,4 +382,38 @@ func knownProviderNames() []string {
 		string(providers.ProviderVertex),
 		string(providers.ProviderXAI),
 	}
+}
+
+func defaultOAuthFlows() handlers.OAuthFlows {
+	flows := make(handlers.OAuthFlows)
+	for _, factory := range oauthFlowFactories() {
+		flow := factory()
+		flows[flow.ProviderID()] = flow
+	}
+	return flows
+}
+
+func defaultQuotaFetchers() map[providers.ModelProvider]usage.QuotaFetcher {
+	fetchers := make(map[providers.ModelProvider]usage.QuotaFetcher)
+	for _, provider := range knownProviderNames() {
+		modelProvider := providers.ModelProvider(provider)
+		fetchers[modelProvider] = usage.NewUnsupportedQuotaFetcher(modelProvider)
+	}
+	return fetchers
+}
+
+type staticModelSource struct{}
+
+func (staticModelSource) ListModels(ctx context.Context) ([]providers.Model, error) {
+	models := make([]providers.Model, 0, len(knownProviderNames()))
+	for _, provider := range knownProviderNames() {
+		modelProvider := providers.ModelProvider(provider)
+		models = append(models, providers.Model{
+			ID:       provider + "-default",
+			Object:   "model",
+			OwnedBy:  provider,
+			Provider: modelProvider,
+		})
+	}
+	return models, nil
 }

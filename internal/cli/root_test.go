@@ -3,8 +3,12 @@ package cli
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/bloodf/g0router/internal/providers"
 )
 
 func TestRootCommandPrintsVersion(t *testing.T) {
@@ -114,12 +118,31 @@ func TestStatusCommandUsesDataDir(t *testing.T) {
 	}
 }
 
-func TestHealthcheckCommandAcceptsDefaultConfiguration(t *testing.T) {
+func TestHealthcheckCommandFailsWhenServerUnavailable(t *testing.T) {
+	cmd := NewRootCommand("test")
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"healthcheck", "--url", "http://127.0.0.1:1/healthz"})
+
+	if err := cmd.Execute(); err == nil {
+		t.Fatal("execute error is nil")
+	}
+}
+
+func TestHealthcheckCommandChecksServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/healthz" {
+			t.Fatalf("path = %q, want /healthz", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
 	cmd := NewRootCommand("test")
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"healthcheck"})
+	cmd.SetArgs([]string{"healthcheck", "--url", server.URL + "/healthz"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("execute: %v", err)
@@ -127,5 +150,33 @@ func TestHealthcheckCommandAcceptsDefaultConfiguration(t *testing.T) {
 
 	if got := out.String(); !strings.Contains(got, "healthcheck: ok") {
 		t.Fatalf("output = %q, want healthcheck status", got)
+	}
+}
+
+func TestDefaultServerConfigWiresWave4ADependencies(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	cfg := newServerConfig(serveConfig{Port: 20128, Version: "test"}, s)
+	if cfg.OAuthFlows["minimax"] == nil {
+		t.Fatal("minimax oauth flow should be wired")
+	}
+
+	models, err := cfg.ModelSource.ListModels(context.Background())
+	if err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	foundOpenAI := false
+	for _, model := range models {
+		if model.Provider == providers.ProviderOpenAI {
+			foundOpenAI = true
+		}
+	}
+	if !foundOpenAI {
+		t.Fatalf("models = %+v, want openai model", models)
+	}
+
+	if cfg.QuotaFetchers[providers.ProviderOpenAI] == nil {
+		t.Fatal("openai quota fetcher should be wired")
 	}
 }

@@ -61,6 +61,14 @@ func newAuthLoginCommand(use string) *cobra.Command {
 		Short: "Start provider authentication",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if device && key {
+				return fmt.Errorf("choose either --device or --key")
+			}
+			if key {
+				fmt.Fprintf(cmd.OutOrStdout(), "API key login for %s: run g0router keys add <name> or add credentials in the web UI.\n", args[0])
+				return nil
+			}
+
 			flow, err := newOAuthFlow(args[0])
 			if err != nil {
 				return err

@@ -65,22 +65,45 @@ func TestAuthLoginRejectsUnknownProvider(t *testing.T) {
 }
 
 func TestLoginCommandAcceptsAdvertisedFlags(t *testing.T) {
-	for _, args := range [][]string{
-		{"login", "minimax", "--device"},
-		{"login", "minimax", "--key"},
-	} {
-		cmd := NewRootCommand("test")
-		var out bytes.Buffer
-		cmd.SetOut(&out)
-		cmd.SetErr(&out)
-		cmd.SetArgs(args)
+	cmd := NewRootCommand("test")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"login", "minimax", "--device"})
 
-		if err := cmd.Execute(); err != nil {
-			t.Fatalf("%v execute: %v", args, err)
-		}
-		if got := out.String(); !strings.Contains(got, "minimax") {
-			t.Fatalf("%v output = %q, want provider", args, got)
-		}
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("device login execute: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "minimax") || !strings.Contains(got, "Open this URL") {
+		t.Fatalf("device login output = %q, want oauth flow", got)
+	}
+
+	cmd = NewRootCommand("test")
+	out.Reset()
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"login", "minimax", "--key"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("key login execute: %v", err)
+	}
+	if got := out.String(); !strings.Contains(got, "API key") || strings.Contains(got, "Open this URL") {
+		t.Fatalf("key login output = %q, want api key flow", got)
+	}
+}
+
+func TestLoginCommandRejectsConflictingModes(t *testing.T) {
+	cmd := NewRootCommand("test")
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"login", "minimax", "--device", "--key"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("execute error is nil")
+	}
+	if !strings.Contains(err.Error(), "choose either --device or --key") {
+		t.Fatalf("error = %q, want conflicting mode message", err.Error())
 	}
 }
 
