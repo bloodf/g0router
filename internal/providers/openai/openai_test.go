@@ -10,7 +10,17 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/valyala/fasthttp"
 )
+
+func TestNewUsesFastHTTPClient(t *testing.T) {
+	provider := New("")
+	if provider.client == nil {
+		t.Fatal("client is nil")
+	}
+
+	var _ *fasthttp.Client = provider.client
+}
 
 func TestBuildRequest(t *testing.T) {
 	var gotPath string

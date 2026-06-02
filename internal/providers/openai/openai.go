@@ -7,19 +7,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/valyala/fasthttp"
 )
 
 const defaultBaseURL = "https://api.openai.com"
 
 type OpenAIProvider struct {
 	baseURL string
-	client  *http.Client
+	client  *fasthttp.Client
 }
 
 func New(baseURL string) *OpenAIProvider {
@@ -28,7 +28,7 @@ func New(baseURL string) *OpenAIProvider {
 	}
 	return &OpenAIProvider{
 		baseURL: strings.TrimRight(baseURL, "/"),
-		client:  &http.Client{Timeout: 60 * time.Second},
+		client:  &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
 	}
 }
 
@@ -37,23 +37,24 @@ func (p *OpenAIProvider) Name() providers.ModelProvider {
 }
 
 func (p *OpenAIProvider) ChatCompletion(ctx context.Context, key providers.Key, req *providers.ChatRequest) (*providers.ChatResponse, error) {
-	httpReq, err := p.newJSONRequest(ctx, http.MethodPost, "/v1/chat/completions", key, req)
+	httpReq, err := p.newJSONRequest(fasthttp.MethodPost, "/v1/chat/completions", key, req)
 	if err != nil {
 		return nil, err
 	}
+	defer fasthttp.ReleaseRequest(httpReq)
 
-	resp, err := p.client.Do(httpReq)
+	resp, err := p.do(ctx, httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("openai chat completion: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fasthttp.ReleaseResponse(resp)
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
 		return nil, mapError(resp)
 	}
 
 	var chatResp providers.ChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
+	if err := json.Unmarshal(resp.Body(), &chatResp); err != nil {
 		return nil, fmt.Errorf("parse openai chat response: %w", err)
 	}
 	return &chatResp, nil
@@ -64,47 +65,50 @@ func (p *OpenAIProvider) ChatCompletionStream(ctx context.Context, key providers
 	streamReq := *req
 	streamReq.Stream = &stream
 
-	httpReq, err := p.newJSONRequest(ctx, http.MethodPost, "/v1/chat/completions", key, &streamReq)
+	httpReq, err := p.newJSONRequest(fasthttp.MethodPost, "/v1/chat/completions", key, &streamReq)
 	if err != nil {
 		return nil, err
 	}
+	defer fasthttp.ReleaseRequest(httpReq)
 
-	resp, err := p.client.Do(httpReq)
+	resp, err := p.do(ctx, httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("openai chat completion stream: %w", err)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		defer resp.Body.Close()
+	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
+		defer fasthttp.ReleaseResponse(resp)
 		return nil, mapError(resp)
 	}
 
 	chunks := make(chan providers.StreamChunk)
+	body := append([]byte(nil), resp.Body()...)
+	fasthttp.ReleaseResponse(resp)
 	go func() {
 		defer close(chunks)
-		defer resp.Body.Close()
-		parseSSE(resp.Body, chunks)
+		parseSSE(bytes.NewReader(body), chunks)
 	}()
 	return chunks, nil
 }
 
 func (p *OpenAIProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
-	req, err := p.newJSONRequest(ctx, http.MethodGet, "/v1/models", key, nil)
+	req, err := p.newJSONRequest(fasthttp.MethodGet, "/v1/models", key, nil)
 	if err != nil {
 		return nil, err
 	}
+	defer fasthttp.ReleaseRequest(req)
 
-	resp, err := p.client.Do(req)
+	resp, err := p.do(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("openai list models: %w", err)
 	}
-	defer resp.Body.Close()
+	defer fasthttp.ReleaseResponse(resp)
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
 		return nil, mapError(resp)
 	}
 
 	var decoded modelsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+	if err := json.Unmarshal(resp.Body(), &decoded); err != nil {
 		return nil, fmt.Errorf("parse openai models response: %w", err)
 	}
 
@@ -121,25 +125,51 @@ func (p *OpenAIProvider) ListModels(ctx context.Context, key providers.Key) ([]p
 	return models, nil
 }
 
-func (p *OpenAIProvider) newJSONRequest(ctx context.Context, method, path string, key providers.Key, body any) (*http.Request, error) {
-	var reader io.Reader
+func (p *OpenAIProvider) newJSONRequest(method, path string, key providers.Key, body any) (*fasthttp.Request, error) {
+	req := fasthttp.AcquireRequest()
+	req.Header.SetMethod(method)
+	req.SetRequestURI(p.baseURL + path)
+	req.Header.Set("Authorization", "Bearer "+key.Value)
+
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
+			fasthttp.ReleaseRequest(req)
 			return nil, fmt.Errorf("marshal openai request: %w", err)
 		}
-		reader = bytes.NewReader(data)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, p.baseURL+path, reader)
-	if err != nil {
-		return nil, fmt.Errorf("build openai request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+key.Value)
-	if body != nil {
+		req.SetBody(data)
 		req.Header.Set("Content-Type", "application/json")
 	}
 	return req, nil
+}
+
+func (p *OpenAIProvider) do(ctx context.Context, req *fasthttp.Request) (*fasthttp.Response, error) {
+	resp := fasthttp.AcquireResponse()
+	if err := ctx.Err(); err != nil {
+		fasthttp.ReleaseResponse(resp)
+		return nil, err
+	}
+
+	var err error
+	if deadline, ok := ctx.Deadline(); ok {
+		timeout := time.Until(deadline)
+		if timeout <= 0 {
+			fasthttp.ReleaseResponse(resp)
+			return nil, context.DeadlineExceeded
+		}
+		err = p.client.DoTimeout(req, resp, timeout)
+	} else {
+		err = p.client.Do(req, resp)
+	}
+	if err != nil {
+		fasthttp.ReleaseResponse(resp)
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		fasthttp.ReleaseResponse(resp)
+		return nil, err
+	}
+	return resp, nil
 }
 
 func parseSSE(body io.Reader, chunks chan<- providers.StreamChunk) {
@@ -182,20 +212,20 @@ func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk) bool
 	return false
 }
 
-func mapError(resp *http.Response) error {
-	body, _ := io.ReadAll(resp.Body)
+func mapError(resp *fasthttp.Response) error {
+	body := resp.Body()
 	message := parseErrorMessage(body)
 
-	switch resp.StatusCode {
-	case http.StatusUnauthorized, http.StatusForbidden:
+	switch resp.StatusCode() {
+	case fasthttp.StatusUnauthorized, fasthttp.StatusForbidden:
 		return fmt.Errorf("%w: %s", ErrAuth, message)
-	case http.StatusTooManyRequests:
-		return &RateLimitError{Message: message, RetryAfter: retryAfterSeconds(resp.Header.Get("Retry-After"))}
+	case fasthttp.StatusTooManyRequests:
+		return &RateLimitError{Message: message, RetryAfter: retryAfterSeconds(string(resp.Header.Peek("Retry-After")))}
 	default:
-		if resp.StatusCode >= 500 {
+		if resp.StatusCode() >= 500 {
 			return fmt.Errorf("%w: %s", ErrServer, message)
 		}
-		return fmt.Errorf("openai error status %d: %s", resp.StatusCode, message)
+		return fmt.Errorf("openai error status %d: %s", resp.StatusCode(), message)
 	}
 }
 
