@@ -154,6 +154,28 @@ func (s *Store) migrate() error {
 			manifest_updated_at TEXT,
 			created_at TEXT NOT NULL DEFAULT (datetime('now'))
 		)`,
+		`CREATE TABLE IF NOT EXISTS mcp_instances (
+			id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+			name TEXT NOT NULL UNIQUE,
+			server_key TEXT NOT NULL,
+			launch_type TEXT NOT NULL CHECK (launch_type IN ('command', 'npx', 'docker', 'http')),
+			transport TEXT NOT NULL CHECK (transport IN ('stdio', 'sse', 'streamable-http')),
+			command TEXT,
+			args TEXT,
+			url TEXT,
+			headers TEXT,
+			env TEXT,
+			cwd TEXT,
+			account_label TEXT,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			health_status TEXT DEFAULT 'unknown',
+			last_health_check TEXT,
+			tool_manifest TEXT,
+			manifest_updated_at TEXT,
+			created_at TEXT NOT NULL DEFAULT (datetime('now')),
+			updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_mcp_instances_server_key ON mcp_instances(server_key)`,
 	}
 
 	for _, stmt := range ddl {
