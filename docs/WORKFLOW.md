@@ -681,7 +681,7 @@ tasks:
 
 ```yaml
 wave: "4.B"
-status: PENDING
+status: DONE
 max_agents: 6
 depends_on: ["4.A"]
 gate: "go test ./... && go vet ./..."
@@ -689,36 +689,48 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "3.10"
     name: "Responses API support"
-    status: PENDING
+    status: DONE
+    agent: "Aquinas"
+    completed_at: "2026-06-02T20:44:29Z"
     files_owned: ["internal/providers/openai/responses.go", "internal/streaming/responses.go", "internal/translate/responses.go"]
 
   - id: "9.3"
     name: "MCP tool discovery (compact manifests)"
-    status: PENDING
+    status: DONE
+    agent: "Euler"
+    completed_at: "2026-06-02T20:44:29Z"
     depends_on_tasks: ["9.1+9.2"]
     files_owned: ["internal/mcp/discovery.go", "internal/mcp/discovery_test.go"]
 
   - id: "9.4"
     name: "MCP agent loop"
-    status: PENDING
+    status: DONE
+    agent: "Wegener"
+    completed_at: "2026-06-02T20:44:29Z"
     depends_on_tasks: ["9.1+9.2"]
     files_owned: ["internal/mcp/agent.go", "internal/mcp/agent_test.go"]
 
   - id: "9.5"
     name: "MCP health monitor"
-    status: PENDING
+    status: DONE
+    agent: "Archimedes"
+    completed_at: "2026-06-02T20:44:29Z"
     depends_on_tasks: ["9.1+9.2"]
     files_owned: ["internal/mcp/healthmonitor.go", "internal/mcp/healthmonitor_test.go"]
 
   - id: "9.6"
     name: "MCP API handlers + store"
-    status: PENDING
+    status: DONE
+    agent: "Volta"
+    completed_at: "2026-06-02T20:44:29Z"
     depends_on_tasks: ["9.1+9.2", "9.3", "9.4", "9.5"]
     files_owned: ["api/handlers/mcp.go", "internal/store/mcpclients.go", "internal/store/mcpclients_test.go"]
 
   - id: "10.8"
     name: "Embed UI in Go binary"
-    status: PENDING
+    status: DONE
+    agent: "Hegel"
+    completed_at: "2026-06-02T20:44:29Z"
     depends_on_tasks: ["10.2-10.7"]
     files_owned: ["embed.go"]
 ```
