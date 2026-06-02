@@ -30,8 +30,8 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 2
-current_wave: "2.B"
-last_updated: "2026-06-02T17:44:41Z"
+current_wave: "2.C"
+last_updated: "2026-06-02T17:59:59Z"
 last_agent: "orchestrator"
 ```
 
@@ -272,7 +272,7 @@ tasks:
 
 ```yaml
 wave: "2.B"
-status: PENDING
+status: DONE
 max_agents: 8
 depends_on: ["2.A"]
 gate: "go test ./... && go vet ./..."
@@ -280,8 +280,9 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "2.2"
     name: "Middleware (CORS, auth, request ID)"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Hilbert"
+    completed_at: "2026-06-02T17:59:59Z"
     depends_on_tasks: ["2.1"]
     files_owned:
       - api/middleware.go
@@ -290,8 +291,9 @@ tasks:
 
   - id: "4.1"
     name: "Provider registry"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Darwin"
+    completed_at: "2026-06-02T17:59:59Z"
     files_owned:
       - internal/provider/registry.go
       - internal/provider/registry_test.go
@@ -299,8 +301,9 @@ tasks:
 
   - id: "4.2"
     name: "Connection management with round-robin"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Jason"
+    completed_at: "2026-06-02T17:59:59Z"
     files_owned:
       - internal/provider/connection.go
       - internal/provider/connection_test.go
@@ -308,8 +311,9 @@ tasks:
 
   - id: "7.2"
     name: "RTK filters (11 total)"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Bohr"
+    completed_at: "2026-06-02T17:59:59Z"
     depends_on_tasks: ["7.1"]
     files_owned:
       - internal/rtk/filters/*.go
@@ -317,8 +321,9 @@ tasks:
 
   - id: "7.4"
     name: "Caveman prompt injection"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Pauli"
+    completed_at: "2026-06-02T17:59:59Z"
     files_owned:
       - internal/rtk/caveman.go
       - internal/rtk/caveman_test.go
@@ -327,8 +332,9 @@ tasks:
 
   - id: "8.3"
     name: "Cost calculation"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Singer"
+    completed_at: "2026-06-02T17:59:59Z"
     depends_on_tasks: ["8.1+8.2"]
     files_owned:
       - internal/usage/cost.go
@@ -337,8 +343,9 @@ tasks:
 
   - id: "5.2"
     name: "Anthropic OAuth (Claude Code)"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Averroes"
+    completed_at: "2026-06-02T17:59:59Z"
     depends_on_tasks: ["5.1"]
     files_owned:
       - internal/provider/oauth/anthropic.go
@@ -347,8 +354,9 @@ tasks:
 
   - id: "5.3"
     name: "OpenAI Codex OAuth"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Goodall"
+    completed_at: "2026-06-02T17:59:59Z"
     depends_on_tasks: ["5.1"]
     files_owned:
       - internal/provider/oauth/codex.go
