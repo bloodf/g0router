@@ -614,7 +614,7 @@ tasks:
     files_owned: ["ui/src/pages/*", "ui/src/components/*", "ui/src/api/*"]
 ```
 
-**Checkpoint**: `PHASE_3_COMPLETE` → advance to STAGE 4
+**Checkpoint**: Wave 3.B complete → advance to STAGE 4. `PHASE_3_COMPLETE` waits for Task 3.10 in Wave 4.B.
 
 ---
 
