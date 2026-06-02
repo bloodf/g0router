@@ -112,12 +112,24 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 	case len(parts) == 3 && parts[0] == "api" && parts[1] == "combos":
 		handlers.Combos(ctx, s.config.Store, parts[2])
 	case path == "/api/oauth/callback":
+		if !requireMethod(ctx, fasthttp.MethodGet) {
+			return
+		}
 		handlers.OAuthCallback(ctx, s.config.OAuthFlows)
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "authorize":
+		if !requireMethod(ctx, fasthttp.MethodPost) {
+			return
+		}
 		handlers.OAuthStart(ctx, s.config.OAuthFlows)
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "poll":
+		if !requireMethod(ctx, fasthttp.MethodGet) {
+			return
+		}
 		handlers.OAuthPoll(ctx, s.config.OAuthFlows)
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "exchange":
+		if !requireMethod(ctx, fasthttp.MethodPost) {
+			return
+		}
 		handlers.OAuthExchange(ctx, s.config.OAuthFlows)
 	case path == "/api/usage":
 		handlers.Usage(ctx, s.config.UsageStore)
@@ -138,4 +150,12 @@ func pathParts(path string) []string {
 		return nil
 	}
 	return strings.Split(trimmed, "/")
+}
+
+func requireMethod(ctx *fasthttp.RequestCtx, method string) bool {
+	if string(ctx.Method()) == method {
+		return true
+	}
+	ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+	return false
 }

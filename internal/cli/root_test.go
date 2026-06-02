@@ -27,7 +27,7 @@ func TestRootCommandIncludesExpectedSubcommands(t *testing.T) {
 	cmd := NewRootCommand("0.1.0-test")
 	names := commandNames(cmd.Commands())
 
-	for _, want := range []string{"auth", "install", "serve"} {
+	for _, want := range []string{"auth", "install", "keys", "login", "logout", "providers", "serve", "status", "version"} {
 		if !names[want] {
 			t.Fatalf("missing subcommand %q in %v", want, names)
 		}
@@ -79,5 +79,37 @@ func TestExpandServeDataDirExpandsHome(t *testing.T) {
 	}
 	if !strings.HasSuffix(got, ".g0router") {
 		t.Fatalf("expanded path = %q, want .g0router suffix", got)
+	}
+}
+
+func TestVersionCommandPrintsVersion(t *testing.T) {
+	cmd := NewRootCommand("0.1.0-test")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"version"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got := strings.TrimSpace(out.String()); got != "g0router 0.1.0-test" {
+		t.Fatalf("output = %q, want version", got)
+	}
+}
+
+func TestStatusCommandUsesDataDir(t *testing.T) {
+	cmd := NewRootCommand("0.1.0-test")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--data-dir", t.TempDir(), "status"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got := out.String(); !strings.Contains(got, "store: ok") {
+		t.Fatalf("output = %q, want store status", got)
 	}
 }

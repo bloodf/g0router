@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/bloodf/g0router/api"
+	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -37,6 +38,7 @@ func NewRootCommand(version string) *cobra.Command {
 
 func newRootCommand(config rootConfig) *cobra.Command {
 	var showVersion bool
+	dataDir := "~/.g0router"
 
 	cmd := &cobra.Command{
 		Use:           "g0router",
@@ -53,17 +55,22 @@ func newRootCommand(config rootConfig) *cobra.Command {
 	}
 
 	cmd.Flags().BoolVar(&showVersion, "version", false, "print version and exit")
-	cmd.AddCommand(NewAuthCommand())
+	cmd.PersistentFlags().StringVar(&dataDir, "data-dir", dataDir, "data directory")
+	cmd.AddCommand(newAuthCommand(&dataDir))
 	cmd.AddCommand(newLoginCommand())
+	cmd.AddCommand(newLogoutCommand(&dataDir))
+	cmd.AddCommand(newKeysCommand(&dataDir))
+	cmd.AddCommand(newProvidersCommand())
+	cmd.AddCommand(newStatusCommand(&dataDir))
+	cmd.AddCommand(newVersionCommand(config.Version))
 	cmd.AddCommand(NewInstallCommand())
-	cmd.AddCommand(newServeCommand(config.Version, config.Serve))
+	cmd.AddCommand(newServeCommand(config.Version, config.Serve, &dataDir))
 
 	return cmd
 }
 
-func newServeCommand(version string, serve serveRunner) *cobra.Command {
+func newServeCommand(version string, serve serveRunner, rootDataDir *string) *cobra.Command {
 	var port int
-	var dataDir string
 
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -74,13 +81,12 @@ func newServeCommand(version string, serve serveRunner) *cobra.Command {
 			}
 			return serve(cmd.Context(), serveConfig{
 				Port:    port,
-				DataDir: dataDir,
+				DataDir: *rootDataDir,
 				Version: version,
 			})
 		},
 	}
 	cmd.Flags().IntVar(&port, "port", 20128, "HTTP port")
-	cmd.Flags().StringVar(&dataDir, "data-dir", "~/.g0router", "data directory")
 	return cmd
 }
 
@@ -130,4 +136,207 @@ func expandServeDataDir(path string) (string, error) {
 		return filepath.Join(home, path[2:]), nil
 	}
 	return path, nil
+}
+
+func openCLIStore(dataDir string) (*store.Store, error) {
+	expanded, err := expandServeDataDir(dataDir)
+	if err != nil {
+		return nil, err
+	}
+	s, err := store.NewStore(filepath.Join(expanded, "g0router.db"))
+	if err != nil {
+		return nil, fmt.Errorf("open store: %w", err)
+	}
+	return s, nil
+}
+
+func localAPIKeySecret() string {
+	if secret := os.Getenv("API_KEY_SECRET"); secret != "" {
+		return secret
+	}
+	return "g0router-local"
+}
+
+func newKeysCommand(dataDir *string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "keys",
+		Short: "Manage local API keys",
+	}
+	cmd.AddCommand(newKeysAddCommand(dataDir))
+	cmd.AddCommand(newKeysListCommand(dataDir))
+	cmd.AddCommand(newKeysRemoveCommand(dataDir))
+	return cmd
+}
+
+func newKeysAddCommand(dataDir *string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "add <name>",
+		Short: "Create a local API key",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := openCLIStore(*dataDir)
+			if err != nil {
+				return err
+			}
+			defer s.Close()
+
+			key, raw, err := s.CreateAPIKey(args[0], localAPIKeySecret())
+			if err != nil {
+				return fmt.Errorf("create api key: %w", err)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", key.Name, raw)
+			return nil
+		},
+	}
+}
+
+func newKeysListCommand(dataDir *string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List local API keys",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := openCLIStore(*dataDir)
+			if err != nil {
+				return err
+			}
+			defer s.Close()
+
+			keys, err := s.ListAPIKeys()
+			if err != nil {
+				return fmt.Errorf("list api keys: %w", err)
+			}
+			for _, key := range keys {
+				if key.IsActive {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", key.Name, key.Prefix)
+				}
+			}
+			return nil
+		},
+	}
+}
+
+func newKeysRemoveCommand(dataDir *string) *cobra.Command {
+	return &cobra.Command{
+		Use:     "rm <name>",
+		Aliases: []string{"remove"},
+		Short:   "Disable a local API key",
+		Args:    cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := openCLIStore(*dataDir)
+			if err != nil {
+				return err
+			}
+			defer s.Close()
+
+			keys, err := s.ListAPIKeys()
+			if err != nil {
+				return fmt.Errorf("list api keys: %w", err)
+			}
+			for _, key := range keys {
+				if key.Name == args[0] && key.IsActive {
+					if err := s.DeleteAPIKey(key.ID); err != nil {
+						return fmt.Errorf("remove api key: %w", err)
+					}
+					fmt.Fprintf(cmd.OutOrStdout(), "removed %s\n", args[0])
+					return nil
+				}
+			}
+			return fmt.Errorf("api key not found: %s", args[0])
+		},
+	}
+}
+
+func newProvidersCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "providers",
+		Short: "Inspect providers",
+	}
+	cmd.AddCommand(newProvidersListCommand())
+	cmd.AddCommand(newProvidersTestCommand())
+	return cmd
+}
+
+func newProvidersListCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "list",
+		Short: "List known providers",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			for _, provider := range knownProviderNames() {
+				fmt.Fprintln(cmd.OutOrStdout(), provider)
+			}
+			return nil
+		},
+	}
+}
+
+func newProvidersTestCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "test <provider>",
+		Short: "Validate provider support",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			for _, provider := range knownProviderNames() {
+				if provider == args[0] {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s: configured\n", args[0])
+					return nil
+				}
+			}
+			return fmt.Errorf("unknown provider: %s", args[0])
+		},
+	}
+}
+
+func newStatusCommand(dataDir *string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show local gateway status",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := openCLIStore(*dataDir)
+			if err != nil {
+				return err
+			}
+			defer s.Close()
+			fmt.Fprintln(cmd.OutOrStdout(), "store: ok")
+			return nil
+		},
+	}
+}
+
+func newVersionCommand(version string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print version",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Fprintf(cmd.OutOrStdout(), "g0router %s\n", version)
+			return nil
+		},
+	}
+}
+
+func knownProviderNames() []string {
+	return []string{
+		string(providers.ProviderAnthropic),
+		string(providers.ProviderAzure),
+		string(providers.ProviderBedrock),
+		string(providers.ProviderCerebras),
+		string(providers.ProviderCohere),
+		string(providers.ProviderCursor),
+		string(providers.ProviderDeepSeek),
+		string(providers.ProviderFireworks),
+		string(providers.ProviderGemini),
+		string(providers.ProviderGitHubCopilot),
+		string(providers.ProviderGroq),
+		string(providers.ProviderHuggingFace),
+		string(providers.ProviderMistral),
+		string(providers.ProviderNebius),
+		string(providers.ProviderNVIDIA),
+		string(providers.ProviderOllama),
+		string(providers.ProviderOpenAI),
+		string(providers.ProviderOpenRouter),
+		string(providers.ProviderPerplexity),
+		string(providers.ProviderReplicate),
+		string(providers.ProviderTogether),
+		string(providers.ProviderVertex),
+		string(providers.ProviderXAI),
+	}
 }

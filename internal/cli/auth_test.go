@@ -2,9 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -61,12 +64,52 @@ func TestAuthLoginRejectsUnknownProvider(t *testing.T) {
 	}
 }
 
-func TestAuthCommandDoesNotExposeUnimplementedLogout(t *testing.T) {
+func TestAuthCommandExposesLogout(t *testing.T) {
 	cmd := NewAuthCommand()
 	names := commandNames(cmd.Commands())
 
-	if names["logout"] {
-		t.Fatal("auth logout should not be exposed until it has a credential-store implementation")
+	if !names["logout"] {
+		t.Fatal("auth logout should be exposed")
+	}
+}
+
+func TestAuthLogoutRemovesProviderConnections(t *testing.T) {
+	dataDir := t.TempDir()
+	s := openCLIStoreForTest(t, dataDir)
+	conn := &store.Connection{
+		Provider: "minimax",
+		Name:     "test",
+		AuthType: store.AuthTypeOAuth,
+		IsActive: true,
+	}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	cmd := newRootCommand(rootConfig{
+		Version: "test",
+		Serve:   func(ctx context.Context, config serveConfig) error { return nil },
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--data-dir", dataDir, "logout", "minimax"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	s = openCLIStoreForTest(t, dataDir)
+	defer s.Close()
+	conns, err := s.GetConnections("minimax")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(conns) != 0 {
+		t.Fatalf("connections = %d, want 0", len(conns))
 	}
 }
 
@@ -76,4 +119,14 @@ func commandNames(commands []*cobra.Command) map[string]bool {
 		names[cmd.Name()] = true
 	}
 	return names
+}
+
+func openCLIStoreForTest(t *testing.T, dataDir string) *store.Store {
+	t.Helper()
+
+	s, err := store.NewStore(filepath.Join(dataDir, "g0router.db"))
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	return s
 }

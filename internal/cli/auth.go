@@ -12,18 +12,30 @@ import (
 
 // NewAuthCommand builds OAuth credential commands.
 func NewAuthCommand() *cobra.Command {
+	dataDir := "~/.g0router"
+	return newAuthCommand(&dataDir)
+}
+
+func newAuthCommand(dataDir *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "auth",
 		Short: "Manage provider authentication",
 	}
 	cmd.AddCommand(newAuthListCommand())
 	cmd.AddCommand(newAuthLoginCommand("login"))
+	cmd.AddCommand(newAuthLogoutCommand(dataDir))
 	return cmd
 }
 
 func newLoginCommand() *cobra.Command {
 	cmd := newAuthLoginCommand("login")
 	cmd.Short = "Start provider authentication"
+	return cmd
+}
+
+func newLogoutCommand(dataDir *string) *cobra.Command {
+	cmd := newAuthLogoutCommand(dataDir)
+	cmd.Short = "Remove provider credentials"
 	return cmd
 }
 
@@ -57,6 +69,33 @@ func newAuthLoginCommand(use string) *cobra.Command {
 			}
 
 			printAuthSession(cmd, session)
+			return nil
+		},
+	}
+}
+
+func newAuthLogoutCommand(dataDir *string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "logout <provider>",
+		Short: "Remove provider credentials",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := openCLIStore(*dataDir)
+			if err != nil {
+				return err
+			}
+			defer s.Close()
+
+			connections, err := s.GetConnections(args[0])
+			if err != nil {
+				return fmt.Errorf("list provider connections: %w", err)
+			}
+			for _, conn := range connections {
+				if err := s.DeleteConnection(conn.ID); err != nil {
+					return fmt.Errorf("delete connection %s: %w", conn.ID, err)
+				}
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "removed %d connection(s) for %s\n", len(connections), args[0])
 			return nil
 		},
 	}

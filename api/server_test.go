@@ -124,6 +124,38 @@ func TestManagementRoutesDispatchThroughServer(t *testing.T) {
 	}
 }
 
+func TestOAuthRoutesEnforceDocumentedMethods(t *testing.T) {
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:       0,
+		Version:    "test",
+		OAuthFlows: handlers.OAuthFlows{"minimax": routeOAuthFlow{}},
+	})
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: "/api/oauth/minimax/authorize"},
+		{method: http.MethodPost, path: "/api/oauth/minimax/poll?session_id=session-1"},
+		{method: http.MethodPost, path: "/api/oauth/callback?provider=minimax&session_id=session-1&code=ok"},
+	}
+
+	for _, tc := range tests {
+		req, err := http.NewRequest(tc.method, baseURL+tc.path, nil)
+		if err != nil {
+			t.Fatalf("new request %s %s: %v", tc.method, tc.path, err)
+		}
+		resp, err := httpClient().Do(req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", tc.method, tc.path, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusMethodNotAllowed {
+			t.Fatalf("%s %s status = %d, want 405", tc.method, tc.path, resp.StatusCode)
+		}
+	}
+}
+
 func httpClient() *http.Client {
 	return &http.Client{Timeout: 2 * time.Second}
 }
