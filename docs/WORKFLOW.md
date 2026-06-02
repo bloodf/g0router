@@ -29,9 +29,9 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 2
-current_wave: "2.C"
-last_updated: "2026-06-02T17:59:59Z"
+current_stage: 3
+current_wave: "3.A"
+last_updated: "2026-06-02T18:41:49Z"
 last_agent: "orchestrator"
 ```
 
@@ -369,7 +369,7 @@ tasks:
 
 ```yaml
 wave: "2.C"
-status: PENDING
+status: DONE
 max_agents: 8
 depends_on: ["2.B"]
 gate: "go test ./... && go vet ./..."
@@ -377,10 +377,12 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "2.7"
     name: "Inference handler"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Lovelace"
+    completed_at: "2026-06-02T18:41:49Z"
     depends_on_tasks: ["2.1", "2.2", "2.3", "2.5", "2.6"]
     files_owned:
+      - api/server.go
       - api/handlers/inference.go
       - api/handlers/inference_test.go
       - api/handlers/models.go
@@ -388,8 +390,9 @@ tasks:
 
   - id: "7.3"
     name: "RTK message compression"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Chandrasekhar"
+    completed_at: "2026-06-02T18:41:49Z"
     depends_on_tasks: ["7.1", "7.2"]
     files_owned:
       - internal/rtk/rtk.go
@@ -398,8 +401,9 @@ tasks:
 
   - id: "8.4"
     name: "Provider quota fetchers"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Harvey"
+    completed_at: "2026-06-02T18:41:49Z"
     files_owned:
       - internal/usage/quota.go
       - internal/usage/quota_test.go
@@ -407,8 +411,9 @@ tasks:
 
   - id: "8.5"
     name: "Request/response logging"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Faraday"
+    completed_at: "2026-06-02T18:41:49Z"
     files_owned:
       - internal/logging/logger.go
       - internal/logging/requestlog.go
@@ -417,8 +422,9 @@ tasks:
 
   - id: "5.4"
     name: "GitHub Copilot OAuth"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Maxwell"
+    completed_at: "2026-06-02T18:41:49Z"
     depends_on_tasks: ["5.1"]
     files_owned:
       - internal/provider/oauth/github.go
@@ -427,8 +433,9 @@ tasks:
 
   - id: "5.5"
     name: "Cursor PKCE OAuth"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Rawls"
+    completed_at: "2026-06-02T18:41:49Z"
     depends_on_tasks: ["5.1"]
     files_owned:
       - internal/provider/oauth/cursor.go
@@ -437,8 +444,9 @@ tasks:
 
   - id: "5.6"
     name: "Google OAuth (Gemini CLI, Antigravity)"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Hubble"
+    completed_at: "2026-06-02T18:41:49Z"
     depends_on_tasks: ["5.1"]
     files_owned:
       - internal/provider/oauth/gemini.go
@@ -449,8 +457,9 @@ tasks:
 
   - id: "4.3"
     name: "Combos store + resolver"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Copernicus"
+    completed_at: "2026-06-02T18:41:49Z"
     files_owned:
       - internal/store/combos.go
       - internal/store/combos_test.go
