@@ -241,7 +241,8 @@ g0router/
 │       ├── phase-08-usage-tracking-cost-logging.md
 │       ├── phase-09-mcp-gateway.md
 │       ├── phase-10-dashboard-ui.md
-│       └── phase-11-packaging-deployment-polish.md
+│       ├── phase-11-packaging-deployment-polish.md
+│       └── phase-12-advanced-mcp-gateway.md
 │
 ├── embed.go                              # //go:embed ui/dist/* (production build)
 ├── Makefile                              # build, test, lint, ui, docker, install

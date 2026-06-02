@@ -16,14 +16,14 @@
 
 | Metric | Value |
 |--------|-------|
-| Phases | 12 (0–11) |
-| Tasks | 71 |
-| Stages | 6 (sequential barriers) |
-| Waves | 11 (parallel batches within stages) |
+| Phases | 13 (0–12) |
+| Tasks | 77 |
+| Stages | 7 (sequential barriers) |
+| Waves | 13 (parallel batches within stages) |
 | Max parallel agents | 8 |
-| Critical path | Stage 0 → 1 → 2 → 3 → 4 → 5 |
+| Critical path | Stage 0 → 1 → 2 → 3 → 4 → 5 → 6 |
 
-With 8 agents, 71 tasks compress into **11 merge points** instead of 71 sequential steps.
+With 8 agents, 77 tasks compress into **13 merge points** instead of 77 sequential steps.
 
 ## Stage → Wave → Task Map
 
@@ -40,6 +40,7 @@ STAGE 4 ─┬─ Wave 4.A [6 tasks]  ──► mgmt API, OAuth endpoints, CLI, 
           └─ Wave 4.B [6 tasks]  ──► responses API, MCP discovery/agent/health/handlers, UI embed
 STAGE 5 ─┬─ Wave 5.A [3 tasks]  ──► Makefile, systemd, Docker
           └─ Wave 5.B [2 tasks]  ──► README polish, E2E tests
+STAGE 6 ─── Wave 6.A [6 tasks]   ──► advanced MCP instances, OAuth, callbacks
 ```
 
 ## Phase Index
@@ -58,6 +59,7 @@ STAGE 5 ─┬─ Wave 5.A [3 tasks]  ──► Makefile, systemd, Docker
 | 9 | [Phase 9: MCP Gateway](phases/phase-09-mcp-gateway.md) | 6 | Client/tool manager, discovery, agent loop | 3.A, 4.B |
 | 10 | [Phase 10: Dashboard UI](phases/phase-10-dashboard-ui.md) | 8 | React + Vite + Tailwind, embedded | 3.A–4.B |
 | 11 | [Phase 11: Packaging](phases/phase-11-packaging-deployment-polish.md) | 5 | Makefile, systemd, Docker, E2E | 5.A–5.B |
+| 12 | [Phase 12: Advanced MCP Gateway](phases/phase-12-advanced-mcp-gateway.md) | 6 | Docker/npx/http MCP instances, OAuth, multi-account | 6.A |
 
 ## Coordination Documents
 

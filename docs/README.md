@@ -5,7 +5,7 @@ Start here to understand the project, then dive into specific areas.
 ## Reading Order
 
 1. **[ARCHITECTURE.md](ARCHITECTURE.md)** — System overview, request pipeline, key interfaces
-2. **[PLAN.md](PLAN.md)** — Master implementation plan with links to all 12 phase documents
+2. **[PLAN.md](PLAN.md)** — Master implementation plan with links to all 13 phase documents
 3. **[SCHEMA.md](SCHEMA.md)** — SQLite tables and API endpoint contracts
 4. **[CONFIG.md](CONFIG.md)** — Environment variables and settings
 5. **[PROVIDERS.md](PROVIDERS.md)** — Provider catalog with auth details and wire formats
@@ -37,6 +37,7 @@ Each phase is a self-contained implementation guide with design decisions, type 
 | [Phase 9](phases/phase-09-mcp-gateway.md) | MCP | Client manager, compact manifests, agent loop |
 | [Phase 10](phases/phase-10-dashboard-ui.md) | Dashboard | React + Vite + Tailwind, embedded in binary |
 | [Phase 11](phases/phase-11-packaging-deployment-polish.md) | Deploy | Makefile, systemd, Docker, E2E tests |
+| [Phase 12](phases/phase-12-advanced-mcp-gateway.md) | Advanced MCP | Docker/npx/http instances, OAuth, multi-account |
 
 ## AI Agent Protocol
 

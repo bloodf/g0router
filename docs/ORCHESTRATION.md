@@ -177,7 +177,24 @@ After Phase 1, five independent streams can start simultaneously.
 | 11.4 README polish | Agent-1 | `README.md`, `.env.example`, `docs/DEPLOYMENT.md` | all |
 | 11.5 E2E tests | Agent-2 | E2E test file | all |
 
-**Gate**: `make test && make build && make docker` → **PHASE_11_COMPLETE** → **PROJECT COMPLETE**
+**Gate**: `make test && make build && make docker` → **PHASE_11_COMPLETE** → advance to Stage 6
+
+---
+
+### STAGE 6 — Advanced MCP Gateway (sequential, 1 agent)
+
+Runs only after all existing phases are complete. This stage upgrades the Phase 9 MCP base into a production MCP gateway with configurable instances, docker/npx/http launches, OAuth accounts, and pasted callback URL completion.
+
+| Task | Agent | Files (exclusive write) | Depends on |
+|------|-------|------------------------|------------|
+| 12.1 MCP instance model + store | Agent-1 | `internal/store/mcpinstances.go`, `internal/store/mcpinstances_test.go`, `internal/mcp/instances.go`, `internal/mcp/instances_test.go` | Phase 11 |
+| 12.2 MCP launcher matrix | Agent-1 | `internal/mcp/launcher.go`, `internal/mcp/launcher_test.go`, `internal/mcp/process.go`, `internal/mcp/http.go` | 12.1 |
+| 12.3 MCP OAuth account engine | Agent-1 | `internal/mcp/oauth.go`, `internal/mcp/oauth_test.go`, `internal/store/mcpoauth.go`, `internal/store/mcpoauth_test.go` | 12.1 |
+| 12.4 MCP OAuth callback completion | Agent-1 | `api/handlers/mcpoauth.go`, `api/handlers/mcpoauth_test.go`, `internal/cli/mcp_auth.go`, CLI tests | 12.3 |
+| 12.5 MCP management surfaces | Agent-1 | `api/handlers/mcp.go`, MCP API tests, `internal/cli/mcp.go`, `ui/src/pages/*`, UI MCP components | 12.1-12.4 |
+| 12.6 Advanced MCP integration docs | Agent-1 | MCP integration tests, `docs/SCHEMA.md`, `docs/CONFIG.md`, `docs/DEPLOYMENT.md`, `README.md` | 12.2-12.5 |
+
+**Gate**: `go test ./... && go vet ./... && go build ./cmd/g0router` → **PHASE_12_COMPLETE** → **PROJECT COMPLETE**
 
 ---
 
@@ -272,7 +289,8 @@ Wave: {wave_id}
 | 2 | 3 | 8 | 22 |
 | 3 | 2 | 8 | 16 |
 | 4 | 2 | 6 | 12 |
-| 5 | 1 | 3 | 5 |
-| **Total** | **11 waves** | — | **71 tasks** |
+| 5 | 2 | 3 | 5 |
+| 6 | 1 | 1 | 6 |
+| **Total** | **13 waves** | — | **77 tasks** |
 
-With 8 agents, the 71 tasks compress into ~11 sequential merge points instead of 71.
+With 8 agents, the 77 tasks compress into ~13 sequential merge points instead of 77.

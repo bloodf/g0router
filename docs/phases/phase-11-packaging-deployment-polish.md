@@ -1,7 +1,7 @@
 # Phase 11: Packaging, Deployment + Polish
 
 > **Depends on**: All previous phases  
-> **Unlocks**: PROJECT COMPLETE  
+> **Unlocks**: Phase 12
 > **Checkpoint**: `PHASE_11_COMPLETE`
 
 ---
@@ -293,4 +293,4 @@ go build ./cmd/g0router   # Binary builds
 - [ ] Build succeeds: `go build ./cmd/g0router`
 - [ ] All commits follow `phase-11/task-N: description` format
 - [ ] Update `docs/WORKFLOW.md`: phase_11.status → `DONE`
-- [ ] **PHASE_11_COMPLETE** → **PROJECT COMPLETE**
+- [ ] **PHASE_11_COMPLETE** -> advance to Phase 12
