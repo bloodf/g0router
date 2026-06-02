@@ -30,8 +30,8 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 4
-current_wave: "4.A"
-last_updated: "2026-06-02T19:31:59Z"
+current_wave: "4.B"
+last_updated: "2026-06-02T19:54:04Z"
 last_agent: "orchestrator"
 ```
 
@@ -624,7 +624,7 @@ tasks:
 
 ```yaml
 wave: "4.A"
-status: PENDING
+status: DONE
 max_agents: 6
 depends_on: ["3.B"]
 gate: "go test ./... && go vet ./..."
@@ -632,35 +632,47 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "4.5"
     name: "Management API handlers"
-    status: PENDING
+    status: DONE
+    agent: "Galileo"
+    completed_at: "2026-06-02T19:54:04Z"
     depends_on_tasks: ["4.1", "4.2", "4.3", "4.4"]
     files_owned: ["api/handlers/providers.go", "api/handlers/connections.go", "api/handlers/settings.go", "api/handlers/apikeys.go", "api/handlers/combos.go"]
 
   - id: "5.10"
     name: "OAuth HTTP endpoints"
-    status: PENDING
+    status: DONE
+    agent: "Schrodinger"
+    completed_at: "2026-06-02T19:54:04Z"
     files_owned: ["api/handlers/oauth.go", "api/handlers/oauth_test.go"]
 
   - id: "5.11"
     name: "CLI commands (cobra)"
-    status: PENDING
+    status: DONE
+    agent: "Ptolemy"
+    completed_at: "2026-06-02T19:54:04Z"
     files_owned: ["internal/cli/*.go", "cmd/g0router/main.go"]
 
   - id: "6.1"
     name: "Account fallback engine"
-    status: PENDING
+    status: DONE
+    agent: "Leibniz"
+    completed_at: "2026-06-02T19:54:04Z"
     depends_on_tasks: ["4.2"]
     files_owned: ["internal/provider/fallback.go", "internal/provider/fallback_test.go"]
 
   - id: "6.2"
     name: "Combo model resolution"
-    status: PENDING
+    status: DONE
+    agent: "Halley"
+    completed_at: "2026-06-02T19:54:04Z"
     depends_on_tasks: ["4.3"]
     files_owned: ["internal/proxy/combo.go", "internal/proxy/combo_test.go"]
 
   - id: "8.6"
     name: "Usage + logging API handlers"
-    status: PENDING
+    status: DONE
+    agent: "Peirce"
+    completed_at: "2026-06-02T19:54:04Z"
     depends_on_tasks: ["8.1+8.2", "8.3", "8.4", "8.5"]
     files_owned: ["api/handlers/usage.go", "api/handlers/logging.go"]
 ```
