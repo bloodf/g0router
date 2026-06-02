@@ -29,9 +29,9 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 1
-current_wave: "1.B"
-last_updated: "2026-06-02T17:22:56Z"
+current_stage: 2
+current_wave: "2.A"
+last_updated: "2026-06-02T17:30:15Z"
 last_agent: "orchestrator"
 ```
 
@@ -114,7 +114,7 @@ tasks:
 
 ```yaml
 wave: "1.B"
-status: PENDING
+status: DONE
 max_agents: 3
 depends_on: ["1.A"]
 gate: "go test ./... && go vet ./..."
@@ -122,8 +122,9 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "1.3"
     name: "Connection CRUD"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Dirac"
+    completed_at: "2026-06-02T17:30:15Z"
     depends_on_tasks: ["1.2"]
     files_owned:
       - internal/store/connections.go
@@ -133,8 +134,9 @@ tasks:
 
   - id: "1.4"
     name: "Settings + API keys store"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Arendt"
+    completed_at: "2026-06-02T17:30:15Z"
     depends_on_tasks: ["1.2"]
     files_owned:
       - internal/store/settings.go
@@ -145,8 +147,9 @@ tasks:
 
   - id: "1.5"
     name: "Usage log store"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Pascal"
+    completed_at: "2026-06-02T17:30:15Z"
     depends_on_tasks: ["1.2"]
     files_owned:
       - internal/store/usage.go
