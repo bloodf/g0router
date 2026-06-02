@@ -7,18 +7,19 @@ import (
 	"github.com/bloodf/g0router/internal/providers"
 )
 
-func TestCompressRequestAppliesDetectedFiltersToStringMessages(t *testing.T) {
+func TestCompressRequestOnlyCompressesToolStringMessages(t *testing.T) {
+	toolOutput := `On branch codex/wave-2c-task-73
+Changes not staged for commit:
+  modified:   internal/rtk/rtk.go
+Untracked files:
+  internal/rtk/rtk_test.go
+`
 	req := providers.ChatRequest{
 		Model: "gpt-4o",
 		Messages: []providers.Message{
 			{
 				Role: "user",
-				Content: `On branch codex/wave-2c-task-73
-Changes not staged for commit:
-  modified:   internal/rtk/rtk.go
-Untracked files:
-  internal/rtk/rtk_test.go
-`,
+				Content: toolOutput,
 			},
 			{
 				Role: "assistant",
@@ -26,16 +27,27 @@ Untracked files:
 internal/rtk/autodetect.go:10:func DetectFormat(input string) ContentFormat
 `,
 			},
+			{
+				Role:    "system",
+				Content: toolOutput,
+			},
+			{
+				Role:    "tool",
+				Content: toolOutput,
+			},
 		},
 	}
 
 	got := CompressRequest(req)
 
-	assertStringContent(t, got.Messages[0], `branch codex/wave-2c-task-73
+	assertStringContent(t, got.Messages[0], toolOutput)
+	assertStringContent(t, got.Messages[1], `internal/rtk/rtk.go:12:func CompressRequest(req providers.ChatRequest) providers.ChatRequest
+internal/rtk/autodetect.go:10:func DetectFormat(input string) ContentFormat
+`)
+	assertStringContent(t, got.Messages[2], toolOutput)
+	assertStringContent(t, got.Messages[3], `branch codex/wave-2c-task-73
 M internal/rtk/rtk.go
 ?? internal/rtk/rtk_test.go`)
-	assertStringContent(t, got.Messages[1], `internal/rtk/rtk.go:12 func CompressRequest(req providers.ChatRequest) providers.ChatRequest
-internal/rtk/autodetect.go:10 func DetectFormat(input string) ContentFormat`)
 }
 
 func TestCompressRequestDoesNotMutateCallerRequest(t *testing.T) {
@@ -43,7 +55,7 @@ func TestCompressRequestDoesNotMutateCallerRequest(t *testing.T) {
 		Model: "gpt-4o",
 		Messages: []providers.Message{
 			{
-				Role: "user",
+				Role: "tool",
 				Content: `     1	package rtk
      2
      3	func DetectFormat(input string) ContentFormat {
@@ -85,12 +97,48 @@ func TestCompressRequestLeavesNonStringContentUntouched(t *testing.T) {
 	}
 }
 
-func TestCompressRequestSmartTruncatesPlainText(t *testing.T) {
+func TestCompressRequestCompressesToolResultBlocks(t *testing.T) {
+	req := providers.ChatRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []providers.Message{
+			{
+				Role: "user",
+				Content: []map[string]any{
+					{"type": "text", "text": "please summarize"},
+					{
+						"type": "tool_result",
+						"content": `internal/rtk/rtk.go:12:func CompressRequest(req providers.ChatRequest) providers.ChatRequest
+internal/rtk/autodetect.go:10:func DetectFormat(input string) ContentFormat
+`,
+					},
+				},
+			},
+		},
+	}
+
+	got := CompressRequest(req)
+
+	originalBlocks := req.Messages[0].Content.([]map[string]any)
+	if originalBlocks[1]["content"] == gotToolResultContent(t, got.Messages[0]) {
+		t.Fatal("returned tool_result block should contain compressed content")
+	}
+	if originalBlocks[1]["content"].(string) != `internal/rtk/rtk.go:12:func CompressRequest(req providers.ChatRequest) providers.ChatRequest
+internal/rtk/autodetect.go:10:func DetectFormat(input string) ContentFormat
+` {
+		t.Fatal("original tool_result block should remain unchanged")
+	}
+	if gotToolResultContent(t, got.Messages[0]) != `internal/rtk/rtk.go:12 func CompressRequest(req providers.ChatRequest) providers.ChatRequest
+internal/rtk/autodetect.go:10 func DetectFormat(input string) ContentFormat` {
+		t.Fatalf("unexpected compressed tool_result content: %q", gotToolResultContent(t, got.Messages[0]))
+	}
+}
+
+func TestCompressRequestSmartTruncatesToolPlainText(t *testing.T) {
 	input := strings.Repeat("plain output ", 500)
 	req := providers.ChatRequest{
 		Model: "gpt-4o",
 		Messages: []providers.Message{
-			{Role: "user", Content: input},
+			{Role: "tool", Content: input},
 		},
 	}
 
@@ -103,6 +151,20 @@ func TestCompressRequestSmartTruncatesPlainText(t *testing.T) {
 	if !strings.Contains(content, "\n... truncated ") {
 		t.Fatalf("compressed content missing truncation marker: %q", content)
 	}
+}
+
+func gotToolResultContent(t *testing.T, message providers.Message) string {
+	t.Helper()
+
+	blocks, ok := message.Content.([]map[string]any)
+	if !ok {
+		t.Fatalf("content type = %T, want []map[string]any", message.Content)
+	}
+	content, ok := blocks[1]["content"].(string)
+	if !ok {
+		t.Fatalf("tool_result content type = %T, want string", blocks[1]["content"])
+	}
+	return content
 }
 
 func assertStringContent(t *testing.T, message providers.Message, want string) {
