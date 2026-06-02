@@ -15,6 +15,7 @@ type ServerConfig struct {
 	RequireAPIKey   bool
 	APIKeySecret    string
 	APIKeyValidator APIKeyValidator
+	InferenceEngine handlers.InferenceEngine
 }
 
 type Server struct {
@@ -60,6 +61,18 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 	switch string(ctx.Path()) {
 	case "/healthz":
 		handlers.Health(ctx, s.config.Version)
+	case "/v1/chat/completions":
+		if string(ctx.Method()) == fasthttp.MethodPost {
+			handlers.Inference(ctx, s.config.InferenceEngine)
+			return
+		}
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+	case "/v1/models":
+		if string(ctx.Method()) == fasthttp.MethodGet {
+			handlers.Models(ctx, s.config.InferenceEngine)
+			return
+		}
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
 	default:
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 	}
