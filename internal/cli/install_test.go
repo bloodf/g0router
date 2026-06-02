@@ -60,7 +60,14 @@ func TestInstallUserWritesFilesAndRunsUserSystemctl(t *testing.T) {
 	}
 
 	assertFileContains(t, filepath.Join(home, ".local/bin/g0router"), "test binary")
-	assertFileContains(t, filepath.Join(home, ".config/systemd/user/g0router.service"), filepath.Join(home, ".local/bin/g0router")+" serve")
+	userService := filepath.Join(home, ".config/systemd/user/g0router.service")
+	assertFileContains(t, userService, filepath.Join(home, ".local/bin/g0router")+" serve")
+	assertFileContains(t, userService, "ReadWritePaths="+filepath.Join(home, ".g0router"))
+	assertFileContains(t, userService, "WantedBy=default.target")
+	assertFileOmits(t, userService, "User=")
+	assertFileOmits(t, userService, "Group=")
+	assertFileOmits(t, userService, "/etc/default/g0router")
+	assertFileOmits(t, userService, "multi-user.target")
 	if _, err := os.Stat(filepath.Join(home, ".g0router")); err != nil {
 		t.Fatalf("data dir missing: %v", err)
 	}
@@ -186,5 +193,16 @@ func assertFileContains(t *testing.T, path, want string) {
 	}
 	if !strings.Contains(string(content), want) {
 		t.Fatalf("%s = %q, want %q", path, string(content), want)
+	}
+}
+
+func assertFileOmits(t *testing.T, path, unwanted string) {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	if strings.Contains(string(content), unwanted) {
+		t.Fatalf("%s = %q, should omit %q", path, string(content), unwanted)
 	}
 }

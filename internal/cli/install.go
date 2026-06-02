@@ -95,7 +95,7 @@ func runInstall(options installOptions) error {
 		serviceBinary = "/usr/local/bin/g0router"
 		serviceDataDir = "/var/lib/g0router"
 	}
-	service, err := serviceTemplate(serviceBinary, serviceDataDir)
+	service, err := serviceTemplate(serviceBinary, serviceDataDir, options.User)
 	if err != nil {
 		return err
 	}
@@ -210,14 +210,36 @@ func rooted(root, absolute string) string {
 	return filepath.Join(root, strings.TrimPrefix(absolute, string(filepath.Separator)))
 }
 
-func serviceTemplate(binary, dataDir string) (string, error) {
+func serviceTemplate(binary, dataDir string, user bool) (string, error) {
 	content, err := readDeployTemplate("g0router.service")
 	if err != nil {
 		return "", fmt.Errorf("read service template: %w", err)
 	}
 	service := strings.ReplaceAll(string(content), "/usr/local/bin/g0router", binary)
 	service = strings.ReplaceAll(service, "/var/lib/g0router", dataDir)
+	if user {
+		service = omitServiceLines(service, "User=", "Group=", "EnvironmentFile=")
+		service = strings.ReplaceAll(service, "WantedBy=multi-user.target", "WantedBy=default.target")
+	}
 	return service, nil
+}
+
+func omitServiceLines(content string, prefixes ...string) string {
+	lines := strings.Split(content, "\n")
+	filtered := lines[:0]
+	for _, line := range lines {
+		omit := false
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(line, prefix) {
+				omit = true
+				break
+			}
+		}
+		if !omit {
+			filtered = append(filtered, line)
+		}
+	}
+	return strings.Join(filtered, "\n")
 }
 
 func ensureSystemUser(run func(string, ...string) error) error {
