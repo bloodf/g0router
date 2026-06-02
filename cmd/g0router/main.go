@@ -1,23 +1,17 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
+
+	"github.com/bloodf/g0router/internal/cli"
 )
 
 var version = "0.1.0-dev"
 
 func main() {
-	showVersion := flag.Bool("version", false, "print version and exit")
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Println(version)
-		return
+	if err := cli.NewRootCommand(version).Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
-
-	fmt.Fprintf(os.Stderr, "g0router %s\n", version)
-	fmt.Fprintln(os.Stderr, "Use 'g0router serve' to start the server (not yet implemented)")
-	os.Exit(1)
 }
