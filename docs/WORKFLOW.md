@@ -31,7 +31,7 @@
 project_status: IN_PROGRESS
 current_stage: 5
 current_wave: "5.B"
-last_updated: "2026-06-02T20:59:58Z"
+last_updated: "2026-06-02T21:15:40Z"
 last_agent: "orchestrator"
 ```
 
@@ -785,7 +785,9 @@ gate: "make test && make build && make docker"
 tasks:
   - id: "11.4"
     name: ".env.example + README polish"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-02T21:15:40Z"
     files_owned: ["README.md", ".env.example", "docs/DEPLOYMENT.md"]
 
   - id: "11.5"
