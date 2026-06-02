@@ -224,6 +224,61 @@ g0router healthcheck          # CLI (exit 0 = healthy)
 curl localhost:20128/healthz  # HTTP
 ```
 
+## MCP Manual Verification
+
+Run these checks after deployment when MCP gateway support is enabled. They are intentionally local-first; each step should leave secrets out of command output.
+
+### Remote HTTP MCP
+
+```bash
+g0router mcp add atlassian-a \
+  --server-key atlassian \
+  --launch-type http \
+  --transport streamable-http \
+  --url https://mcp.atlassian.com/mcp \
+  --account-label account-a
+
+g0router mcp auth start atlassian-a \
+  --authorization-url https://auth.example/authorize \
+  --resource https://mcp.atlassian.com \
+  --redirect-url http://localhost:20128/api/mcp/oauth/callback
+
+g0router mcp auth complete atlassian-a "http://localhost:20128/api/mcp/oauth/callback?code=...&state=..."
+g0router mcp accounts atlassian-a
+g0router mcp tools atlassian-a
+```
+
+Expected result: account labels and compact tool names are shown, but access tokens, refresh tokens, headers, and secret environment values are not printed.
+
+### npx MCP
+
+```bash
+g0router mcp add expo \
+  --server-key expo \
+  --launch-type npx \
+  --transport stdio \
+  --command @expo/mcp \
+  --arg --stdio
+g0router mcp list
+```
+
+Expected launch shape: `npx --yes @expo/mcp --stdio`. The launcher builds an argv list directly and does not interpolate through a shell.
+
+### Docker MCP
+
+```bash
+docker version
+g0router mcp add docker-search \
+  --server-key docker-search \
+  --launch-type docker \
+  --transport stdio \
+  --command mcp/search:latest \
+  --env TOKEN=secret
+g0router mcp list
+```
+
+Expected launch shape: `docker run --rm -i -e TOKEN mcp/search:latest`. If `docker version` fails, skip Docker runtime verification and record that Docker or its daemon was unavailable.
+
 ## Upgrade
 
 ```bash

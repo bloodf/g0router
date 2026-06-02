@@ -30,6 +30,12 @@ make build
 # Start serving
 ./g0router serve
 
+# Add MCP instances for separate accounts on the same MCP server
+./g0router mcp add atlassian-a --server-key atlassian --launch-type http --transport streamable-http --url https://mcp.atlassian.com/mcp --account-label account-a
+./g0router mcp add atlassian-b --server-key atlassian --launch-type http --transport streamable-http --url https://mcp.atlassian.com/mcp --account-label account-b
+./g0router mcp auth start atlassian-a --authorization-url https://auth.example/authorize --resource https://mcp.atlassian.com --redirect-url http://localhost:20128/api/mcp/oauth/callback
+./g0router mcp auth complete atlassian-a "http://localhost:20128/api/mcp/oauth/callback?code=...&state=..."
+
 # Use it (OpenAI-compatible endpoint)
 curl http://localhost:20128/v1/chat/completions \
   -H "Authorization: Bearer <your-gateway-key>" \

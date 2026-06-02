@@ -137,6 +137,73 @@ CREATE TABLE mcp_clients (
 );
 ```
 
+### mcp_instances
+```sql
+CREATE TABLE mcp_instances (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    name TEXT NOT NULL UNIQUE,
+    server_key TEXT NOT NULL,      -- server definition key, reusable across accounts
+    launch_type TEXT NOT NULL CHECK (launch_type IN ('command', 'npx', 'docker', 'http')),
+    transport TEXT NOT NULL CHECK (transport IN ('stdio', 'sse', 'streamable-http')),
+    command TEXT,                  -- command, npm package, or docker image depending on launch_type
+    args TEXT,                     -- JSON array
+    url TEXT,                      -- remote HTTP/SSE endpoint for launch_type=http
+    headers TEXT,                  -- JSON object; secret-like keys are redacted from list responses
+    env TEXT,                      -- JSON object; secret-like keys are redacted from list responses
+    cwd TEXT,
+    account_label TEXT,            -- selected account label for this instance
+    is_active INTEGER NOT NULL DEFAULT 1,
+    health_status TEXT DEFAULT 'unknown',
+    last_health_check TEXT,
+    tool_manifest TEXT,            -- JSON cached tool schemas per instance
+    manifest_updated_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_mcp_instances_server_key ON mcp_instances(server_key);
+```
+
+### mcp_oauth_accounts
+```sql
+CREATE TABLE mcp_oauth_accounts (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    instance_id TEXT NOT NULL,
+    account_label TEXT NOT NULL DEFAULT 'default',
+    subject TEXT,
+    email TEXT,
+    issuer TEXT,
+    resource_uri TEXT,
+    scopes TEXT,                   -- JSON array
+    access_token TEXT NOT NULL,
+    refresh_token TEXT,
+    expires_at TEXT,
+    auth_metadata TEXT,            -- JSON object
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(instance_id, account_label),
+    FOREIGN KEY (instance_id) REFERENCES mcp_instances(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_mcp_oauth_accounts_instance ON mcp_oauth_accounts(instance_id);
+```
+
+### mcp_oauth_flows
+```sql
+CREATE TABLE mcp_oauth_flows (
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    instance_id TEXT NOT NULL,
+    state_hash TEXT NOT NULL,
+    code_verifier_secret TEXT NOT NULL,
+    redirect_uri TEXT,
+    authorization_url TEXT,
+    resource_uri TEXT,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(instance_id, state_hash),
+    FOREIGN KEY (instance_id) REFERENCES mcp_instances(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_mcp_oauth_flows_instance ON mcp_oauth_flows(instance_id);
+```
+
 ---
 
 ## API Contracts
@@ -182,7 +249,14 @@ GET    /api/usage/quota/:provider    — Provider quota/limits
 GET    /api/mcp/clients              — List MCP clients
 POST   /api/mcp/clients              — Add MCP client
 DELETE /api/mcp/clients/:id          — Remove MCP client
-GET    /api/mcp/tools                — List discovered tools (compact)
+GET    /api/mcp/instances            — List MCP instances with redacted env/headers
+POST   /api/mcp/instances            — Add MCP instance
+DELETE /api/mcp/instances/:id        — Remove MCP instance and cascade OAuth accounts/flows
+POST   /api/mcp/instances/:id/auth/start     — Create MCP OAuth flow
+POST   /api/mcp/instances/:id/oauth/complete — Complete pasted callback URL
+GET    /api/mcp/instances/:id/accounts       — List redacted OAuth accounts
+GET    /api/mcp/oauth/callback       — Browser OAuth callback completion
+GET    /api/mcp/tools                — List discovered tools (compact); optional instance_id/account_label filters
 POST   /api/mcp/tools/:name/execute  — Execute tool
 
 GET    /api/logs                     — Query request/response logs
@@ -200,6 +274,13 @@ g0router keys list
 g0router keys rm <name>
 g0router providers list
 g0router providers test <provider>
+g0router mcp add <name> --server-key KEY --launch-type http --transport streamable-http --url URL [--account-label LABEL]
+g0router mcp list
+g0router mcp accounts <instance>
+g0router mcp tools <instance>
+g0router mcp auth start <instance> --authorization-url URL --resource URI --redirect-url URL
+g0router mcp auth complete <instance> <callback-url>
+g0router mcp remove <instance>
 g0router status
 g0router version
 g0router install [--user]            # Install as systemd service

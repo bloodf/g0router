@@ -17,6 +17,57 @@ All configuration via environment variables. Runtime overrides via the `settings
 | `CAVEMAN_LEVEL` | string | No | `full` | Caveman compression level. Values: `lite` (gentle), `full` (standard), `ultra` (maximum compression). |
 | `HTTPS_PROXY` | string | No | — | HTTP proxy URL for all upstream provider requests. Example: `http://proxy.corp:8080`. |
 
+## MCP Instance Configuration
+
+MCP servers are runtime-managed records, not global environment variables. Configure them with the dashboard, the management API, or CLI commands:
+
+```bash
+# Remote streamable HTTP MCP server
+g0router mcp add atlassian-a \
+  --server-key atlassian \
+  --launch-type http \
+  --transport streamable-http \
+  --url https://mcp.atlassian.com/mcp \
+  --account-label account-a
+
+# Local command MCP server
+g0router mcp add local-files \
+  --server-key filesystem \
+  --launch-type command \
+  --transport stdio \
+  --command mcp-files \
+  --arg --stdio
+
+# npx MCP server. The generated launch spec is argv-based and does not use a shell.
+g0router mcp add expo \
+  --server-key expo \
+  --launch-type npx \
+  --transport stdio \
+  --command @expo/mcp \
+  --arg --stdio
+
+# Docker MCP server. Env values are passed to the subprocess and redacted from list output.
+g0router mcp add docker-search \
+  --server-key docker-search \
+  --launch-type docker \
+  --transport stdio \
+  --command mcp/search:latest \
+  --env TOKEN=secret
+```
+
+For HTTP MCP OAuth:
+
+```bash
+g0router mcp auth start atlassian-a \
+  --authorization-url https://auth.example/authorize \
+  --resource https://mcp.atlassian.com \
+  --redirect-url http://localhost:20128/api/mcp/oauth/callback
+
+g0router mcp auth complete atlassian-a "http://localhost:20128/api/mcp/oauth/callback?code=...&state=..."
+```
+
+Multiple accounts for the same MCP server are modeled as multiple instances with the same `server_key` and different `name`/`account_label` values.
+
 ## Boolean Parsing
 
 All boolean env vars accept (case-insensitive):
