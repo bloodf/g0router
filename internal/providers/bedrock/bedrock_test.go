@@ -1,0 +1,232 @@
+package bedrock
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/bloodf/g0router/internal/providers"
+)
+
+func TestNewImplementsProvider(t *testing.T) {
+	provider := New("")
+
+	if provider.Name() != providers.ProviderBedrock {
+		t.Fatalf("Name() = %q", provider.Name())
+	}
+
+	var _ providers.Provider = provider
+}
+
+func TestChatCompletionSignsInvokeModelRequest(t *testing.T) {
+	var gotPath string
+	var gotAuth string
+	var gotDate string
+	var gotHash string
+	var gotToken string
+	var gotBody []byte
+	var gotRequest invokeRequest
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.RequestURI
+		gotAuth = r.Header.Get("Authorization")
+		gotDate = r.Header.Get("X-Amz-Date")
+		gotHash = r.Header.Get("X-Amz-Content-Sha256")
+		gotToken = r.Header.Get("X-Amz-Security-Token")
+
+		var err error
+		gotBody, err = io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		if err := json.Unmarshal(gotBody, &gotRequest); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(bedrockResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL)
+	temp := 0.3
+	maxTokens := 64
+	resp, err := provider.ChatCompletion(context.Background(), testKey(), &providers.ChatRequest{
+		Model:       "anthropic.claude-3-haiku-20240307-v1:0",
+		Temperature: &temp,
+		MaxTokens:   &maxTokens,
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+
+	expectedPath := "/model/anthropic.claude-3-haiku-20240307-v1:0/invoke"
+	if gotPath != expectedPath {
+		t.Fatalf("path = %q, want %q", gotPath, expectedPath)
+	}
+	if gotRequest.AnthropicVersion != "bedrock-2023-05-31" {
+		t.Errorf("anthropic_version = %q", gotRequest.AnthropicVersion)
+	}
+	if gotRequest.MaxTokens != 64 {
+		t.Errorf("max_tokens = %d", gotRequest.MaxTokens)
+	}
+	if gotRequest.Temperature == nil || *gotRequest.Temperature != 0.3 {
+		t.Errorf("temperature = %+v", gotRequest.Temperature)
+	}
+	if len(gotRequest.Messages) != 1 || gotRequest.Messages[0].Role != "user" || gotRequest.Messages[0].Content != "hello" {
+		t.Errorf("messages = %+v", gotRequest.Messages)
+	}
+
+	sum := sha256.Sum256(gotBody)
+	if gotHash != hex.EncodeToString(sum[:]) {
+		t.Errorf("X-Amz-Content-Sha256 = %q", gotHash)
+	}
+	if gotToken != "token" {
+		t.Errorf("X-Amz-Security-Token = %q", gotToken)
+	}
+	if _, err := time.Parse("20060102T150405Z", gotDate); err != nil {
+		t.Errorf("X-Amz-Date = %q: %v", gotDate, err)
+	}
+	assertAuthorizationHeader(t, gotAuth, gotDate)
+
+	if resp.Model != "anthropic.claude-3-haiku-20240307-v1:0" {
+		t.Errorf("model = %q", resp.Model)
+	}
+}
+
+func TestChatCompletionParsesBedrockResponse(t *testing.T) {
+	server := bedrockJSONServer(t, http.StatusOK, bedrockResponseJSON)
+	provider := New(server.URL)
+
+	resp, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+
+	if resp.Object != "chat.completion" {
+		t.Errorf("object = %q", resp.Object)
+	}
+	if resp.ID == "" {
+		t.Error("id is empty")
+	}
+	if len(resp.Choices) != 1 {
+		t.Fatalf("choices len = %d", len(resp.Choices))
+	}
+	choice := resp.Choices[0]
+	if choice.Message.Role != "assistant" {
+		t.Errorf("role = %q", choice.Message.Role)
+	}
+	if choice.Message.Content != "hello from bedrock" {
+		t.Errorf("content = %#v", choice.Message.Content)
+	}
+	if choice.FinishReason == nil || *choice.FinishReason != "stop" {
+		t.Errorf("finish reason = %+v", choice.FinishReason)
+	}
+	if resp.Usage == nil || resp.Usage.PromptTokens != 5 || resp.Usage.CompletionTokens != 7 || resp.Usage.TotalTokens != 12 {
+		t.Errorf("usage = %+v", resp.Usage)
+	}
+}
+
+func TestChatCompletionParsesErrorResponse(t *testing.T) {
+	server := bedrockJSONServer(t, http.StatusForbidden, `{"message":"bad aws credentials"}`)
+	provider := New(server.URL)
+
+	_, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if !errors.Is(err, ErrAuth) {
+		t.Fatalf("expected ErrAuth, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "bad aws credentials") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestChatCompletionValidatesCredentials(t *testing.T) {
+	provider := New("http://127.0.0.1")
+
+	_, err := provider.ChatCompletion(context.Background(), providers.Key{Value: "missing-secret"}, testChatRequest())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "parse bedrock credentials") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestUnsupportedMethodsReturnErrors(t *testing.T) {
+	provider := New("http://127.0.0.1")
+
+	if _, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest()); err == nil {
+		t.Fatal("expected stream error")
+	}
+	if _, err := provider.ListModels(context.Background(), testKey()); err == nil {
+		t.Fatal("expected list models error")
+	}
+}
+
+func assertAuthorizationHeader(t *testing.T, gotAuth, gotDate string) {
+	t.Helper()
+
+	shortDate := gotDate[:8]
+	checks := []string{
+		"AWS4-HMAC-SHA256 Credential=AKID/" + shortDate + "/us-east-1/bedrock/aws4_request",
+		"SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-security-token",
+		"Signature=",
+	}
+	for _, check := range checks {
+		if !strings.Contains(gotAuth, check) {
+			t.Fatalf("Authorization = %q, missing %q", gotAuth, check)
+		}
+	}
+}
+
+func bedrockJSONServer(t *testing.T, status int, body string) *httptest.Server {
+	t.Helper()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func testKey() providers.Key {
+	return providers.Key{
+		Value:    "AKID:SECRET:token",
+		Provider: providers.ProviderBedrock,
+		ConnID:   "conn-1",
+		AuthType: "aws",
+	}
+}
+
+func testChatRequest() *providers.ChatRequest {
+	maxTokens := 32
+	return &providers.ChatRequest{
+		Model:     "anthropic.claude-3-haiku-20240307-v1:0",
+		MaxTokens: &maxTokens,
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+}
+
+const bedrockResponseJSON = `{
+	"id": "msg_bdrk_123",
+	"type": "message",
+	"role": "assistant",
+	"content": [{"type": "text", "text": "hello from bedrock"}],
+	"stop_reason": "stop",
+	"usage": {"input_tokens": 5, "output_tokens": 7}
+}`
