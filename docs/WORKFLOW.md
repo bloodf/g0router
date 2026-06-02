@@ -30,8 +30,8 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 3
-current_wave: "3.A"
-last_updated: "2026-06-02T18:41:49Z"
+current_wave: "3.B"
+last_updated: "2026-06-02T19:07:47Z"
 last_agent: "orchestrator"
 ```
 
@@ -478,7 +478,7 @@ tasks:
 
 ```yaml
 wave: "3.A"
-status: PENDING
+status: DONE
 max_agents: 8
 depends_on: ["2.C"]
 gate: "go test ./... && go vet ./..."
@@ -486,42 +486,58 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "3.1"
     name: "Anthropic provider"
-    status: PENDING
+    status: DONE
+    agent: "Lagrange"
+    completed_at: "2026-06-02T19:07:47Z"
     files_owned: ["internal/providers/anthropic/*"]
 
   - id: "3.2"
     name: "Format translation engine"
-    status: PENDING
+    status: DONE
+    agent: "Tesla"
+    completed_at: "2026-06-02T19:07:47Z"
     files_owned: ["internal/translate/detect.go", "internal/translate/openai.go", "internal/translate/anthropic.go", "internal/translate/detect_test.go", "internal/translate/anthropic_test.go"]
 
   - id: "3.3"
     name: "OpenAI-compatible providers (batch)"
-    status: PENDING
+    status: DONE
+    agent: "Bernoulli"
+    completed_at: "2026-06-02T19:07:47Z"
     files_owned: ["internal/providers/openaicompat/*"]
 
   - id: "3.4"
     name: "Gemini provider"
-    status: PENDING
+    status: DONE
+    agent: "Kant"
+    completed_at: "2026-06-02T19:07:47Z"
     files_owned: ["internal/providers/gemini/*"]
 
   - id: "3.7"
     name: "AWS Bedrock provider"
-    status: PENDING
+    status: DONE
+    agent: "Anscombe"
+    completed_at: "2026-06-02T19:07:47Z"
     files_owned: ["internal/providers/bedrock/*"]
 
   - id: "3.8"
     name: "Azure OpenAI provider"
-    status: PENDING
+    status: DONE
+    agent: "Boyle"
+    completed_at: "2026-06-02T19:07:47Z"
     files_owned: ["internal/providers/azure/*"]
 
   - id: "9.1+9.2"
     name: "MCP client manager + tool manager"
-    status: PENDING
+    status: DONE
+    agent: "Plato"
+    completed_at: "2026-06-02T19:07:47Z"
     files_owned: ["internal/mcp/clientmanager.go", "internal/mcp/clientmanager_test.go", "internal/mcp/toolmanager.go", "internal/mcp/toolmanager_test.go"]
 
   - id: "10.1"
     name: "UI scaffold (Vite + React + Tailwind)"
-    status: PENDING
+    status: DONE
+    agent: "Descartes"
+    completed_at: "2026-06-02T19:07:47Z"
     files_owned: ["ui/**"]
 ```
 
