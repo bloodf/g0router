@@ -218,7 +218,7 @@ func serviceTemplate(binary, dataDir string, user bool) (string, error) {
 	service := strings.ReplaceAll(string(content), "/usr/local/bin/g0router", binary)
 	service = strings.ReplaceAll(service, "/var/lib/g0router", dataDir)
 	if user {
-		service = omitServiceLines(service, "User=", "Group=", "EnvironmentFile=")
+		service = omitServiceLines(service, "User=", "Group=", "EnvironmentFile=", "ProtectHome=")
 		service = strings.ReplaceAll(service, "WantedBy=multi-user.target", "WantedBy=default.target")
 	}
 	return service, nil

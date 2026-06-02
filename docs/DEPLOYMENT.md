@@ -81,7 +81,7 @@ EnvironmentFile=-/etc/default/g0router
 ExecStart=/usr/local/bin/g0router serve
 Restart=on-failure
 RestartSec=5s
-StartLimitInterval=60s
+StartLimitIntervalSec=60s
 StartLimitBurst=5
 
 # Hardening

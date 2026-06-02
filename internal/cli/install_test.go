@@ -68,6 +68,7 @@ func TestInstallUserWritesFilesAndRunsUserSystemctl(t *testing.T) {
 	assertFileOmits(t, userService, "Group=")
 	assertFileOmits(t, userService, "/etc/default/g0router")
 	assertFileOmits(t, userService, "multi-user.target")
+	assertFileOmits(t, userService, "ProtectHome=true")
 	if _, err := os.Stat(filepath.Join(home, ".g0router")); err != nil {
 		t.Fatalf("data dir missing: %v", err)
 	}
