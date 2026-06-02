@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -69,6 +70,62 @@ func TestServeCommandStartsServerRunner(t *testing.T) {
 	}
 	if got.DataDir == "" {
 		t.Fatal("data dir should be passed to serve runner")
+	}
+}
+
+func TestServeCommandUsesEnvironmentDefaults(t *testing.T) {
+	var got serveConfig
+	dataDir := filepath.Join(t.TempDir(), "env-data")
+	t.Setenv("PORT", "22345")
+	t.Setenv("DATA_DIR", dataDir)
+	cmd := newRootCommand(rootConfig{
+		Version: "0.1.0-test",
+		Serve: func(ctx context.Context, config serveConfig) error {
+			got = config
+			return nil
+		},
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"serve"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got.Port != 22345 {
+		t.Fatalf("port = %d, want env port", got.Port)
+	}
+	if got.DataDir != dataDir {
+		t.Fatalf("data dir = %q, want env data dir %q", got.DataDir, dataDir)
+	}
+}
+
+func TestServeCommandFlagsOverrideEnvironmentDefaults(t *testing.T) {
+	var got serveConfig
+	flagDataDir := filepath.Join(t.TempDir(), "flag-data")
+	t.Setenv("PORT", "22345")
+	t.Setenv("DATA_DIR", filepath.Join(t.TempDir(), "env-data"))
+	cmd := newRootCommand(rootConfig{
+		Version: "0.1.0-test",
+		Serve: func(ctx context.Context, config serveConfig) error {
+			got = config
+			return nil
+		},
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--data-dir", flagDataDir, "serve", "--port", "20129"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got.Port != 20129 {
+		t.Fatalf("port = %d, want flag port", got.Port)
+	}
+	if got.DataDir != flagDataDir {
+		t.Fatalf("data dir = %q, want flag data dir %q", got.DataDir, flagDataDir)
 	}
 }
 

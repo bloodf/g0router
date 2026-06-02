@@ -42,7 +42,7 @@ func NewRootCommand(version string) *cobra.Command {
 
 func newRootCommand(config rootConfig) *cobra.Command {
 	var showVersion bool
-	dataDir := "~/.g0router"
+	dataDir := envString("DATA_DIR", "~/.g0router")
 
 	cmd := &cobra.Command{
 		Use:           "g0router",
@@ -76,7 +76,7 @@ func newRootCommand(config rootConfig) *cobra.Command {
 }
 
 func newServeCommand(version string, serve serveRunner, rootDataDir *string) *cobra.Command {
-	var port int
+	port := envInt("PORT", 20128)
 
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -92,8 +92,28 @@ func newServeCommand(version string, serve serveRunner, rootDataDir *string) *co
 			})
 		},
 	}
-	cmd.Flags().IntVar(&port, "port", 20128, "HTTP port")
+	cmd.Flags().IntVar(&port, "port", port, "HTTP port")
 	return cmd
+}
+
+func envString(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
+}
+
+func envInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
 }
 
 func runServer(ctx context.Context, config serveConfig) error {

@@ -2,7 +2,7 @@ BINARY := g0router
 CMD := ./cmd/g0router
 UI_DIR := ui
 
-.PHONY: build test lint ui docker install clean
+.PHONY: build test lint vet ui docker install clean
 
 build: ui
 	go build -o $(BINARY) $(CMD)
@@ -12,6 +12,8 @@ test: ui
 
 lint:
 	go vet ./...
+
+vet: lint
 
 ui:
 	npm ci --prefix $(UI_DIR)
