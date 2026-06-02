@@ -10,8 +10,11 @@ import (
 )
 
 type ServerConfig struct {
-	Port    int
-	Version string
+	Port            int
+	Version         string
+	RequireAPIKey   bool
+	APIKeySecret    string
+	APIKeyValidator APIKeyValidator
 }
 
 type Server struct {
@@ -50,6 +53,10 @@ func (s *Server) listener() net.Listener {
 }
 
 func (s *Server) handle(ctx *fasthttp.RequestCtx) {
+	if !s.applyMiddleware(ctx) {
+		return
+	}
+
 	switch string(ctx.Path()) {
 	case "/healthz":
 		handlers.Health(ctx, s.config.Version)
