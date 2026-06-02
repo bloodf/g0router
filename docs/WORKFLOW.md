@@ -30,8 +30,8 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 1
-current_wave: "1.A"
-last_updated: "2026-06-02T17:13:28Z"
+current_wave: "1.B"
+last_updated: "2026-06-02T17:22:56Z"
 last_agent: "orchestrator"
 ```
 
@@ -72,7 +72,7 @@ tasks:
 
 ```yaml
 wave: "1.A"
-status: PENDING
+status: DONE
 max_agents: 3
 depends_on: ["0.A"]
 gate: "go test ./... && go vet ./..."
@@ -80,8 +80,9 @@ gate: "go test ./... && go vet ./..."
 tasks:
   - id: "1.1"
     name: "Define core types"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Mendel"
+    completed_at: "2026-06-02T17:22:56Z"
     files_owned:
       - internal/providers/types.go
       - internal/providers/types_test.go
@@ -90,8 +91,9 @@ tasks:
 
   - id: "1.2"
     name: "SQLite store foundation"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Carver"
+    completed_at: "2026-06-02T17:22:56Z"
     files_owned:
       - internal/store/sqlite.go
       - internal/store/sqlite_test.go
@@ -99,8 +101,9 @@ tasks:
 
   - id: "1.6"
     name: "Config loading"
-    status: PENDING
-    agent: null
+    status: DONE
+    agent: "Feynman"
+    completed_at: "2026-06-02T17:22:56Z"
     files_owned:
       - internal/config/config.go
       - internal/config/config_test.go
