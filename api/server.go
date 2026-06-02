@@ -11,6 +11,7 @@ import (
 
 	"github.com/bloodf/g0router"
 	"github.com/bloodf/g0router/api/handlers"
+	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
@@ -18,18 +19,20 @@ import (
 )
 
 type ServerConfig struct {
-	Port            int
-	Version         string
-	RequireAPIKey   bool
-	APIKeySecret    string
-	APIKeyValidator APIKeyValidator
-	InferenceEngine handlers.InferenceEngine
-	Store           *store.Store
-	ModelSource     handlers.ManagementModelSource
-	OAuthFlows      handlers.OAuthFlows
-	UsageStore      handlers.UsageStore
-	QuotaFetchers   map[providers.ModelProvider]usage.QuotaFetcher
-	QuotaKey        providers.Key
+	Port             int
+	Version          string
+	RequireAPIKey    bool
+	APIKeySecret     string
+	APIKeyValidator  APIKeyValidator
+	InferenceEngine  handlers.InferenceEngine
+	Store            *store.Store
+	ModelSource      handlers.ManagementModelSource
+	OAuthFlows       handlers.OAuthFlows
+	UsageStore       handlers.UsageStore
+	QuotaFetchers    map[providers.ModelProvider]usage.QuotaFetcher
+	QuotaKey         providers.Key
+	MCPClientManager *mcp.ClientManager
+	MCPToolManager   *mcp.ToolManager
 }
 
 type Server struct {
@@ -150,6 +153,14 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		handlers.UsageQuota(ctx, s.config.QuotaFetchers, s.config.QuotaKey)
 	case path == "/api/logs":
 		handlers.Logs(ctx, s.config.UsageStore)
+	case path == "/api/mcp/clients":
+		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, "")
+	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "clients":
+		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, parts[3])
+	case path == "/api/mcp/tools":
+		handlers.MCPTools(ctx, s.config.Store, s.config.MCPToolManager, "")
+	case len(parts) == 5 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "tools" && parts[4] == "execute":
+		handlers.MCPTools(ctx, s.config.Store, s.config.MCPToolManager, parts[3])
 	default:
 		if strings.HasPrefix(path, "/api/") || path == "/api" {
 			ctx.SetStatusCode(fasthttp.StatusNotFound)

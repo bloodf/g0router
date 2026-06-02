@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/api/handlers"
+	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
@@ -233,6 +234,72 @@ func TestOAuthRoutesEnforceDocumentedMethods(t *testing.T) {
 	}
 }
 
+func TestMCPRoutesDispatchThroughServer(t *testing.T) {
+	store := newAPITestStore(t)
+	mcpClient := &routeMCPClient{tools: []mcp.Tool{
+		{Name: "search", Description: "Search docs", InputSchema: json.RawMessage(`{"type":"object"}`)},
+	}}
+	clientManager := mcp.NewClientManager(routeMCPConnector{client: mcpClient})
+	toolManager := mcp.NewToolManager()
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:             0,
+		Version:          "test",
+		Store:            store,
+		MCPClientManager: clientManager,
+		MCPToolManager:   toolManager,
+	})
+
+	createReq, err := http.NewRequest(http.MethodPost, baseURL+"/api/mcp/clients", strings.NewReader(`{"name":"docs","transport":"stdio","command":"mcp-docs","is_active":true}`))
+	if err != nil {
+		t.Fatalf("new create request: %v", err)
+	}
+	createReq.Header.Set("Content-Type", "application/json")
+	createResp, err := httpClient().Do(createReq)
+	if err != nil {
+		t.Fatalf("POST /api/mcp/clients: %v", err)
+	}
+	defer createResp.Body.Close()
+	if createResp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/mcp/clients status = %d, want 201", createResp.StatusCode)
+	}
+
+	toolsResp, err := httpClient().Get(baseURL + "/api/mcp/tools")
+	if err != nil {
+		t.Fatalf("GET /api/mcp/tools: %v", err)
+	}
+	defer toolsResp.Body.Close()
+	if toolsResp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /api/mcp/tools status = %d, want 200", toolsResp.StatusCode)
+	}
+	var toolsList struct {
+		Data []providers.Tool `json:"data"`
+	}
+	if err := json.NewDecoder(toolsResp.Body).Decode(&toolsList); err != nil {
+		t.Fatalf("decode tools: %v", err)
+	}
+	if len(toolsList.Data) != 1 {
+		t.Fatalf("tools len = %d, want 1", len(toolsList.Data))
+	}
+
+	toolName := toolsList.Data[0].Function.Name
+	executeReq, err := http.NewRequest(http.MethodPost, baseURL+"/api/mcp/tools/"+toolName+"/execute", strings.NewReader(`{"arguments":{"query":"mcp"}}`))
+	if err != nil {
+		t.Fatalf("new execute request: %v", err)
+	}
+	executeReq.Header.Set("Content-Type", "application/json")
+	executeResp, err := httpClient().Do(executeReq)
+	if err != nil {
+		t.Fatalf("POST /api/mcp/tools/%s/execute: %v", toolName, err)
+	}
+	defer executeResp.Body.Close()
+	if executeResp.StatusCode != http.StatusOK {
+		t.Fatalf("execute status = %d, want 200", executeResp.StatusCode)
+	}
+	if len(mcpClient.calls) != 1 || string(mcpClient.calls[0].Arguments) != `{"query":"mcp"}` {
+		t.Fatalf("calls = %+v, want query args", mcpClient.calls)
+	}
+}
+
 func httpClient() *http.Client {
 	return &http.Client{Timeout: 2 * time.Second}
 }
@@ -302,4 +369,30 @@ type routeQuotaFetcher struct{}
 
 func (routeQuotaFetcher) FetchQuota(ctx context.Context, key providers.Key) (usage.Quota, error) {
 	return usage.Quota{Provider: key.Provider, Limit: 100, Used: 1, Remaining: 99}, nil
+}
+
+type routeMCPConnector struct {
+	client *routeMCPClient
+}
+
+func (c routeMCPConnector) Connect(ctx context.Context, cfg mcp.ClientConfig) (mcp.Client, error) {
+	return c.client, nil
+}
+
+type routeMCPClient struct {
+	tools []mcp.Tool
+	calls []mcp.CallRequest
+}
+
+func (c *routeMCPClient) ListTools(ctx context.Context) ([]mcp.Tool, error) {
+	return c.tools, nil
+}
+
+func (c *routeMCPClient) CallTool(ctx context.Context, req mcp.CallRequest) (mcp.CallResult, error) {
+	c.calls = append(c.calls, req)
+	return mcp.CallResult{Content: map[string]bool{"ok": true}}, nil
+}
+
+func (c *routeMCPClient) Close() error {
+	return nil
 }
