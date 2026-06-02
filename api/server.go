@@ -95,7 +95,7 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 	switch {
 	case path == "/api/providers":
 		handlers.Providers(ctx, s.config.ModelSource, "")
-	case len(parts) == 3 && parts[0] == "api" && parts[1] == "providers":
+	case len(parts) == 4 && parts[0] == "api" && parts[1] == "providers" && parts[3] == "models":
 		handlers.Providers(ctx, s.config.ModelSource, parts[2])
 	case path == "/api/connections":
 		handlers.Connections(ctx, s.config.Store, "")
@@ -113,7 +113,7 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		handlers.Combos(ctx, s.config.Store, parts[2])
 	case path == "/api/oauth/callback":
 		handlers.OAuthCallback(ctx, s.config.OAuthFlows)
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "start":
+	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "authorize":
 		handlers.OAuthStart(ctx, s.config.OAuthFlows)
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "poll":
 		handlers.OAuthPoll(ctx, s.config.OAuthFlows)

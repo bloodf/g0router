@@ -91,30 +91,35 @@ func TestManagementRoutesDispatchThroughServer(t *testing.T) {
 	})
 
 	tests := []struct {
-		path string
-		want int
+		method string
+		path   string
+		want   int
 	}{
-		{path: "/api/providers", want: http.StatusOK},
-		{path: "/api/providers/openai", want: http.StatusOK},
-		{path: "/api/connections", want: http.StatusOK},
-		{path: "/api/settings", want: http.StatusOK},
-		{path: "/api/keys", want: http.StatusOK},
-		{path: "/api/combos", want: http.StatusOK},
-		{path: "/api/oauth/minimax/start", want: http.StatusOK},
-		{path: "/api/usage", want: http.StatusOK},
-		{path: "/api/usage/summary", want: http.StatusOK},
-		{path: "/api/usage/quota/openai", want: http.StatusOK},
-		{path: "/api/logs", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/providers", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/providers/openai/models", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/connections", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/settings", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/keys", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/combos", want: http.StatusOK},
+		{method: http.MethodPost, path: "/api/oauth/minimax/authorize", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/usage", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/usage/summary", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/usage/quota/openai", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/logs", want: http.StatusOK},
 	}
 
 	for _, tc := range tests {
-		resp, err := httpClient().Get(baseURL + tc.path)
+		req, err := http.NewRequest(tc.method, baseURL+tc.path, nil)
 		if err != nil {
-			t.Fatalf("GET %s: %v", tc.path, err)
+			t.Fatalf("new request %s %s: %v", tc.method, tc.path, err)
+		}
+		resp, err := httpClient().Do(req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", tc.method, tc.path, err)
 		}
 		resp.Body.Close()
 		if resp.StatusCode != tc.want {
-			t.Fatalf("GET %s status = %d, want %d", tc.path, resp.StatusCode, tc.want)
+			t.Fatalf("%s %s status = %d, want %d", tc.method, tc.path, resp.StatusCode, tc.want)
 		}
 	}
 }
