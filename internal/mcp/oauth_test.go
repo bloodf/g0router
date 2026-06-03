@@ -2,22 +2,97 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
 
+func TestOAuthStartBuildsPKCEAuthorizationURL(t *testing.T) {
+	flow, err := BuildOAuthStartFlow(OAuthStartConfig{
+		InstanceID:        "inst-1",
+		AuthorizationURL:  "https://auth.example/authorize",
+		ResourceURI:       "https://mcp.example",
+		RedirectURI:       "http://localhost:3000/api/mcp/oauth/callback",
+		ExpirationSeconds: 600,
+	})
+	if err != nil {
+		t.Fatalf("BuildOAuthStartFlow: %v", err)
+	}
+	if flow.State == "" || flow.CodeVerifierSecret == "" {
+		t.Fatalf("flow = %+v, want state and verifier", flow)
+	}
+	if flow.State == flow.CodeVerifierSecret {
+		t.Fatal("state and PKCE verifier must be separate values")
+	}
+
+	parsed, err := url.Parse(flow.AuthorizationURL)
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+	query := parsed.Query()
+	if query.Get("state") != flow.State {
+		t.Fatalf("state query = %q, want flow state", query.Get("state"))
+	}
+	if query.Get("resource") != "https://mcp.example" {
+		t.Fatalf("resource query = %q, want resource", query.Get("resource"))
+	}
+	if query.Get("code_challenge_method") != "S256" {
+		t.Fatalf("challenge method = %q, want S256", query.Get("code_challenge_method"))
+	}
+	if query.Get("code_challenge") != pkceChallenge(flow.CodeVerifierSecret) {
+		t.Fatalf("challenge = %q, want verifier challenge", query.Get("code_challenge"))
+	}
+	redirect, err := url.Parse(query.Get("redirect_uri"))
+	if err != nil {
+		t.Fatalf("parse redirect: %v", err)
+	}
+	if decodedInstanceIDForOAuthTest(t, redirect.Query().Get("instance_id")) != "inst-1" {
+		t.Fatalf("redirect instance_id = %q, want recoverable inst-1", redirect.Query().Get("instance_id"))
+	}
+}
+
 func TestOAuthEngineCompletesCallbackForMatchingInstance(t *testing.T) {
 	store := newFakeOAuthStore()
-	engine := NewOAuthEngine(store, OAuthHTTPClient(nil))
+	var tokenForm url.Values
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			t.Fatalf("token path = %q, want /token", r.URL.Path)
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("ParseForm: %v", err)
+		}
+		tokenForm = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "access-token",
+			"refresh_token": "refresh-token",
+			"expires_in":    3600,
+			"scope":         "read write",
+			"account_label": "work",
+			"sub":           "subject-1",
+			"email":         "work@example.com",
+			"iss":           "https://auth.example",
+		}); err != nil {
+			t.Fatalf("Encode: %v", err)
+		}
+	}))
+	defer tokenServer.Close()
+
+	engine := NewOAuthEngine(store, tokenServer.Client())
 	flow := OAuthFlow{
 		InstanceID:         "inst-1",
 		State:              "state-1",
 		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost:3000/api/mcp/oauth/callback?instance_id=inst-1",
 		ResourceURI:        "https://mcp.example",
 		ExpiresAt:          time.Now().Add(time.Hour),
 	}
+	flow.AuthorizationURL = tokenServer.URL + "/authorize"
 	if err := store.CreateFlow(flow); err != nil {
 		t.Fatalf("CreateFlow: %v", err)
 	}
@@ -26,8 +101,18 @@ func TestOAuthEngineCompletesCallbackForMatchingInstance(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompleteCallback: %v", err)
 	}
-	if account.InstanceID != "inst-1" || account.AccessToken == "" {
-		t.Fatalf("account = %+v, want token for inst-1", account)
+	if account.InstanceID != "inst-1" || account.AccountLabel != "work" || account.AccessToken != "access-token" || account.RefreshToken != "refresh-token" {
+		t.Fatalf("account = %+v, want exchanged token for inst-1/work", account)
+	}
+	if tokenForm.Get("grant_type") != "authorization_code" ||
+		tokenForm.Get("code") != "ok" ||
+		tokenForm.Get("code_verifier") != "verifier" ||
+		tokenForm.Get("redirect_uri") != flow.RedirectURI ||
+		tokenForm.Get("resource") != flow.ResourceURI {
+		t.Fatalf("token form = %+v, want auth-code exchange with verifier and resource", tokenForm)
+	}
+	if store.accounts[0].AccessToken != "access-token" || store.accounts[0].AuthMetadata["token_endpoint"] != tokenServer.URL+"/token" {
+		t.Fatalf("stored account = %+v, want real token and token endpoint metadata", store.accounts[0])
 	}
 	if _, err := engine.CompleteCallback(context.Background(), "inst-1", "https://callback.example?code=ok&state=state-1"); err == nil {
 		t.Fatal("state should be single-use")
@@ -44,6 +129,42 @@ func TestOAuthEngineRejectsMismatchedInstanceState(t *testing.T) {
 	_, err := engine.CompleteCallback(context.Background(), "inst-2", "https://callback.example?code=ok&state=state-1")
 	if err == nil {
 		t.Fatal("mismatched instance should fail")
+	}
+}
+
+func TestOAuthEngineUsesSelectedInstanceAccountLabel(t *testing.T) {
+	store := newFakeOAuthStore()
+	store.accountLabels["inst-1"] = "selected-work"
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "access-token",
+			"expires_in":   3600,
+		}); err != nil {
+			t.Fatalf("Encode: %v", err)
+		}
+	}))
+	defer tokenServer.Close()
+
+	engine := NewOAuthEngine(store, tokenServer.Client())
+	if err := store.CreateFlow(OAuthFlow{
+		InstanceID:         "inst-1",
+		State:              "state-1",
+		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost/callback?instance_id=inst-1",
+		AuthorizationURL:   tokenServer.URL + "/authorize",
+		ResourceURI:        "https://mcp.example",
+		ExpiresAt:          time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateFlow: %v", err)
+	}
+
+	account, err := engine.CompleteCallback(context.Background(), "inst-1", "https://callback.example?code=ok&state=state-1")
+	if err != nil {
+		t.Fatalf("CompleteCallback: %v", err)
+	}
+	if account.AccountLabel != "selected-work" {
+		t.Fatalf("account label = %q, want selected-work", account.AccountLabel)
 	}
 }
 
@@ -95,6 +216,50 @@ func TestOAuthEngineRequiresReauthForExpiredOrWrongResource(t *testing.T) {
 	}
 }
 
+func TestOAuthEngineRefreshesSameInstanceAccount(t *testing.T) {
+	store := newFakeOAuthStore()
+	var tokenForm url.Values
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("ParseForm: %v", err)
+		}
+		tokenForm = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "new-access",
+			"expires_in":   1200,
+			"scope":        "read",
+		}); err != nil {
+			t.Fatalf("Encode: %v", err)
+		}
+	}))
+	defer tokenServer.Close()
+
+	engine := NewOAuthEngine(store, tokenServer.Client())
+	refreshed, err := engine.RefreshAccount(context.Background(), OAuthAccount{
+		InstanceID:   "inst-1",
+		AccountLabel: "work",
+		ResourceURI:  "https://mcp.example",
+		Scopes:       []string{"old"},
+		AccessToken:  "old-access",
+		RefreshToken: "old-refresh",
+		ExpiresAt:    time.Now().Add(-time.Minute),
+		AuthMetadata: map[string]string{"token_endpoint": tokenServer.URL},
+	})
+	if err != nil {
+		t.Fatalf("RefreshAccount: %v", err)
+	}
+	if refreshed.InstanceID != "inst-1" || refreshed.AccountLabel != "work" || refreshed.AccessToken != "new-access" || refreshed.RefreshToken != "old-refresh" {
+		t.Fatalf("refreshed = %+v, want same account with new access and retained refresh", refreshed)
+	}
+	if tokenForm.Get("grant_type") != "refresh_token" || tokenForm.Get("refresh_token") != "old-refresh" || tokenForm.Get("resource") != "https://mcp.example" {
+		t.Fatalf("token form = %+v, want refresh grant with resource", tokenForm)
+	}
+	if len(store.accounts) != 1 || store.accounts[0].InstanceID != "inst-1" || store.accounts[0].AccountLabel != "work" {
+		t.Fatalf("stored accounts = %+v, want one updated same account", store.accounts)
+	}
+}
+
 func TestStdioCredentialsReturnRedactedEnv(t *testing.T) {
 	env := StdioCredentialEnv(OAuthAccount{AccessToken: "token", RefreshToken: "refresh"})
 
@@ -110,12 +275,13 @@ func TestStdioCredentialsReturnRedactedEnv(t *testing.T) {
 }
 
 type fakeOAuthStore struct {
-	flows    map[string]OAuthFlow
-	accounts []OAuthAccount
+	flows         map[string]OAuthFlow
+	accounts      []OAuthAccount
+	accountLabels map[string]string
 }
 
 func newFakeOAuthStore() *fakeOAuthStore {
-	return &fakeOAuthStore{flows: make(map[string]OAuthFlow)}
+	return &fakeOAuthStore{flows: make(map[string]OAuthFlow), accountLabels: make(map[string]string)}
 }
 
 func (s *fakeOAuthStore) CreateFlow(flow OAuthFlow) error {
@@ -136,4 +302,20 @@ func (s *fakeOAuthStore) ConsumeFlow(instanceID, state string) (OAuthFlow, error
 func (s *fakeOAuthStore) SaveAccount(account OAuthAccount) error {
 	s.accounts = append(s.accounts, account)
 	return nil
+}
+
+func (s *fakeOAuthStore) AccountLabelForInstance(instanceID string) (string, error) {
+	return s.accountLabels[instanceID], nil
+}
+
+func decodedInstanceIDForOAuthTest(t *testing.T, value string) string {
+	t.Helper()
+	if strings.HasPrefix(value, "b64:") {
+		decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(value, "b64:"))
+		if err != nil {
+			t.Fatalf("decode instance id: %v", err)
+		}
+		return string(decoded)
+	}
+	return value
 }

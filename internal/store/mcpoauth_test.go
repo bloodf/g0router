@@ -87,6 +87,43 @@ func TestMCPOAuthAccountsAreScopedToInstance(t *testing.T) {
 	}
 }
 
+func TestMCPOAuthAccountUpsertUpdatesSameInstanceAccount(t *testing.T) {
+	s := openTestStore(t)
+	instance := createOAuthTestInstance(t, s, "linear")
+	if err := s.UpsertMCPOAuthAccount(&MCPOAuthAccount{
+		InstanceID:   instance.ID,
+		AccountLabel: "work",
+		ResourceURI:  "https://mcp.linear.app",
+		Scopes:       []string{"read"},
+		AccessToken:  "old-token",
+		RefreshToken: "refresh-token",
+		ExpiresAt:    time.Now().Add(time.Minute),
+		AuthMetadata: map[string]string{"token_endpoint": "https://auth.example/token"},
+	}); err != nil {
+		t.Fatalf("Upsert initial: %v", err)
+	}
+	if err := s.UpsertMCPOAuthAccount(&MCPOAuthAccount{
+		InstanceID:   instance.ID,
+		AccountLabel: "work",
+		ResourceURI:  "https://mcp.linear.app",
+		Scopes:       []string{"read", "write"},
+		AccessToken:  "new-token",
+		RefreshToken: "refresh-token",
+		ExpiresAt:    time.Now().Add(time.Hour),
+		AuthMetadata: map[string]string{"token_endpoint": "https://auth.example/token"},
+	}); err != nil {
+		t.Fatalf("Upsert refresh: %v", err)
+	}
+
+	accounts, err := s.ListMCPOAuthAccounts(instance.ID)
+	if err != nil {
+		t.Fatalf("ListMCPOAuthAccounts: %v", err)
+	}
+	if len(accounts) != 1 || accounts[0].AccountLabel != "work" || accounts[0].AccessToken != "new-token" {
+		t.Fatalf("accounts = %+v, want updated same account", accounts)
+	}
+}
+
 func TestMCPOAuthValidAccountRejectsExpiredOrWrongResource(t *testing.T) {
 	s := openTestStore(t)
 	instance := createOAuthTestInstance(t, s, "linear")

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,7 +27,7 @@ type mcpOAuthCompleteResponse struct {
 }
 
 func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter) {
-	instanceID := strings.TrimSpace(string(ctx.QueryArgs().Peek("instance_id")))
+	instanceID := decodeCallbackInstanceID(strings.TrimSpace(string(ctx.QueryArgs().Peek("instance_id"))))
 	if instanceID == "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "instance_id is required")
 		return
@@ -88,4 +89,15 @@ func validateCallbackURL(callbackURL string) error {
 		return fmt.Errorf("state is required")
 	}
 	return nil
+}
+
+func decodeCallbackInstanceID(value string) string {
+	if !strings.HasPrefix(value, "b64:") {
+		return value
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(value, "b64:"))
+	if err != nil {
+		return ""
+	}
+	return string(decoded)
 }

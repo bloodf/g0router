@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -217,6 +220,38 @@ func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	if strings.Contains(string(ctx.Response.Body()), "secret") {
 		t.Fatalf("auth response leaked secret: %s", ctx.Response.Body())
 	}
+
+	var started struct {
+		AuthorizationURL string `json:"authorization_url"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &started); err != nil {
+		t.Fatalf("unmarshal auth start: %v", err)
+	}
+	authURL, err := url.Parse(started.AuthorizationURL)
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+	query := authURL.Query()
+	if query.Get("resource") != "https://mcp.atlassian.com" || query.Get("code_challenge_method") != "S256" || query.Get("code_challenge") == "" {
+		t.Fatalf("auth query = %s, want resource and S256 PKCE challenge", authURL.RawQuery)
+	}
+	redirect, err := url.Parse(query.Get("redirect_uri"))
+	if err != nil {
+		t.Fatalf("parse redirect: %v", err)
+	}
+	if decodedInstanceIDForHandlerTest(t, redirect.Query().Get("instance_id")) != created.ID {
+		t.Fatalf("redirect instance_id = %q, want recoverable created ID", redirect.Query().Get("instance_id"))
+	}
+	flow, err := s.ConsumeMCPOAuthFlow(created.ID, query.Get("state"))
+	if err != nil {
+		t.Fatalf("ConsumeMCPOAuthFlow: %v", err)
+	}
+	if flow.CodeVerifierSecret == "" || flow.CodeVerifierSecret == query.Get("state") {
+		t.Fatalf("verifier = %q state = %q, want separate verifier", flow.CodeVerifierSecret, query.Get("state"))
+	}
+	if pkceChallengeForHandlerTest(flow.CodeVerifierSecret) != query.Get("code_challenge") {
+		t.Fatalf("stored verifier does not match code challenge")
+	}
 }
 
 func TestMCPInstanceAccountsRedactTokens(t *testing.T) {
@@ -343,6 +378,23 @@ func createHandlerMCPInstance(t *testing.T, s *store.Store, name, accountLabel s
 
 func accountLabelURL() string {
 	return "https://mcp.atlassian.com/mcp"
+}
+
+func pkceChallengeForHandlerTest(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+func decodedInstanceIDForHandlerTest(t *testing.T, value string) string {
+	t.Helper()
+	if strings.HasPrefix(value, "b64:") {
+		decoded, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(value, "b64:"))
+		if err != nil {
+			t.Fatalf("decode instance id: %v", err)
+		}
+		return string(decoded)
+	}
+	return value
 }
 
 func openMCPHandlerStore(t *testing.T) *store.Store {

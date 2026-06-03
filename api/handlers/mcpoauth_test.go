@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"strings"
 	"testing"
 
@@ -47,6 +48,21 @@ func TestMCPOAuthCompleteAcceptsPastedCallbackURL(t *testing.T) {
 	}
 	if strings.Contains(string(ctx.Response.Body()), "pasted-code") {
 		t.Fatalf("response leaked code: %s", ctx.Response.Body())
+	}
+}
+
+func TestMCPOAuthCallbackDecodesInstanceID(t *testing.T) {
+	completer := &fakeMCPOAuthCompleter{}
+	encoded := "b64:" + base64.RawURLEncoding.EncodeToString([]byte("inst-1"))
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/mcp/oauth/callback?instance_id="+encoded+"&code=callback-code&state=state-1")
+
+	MCPOAuthCallback(ctx, completer)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if completer.instanceID != "inst-1" {
+		t.Fatalf("instance = %q, want decoded inst-1", completer.instanceID)
 	}
 }
 

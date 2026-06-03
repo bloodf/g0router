@@ -2,8 +2,6 @@ package cli
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strings"
@@ -214,26 +212,28 @@ func newMCPAuthStartCommand(dataDir *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			state, err := randomMCPState()
-			if err != nil {
-				return fmt.Errorf("create oauth state: %w", err)
-			}
-			authURL, err := buildMCPAuthorizationURL(authorizationURL, redirectURI, resourceURI, state)
+			flow, err := mcp.BuildOAuthStartFlow(mcp.OAuthStartConfig{
+				InstanceID:        instance.ID,
+				AuthorizationURL:  authorizationURL,
+				RedirectURI:       redirectURI,
+				ResourceURI:       resourceURI,
+				ExpirationSeconds: int((10 * time.Minute).Seconds()),
+			})
 			if err != nil {
 				return err
 			}
 			if err := s.CreateMCPOAuthFlow(&store.MCPOAuthFlow{
 				InstanceID:         instance.ID,
-				State:              state,
-				CodeVerifierSecret: state,
-				RedirectURI:        redirectURI,
-				AuthorizationURL:   authURL,
-				ResourceURI:        resourceURI,
-				ExpiresAt:          time.Now().Add(10 * time.Minute),
+				State:              flow.State,
+				CodeVerifierSecret: flow.CodeVerifierSecret,
+				RedirectURI:        flow.RedirectURI,
+				AuthorizationURL:   flow.AuthorizationURL,
+				ResourceURI:        flow.ResourceURI,
+				ExpiresAt:          flow.ExpiresAt,
 			}); err != nil {
 				return fmt.Errorf("create mcp oauth flow: %w", err)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), authURL)
+			fmt.Fprintln(cmd.OutOrStdout(), flow.AuthorizationURL)
 			return nil
 		},
 	}
@@ -314,35 +314,6 @@ func parseAssignments(values []string) map[string]string {
 		parsed[key] = val
 	}
 	return parsed
-}
-
-func buildMCPAuthorizationURL(rawURL, redirectURI, resourceURI, state string) (string, error) {
-	if authorizationURL := strings.TrimSpace(rawURL); authorizationURL == "" {
-		return "", fmt.Errorf("authorization-url is required")
-	}
-	if strings.TrimSpace(resourceURI) == "" {
-		return "", fmt.Errorf("resource is required")
-	}
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return "", fmt.Errorf("parse authorization-url: %w", err)
-	}
-	values := parsed.Query()
-	values.Set("state", state)
-	values.Set("resource", resourceURI)
-	if redirectURI != "" {
-		values.Set("redirect_uri", redirectURI)
-	}
-	parsed.RawQuery = values.Encode()
-	return parsed.String(), nil
-}
-
-func randomMCPState() (string, error) {
-	var bytes [16]byte
-	if _, err := rand.Read(bytes[:]); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes[:]), nil
 }
 
 func stringValue(value *string) string {

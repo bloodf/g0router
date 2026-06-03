@@ -191,6 +191,9 @@ func (s *Store) ConsumeFlow(instanceID, state string) (mcp.OAuthFlow, error) {
 }
 
 func (s *Store) SaveAccount(account mcp.OAuthAccount) error {
+	if account.AccountLabel == "" {
+		account.AccountLabel = "default"
+	}
 	return s.UpsertMCPOAuthAccount(&MCPOAuthAccount{
 		InstanceID:   account.InstanceID,
 		AccountLabel: account.AccountLabel,
@@ -204,6 +207,17 @@ func (s *Store) SaveAccount(account mcp.OAuthAccount) error {
 		ExpiresAt:    account.ExpiresAt,
 		AuthMetadata: account.AuthMetadata,
 	})
+}
+
+func (s *Store) AccountLabelForInstance(instanceID string) (string, error) {
+	instance, err := s.GetMCPInstance(instanceID)
+	if err != nil {
+		return "", err
+	}
+	if instance.AccountLabel == nil {
+		return "", nil
+	}
+	return *instance.AccountLabel, nil
 }
 
 func scanMCPOAuthFlow(scanner connectionScanner) (*MCPOAuthFlow, error) {

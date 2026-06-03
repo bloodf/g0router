@@ -2,12 +2,9 @@ package handlers
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -129,30 +126,30 @@ func MCPOAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) 
 		writeError(ctx, fasthttp.StatusBadRequest, "authorization_url and resource_uri are required")
 		return
 	}
-	state, err := randomState()
-	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create oauth state: %v", err))
-		return
-	}
-	expiresAt := time.Now().Add(10 * time.Minute)
-	authorizationURL, err := buildAuthorizationURL(req.AuthorizationURL, req.RedirectURI, req.ResourceURI, state)
+	flow, err := mcp.BuildOAuthStartFlow(mcp.OAuthStartConfig{
+		InstanceID:        instanceID,
+		AuthorizationURL:  req.AuthorizationURL,
+		RedirectURI:       req.RedirectURI,
+		ResourceURI:       req.ResourceURI,
+		ExpirationSeconds: int((10 * time.Minute).Seconds()),
+	})
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, err.Error())
 		return
 	}
 	if err := s.CreateMCPOAuthFlow(&store.MCPOAuthFlow{
 		InstanceID:         instanceID,
-		State:              state,
-		CodeVerifierSecret: state,
-		RedirectURI:        req.RedirectURI,
-		AuthorizationURL:   authorizationURL,
-		ResourceURI:        req.ResourceURI,
-		ExpiresAt:          expiresAt,
+		State:              flow.State,
+		CodeVerifierSecret: flow.CodeVerifierSecret,
+		RedirectURI:        flow.RedirectURI,
+		AuthorizationURL:   flow.AuthorizationURL,
+		ResourceURI:        flow.ResourceURI,
+		ExpiresAt:          flow.ExpiresAt,
 	}); err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create mcp oauth flow: %v", err))
 		return
 	}
-	writeJSON(ctx, fasthttp.StatusCreated, mcpOAuthStartResponse{AuthorizationURL: authorizationURL, ExpiresAt: expiresAt.Format(time.RFC3339)})
+	writeJSON(ctx, fasthttp.StatusCreated, mcpOAuthStartResponse{AuthorizationURL: flow.AuthorizationURL, ExpiresAt: flow.ExpiresAt.Format(time.RFC3339)})
 }
 
 func MCPOAuthAccounts(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) {
@@ -424,29 +421,6 @@ func redactedMCPInstance(instance *store.MCPInstance) *store.MCPInstance {
 	redacted.Env = cfg.Env
 	redacted.Headers = cfg.Headers
 	return &redacted
-}
-
-func buildAuthorizationURL(rawURL, redirectURI, resourceURI, state string) (string, error) {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return "", fmt.Errorf("parse authorization_url: %w", err)
-	}
-	values := parsed.Query()
-	values.Set("state", state)
-	values.Set("resource", resourceURI)
-	if redirectURI != "" {
-		values.Set("redirect_uri", redirectURI)
-	}
-	parsed.RawQuery = values.Encode()
-	return parsed.String(), nil
-}
-
-func randomState() (string, error) {
-	var bytes [16]byte
-	if _, err := rand.Read(bytes[:]); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes[:]), nil
 }
 
 func stringValue(value *string) string {
