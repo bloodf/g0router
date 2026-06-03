@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.C"
-last_updated: "2026-06-03T01:35:45Z"
+last_updated: "2026-06-03T01:49:58Z"
 last_agent: "orchestrator"
 ```
 
@@ -1006,13 +1006,48 @@ tasks:
 
 **Checkpoint**: Wave 7.B complete → advance to Wave 7.C.
 
-### Waves 7.C-7.I — Remaining Remediation Backlog
+### Wave 7.C — OAuth and credential lifecycle
+
+```yaml
+wave: "7.C"
+status: IN_PROGRESS
+max_agents: 3
+depends_on: ["7.B"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.C.1"
+    name: "Store OAuth callback sessions and persist HTTP OAuth completions"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T01:49:58Z"
+    files_owned:
+      - api/handlers/oauth.go
+      - api/handlers/oauth_test.go
+      - api/server.go
+      - internal/provider/oauth/types.go
+      - internal/store/oauthsessions.go
+      - internal/store/oauthsessions_test.go
+      - internal/store/sqlite.go
+      - docs/WORKFLOW.md
+  - id: "7.C.2"
+    name: "Make CLI login complete supported flows and persist connections"
+    status: PENDING
+  - id: "7.C.3"
+    name: "Refresh OAuth credentials before dispatch when near expiry"
+    status: PENDING
+  - id: "7.C.4"
+    name: "Normalize provider IDs across auth, routing, docs, and store rows"
+    status: PENDING
+  - id: "7.C.5"
+    name: "Wave 7.C evaluator prompt"
+    status: PENDING
+```
+
+### Waves 7.D-7.I — Remaining Remediation Backlog
 
 ```yaml
 waves:
-  - wave: "7.C"
-    name: "OAuth and credential lifecycle"
-    status: PENDING
   - wave: "7.D"
     name: "Provider and model parity matrix"
     status: PENDING

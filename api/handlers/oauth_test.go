@@ -6,16 +6,21 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/provider/oauth"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
 type fakeOAuthFlow struct {
-	provider oauth.ProviderID
-	startErr error
-	pollErr  error
-	exErr    error
+	provider     oauth.ProviderID
+	startSession oauth.AuthSession
+	token        oauth.TokenResult
+	pollResult   oauth.PollResult
+	startErr     error
+	pollErr      error
+	exErr        error
 
 	started       bool
 	polledSession oauth.AuthSession
@@ -31,6 +36,9 @@ func (f *fakeOAuthFlow) Start(ctx context.Context) (oauth.AuthSession, error) {
 	f.started = true
 	if f.startErr != nil {
 		return oauth.AuthSession{}, f.startErr
+	}
+	if f.startSession.Provider != "" {
+		return f.startSession, nil
 	}
 	return oauth.AuthSession{
 		Provider:     f.provider,
@@ -49,6 +57,9 @@ func (f *fakeOAuthFlow) Exchange(ctx context.Context, session oauth.AuthSession,
 	if f.exErr != nil {
 		return oauth.TokenResult{}, f.exErr
 	}
+	if f.token.Provider != "" {
+		return f.token, nil
+	}
 	return oauth.TokenResult{
 		Provider:     f.provider,
 		AccessToken:  "access-token",
@@ -62,6 +73,9 @@ func (f *fakeOAuthFlow) Poll(ctx context.Context, session oauth.AuthSession) (oa
 	f.polledSession = session
 	if f.pollErr != nil {
 		return oauth.PollResult{}, f.pollErr
+	}
+	if f.pollResult.Status != "" {
+		return f.pollResult, nil
 	}
 	return oauth.PollResult{
 		Status: oauth.PollStatusComplete,
@@ -77,7 +91,7 @@ func TestOAuthStartReturnsSession(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("codex")}
 	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/codex/authorize", nil)
 
-	OAuthStart(ctx, OAuthFlows{flow.ProviderID(): flow})
+	OAuthStart(ctx, openHandlerTestStore(t), OAuthFlows{flow.ProviderID(): flow})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
@@ -98,7 +112,7 @@ func TestOAuthStartReturnsSession(t *testing.T) {
 func TestOAuthStartRejectsUnknownProvider(t *testing.T) {
 	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/missing/authorize", nil)
 
-	OAuthStart(ctx, OAuthFlows{})
+	OAuthStart(ctx, openHandlerTestStore(t), OAuthFlows{})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
@@ -109,7 +123,7 @@ func TestOAuthPollUsesSessionFromQuery(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("github-copilot")}
 	ctx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/github-copilot/poll?session_id=device-123", nil)
 
-	OAuthPoll(ctx, OAuthFlows{flow.ProviderID(): flow})
+	OAuthPoll(ctx, openHandlerTestStore(t), OAuthFlows{flow.ProviderID(): flow})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
@@ -125,13 +139,62 @@ func TestOAuthPollUsesSessionFromQuery(t *testing.T) {
 	if result.Status != oauth.PollStatusComplete {
 		t.Fatalf("status = %q, want complete", result.Status)
 	}
+	if strings.Contains(string(ctx.Response.Body()), "access-token") {
+		t.Fatalf("poll response leaked token material: %s", ctx.Response.Body())
+	}
 }
 
-func TestOAuthCallbackExchangesQueryCode(t *testing.T) {
+func TestOAuthStartStoresCallbackSessionWithoutVerifierLeak(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("anthropic")}
-	ctx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/callback?provider=anthropic&session_id=state.verifier&code=callback-code", nil)
+	flowSessionID := "state-123.verifier-secret"
+	flowAuthURL := "https://auth.example/start?redirect_uri=http%3A%2F%2Flocalhost%2Foauth%2Fcallback&state=state-123"
+	flow.started = false
+	flow.startSession = oauth.AuthSession{Provider: flow.ProviderID(), AuthURL: flowAuthURL, SessionID: flowSessionID}
+	s := openHandlerTestStore(t)
+	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/anthropic/authorize", []byte(`{"account_label":"work"}`))
 
-	OAuthCallback(ctx, OAuthFlows{flow.ProviderID(): flow})
+	OAuthStart(ctx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var session oauth.AuthSession
+	decodeOAuthBody(t, ctx, &session)
+	if session.SessionID != "state-123" {
+		t.Fatalf("session id = %q, want public state only", session.SessionID)
+	}
+	if strings.Contains(string(ctx.Response.Body()), "verifier-secret") {
+		t.Fatalf("response leaked verifier: %s", ctx.Response.Body())
+	}
+
+	stored, err := s.ConsumeOAuthSession("state-123")
+	if err != nil {
+		t.Fatalf("ConsumeOAuthSession: %v", err)
+	}
+	if stored.Provider != "anthropic" || stored.CodeVerifier != "verifier-secret" || stored.AccountLabel != "work" {
+		t.Fatalf("stored session = %+v, want provider/verifier/account label", stored)
+	}
+	if stored.RedirectURI != "http://localhost/oauth/callback" {
+		t.Fatalf("redirect uri = %q, want stored redirect", stored.RedirectURI)
+	}
+}
+
+func TestOAuthCallbackUsesStoredVerifierAndPersistsConnection(t *testing.T) {
+	flow := &fakeOAuthFlow{provider: oauth.ProviderID("anthropic")}
+	s := openHandlerTestStore(t)
+	if err := s.CreateOAuthSession(&store.OAuthSession{
+		State:        "callback-state",
+		Provider:     "anthropic",
+		CodeVerifier: "stored-verifier",
+		RedirectURI:  "http://localhost/oauth/callback",
+		AccountLabel: "work",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	ctx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/callback?state=callback-state&code=callback-code", nil)
+
+	OAuthCallback(ctx, s, OAuthFlows{flow.ProviderID(): flow})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
@@ -139,25 +202,45 @@ func TestOAuthCallbackExchangesQueryCode(t *testing.T) {
 	if flow.exSession.Provider != flow.ProviderID() {
 		t.Fatalf("exchange provider = %q, want %q", flow.exSession.Provider, flow.ProviderID())
 	}
-	if flow.exSession.SessionID != "state.verifier" {
-		t.Fatalf("exchange session = %q, want state.verifier", flow.exSession.SessionID)
+	if flow.exSession.SessionID != "callback-state.stored-verifier" {
+		t.Fatalf("exchange session = %q, want stored verifier session", flow.exSession.SessionID)
 	}
 	if flow.exCode != "callback-code" {
 		t.Fatalf("exchange code = %q, want callback-code", flow.exCode)
 	}
-	var token oauth.TokenResult
-	decodeOAuthBody(t, ctx, &token)
-	if token.AccessToken != "access-token" {
-		t.Fatalf("access token = %q, want access-token", token.AccessToken)
+	if strings.Contains(string(ctx.Response.Body()), "access-token") || strings.Contains(string(ctx.Response.Body()), "refresh-token") {
+		t.Fatalf("response leaked token material: %s", ctx.Response.Body())
+	}
+	connections, err := s.GetConnections("anthropic")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(connections) != 1 {
+		t.Fatalf("connections = %d, want 1", len(connections))
+	}
+	if connections[0].AccessToken == nil || *connections[0].AccessToken != "access-token" {
+		t.Fatalf("stored access token = %v, want access-token", connections[0].AccessToken)
+	}
+	if connections[0].Name != "work" {
+		t.Fatalf("connection name = %q, want account label", connections[0].Name)
 	}
 }
 
 func TestOAuthExchangeUsesJSONBody(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("xai")}
-	body := []byte(`{"session":{"provider":"xai","session_id":"state.verifier"},"code":"manual-code"}`)
+	s := openHandlerTestStore(t)
+	if err := s.CreateOAuthSession(&store.OAuthSession{
+		State:        "state",
+		Provider:     "xai",
+		CodeVerifier: "verifier",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	body := []byte(`{"state":"state","code":"manual-code"}`)
 	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/xai/exchange", body)
 
-	OAuthExchange(ctx, OAuthFlows{flow.ProviderID(): flow})
+	OAuthExchange(ctx, s, OAuthFlows{flow.ProviderID(): flow})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
@@ -168,13 +251,107 @@ func TestOAuthExchangeUsesJSONBody(t *testing.T) {
 	if flow.exCode != "manual-code" {
 		t.Fatalf("exchange code = %q, want manual-code", flow.exCode)
 	}
+	connections, err := s.GetConnections("xai")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(connections) != 1 {
+		t.Fatalf("connections = %d, want 1", len(connections))
+	}
+}
+
+func TestOAuthExchangeStoresCodexTokenAsOpenAIConnection(t *testing.T) {
+	flow := &fakeOAuthFlow{
+		provider: oauth.ProviderID("codex"),
+		token: oauth.TokenResult{
+			Provider:     oauth.ProviderID("codex"),
+			AccessToken:  "codex-access",
+			RefreshToken: "codex-refresh",
+			TokenType:    "bearer",
+		},
+	}
+	s := openHandlerTestStore(t)
+	if err := s.CreateOAuthSession(&store.OAuthSession{
+		State:        "codex-state",
+		Provider:     "codex",
+		CodeVerifier: "verifier",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/codex/exchange", []byte(`{"state":"codex-state","code":"manual-code"}`))
+
+	OAuthExchange(ctx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	openAIConnections, err := s.GetConnections("openai")
+	if err != nil {
+		t.Fatalf("GetConnections openai: %v", err)
+	}
+	if len(openAIConnections) != 1 {
+		t.Fatalf("openai connections = %d, want 1", len(openAIConnections))
+	}
+	codexConnections, err := s.GetConnections("codex")
+	if err != nil {
+		t.Fatalf("GetConnections codex: %v", err)
+	}
+	if len(codexConnections) != 0 {
+		t.Fatalf("codex connections = %d, want 0", len(codexConnections))
+	}
+	if openAIConnections[0].ProviderSpecificData["oauth_provider"] != "codex" {
+		t.Fatalf("provider data = %+v, want oauth_provider codex", openAIConnections[0].ProviderSpecificData)
+	}
+}
+
+func TestOAuthExchangePersistsAPIKeyFlowAsAPIKeyConnection(t *testing.T) {
+	flow := &fakeOAuthFlow{
+		provider: oauth.ProviderID("minimax"),
+		token: oauth.TokenResult{
+			Provider:    oauth.ProviderID("minimax"),
+			AccessToken: "minimax-key",
+			TokenType:   "api_key",
+		},
+	}
+	s := openHandlerTestStore(t)
+	if err := s.CreateOAuthSession(&store.OAuthSession{
+		State:     "minimax-state",
+		Provider:  "minimax",
+		ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/minimax/exchange", []byte(`{"state":"minimax-state","code":"minimax-key"}`))
+
+	OAuthExchange(ctx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	connections, err := s.GetConnections("minimax")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(connections) != 1 {
+		t.Fatalf("connections = %d, want 1", len(connections))
+	}
+	if connections[0].AuthType != store.AuthTypeAPIKey {
+		t.Fatalf("auth type = %q, want api_key", connections[0].AuthType)
+	}
+	if connections[0].APIKey == nil || *connections[0].APIKey != "minimax-key" {
+		t.Fatalf("api key = %v, want minimax-key", connections[0].APIKey)
+	}
+	if connections[0].AccessToken != nil {
+		t.Fatalf("access token = %v, want nil for api_key flow", connections[0].AccessToken)
+	}
 }
 
 func TestOAuthExchangeRejectsInvalidJSON(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("xai")}
 	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/xai/exchange", []byte(`{"session":`))
 
-	OAuthExchange(ctx, OAuthFlows{flow.ProviderID(): flow})
+	OAuthExchange(ctx, openHandlerTestStore(t), OAuthFlows{flow.ProviderID(): flow})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
@@ -185,7 +362,7 @@ func TestOAuthHandlersReturnFlowErrors(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("codex"), pollErr: errors.New("poll failed")}
 	ctx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/codex/poll?session_id=device-123", nil)
 
-	OAuthPoll(ctx, OAuthFlows{flow.ProviderID(): flow})
+	OAuthPoll(ctx, openHandlerTestStore(t), OAuthFlows{flow.ProviderID(): flow})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())

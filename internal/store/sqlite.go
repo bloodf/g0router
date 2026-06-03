@@ -209,6 +209,16 @@ func (s *Store) migrate() error {
 			FOREIGN KEY (instance_id) REFERENCES mcp_instances(id) ON DELETE CASCADE
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_mcp_oauth_flows_instance ON mcp_oauth_flows(instance_id)`,
+		`CREATE TABLE IF NOT EXISTS oauth_sessions (
+			id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+			provider TEXT NOT NULL,
+			state_hash TEXT NOT NULL UNIQUE,
+			code_verifier TEXT,
+			redirect_uri TEXT,
+			account_label TEXT,
+			expires_at TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
 	}
 
 	for _, stmt := range ddl {

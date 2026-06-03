@@ -189,22 +189,22 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		if !requireMethod(ctx, fasthttp.MethodGet) {
 			return
 		}
-		handlers.OAuthCallback(ctx, s.config.OAuthFlows)
+		handlers.OAuthCallback(ctx, s.config.Store, s.config.OAuthFlows)
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "authorize":
 		if !requireMethod(ctx, fasthttp.MethodPost) {
 			return
 		}
-		handlers.OAuthStart(ctx, s.config.OAuthFlows)
+		handlers.OAuthStart(ctx, s.config.Store, s.config.OAuthFlows)
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "poll":
 		if !requireMethod(ctx, fasthttp.MethodGet) {
 			return
 		}
-		handlers.OAuthPoll(ctx, s.config.OAuthFlows)
+		handlers.OAuthPoll(ctx, s.config.Store, s.config.OAuthFlows)
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "exchange":
 		if !requireMethod(ctx, fasthttp.MethodPost) {
 			return
 		}
-		handlers.OAuthExchange(ctx, s.config.OAuthFlows)
+		handlers.OAuthExchange(ctx, s.config.Store, s.config.OAuthFlows)
 	case path == "/api/usage":
 		handlers.Usage(ctx, s.config.UsageStore)
 	case path == "/api/usage/summary":

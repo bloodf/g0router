@@ -12,6 +12,18 @@ func (p ProviderID) String() string {
 	return string(p)
 }
 
+// CanonicalProviderID maps auth-flow IDs onto runtime provider IDs.
+func CanonicalProviderID(provider ProviderID) string {
+	switch provider {
+	case "codex":
+		return "openai"
+	case "github":
+		return "github-copilot"
+	default:
+		return string(provider)
+	}
+}
+
 // AuthSession is returned when an OAuth flow has started.
 type AuthSession struct {
 	Provider     ProviderID `json:"provider"`
