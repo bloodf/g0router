@@ -214,3 +214,32 @@ func TestAgentPassesRawToolArguments(t *testing.T) {
 		t.Fatalf("arguments = %s", client.calls[0].Arguments)
 	}
 }
+
+func TestAgentFiltersVisibleToolsFromRequestContext(t *testing.T) {
+	provider := &fakeAgentProvider{responses: []*providers.ChatResponse{
+		{Choices: []providers.Choice{{Message: providers.Message{Role: "assistant", Content: "done"}}}},
+	}}
+	tools := NewToolManager()
+	if err := tools.RegisterManifest(Manifest{
+		ClientID: "docs",
+		Tools: []Tool{
+			{Name: "search", Description: "Search docs"},
+			{Name: "read", Description: "Read docs"},
+		},
+	}); err != nil {
+		t.Fatalf("RegisterManifest: %v", err)
+	}
+
+	agent := NewAgent(provider, providers.Key{}, tools)
+	_, err := agent.Run(WithAllowedTools(context.Background(), "docs__search"), &providers.ChatRequest{Model: "gpt-test"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(provider.requests) != 1 {
+		t.Fatalf("provider requests = %d, want 1", len(provider.requests))
+	}
+	if len(provider.requests[0].Tools) != 1 || provider.requests[0].Tools[0].Function.Name != "docs__search" {
+		t.Fatalf("request tools = %#v, want only docs__search", provider.requests[0].Tools)
+	}
+}

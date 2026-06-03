@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sync"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/providers"
@@ -122,6 +124,126 @@ func TestToolManagerCallRoutesToClient(t *testing.T) {
 	}
 }
 
+func TestToolManagerValidatesArgumentsBeforeDispatch(t *testing.T) {
+	client := &fakeClient{callResult: CallResult{Content: "found"}}
+	manager := NewToolManager()
+	if err := manager.RegisterManifest(Manifest{
+		ClientID: "docs",
+		Tools: []Tool{{
+			Name:        "search",
+			Description: "Search docs",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"required":["query"],
+				"properties":{"query":{"type":"string"},"limit":{"type":"integer"}},
+				"additionalProperties":false
+			}`),
+		}},
+	}); err != nil {
+		t.Fatalf("RegisterManifest: %v", err)
+	}
+	manager.RegisterClient("docs", client)
+
+	_, err := manager.Call(context.Background(), "docs__search", json.RawMessage(`{"query":7}`))
+	if !errors.Is(err, ErrInvalidToolArguments) {
+		t.Fatalf("expected ErrInvalidToolArguments, got %v", err)
+	}
+	if len(client.calls) != 0 {
+		t.Fatalf("client was called with invalid arguments: %#v", client.calls)
+	}
+
+	result, err := manager.Call(context.Background(), "docs__search", json.RawMessage(`{"query":"mcp","limit":2}`))
+	if err != nil {
+		t.Fatalf("Call valid arguments: %v", err)
+	}
+	if result.Content != "found" {
+		t.Fatalf("result = %#v", result)
+	}
+	if len(client.calls) != 1 || string(client.calls[0].Arguments) != `{"query":"mcp","limit":2}` {
+		t.Fatalf("client calls = %#v", client.calls)
+	}
+}
+
+func TestToolManagerRequestContextFiltersVisibleAndCallableTools(t *testing.T) {
+	client := &fakeClient{callResult: CallResult{Content: "found"}}
+	manager := NewToolManager()
+	if err := manager.RegisterManifest(Manifest{
+		ClientID: "docs",
+		Tools: []Tool{
+			{Name: "search", Description: "Search docs"},
+			{Name: "read", Description: "Read docs"},
+		},
+	}); err != nil {
+		t.Fatalf("RegisterManifest: %v", err)
+	}
+	manager.RegisterClient("docs", client)
+	ctx := WithAllowedTools(context.Background(), "docs__search")
+
+	tools := manager.CompactToolsForRequest(ctx)
+	if len(tools) != 1 || tools[0].Function.Name != "docs__search" {
+		t.Fatalf("filtered tools = %#v, want only docs__search", tools)
+	}
+
+	_, err := manager.Call(ctx, "docs__read", json.RawMessage(`{}`))
+	if !errors.Is(err, ErrToolNotFound) {
+		t.Fatalf("expected ErrToolNotFound for filtered tool, got %v", err)
+	}
+	if len(client.calls) != 0 {
+		t.Fatalf("client was called for filtered tool: %#v", client.calls)
+	}
+
+	if _, err := manager.Call(ctx, "docs__search", json.RawMessage(`{}`)); err != nil {
+		t.Fatalf("Call allowed tool: %v", err)
+	}
+	if len(client.calls) != 1 || client.calls[0].Name != "search" {
+		t.Fatalf("client calls = %#v", client.calls)
+	}
+}
+
+func TestToolManagerConcurrentRegistrationListAndCalls(t *testing.T) {
+	manager := NewToolManager()
+	errs := make(chan error, 100)
+	var wg sync.WaitGroup
+
+	for i := 0; i < 25; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			clientID := fmt.Sprintf("docs-%02d", i)
+			if err := manager.RegisterManifest(Manifest{
+				ClientID: clientID,
+				Tools:    []Tool{{Name: "search", Description: "Search docs"}},
+			}); err != nil {
+				errs <- fmt.Errorf("RegisterManifest %s: %w", clientID, err)
+				return
+			}
+			manager.RegisterClient(clientID, &concurrentCallClient{})
+			if _, err := manager.Call(context.Background(), toolFullName(clientID, "search"), json.RawMessage(`{}`)); err != nil {
+				errs <- fmt.Errorf("Call %s: %w", clientID, err)
+			}
+		}(i)
+	}
+	for i := 0; i < 25; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_ = manager.CompactTools()
+			_, _ = manager.Lookup("missing__tool")
+		}()
+	}
+
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+
+	tools := manager.CompactTools()
+	if len(tools) != 25 {
+		t.Fatalf("tools len = %d, want 25", len(tools))
+	}
+}
+
 func TestToolManagerCallUnknownClient(t *testing.T) {
 	manager := NewToolManager()
 	if err := manager.RegisterManifest(Manifest{
@@ -157,4 +279,18 @@ func TestToolManagerOpenAIToolNameEscapesSeparator(t *testing.T) {
 
 func TestToolManagerCompactToolsUseProviderTypes(t *testing.T) {
 	var _ []providers.Tool = NewToolManager().CompactTools()
+}
+
+type concurrentCallClient struct{}
+
+func (c *concurrentCallClient) ListTools(ctx context.Context) ([]Tool, error) {
+	return nil, nil
+}
+
+func (c *concurrentCallClient) CallTool(ctx context.Context, req CallRequest) (CallResult, error) {
+	return CallResult{Content: "ok"}, nil
+}
+
+func (c *concurrentCallClient) Close() error {
+	return nil
 }

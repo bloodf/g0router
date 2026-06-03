@@ -184,6 +184,88 @@ func TestMCPToolsExecuteMissingTool(t *testing.T) {
 	}
 }
 
+func TestMCPToolsExecuteRejectsInvalidArgumentsBeforeClientCall(t *testing.T) {
+	client := &fakeMCPClient{}
+	tools := mcp.NewToolManager()
+	if err := tools.RegisterManifest(mcp.Manifest{
+		ClientID: "docs",
+		Tools: []mcp.Tool{{
+			Name:        "search",
+			Description: "Search docs",
+			InputSchema: json.RawMessage(`{"type":"object","required":["query"],"properties":{"query":{"type":"string"}}}`),
+		}},
+	}); err != nil {
+		t.Fatalf("RegisterManifest: %v", err)
+	}
+	tools.RegisterClient("docs", client)
+
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/tools/docs__search/execute")
+	ctx.Request.SetBodyString(`{"arguments":{"query":7}}`)
+
+	MCPTools(ctx, openMCPHandlerStore(t), tools, "docs__search")
+
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if len(client.calls) != 0 {
+		t.Fatalf("client calls = %+v, want none", client.calls)
+	}
+}
+
+func TestMCPToolsRequestAllowedToolFilterLimitsListAndExecute(t *testing.T) {
+	client := &fakeMCPClient{}
+	tools := mcp.NewToolManager()
+	if err := tools.RegisterManifest(mcp.Manifest{
+		ClientID: "docs",
+		Tools: []mcp.Tool{
+			{Name: "search", Description: "Search docs"},
+			{Name: "read", Description: "Read docs"},
+		},
+	}); err != nil {
+		t.Fatalf("RegisterManifest: %v", err)
+	}
+	tools.RegisterClient("docs", client)
+
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/mcp/tools?allowed_tool=docs__search")
+	MCPTools(ctx, openMCPHandlerStore(t), tools, "")
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("list status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var listed struct {
+		Data []struct {
+			Function struct {
+				Name string `json:"name"`
+			} `json:"function"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &listed); err != nil {
+		t.Fatalf("unmarshal tools: %v", err)
+	}
+	if len(listed.Data) != 1 || listed.Data[0].Function.Name != "docs__search" {
+		t.Fatalf("listed tools = %+v, want only docs__search", listed.Data)
+	}
+
+	ctx = newHandlerCtx(fasthttp.MethodPost, "/api/mcp/tools/docs__read/execute?allowed_tool=docs__search")
+	ctx.Request.SetBodyString(`{"arguments":{}}`)
+	MCPTools(ctx, openMCPHandlerStore(t), tools, "docs__read")
+	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
+		t.Fatalf("filtered execute status = %d, want 404; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if len(client.calls) != 0 {
+		t.Fatalf("client calls = %+v, want none for filtered tool", client.calls)
+	}
+
+	ctx = newHandlerCtx(fasthttp.MethodPost, "/api/mcp/tools/docs__search/execute?allowed_tool=docs__search")
+	ctx.Request.SetBodyString(`{"arguments":{}}`)
+	MCPTools(ctx, openMCPHandlerStore(t), tools, "docs__search")
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("allowed execute status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if len(client.calls) != 1 || client.calls[0].Name != "search" {
+		t.Fatalf("client calls = %+v, want search call", client.calls)
+	}
+}
+
 func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	s := openMCPHandlerStore(t)
 

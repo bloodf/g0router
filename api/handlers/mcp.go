@@ -65,7 +65,8 @@ type mcpOAuthAccountResponse struct {
 }
 
 type mcpToolExecuteRequest struct {
-	Arguments json.RawMessage `json:"arguments"`
+	Arguments    json.RawMessage `json:"arguments"`
+	AllowedTools []string        `json:"allowed_tools"`
 }
 
 func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
@@ -256,7 +257,8 @@ func MCPTools(ctx *fasthttp.RequestCtx, s *store.Store, tools *mcp.ToolManager, 
 	case fasthttp.MethodGet:
 		instanceID := string(ctx.QueryArgs().Peek("instance_id"))
 		accountLabel := string(ctx.QueryArgs().Peek("account_label"))
-		compact, err := compactToolList(s, tools, instanceID, accountLabel)
+		allowedTools := allowedToolsFromRequest(ctx)
+		compact, err := compactToolList(mcpRequestContext(ctx, allowedTools), s, tools, instanceID, accountLabel, allowedTools)
 		if err != nil {
 			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list mcp tools: %v", err))
 			return
@@ -275,7 +277,8 @@ func MCPTools(ctx *fasthttp.RequestCtx, s *store.Store, tools *mcp.ToolManager, 
 		if !ok {
 			return
 		}
-		result, err := tools.Call(requestContext(ctx), name, req.Arguments)
+		allowedTools := append(allowedToolsFromRequest(ctx), req.AllowedTools...)
+		result, err := tools.Call(mcpRequestContext(ctx, allowedTools), name, req.Arguments)
 		if err != nil {
 			writeMCPToolError(ctx, err)
 			return
@@ -354,16 +357,20 @@ func registerMCPClient(ctx context.Context, clients *mcp.ClientManager, tools *m
 	return manifest, nil
 }
 
-func compactToolList(s *store.Store, tools *mcp.ToolManager, instanceID, accountLabel string) ([]providers.Tool, error) {
+func compactToolList(ctx context.Context, s *store.Store, tools *mcp.ToolManager, instanceID, accountLabel string, allowedTools []string) ([]providers.Tool, error) {
 	if tools != nil && instanceID == "" && accountLabel == "" {
-		return tools.CompactTools(), nil
+		return tools.CompactToolsForRequest(ctx), nil
 	}
 	if s == nil {
 		return nil, nil
 	}
 
 	if instanceID != "" || accountLabel != "" {
-		return compactInstanceToolList(s, instanceID, accountLabel)
+		compact, err := compactInstanceToolList(s, instanceID, accountLabel)
+		if err != nil {
+			return nil, err
+		}
+		return filterCompactTools(compact, allowedTools), nil
 	}
 
 	clients, err := s.ListMCPClients()
@@ -387,7 +394,7 @@ func compactToolList(s *store.Store, tools *mcp.ToolManager, instanceID, account
 		return nil, err
 	}
 	compact = append(compact, instances...)
-	return compact, nil
+	return filterCompactTools(compact, allowedTools), nil
 }
 
 func compactInstanceToolList(s *store.Store, instanceID, accountLabel string) ([]providers.Tool, error) {
@@ -434,7 +441,60 @@ func writeMCPToolError(ctx *fasthttp.RequestCtx, err error) {
 	switch {
 	case errors.Is(err, mcp.ErrToolNotFound), errors.Is(err, mcp.ErrClientNotFound):
 		writeError(ctx, fasthttp.StatusNotFound, err.Error())
+	case errors.Is(err, mcp.ErrInvalidToolArguments):
+		writeError(ctx, fasthttp.StatusBadRequest, err.Error())
 	default:
 		writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("execute mcp tool: %v", err))
 	}
+}
+
+func mcpRequestContext(ctx *fasthttp.RequestCtx, allowedTools []string) context.Context {
+	reqCtx := requestContext(ctx)
+	if len(allowedTools) == 0 {
+		return reqCtx
+	}
+	return mcp.WithAllowedTools(reqCtx, allowedTools...)
+}
+
+func allowedToolsFromRequest(ctx *fasthttp.RequestCtx) []string {
+	var allowed []string
+	ctx.QueryArgs().VisitAll(func(key, value []byte) {
+		switch string(key) {
+		case "allowed_tool":
+			allowed = appendAllowedTools(allowed, string(value))
+		case "allowed_tools":
+			for _, name := range strings.Split(string(value), ",") {
+				allowed = appendAllowedTools(allowed, name)
+			}
+		}
+	})
+	return allowed
+}
+
+func appendAllowedTools(allowed []string, name string) []string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return allowed
+	}
+	return append(allowed, name)
+}
+
+func filterCompactTools(tools []providers.Tool, allowedTools []string) []providers.Tool {
+	if len(allowedTools) == 0 {
+		return tools
+	}
+	allowed := make(map[string]struct{}, len(allowedTools))
+	for _, name := range allowedTools {
+		name = strings.TrimSpace(name)
+		if name != "" {
+			allowed[name] = struct{}{}
+		}
+	}
+	filtered := make([]providers.Tool, 0, len(tools))
+	for _, tool := range tools {
+		if _, ok := allowed[tool.Function.Name]; ok {
+			filtered = append(filtered, tool)
+		}
+	}
+	return filtered
 }
