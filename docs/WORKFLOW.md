@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.G"
-last_updated: "2026-06-03T04:41:43Z"
+last_updated: "2026-06-03T04:42:20Z"
 last_agent: "orchestrator"
 ```
 
@@ -1376,14 +1376,19 @@ tasks:
       - internal/cli/mcp_auth_test.go
   - id: "7.G.3"
     name: "Streamable HTTP and SSE MCP JSON-RPC clients"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7g-http"
+    completed_at: "2026-06-03T04:37:11Z"
     files_owned:
       - internal/mcp/http.go
-      - internal/mcp/http_test.go
+      - internal/mcp/httpclient.go
+      - internal/mcp/httpclient_test.go
       - internal/mcp/launcher.go
       - internal/mcp/launcher_test.go
       - internal/cli/mcp_runtime.go
-      - internal/cli/mcp_runtime_test.go
+      - internal/cli/mcp_http_runtime_test.go
+      - docs/WORKFLOW.md
   - id: "7.G.4"
     name: "Tool manager concurrency, schema validation, and request filtering"
     status: PENDING

@@ -7,10 +7,11 @@ import (
 )
 
 type LaunchResult struct {
-	Transport   Transport
-	SessionID   string
-	Diagnostics string
-	Process     Process
+	Transport       Transport
+	SessionID       string
+	MessageEndpoint string
+	Diagnostics     string
+	Process         Process
 }
 
 type Launcher struct {
@@ -100,10 +101,18 @@ func (l *Launcher) launchHTTP(ctx context.Context, cfg InstanceConfig) (LaunchRe
 	if !shouldFallbackToSSE(status) {
 		return LaunchResult{}, err
 	}
-	if err := l.http.InitializeSSE(ctx, cfg.URL, cfg.Headers); err != nil {
+	endpoint, err := l.http.InitializeSSE(ctx, cfg.URL, cfg.Headers)
+	if err != nil {
 		return LaunchResult{}, err
 	}
-	return LaunchResult{Transport: TransportSSE}, nil
+	return LaunchResult{Transport: TransportSSE, MessageEndpoint: endpoint}, nil
+}
+
+func (l *Launcher) HTTPClient() HTTPDoer {
+	if l == nil || l.http == nil {
+		return nil
+	}
+	return l.http.client
 }
 
 func shouldFallbackToSSE(status int) bool {

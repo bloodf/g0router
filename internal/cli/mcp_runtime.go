@@ -35,6 +35,12 @@ func (c mcpLauncherConnector) Connect(ctx context.Context, cfg mcp.ClientConfig)
 	if result.Transport == mcp.TransportStdio {
 		return mcp.NewStdioClient(result.Process), nil
 	}
+	if result.Transport == mcp.TransportStreamableHTTP {
+		return mcp.NewStreamableHTTPClient(c.launcher.HTTPClient(), cfg.URL, nil, result.SessionID, true), nil
+	}
+	if result.Transport == mcp.TransportSSE {
+		return mcp.NewSSEClient(c.launcher.HTTPClient(), cfg.URL, nil), nil
+	}
 	return &launchedMCPClient{process: result.Process}, nil
 }
 

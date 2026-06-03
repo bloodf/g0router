@@ -127,7 +127,9 @@ func TestHTTPLauncherFallsBackToSSEOnlyForDocumentedStatuses(t *testing.T) {
 		if r.URL.Path != "/sse" {
 			t.Fatalf("fallback path = %q, want /sse", r.URL.Path)
 		}
+		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("event: endpoint\ndata: /message\n\n"))
 	}))
 	defer server.Close()
 
