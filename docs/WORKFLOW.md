@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.I"
-last_updated: "2026-06-03T09:05:00Z"
+last_updated: "2026-06-03T09:37:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1625,6 +1625,19 @@ tasks:
     depends_on_tasks: ["7.I.1", "7.I.2", "7.I.3"]
     files_owned:
       - docs/evaluations/wave-7I-evaluator-prompt.md
+      - docs/WORKFLOW.md
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
+  - id: "7.I.5"
+    name: "Wave 7.I quota evaluator remediation"
+    status: DONE
+    branch: "codex/wave-7i-quota-remediation"
+    depends_on_tasks: ["7.I.4"]
+    files_owned:
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/proxy/combo.go
+      - internal/proxy/combo_test.go
+      - docs/evaluations/wave-7I-remediation-evaluator-prompt.md
       - docs/WORKFLOW.md
     phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
 ```
