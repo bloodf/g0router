@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.G"
-last_updated: "2026-06-03T04:42:20Z"
+last_updated: "2026-06-03T04:43:40Z"
 last_agent: "orchestrator"
 ```
 
@@ -1391,7 +1391,10 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.G.4"
     name: "Tool manager concurrency, schema validation, and request filtering"
-    status: PENDING
+    status: IN_PROGRESS
+    agent: "Anscombe the 2nd"
+    branch: "codex/wave-7g-tools"
+    started_at: "2026-06-03T04:43:40Z"
     files_owned:
       - internal/mcp/toolmanager.go
       - internal/mcp/toolmanager_test.go
