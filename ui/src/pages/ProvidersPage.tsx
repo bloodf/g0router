@@ -77,8 +77,8 @@ function ProviderTables({ data }: { data: ProviderData }) {
         {data.providers.length === 0 ? (
           <EmptyState title="No providers" description="The provider matrix endpoint returned an empty list." />
         ) : (
-          <div className="overflow-hidden rounded-md border border-zinc-200">
-            <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto rounded-md border border-zinc-200">
+            <table aria-label="Provider contract" className="min-w-[780px] w-full text-left text-sm">
               <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Provider</th>
@@ -114,8 +114,8 @@ function ProviderTables({ data }: { data: ProviderData }) {
         {data.connections.length === 0 ? (
           <EmptyState title="No connections" description="No provider accounts are stored yet." />
         ) : (
-          <div className="overflow-hidden rounded-md border border-zinc-200">
-            <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto rounded-md border border-zinc-200">
+            <table aria-label="Provider connections" className="min-w-[780px] w-full text-left text-sm">
               <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Name</th>
@@ -178,8 +178,8 @@ function formatCapabilities(provider: ProviderMatrixEntry) {
   return formatList(capabilities);
 }
 
-function formatList(values: string[]) {
-  return values.length === 0 ? "none" : values.join(", ");
+function formatList(values?: string[] | null) {
+  return values == null || values.length === 0 ? "none" : values.join(", ");
 }
 
 function toApiError(error: unknown) {

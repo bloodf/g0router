@@ -81,7 +81,7 @@ export function EndpointPage() {
   return (
     <Panel title="Endpoint controls" description="API key, request transformation, and endpoint protection controls.">
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div>
+        <div className="min-w-0">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h4 className="text-sm font-semibold text-zinc-700">API keys</h4>
             {state.status === "success" || state.status === "empty" ? (
@@ -99,7 +99,7 @@ export function EndpointPage() {
           {state.status === "success" ? <KeysTable keys={state.data} deletingID={deletingID} onDelete={handleDelete} /> : null}
         </div>
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           <form className="rounded-md border border-zinc-200 p-4" onSubmit={handleCreate}>
             <label className="block text-sm font-semibold text-zinc-700" htmlFor="endpoint-key-name">
               Key name
@@ -149,8 +149,8 @@ type KeysTableProps = {
 
 function KeysTable({ deletingID, keys, onDelete }: KeysTableProps) {
   return (
-    <div className="overflow-hidden rounded-md border border-zinc-200">
-      <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-md border border-zinc-200">
+      <table aria-label="API keys" className="min-w-[760px] w-full text-left text-sm">
         <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
           <tr>
             <th className="px-4 py-3 font-semibold">Name</th>

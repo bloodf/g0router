@@ -75,6 +75,7 @@ describe("CombosPage", () => {
     expect(within(row).getByText("anthropic / claude-sonnet-4")).toBeInTheDocument();
     expect(within(row).getByText("openai / gpt-4o")).toBeInTheDocument();
     expect(within(row).getByText("active")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Combo routes" }).parentElement).toHaveClass("overflow-x-auto");
 
     fireEvent.click(within(row).getByRole("button", { name: "Delete research-chain" }));
 

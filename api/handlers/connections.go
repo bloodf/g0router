@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	providerids "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/store"
@@ -147,7 +148,7 @@ func redactConnection(conn *store.Connection) connectionResponse {
 		AuthType:             conn.AuthType,
 		ExpiresAt:            conn.ExpiresAt,
 		IsActive:             conn.IsActive,
-		ProviderSpecificData: conn.ProviderSpecificData,
+		ProviderSpecificData: redactProviderSpecificData(conn.ProviderSpecificData),
 		AccountID:            conn.AccountID,
 		Email:                conn.Email,
 		UnavailableUntil:     conn.UnavailableUntil,
@@ -156,6 +157,54 @@ func redactConnection(conn *store.Connection) connectionResponse {
 		CreatedAt:            conn.CreatedAt,
 		UpdatedAt:            conn.UpdatedAt,
 	}
+}
+
+func redactProviderSpecificData(values map[string]any) map[string]any {
+	if values == nil {
+		return nil
+	}
+	redacted := make(map[string]any, len(values))
+	for key, value := range values {
+		if isConnectionSecretKey(key) {
+			continue
+		}
+		redacted[key] = redactProviderSpecificValue(value)
+	}
+	return redacted
+}
+
+func redactProviderSpecificValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return redactProviderSpecificData(typed)
+	case map[string]string:
+		redacted := make(map[string]string, len(typed))
+		for key, value := range typed {
+			if isConnectionSecretKey(key) {
+				continue
+			}
+			redacted[key] = value
+		}
+		return redacted
+	case []any:
+		redacted := make([]any, 0, len(typed))
+		for _, item := range typed {
+			redacted = append(redacted, redactProviderSpecificValue(item))
+		}
+		return redacted
+	default:
+		return value
+	}
+}
+
+func isConnectionSecretKey(key string) bool {
+	normalized := strings.ToLower(key)
+	for _, marker := range []string{"token", "secret", "key", "authorization", "password"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func listConnections(s *store.Store) ([]*store.Connection, error) {

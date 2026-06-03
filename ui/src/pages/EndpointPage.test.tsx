@@ -68,6 +68,8 @@ describe("EndpointPage", () => {
 
     const row = await screen.findByRole("row", { name: /local-admin g0_live_3fb2 active/i });
     expect(within(row).getByText("g0_live_3fb2")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "API keys" }).parentElement).toHaveClass("overflow-x-auto");
+    expect(screen.getByRole("table", { name: "API keys" }).closest(".min-w-0")).not.toBeNull();
     expect(fetch).toHaveBeenCalledWith("/api/keys", expect.objectContaining({ credentials: "same-origin" }));
     expect(screen.queryByText(/stored-raw-api-key|stored-gateway-key/i)).not.toBeInTheDocument();
   });

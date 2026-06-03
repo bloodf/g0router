@@ -73,7 +73,7 @@ func knownProviders() []providerResponse {
 			OMPID:             entry.OMPID,
 			Router9ID:         entry.Router9ID,
 			BifrostID:         entry.BifrostID,
-			AuthTypes:         append([]string(nil), entry.AuthTypes...),
+			AuthTypes:         copyStringSlice(entry.AuthTypes),
 			OAuthProvider:     entry.OAuthProvider,
 			Refresh:           entry.Refresh,
 			RegisteredAdapter: entry.RegisteredAdapter,
@@ -89,4 +89,11 @@ func knownProviders() []providerResponse {
 		})
 	}
 	return responses
+}
+
+func copyStringSlice(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	return append([]string(nil), values...)
 }

@@ -97,8 +97,8 @@ function renderUsageContent(state: UsageState) {
 function UsageTables({ data }: { data: UsageData }) {
   return (
     <div className="space-y-6">
-      <div className="overflow-hidden rounded-md border border-zinc-200">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-md border border-zinc-200">
+        <table aria-label="Usage rows" className="min-w-[820px] w-full text-left text-sm">
           <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
               <th className="px-4 py-3 font-semibold">Request</th>
@@ -130,8 +130,8 @@ function UsageTables({ data }: { data: UsageData }) {
 
       <div>
         <h4 className="mb-3 text-sm font-semibold text-zinc-700">Request logs</h4>
-        <div className="overflow-hidden rounded-md border border-zinc-200">
-          <table className="w-full text-left text-sm">
+        <div className="overflow-x-auto rounded-md border border-zinc-200">
+          <table aria-label="Request logs" className="min-w-[720px] w-full text-left text-sm">
             <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
               <tr>
                 <th className="px-4 py-3 font-semibold">Request</th>

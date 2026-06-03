@@ -90,6 +90,8 @@ describe("UsagePage", () => {
     const streamLog = screen.getByRole("row", { name: /req-stream/i });
     expect(within(streamLog).getByText("streaming")).toBeInTheDocument();
     expect(within(streamLog).getByText("cursor")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Usage rows" }).parentElement).toHaveClass("overflow-x-auto");
+    expect(screen.getByRole("table", { name: "Request logs" }).parentElement).toHaveClass("overflow-x-auto");
 
     await waitFor(() => {
       expect(fetch.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining(["/api/usage", "/api/logs"]));

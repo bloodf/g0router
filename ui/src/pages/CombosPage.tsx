@@ -170,8 +170,8 @@ function CombosTable({
   onDelete: (combo: ComboResponse) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-md border border-zinc-200">
-      <table className="w-full text-left text-sm">
+    <div className="overflow-x-auto rounded-md border border-zinc-200">
+      <table aria-label="Combo routes" className="min-w-[680px] w-full text-left text-sm">
         <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
           <tr>
             <th className="px-4 py-3 font-semibold">Name</th>

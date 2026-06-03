@@ -11,7 +11,7 @@ export type ProviderMatrixEntry = {
   omp_id: string;
   router9_id: string;
   bifrost_id: string;
-  auth_types: string[];
+  auth_types?: string[] | null;
   oauth_provider?: string;
   refresh: boolean;
   registered_adapter: boolean;

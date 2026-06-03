@@ -113,6 +113,51 @@ func TestConnectionsResponsesRedactCredentialsWithoutMutatingStore(t *testing.T)
 	assertStoredCredentials(t, s, created.ID, "access-new", "refresh-new", "api-new")
 }
 
+func TestConnectionsResponsesRedactProviderSpecificCredentialData(t *testing.T) {
+	s := newHandlerStore(t)
+
+	createBody := `{"provider":"openai","name":"primary","auth_type":"oauth","access_token":"access-secret","refresh_token":"refresh-secret","api_key":"api-secret","is_active":true,"provider_specific_data":{"region":"us","access_token":"provider-access","refresh_token":"provider-refresh","api_key":"provider-key","Authorization":"Bearer provider-token","nested":{"mode":"readonly","password":"provider-password"}}}`
+	ctx, body := runHandler(t, fasthttp.MethodPost, createBody, func(ctx *fasthttp.RequestCtx) {
+		Connections(ctx, s, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+		t.Fatalf("create status = %d, want 201; body=%s", ctx.Response.StatusCode(), body)
+	}
+	assertNoCredentialFields(t, body)
+	for _, secret := range [][]byte{
+		[]byte("provider-access"),
+		[]byte("provider-refresh"),
+		[]byte("provider-key"),
+		[]byte("provider-token"),
+		[]byte("provider-password"),
+	} {
+		if bytes.Contains(body, secret) {
+			t.Fatalf("response leaked provider-specific secret %q: %s", secret, body)
+		}
+	}
+
+	var created connectionResponse
+	decodeJSON(t, body, &created)
+	if created.ProviderSpecificData["region"] != "us" {
+		t.Fatalf("region = %v, want us", created.ProviderSpecificData["region"])
+	}
+	nested, ok := created.ProviderSpecificData["nested"].(map[string]any)
+	if !ok || nested["mode"] != "readonly" {
+		t.Fatalf("nested = %+v, want mode preserved", created.ProviderSpecificData["nested"])
+	}
+	if _, ok := nested["password"]; ok {
+		t.Fatalf("nested password was not redacted: %+v", nested)
+	}
+
+	stored, err := s.GetConnection(created.ID)
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if stored.ProviderSpecificData["access_token"] != "provider-access" {
+		t.Fatalf("stored provider access token = %v, want preserved secret", stored.ProviderSpecificData["access_token"])
+	}
+}
+
 func TestConnectionsCanonicalizesProviderAliases(t *testing.T) {
 	s := newHandlerStore(t)
 
@@ -212,6 +257,8 @@ func assertNoCredentialFields(t *testing.T, body []byte) {
 		[]byte(`"access_token":`),
 		[]byte(`"refresh_token":`),
 		[]byte(`"api_key":`),
+		[]byte(`"Authorization":`),
+		[]byte(`"password":`),
 	} {
 		if bytes.Contains(body, field) {
 			t.Fatalf("response serialized credential field %s: %s", field, body)

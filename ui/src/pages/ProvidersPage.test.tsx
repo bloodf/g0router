@@ -104,10 +104,30 @@ describe("ProvidersPage", () => {
     const connectionRow = screen.getByRole("row", { name: /primary openai operator@example.com oauth active/i });
     expect(within(connectionRow).getByText("operator@example.com")).toBeInTheDocument();
     expect(within(connectionRow).getByText("active")).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: "Provider contract" }).parentElement).toHaveClass("overflow-x-auto");
+    expect(screen.getByRole("table", { name: "Provider connections" }).parentElement).toHaveClass("overflow-x-auto");
 
     expect(fetch).toHaveBeenCalledWith("/api/providers", expect.objectContaining({ credentials: "same-origin" }));
     expect(fetch).toHaveBeenCalledWith("/api/connections", expect.objectContaining({ credentials: "same-origin" }));
     expect(screen.queryByText(/top-secret|provider-access-token|provider-refresh-token|provider-api-key/i)).not.toBeInTheDocument();
+  });
+
+  it("renders providers with null auth_types from the live provider matrix as none", async () => {
+    const fetch = vi.fn(async (path: string) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [{ ...providerEntry, id: "qwen", auth_types: null, public_status: "unsupported" }] });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: [] });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    const row = await screen.findByRole("row", { name: /qwen unsupported none/i });
+    expect(within(row).getByText("none")).toBeInTheDocument();
   });
 
   it("renders an empty state when both provider contracts are empty", async () => {

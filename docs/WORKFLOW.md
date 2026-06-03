@@ -1550,6 +1550,29 @@ tasks:
       - docs/evaluations/wave-7H-evaluator-prompt.md
       - docs/WORKFLOW.md
       - ui/dist/**
+  - id: "7.H.7"
+    name: "Wave 7.H evaluator remediation"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T06:09:00Z"
+    depends_on_tasks: ["7.H.6"]
+    files_owned:
+      - api/handlers/connections.go
+      - api/handlers/connections_test.go
+      - api/handlers/providers.go
+      - api/handlers/providers_test.go
+      - ui/src/api.ts
+      - ui/src/pages/ProvidersPage.tsx
+      - ui/src/pages/ProvidersPage.test.tsx
+      - ui/src/pages/EndpointPage.tsx
+      - ui/src/pages/EndpointPage.test.tsx
+      - ui/src/pages/UsagePage.tsx
+      - ui/src/pages/UsagePage.test.tsx
+      - ui/src/pages/CombosPage.tsx
+      - ui/src/pages/CombosPage.test.tsx
+      - docs/evaluations/wave-7H-remediation-evaluator-prompt.md
+      - docs/WORKFLOW.md
+      - ui/dist/**
 ```
 
 ### Wave 7.I — Usage, cost, logs, and quotas

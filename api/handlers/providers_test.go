@@ -33,22 +33,26 @@ func TestProvidersListKnownProviders(t *testing.T) {
 
 	var decoded struct {
 		Data []struct {
-			ID                string `json:"id"`
-			PublicStatus      string `json:"public_status"`
-			RegisteredAdapter bool   `json:"registered_adapter"`
-			PublicInference   bool   `json:"public_inference"`
-			DirectDispatch    bool   `json:"direct_dispatch"`
-			Inference         bool   `json:"inference"`
-			Streaming         bool   `json:"streaming"`
-			ModelCatalog      bool   `json:"model_catalog"`
-			ListModels        bool   `json:"list_models"`
-			Quota             bool   `json:"quota"`
-			Notes             string `json:"notes"`
+			ID                string   `json:"id"`
+			AuthTypes         []string `json:"auth_types"`
+			PublicStatus      string   `json:"public_status"`
+			RegisteredAdapter bool     `json:"registered_adapter"`
+			PublicInference   bool     `json:"public_inference"`
+			DirectDispatch    bool     `json:"direct_dispatch"`
+			Inference         bool     `json:"inference"`
+			Streaming         bool     `json:"streaming"`
+			ModelCatalog      bool     `json:"model_catalog"`
+			ListModels        bool     `json:"list_models"`
+			Quota             bool     `json:"quota"`
+			Notes             string   `json:"notes"`
 		} `json:"data"`
 	}
 	decodeJSON(t, body, &decoded)
 	if len(decoded.Data) == 0 {
 		t.Fatal("providers list should not be empty")
+	}
+	if strings.Contains(string(body), `"auth_types":null`) {
+		t.Fatalf("providers response serialized null auth_types: %s", body)
 	}
 	byID := make(map[string]struct {
 		PublicStatus      string
