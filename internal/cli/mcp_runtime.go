@@ -12,19 +12,39 @@ import (
 	"sort"
 
 	"github.com/bloodf/g0router/internal/mcp"
+	"github.com/bloodf/g0router/internal/store"
 )
 
-func newDefaultMCPRuntime() (*mcp.ClientManager, *mcp.ToolManager) {
+type defaultMCPRuntime struct {
+	clients   *mcp.ClientManager
+	tools     *mcp.ToolManager
+	connector *mcpLauncherConnector
+}
+
+func newDefaultMCPRuntime() *defaultMCPRuntime {
 	launcher := mcp.NewLauncher(commandProcessRunner{}, http.DefaultClient)
-	return mcp.NewClientManager(mcpLauncherConnector{launcher: launcher}), mcp.NewToolManager()
+	connector := &mcpLauncherConnector{launcher: launcher}
+	return &defaultMCPRuntime{
+		clients:   mcp.NewClientManager(connector),
+		tools:     mcp.NewToolManager(),
+		connector: connector,
+	}
 }
 
 type mcpLauncherConnector struct {
-	launcher *mcp.Launcher
+	launcher        *mcp.Launcher
+	instanceConfigs map[string]mcp.InstanceConfig
+}
+
+func (c *mcpLauncherConnector) RememberInstanceConfig(cfg mcp.InstanceConfig) {
+	if c.instanceConfigs == nil {
+		c.instanceConfigs = make(map[string]mcp.InstanceConfig)
+	}
+	c.instanceConfigs[cfg.ID] = cfg
 }
 
 func (c mcpLauncherConnector) Connect(ctx context.Context, cfg mcp.ClientConfig) (mcp.Client, error) {
-	instanceCfg, err := clientInstanceConfig(cfg)
+	instanceCfg, err := c.instanceConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -36,12 +56,47 @@ func (c mcpLauncherConnector) Connect(ctx context.Context, cfg mcp.ClientConfig)
 		return mcp.NewStdioClient(result.Process), nil
 	}
 	if result.Transport == mcp.TransportStreamableHTTP {
-		return mcp.NewStreamableHTTPClient(c.launcher.HTTPClient(), cfg.URL, nil, result.SessionID, true), nil
+		return mcp.NewStreamableHTTPClient(c.launcher.HTTPClient(), instanceCfg.URL, instanceCfg.Headers, result.SessionID, true), nil
 	}
 	if result.Transport == mcp.TransportSSE {
-		return mcp.NewSSEClient(c.launcher.HTTPClient(), cfg.URL, nil), nil
+		return mcp.NewSSEClient(c.launcher.HTTPClient(), instanceCfg.URL, instanceCfg.Headers), nil
 	}
 	return &launchedMCPClient{process: result.Process}, nil
+}
+
+func (c mcpLauncherConnector) instanceConfig(cfg mcp.ClientConfig) (mcp.InstanceConfig, error) {
+	if c.instanceConfigs != nil {
+		if instanceCfg, ok := c.instanceConfigs[cfg.ID]; ok {
+			return instanceCfg, nil
+		}
+	}
+	return clientInstanceConfig(cfg)
+}
+
+func (r *defaultMCPRuntime) RegisterInstance(ctx context.Context, instance *store.MCPInstance) (mcp.Manifest, error) {
+	if r == nil || r.clients == nil || r.tools == nil || r.connector == nil {
+		return mcp.Manifest{}, mcp.ErrInvalidDiscovery
+	}
+	cfg := instance.Config()
+	r.connector.RememberInstanceConfig(cfg)
+	manifest, err := r.clients.Register(ctx, mcp.ClientConfig{
+		ID:        instance.ID,
+		Name:      instance.Name,
+		Transport: instance.Transport,
+	})
+	if err != nil {
+		return mcp.Manifest{}, err
+	}
+	if err := r.tools.RegisterManifest(manifest); err != nil {
+		_ = r.clients.Close(instance.ID)
+		return mcp.Manifest{}, err
+	}
+	registered, ok := r.clients.Client(instance.ID)
+	if !ok {
+		return mcp.Manifest{}, mcp.ErrClientNotFound
+	}
+	r.tools.RegisterClient(instance.ID, registered)
+	return manifest, nil
 }
 
 func clientInstanceConfig(cfg mcp.ClientConfig) (mcp.InstanceConfig, error) {

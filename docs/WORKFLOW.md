@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.G"
-last_updated: "2026-06-03T04:53:16Z"
+last_updated: "2026-06-03T04:53:59Z"
 last_agent: "orchestrator"
 ```
 
@@ -1334,7 +1334,7 @@ tasks:
 
 ```yaml
 wave: "7.G"
-status: IN_PROGRESS
+status: DONE
 max_agents: 3
 depends_on: ["7.F"]
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
@@ -1406,10 +1406,11 @@ tasks:
       - api/handlers/mcp_test.go
   - id: "7.G.5"
     name: "Startup rehydration, tool sync, health persistence, and evaluator prompt"
-    status: IN_PROGRESS
+    status: DONE
     agent: "orchestrator"
     branch: "codex/wave-7g-rehydrate"
     started_at: "2026-06-03T04:53:16Z"
+    completed_at: "2026-06-03T04:53:59Z"
     files_owned:
       - internal/cli/mcp_runtime.go
       - internal/cli/root.go

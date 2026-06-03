@@ -16,8 +16,10 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/api"
+	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
+	"github.com/bloodf/g0router/internal/store"
 )
 
 func TestRootCommandPrintsVersion(t *testing.T) {
@@ -305,7 +307,7 @@ func TestDefaultServerConfigWiresWave4ADependencies(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
 
-	cfg := newServerConfig(serveConfig{Port: 20128, Version: "test"}, s)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s)
 	if cfg.OAuthFlows["minimax"] == nil {
 		t.Fatal("minimax oauth flow should be wired")
 	}
@@ -357,7 +359,7 @@ func TestDefaultServerConfigWiresWave7BRuntime(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
 
-	cfg := newServerConfig(serveConfig{
+	cfg := newServerConfig(context.Background(), serveConfig{
 		Port:          20128,
 		Version:       "test",
 		RequireAPIKey: true,
@@ -405,7 +407,7 @@ func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
 
-	cfg := newServerConfig(serveConfig{Port: 20128, Version: "test"}, s)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s)
 	_, baseURL := startCLITestServer(t, cfg)
 
 	resp, body := getCLITest(t, baseURL+"/v1/models")
@@ -466,11 +468,88 @@ func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
 	}
 }
 
+func TestDefaultServerConfigRehydratesActiveMCPInstances(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer startup-secret" {
+			http.Error(w, "missing startup auth", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			ID     int    `json:"id"`
+			Method string `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch req.Method {
+		case "initialize":
+			w.Header().Set("Mcp-Session-Id", "startup-session")
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": map[string]any{}})
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"tools": []map[string]any{{
+						"name":        "search",
+						"description": "Search startup docs",
+						"inputSchema": map[string]any{"type": "object"},
+					}},
+				},
+			})
+		default:
+			http.Error(w, "unexpected method "+req.Method, http.StatusBadRequest)
+		}
+	}))
+	defer mcpServer.Close()
+
+	urlValue := mcpServer.URL
+	instance := &store.MCPInstance{
+		Name:       "startup-docs",
+		ServerKey:  "startup-docs",
+		LaunchType: mcp.LaunchHTTP,
+		Transport:  mcp.TransportStreamableHTTP,
+		URL:        &urlValue,
+		Headers:    map[string]string{"Authorization": "Bearer startup-secret"},
+		IsActive:   true,
+	}
+	if err := s.CreateMCPInstance(instance); err != nil {
+		t.Fatalf("CreateMCPInstance: %v", err)
+	}
+
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s)
+
+	tools := cfg.MCPToolManager.CompactTools()
+	if len(tools) != 1 || tools[0].Function.Name != instance.ID+"__search" {
+		t.Fatalf("tools = %+v, want rehydrated startup tool", tools)
+	}
+	got, err := s.GetMCPInstance(instance.ID)
+	if err != nil {
+		t.Fatalf("GetMCPInstance: %v", err)
+	}
+	if got.ToolManifest == nil || len(got.ToolManifest.Tools) != 1 {
+		t.Fatalf("manifest = %+v, want cached startup manifest", got.ToolManifest)
+	}
+	if got.HealthStatus != "healthy" {
+		t.Fatalf("health = %q, want healthy", got.HealthStatus)
+	}
+	if got.LastHealthCheck == nil || *got.LastHealthCheck == "" {
+		t.Fatalf("last health check = %v, want timestamp", got.LastHealthCheck)
+	}
+}
+
 func TestDefaultServerConfigUsesAuthEnvironment(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
 
-	cfg := newServerConfig(serveConfig{
+	cfg := newServerConfig(context.Background(), serveConfig{
 		Port:          20128,
 		Version:       "test",
 		RequireAPIKey: true,

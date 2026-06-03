@@ -174,7 +174,7 @@ func runServer(ctx context.Context, config serveConfig) error {
 		return fmt.Errorf("listen on %s: %w", listenAddress, err)
 	}
 
-	server := api.NewServer(newServerConfig(config, s))
+	server := api.NewServer(newServerConfig(ctx, config, s))
 
 	go func() {
 		<-ctx.Done()
@@ -187,9 +187,10 @@ func runServer(ctx context.Context, config serveConfig) error {
 	return nil
 }
 
-func newServerConfig(config serveConfig, s *store.Store) api.ServerConfig {
+func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) api.ServerConfig {
 	engine := newDefaultInferenceEngine(s)
-	mcpClients, mcpTools := newDefaultMCPRuntime()
+	mcpRuntime := newDefaultMCPRuntime()
+	rehydrateMCPRuntime(ctx, s, mcpRuntime)
 	quotaFetchers := defaultQuotaFetchers()
 	for provider, fetcher := range quotaFetchers {
 		engine.RegisterQuotaFetcher(provider, fetcher)
@@ -207,8 +208,30 @@ func newServerConfig(config serveConfig, s *store.Store) api.ServerConfig {
 		OAuthFlows:       defaultOAuthFlows(),
 		UsageStore:       s,
 		QuotaFetchers:    quotaFetchers,
-		MCPClientManager: mcpClients,
-		MCPToolManager:   mcpTools,
+		MCPClientManager: mcpRuntime.clients,
+		MCPToolManager:   mcpRuntime.tools,
+	}
+}
+
+func rehydrateMCPRuntime(ctx context.Context, s *store.Store, runtime *defaultMCPRuntime) {
+	if s == nil || runtime == nil {
+		return
+	}
+	instances, err := s.ListActiveMCPInstances()
+	if err != nil {
+		return
+	}
+	for _, instance := range instances {
+		manifest, err := runtime.RegisterInstance(ctx, instance)
+		if err != nil {
+			_ = s.UpdateMCPInstanceHealth(instance.ID, "unhealthy")
+			continue
+		}
+		if err := s.UpdateMCPInstanceManifest(instance.ID, manifest); err != nil {
+			_ = s.UpdateMCPInstanceHealth(instance.ID, "unhealthy")
+			continue
+		}
+		_ = s.UpdateMCPInstanceHealth(instance.ID, "healthy")
 	}
 }
 

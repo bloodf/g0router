@@ -126,6 +126,83 @@ func TestMCPInstanceListRedactsEnvAndHeaders(t *testing.T) {
 	}
 }
 
+func TestMCPInstanceListActiveForRuntimeKeepsLaunchSecrets(t *testing.T) {
+	s := openTestStore(t)
+	active := &MCPInstance{
+		Name:       "secure-active",
+		ServerKey:  "secure",
+		LaunchType: mcp.LaunchHTTP,
+		Transport:  mcp.TransportStreamableHTTP,
+		URL:        strPtr("https://mcp.example/mcp"),
+		Env:        map[string]string{"TOKEN": "env-secret"},
+		Headers:    map[string]string{"Authorization": "Bearer header-secret"},
+		IsActive:   true,
+	}
+	inactive := &MCPInstance{
+		Name:       "secure-inactive",
+		ServerKey:  "secure",
+		LaunchType: mcp.LaunchHTTP,
+		Transport:  mcp.TransportStreamableHTTP,
+		URL:        strPtr("https://mcp.example/disabled"),
+		Headers:    map[string]string{"Authorization": "Bearer inactive"},
+		IsActive:   false,
+	}
+	if err := s.CreateMCPInstance(active); err != nil {
+		t.Fatalf("CreateMCPInstance active: %v", err)
+	}
+	if err := s.CreateMCPInstance(inactive); err != nil {
+		t.Fatalf("CreateMCPInstance inactive: %v", err)
+	}
+
+	instances, err := s.ListActiveMCPInstances()
+	if err != nil {
+		t.Fatalf("ListActiveMCPInstances: %v", err)
+	}
+
+	if len(instances) != 1 {
+		t.Fatalf("len = %d, want one active instance", len(instances))
+	}
+	if instances[0].ID != active.ID {
+		t.Fatalf("active ID = %q, want %q", instances[0].ID, active.ID)
+	}
+	if instances[0].Env["TOKEN"] != "env-secret" {
+		t.Fatalf("runtime env TOKEN = %q, want unredacted secret", instances[0].Env["TOKEN"])
+	}
+	if instances[0].Headers["Authorization"] != "Bearer header-secret" {
+		t.Fatalf("runtime Authorization = %q, want unredacted secret", instances[0].Headers["Authorization"])
+	}
+}
+
+func TestMCPInstanceUpdateHealth(t *testing.T) {
+	s := openTestStore(t)
+	instance := &MCPInstance{
+		Name:       "linear",
+		ServerKey:  "linear",
+		LaunchType: mcp.LaunchHTTP,
+		Transport:  mcp.TransportStreamableHTTP,
+		URL:        strPtr("https://mcp.linear.app/mcp"),
+		IsActive:   true,
+	}
+	if err := s.CreateMCPInstance(instance); err != nil {
+		t.Fatalf("CreateMCPInstance: %v", err)
+	}
+
+	if err := s.UpdateMCPInstanceHealth(instance.ID, "healthy"); err != nil {
+		t.Fatalf("UpdateMCPInstanceHealth: %v", err)
+	}
+
+	got, err := s.GetMCPInstance(instance.ID)
+	if err != nil {
+		t.Fatalf("GetMCPInstance: %v", err)
+	}
+	if got.HealthStatus != "healthy" {
+		t.Fatalf("health = %q, want healthy", got.HealthStatus)
+	}
+	if got.LastHealthCheck == nil || *got.LastHealthCheck == "" {
+		t.Fatalf("last_health_check = %v, want timestamp", got.LastHealthCheck)
+	}
+}
+
 func TestMCPInstanceRejectsInvalidLaunchTypesAndTransports(t *testing.T) {
 	s := openTestStore(t)
 

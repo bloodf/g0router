@@ -101,6 +101,27 @@ func (s *Store) ListMCPInstances() ([]*MCPInstance, error) {
 	return instances, nil
 }
 
+func (s *Store) ListActiveMCPInstances() ([]*MCPInstance, error) {
+	rows, err := s.db.Query(mcpInstanceSelectSQL() + " WHERE is_active = 1 ORDER BY rowid")
+	if err != nil {
+		return nil, fmt.Errorf("query active mcp instances: %w", err)
+	}
+	defer rows.Close()
+
+	var instances []*MCPInstance
+	for rows.Next() {
+		instance, err := scanMCPInstance(rows)
+		if err != nil {
+			return nil, err
+		}
+		instances = append(instances, instance)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate active mcp instances: %w", err)
+	}
+	return instances, nil
+}
+
 func (s *Store) UpdateMCPInstanceManifest(id string, manifest mcp.Manifest) error {
 	encoded, err := encodeJSON(manifest)
 	if err != nil {
@@ -117,6 +138,22 @@ func (s *Store) UpdateMCPInstanceManifest(id string, manifest mcp.Manifest) erro
 	)
 	if err != nil {
 		return fmt.Errorf("update mcp instance manifest: %w", err)
+	}
+	return requireRowsAffected(result)
+}
+
+func (s *Store) UpdateMCPInstanceHealth(id, status string) error {
+	result, err := s.db.Exec(
+		`UPDATE mcp_instances SET
+			health_status = ?,
+			last_health_check = datetime('now'),
+			updated_at = datetime('now')
+		WHERE id = ?`,
+		status,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("update mcp instance health: %w", err)
 	}
 	return requireRowsAffected(result)
 }
