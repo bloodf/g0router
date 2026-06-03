@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.H"
-last_updated: "2026-06-03T05:26:23Z"
+last_updated: "2026-06-03T05:29:55Z"
 last_agent: "orchestrator"
 ```
 
@@ -1482,7 +1482,10 @@ tasks:
       - ui/dist/**
   - id: "7.H.2"
     name: "Providers and endpoint pages use real API contracts"
-    status: PENDING
+    status: IN_PROGRESS
+    agent: "Hume the 2nd"
+    branch: "codex/wave-7h-providers-endpoint"
+    started_at: "2026-06-03T05:29:55Z"
     depends_on_tasks: ["7.H.1"]
     files_owned:
       - ui/src/pages/ProvidersPage.tsx
@@ -1491,7 +1494,10 @@ tasks:
       - ui/src/pages/EndpointPage.test.tsx
   - id: "7.H.3"
     name: "Usage, quota, logs, and overview pages use real API contracts"
-    status: PENDING
+    status: IN_PROGRESS
+    agent: "Mencius the 2nd"
+    branch: "codex/wave-7h-usage-quota-logs"
+    started_at: "2026-06-03T05:29:55Z"
     depends_on_tasks: ["7.H.1"]
     files_owned:
       - ui/src/pages/UsagePage.tsx
@@ -1502,7 +1508,10 @@ tasks:
       - ui/src/pages/DashboardPage.test.tsx
   - id: "7.H.4"
     name: "Combos and settings pages use real API contracts"
-    status: PENDING
+    status: IN_PROGRESS
+    agent: "Peirce the 2nd"
+    branch: "codex/wave-7h-combos-settings"
+    started_at: "2026-06-03T05:29:55Z"
     depends_on_tasks: ["7.H.1"]
     files_owned:
       - ui/src/pages/CombosPage.tsx
@@ -1511,7 +1520,10 @@ tasks:
       - ui/src/pages/SettingsPage.test.tsx
   - id: "7.H.5"
     name: "MCP dashboard page uses real API contracts without exposing credentials"
-    status: PENDING
+    status: IN_PROGRESS
+    agent: "Newton the 2nd"
+    branch: "codex/wave-7h-mcp-page"
+    started_at: "2026-06-03T05:29:55Z"
     depends_on_tasks: ["7.H.1"]
     files_owned:
       - ui/src/pages/McpPage.tsx
