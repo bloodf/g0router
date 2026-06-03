@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.E"
-last_updated: "2026-06-03T02:51:40Z"
+last_updated: "2026-06-03T02:55:09Z"
 last_agent: "orchestrator"
 ```
 
@@ -1176,12 +1176,14 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.E.2"
     name: "Request logging and cost wiring"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7e-logging"
+    completed_at: "2026-06-03T02:55:09Z"
     files_owned:
+      - e2e_test.go
       - api/server.go
       - api/server_test.go
-      - internal/usage/*
-      - internal/logging/*
       - docs/WORKFLOW.md
   - id: "7.E.3"
     name: "Documented /v1/messages and /v1/responses route availability"

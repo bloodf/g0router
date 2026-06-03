@@ -14,6 +14,7 @@ import (
 	"github.com/bloodf/g0router"
 	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/mcp"
+	"github.com/bloodf/g0router/internal/modelcatalog"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
@@ -112,32 +113,65 @@ func (s *Server) handleInference(ctx *fasthttp.RequestCtx) {
 
 func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time) {
 	usageStore, ok := s.config.UsageStore.(requestLogStore)
-	if !ok || usageStore == nil || ctx.Response.StatusCode() != fasthttp.StatusOK {
+	if !ok || usageStore == nil || ctx.Response.StatusCode() != fasthttp.StatusOK || !s.requestLogsEnabled() {
 		return
 	}
 
 	var response providers.ChatResponse
-	if err := json.Unmarshal(ctx.Response.Body(), &response); err != nil || response.Usage == nil {
+	if err := json.Unmarshal(ctx.Response.Body(), &response); err != nil {
 		return
 	}
+	extractedUsage, ok := usage.FromChatResponse(response)
+	if !ok {
+		return
+	}
+
+	provider := providerFromModel(response.Model)
+	costUSD := costForUsage(provider, response.Model, &extractedUsage)
 
 	entry := store.RequestLogEntry{
 		RequestID:    string(ctx.Response.Header.Peek("X-Request-ID")),
 		Timestamp:    started.UTC(),
-		Provider:     providerFromModel(response.Model),
+		Provider:     provider,
 		Model:        response.Model,
 		AuthType:     authTypeForRequest(s.config.RequireAPIKey),
-		InputTokens:  intPtr(response.Usage.PromptTokens),
-		OutputTokens: intPtr(response.Usage.CompletionTokens),
-		TotalTokens:  intPtr(response.Usage.TotalTokens),
+		InputTokens:  intPtr(extractedUsage.InputTokens),
+		OutputTokens: intPtr(extractedUsage.OutputTokens),
+		TotalTokens:  intPtr(extractedUsage.TotalTokens),
 		LatencyMS:    intPtr(int(time.Since(started) / time.Millisecond)),
 		StatusCode:   intPtr(ctx.Response.StatusCode()),
+		CostUSD:      costUSD,
+	}
+	if extractedUsage.CacheReadTokens > 0 {
+		entry.CacheReadTokens = intPtr(extractedUsage.CacheReadTokens)
 	}
 	_ = usageStore.LogRequest(&entry)
 }
 
 type requestLogStore interface {
 	LogRequest(entry *store.RequestLogEntry) error
+}
+
+func (s *Server) requestLogsEnabled() bool {
+	if s.config.Store == nil {
+		return false
+	}
+	settings, err := s.config.Store.GetSettings()
+	if err != nil {
+		return false
+	}
+	return settings.EnableRequestLogs
+}
+
+func costForUsage(provider, model string, extractedUsage *usage.Usage) *float64 {
+	if provider == "" {
+		return nil
+	}
+	cost, err := usage.CalculateCostUSD(modelcatalog.NewCatalog(), providers.ModelProvider(provider), model, extractedUsage)
+	if err != nil {
+		return nil
+	}
+	return &cost
 }
 
 func providerFromModel(model string) string {

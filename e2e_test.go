@@ -20,6 +20,14 @@ func TestE2EServerAPIKeyRequestAndUsage(t *testing.T) {
 	const apiKeySecret = "test-secret"
 
 	s := newE2EStore(t)
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.EnableRequestLogs = true
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
 	_, baseURL := startE2EServer(t, api.ServerConfig{
 		Port:            0,
 		Version:         "e2e-test",
