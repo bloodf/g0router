@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
 	"net"
@@ -385,6 +386,34 @@ func TestInferenceLoggingRecordsUsageAndCostWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestInferenceLoggingUsesConfigEnableRequestLogs(t *testing.T) {
+	s := newAPITestStore(t)
+	config := ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: routeInferenceEngine{response: routeChatResponseWithUsage()},
+	}
+	config.EnableRequestLogs = true
+
+	_, baseURL := startTestServer(t, config)
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1 when config enables request logs", len(entries))
+	}
+}
+
 func TestInferenceLoggingRecordsMessagesRouteWhenEnabled(t *testing.T) {
 	s := newAPITestStore(t)
 	enableRequestLogs(t, s)
@@ -394,7 +423,7 @@ func TestInferenceLoggingRecordsMessagesRouteWhenEnabled(t *testing.T) {
 		Version:         "test",
 		Store:           s,
 		UsageStore:      s,
-		InferenceEngine: routeInferenceEngine{response: routeChatResponseWithModel("llama-3.3-70b-versatile", 11, 7)},
+		InferenceEngine: routeInferenceEngine{response: routeChatResponseWithModel("unknown-provider-model", 11, 7)},
 	})
 
 	resp, body := postAPITestJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}]}`)
@@ -411,8 +440,8 @@ func TestInferenceLoggingRecordsMessagesRouteWhenEnabled(t *testing.T) {
 		t.Fatalf("usage entries = %d, want 1: %+v", len(entries), entries)
 	}
 	entry := entries[0]
-	if entry.Provider != "unknown" || entry.Model != "llama-3.3-70b-versatile" {
-		t.Fatalf("provider/model = %s/%s, want unknown/llama-3.3-70b-versatile", entry.Provider, entry.Model)
+	if entry.Provider != "unknown" || entry.Model != "unknown-provider-model" {
+		t.Fatalf("provider/model = %s/%s, want unknown/unknown-provider-model", entry.Provider, entry.Model)
 	}
 	if entry.InputTokens == nil || *entry.InputTokens != 11 {
 		t.Fatalf("input tokens = %v, want 11", entry.InputTokens)
@@ -521,6 +550,180 @@ func TestInferenceLoggingUsesResolvedProviderMetadataWhenEnabled(t *testing.T) {
 	}
 	if entry.AuthType != string(store.AuthTypeAPIKey) {
 		t.Fatalf("auth type = %q, want api_key", entry.AuthType)
+	}
+}
+
+func TestInferenceLoggingRecordsFailedRequestWhenEnabled(t *testing.T) {
+	s := newAPITestStore(t)
+	enableRequestLogs(t, s)
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: routeInferenceEngine{err: errors.New("chat completion: Authorization: Bearer sk-live-secret")},
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want failed request log: %+v", len(entries), entries)
+	}
+	entry := entries[0]
+	if entry.Provider != "openai" || entry.Model != "gpt-4o" {
+		t.Fatalf("provider/model = %s/%s, want openai/gpt-4o", entry.Provider, entry.Model)
+	}
+	if entry.StatusCode == nil || *entry.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status code = %v, want 502", entry.StatusCode)
+	}
+	if entry.Error == nil || *entry.Error != "upstream_error: upstream provider error" {
+		t.Fatalf("error = %v, want sanitized upstream error", entry.Error)
+	}
+	if entry.InputTokens != nil || entry.OutputTokens != nil || entry.TotalTokens != nil || entry.CostUSD != nil {
+		t.Fatalf("failed request should not invent usage or cost: %+v", entry)
+	}
+	if strings.Contains(*entry.Error, "sk-live-secret") || strings.Contains(*entry.Error, "Authorization") {
+		t.Fatalf("logged error leaked upstream secret detail: %q", *entry.Error)
+	}
+}
+
+func TestInferenceLoggingRecordsStreamingUsageWhenEnabled(t *testing.T) {
+	s := newAPITestStore(t)
+	enableRequestLogs(t, s)
+
+	chunks := make(chan providers.StreamChunk, 2)
+	chunks <- providers.StreamChunk{
+		ID:      "chatcmpl-stream",
+		Object:  "chat.completion.chunk",
+		Created: 1710000000,
+		Model:   "gpt-4o",
+		Usage:   &providers.Usage{PromptTokens: 21, CompletionTokens: 13, TotalTokens: 34},
+	}
+	close(chunks)
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: routeInferenceEngine{stream: chunks},
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}],"stream":true}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1 stream request log: %+v", len(entries), entries)
+	}
+	entry := entries[0]
+	if entry.Provider != "openai" || entry.Model != "gpt-4o" {
+		t.Fatalf("provider/model = %s/%s, want openai/gpt-4o", entry.Provider, entry.Model)
+	}
+	if entry.InputTokens == nil || *entry.InputTokens != 21 {
+		t.Fatalf("input tokens = %v, want 21", entry.InputTokens)
+	}
+	if entry.OutputTokens == nil || *entry.OutputTokens != 13 {
+		t.Fatalf("output tokens = %v, want 13", entry.OutputTokens)
+	}
+	if entry.TotalTokens == nil || *entry.TotalTokens != 34 {
+		t.Fatalf("total tokens = %v, want 34", entry.TotalTokens)
+	}
+	if entry.StatusCode == nil || *entry.StatusCode != http.StatusOK {
+		t.Fatalf("status code = %v, want 200", entry.StatusCode)
+	}
+}
+
+func TestInferenceLoggingWriteFailureDoesNotFailInference(t *testing.T) {
+	s := newAPITestStore(t)
+	enableRequestLogs(t, s)
+	failingLogStore := failingRequestLogStore{err: errors.New("database busy")}
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      failingLogStore,
+		InferenceEngine: routeInferenceEngine{response: routeChatResponseWithUsage()},
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want inference to succeed despite log write failure; body=%s", resp.StatusCode, body)
+	}
+}
+
+func TestInferenceLoggingRecordsAPIKeyIdentityWhenValidatorProvidesIt(t *testing.T) {
+	s := newAPITestStore(t)
+	storedKey, rawKey, err := s.CreateAPIKey("identity test", "test-secret")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:              0,
+		Version:           "test",
+		Store:             s,
+		UsageStore:        s,
+		RequireAPIKey:     true,
+		APIKeySecret:      "test-secret",
+		EnableRequestLogs: true,
+		APIKeyValidator: fakeIdentityAPIKeyValidator{
+			validKeys: map[string]string{rawKey: storedKey.ID},
+		},
+		InferenceEngine: routeInferenceEngine{response: routeChatResponseWithUsage()},
+	})
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/v1/chat/completions", strings.NewReader(`{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+rawKey)
+	resp, err := httpClient().Do(req)
+	if err != nil {
+		t.Fatalf("POST /v1/chat/completions: %v", err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read response: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1: %+v", len(entries), entries)
+	}
+	entry := entries[0]
+	if entry.AuthType != "api_key" {
+		t.Fatalf("auth type = %q, want api_key", entry.AuthType)
+	}
+	if entry.APIKeyID == nil || *entry.APIKeyID != storedKey.ID {
+		t.Fatalf("api key id = %v, want %s", entry.APIKeyID, storedKey.ID)
+	}
+	if entry.APIKeyID != nil && *entry.APIKeyID == rawKey {
+		t.Fatal("api key id must not contain the raw API key")
 	}
 }
 
@@ -686,6 +889,8 @@ func (routeQuotaFetcher) FetchQuota(ctx context.Context, key providers.Key) (usa
 
 type routeInferenceEngine struct {
 	response *providers.ChatResponse
+	stream   <-chan providers.StreamChunk
+	err      error
 	received *[]providers.ChatRequest
 }
 
@@ -693,11 +898,17 @@ func (e routeInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatR
 	if e.received != nil {
 		*e.received = append(*e.received, *req)
 	}
+	if e.err != nil {
+		return nil, e.err
+	}
 	return e.response, nil
 }
 
 func (e routeInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	return nil, nil
+	if e.err != nil {
+		return nil, e.err
+	}
+	return e.stream, nil
 }
 
 func (e routeInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
@@ -780,6 +991,22 @@ func postAPITestJSON(t *testing.T, url string, body string) (*http.Response, []b
 		t.Fatalf("read response: %v", err)
 	}
 	return resp, data
+}
+
+type failingRequestLogStore struct {
+	err error
+}
+
+func (f failingRequestLogStore) GetUsage(filter store.UsageFilter) ([]store.RequestLogEntry, error) {
+	return nil, nil
+}
+
+func (f failingRequestLogStore) GetUsageSummary(filter store.UsageFilter) (*store.UsageSummary, error) {
+	return &store.UsageSummary{}, nil
+}
+
+func (f failingRequestLogStore) LogRequest(entry *store.RequestLogEntry) error {
+	return f.err
 }
 
 type routeMCPConnector struct {

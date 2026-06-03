@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -13,29 +14,32 @@ import (
 
 	"github.com/bloodf/g0router"
 	"github.com/bloodf/g0router/api/handlers"
+	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/modelcatalog"
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
 	"github.com/valyala/fasthttp"
 )
 
 type ServerConfig struct {
-	Port             int
-	Version          string
-	RequireAPIKey    bool
-	APIKeySecret     string
-	APIKeyValidator  APIKeyValidator
-	InferenceEngine  handlers.InferenceEngine
-	Store            *store.Store
-	ModelSource      handlers.ManagementModelSource
-	OAuthFlows       handlers.OAuthFlows
-	UsageStore       handlers.UsageStore
-	QuotaFetchers    map[providers.ModelProvider]usage.QuotaFetcher
-	QuotaKey         providers.Key
-	MCPClientManager *mcp.ClientManager
-	MCPToolManager   *mcp.ToolManager
+	Port              int
+	Version           string
+	EnableRequestLogs bool
+	RequireAPIKey     bool
+	APIKeySecret      string
+	APIKeyValidator   APIKeyValidator
+	InferenceEngine   handlers.InferenceEngine
+	Store             *store.Store
+	ModelSource       handlers.ManagementModelSource
+	OAuthFlows        handlers.OAuthFlows
+	UsageStore        handlers.UsageStore
+	QuotaFetchers     map[providers.ModelProvider]usage.QuotaFetcher
+	QuotaKey          providers.Key
+	MCPClientManager  *mcp.ClientManager
+	MCPToolManager    *mcp.ToolManager
 }
 
 type Server struct {
@@ -134,69 +138,85 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, handle func(*fa
 	engine := s.config.InferenceEngine
 	var captured *capturingInferenceEngine
 	if engine != nil {
-		captured = &capturingInferenceEngine{base: engine}
+		captured = &capturingInferenceEngine{
+			base: engine,
+			onStreamComplete: func(req *providers.ChatRequest, model string, providerUsage *providers.Usage) {
+				s.logInferenceUsage(ctx, started, req, nil, nil, model, providerUsage, fasthttp.StatusOK)
+			},
+		}
 		engine = captured
 	}
 	handle(ctx, engine)
+	if captured != nil && captured.streamed {
+		return
+	}
 	var resp *providers.ChatResponse
+	var req *providers.ChatRequest
+	var dispatchErr error
 	if captured != nil {
 		resp = captured.response
+		req = captured.request
+		dispatchErr = captured.err
 	}
-	s.logInferenceUsage(ctx, started, resp)
+	s.logInferenceUsage(ctx, started, req, resp, dispatchErr, "", nil, ctx.Response.StatusCode())
 }
 
-func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, response *providers.ChatResponse) {
-	usageStore, ok := s.config.UsageStore.(requestLogStore)
-	if !ok || usageStore == nil || response == nil || ctx.Response.StatusCode() != fasthttp.StatusOK || !s.requestLogsEnabled() {
+func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, request *providers.ChatRequest, response *providers.ChatResponse, dispatchErr error, streamModel string, streamUsage *providers.Usage, statusCode int) {
+	usageStore, ok := s.config.UsageStore.(logging.RequestStore)
+	if !ok || usageStore == nil || !s.requestLogsEnabled() {
 		return
 	}
 
-	extractedUsage, ok := usage.FromChatResponse(*response)
-	if !ok {
+	if response == nil && request == nil && streamModel == "" && statusCode < 400 {
 		return
 	}
 
-	provider := response.Provider.String()
-	if provider == "" {
-		provider = providerFromModel(response.Model)
+	metadata := inferenceLogMetadata(ctx, request, response, streamModel)
+	var extractedUsage *usage.Usage
+	if response != nil {
+		if value, ok := usage.FromChatResponse(*response); ok {
+			extractedUsage = &value
+		}
+	} else if streamUsage != nil {
+		if value, ok := usage.FromChatResponse(providers.ChatResponse{Usage: streamUsage}); ok {
+			extractedUsage = &value
+		}
 	}
-	authType := response.AuthType
-	if authType == "" {
-		authType = authTypeForRequest(s.config.RequireAPIKey)
-	}
-	costUSD := costForUsage(provider, response.Model, &extractedUsage)
 
-	entry := store.RequestLogEntry{
-		RequestID:    string(ctx.Response.Header.Peek("X-Request-ID")),
+	var costUSD *float64
+	if extractedUsage != nil {
+		costUSD = costForUsage(metadata.provider, metadata.model, extractedUsage)
+	}
+	entry := logging.RequestLog{
+		RequestID:    string(ctx.Response.Header.Peek(requestIDHeader)),
 		Timestamp:    started.UTC(),
-		Provider:     provider,
-		Model:        response.Model,
-		ConnectionID: stringPtrIfNotEmpty(response.ConnectionID),
-		AuthType:     authType,
-		InputTokens:  intPtr(extractedUsage.InputTokens),
-		OutputTokens: intPtr(extractedUsage.OutputTokens),
-		TotalTokens:  intPtr(extractedUsage.TotalTokens),
-		LatencyMS:    intPtr(int(time.Since(started) / time.Millisecond)),
-		StatusCode:   intPtr(ctx.Response.StatusCode()),
+		Provider:     metadata.provider,
+		Model:        metadata.model,
+		ConnectionID: metadata.connectionID,
+		AuthType:     metadata.authType,
+		Usage:        extractedUsage,
 		CostUSD:      costUSD,
+		Latency:      time.Since(started),
+		StatusCode:   statusCode,
+		Error:        sanitizedLogError(ctx, dispatchErr, statusCode),
+		APIKeyID:     metadata.apiKeyID,
 	}
-	if extractedUsage.CacheReadTokens > 0 {
-		entry.CacheReadTokens = intPtr(extractedUsage.CacheReadTokens)
-	}
-	_ = usageStore.LogRequest(&entry)
-}
-
-type requestLogStore interface {
-	LogRequest(entry *store.RequestLogEntry) error
+	_ = logging.NewLogger(usageStore).Log(entry)
 }
 
 type capturingInferenceEngine struct {
-	base     handlers.InferenceEngine
-	response *providers.ChatResponse
+	base             handlers.InferenceEngine
+	response         *providers.ChatResponse
+	request          *providers.ChatRequest
+	err              error
+	streamed         bool
+	onStreamComplete func(*providers.ChatRequest, string, *providers.Usage)
 }
 
 func (e *capturingInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	e.request = req
 	resp, err := e.base.Dispatch(ctx, req)
+	e.err = err
 	if err == nil {
 		e.response = resp
 	}
@@ -204,14 +224,47 @@ func (e *capturingInferenceEngine) Dispatch(ctx context.Context, req *providers.
 }
 
 func (e *capturingInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	return e.base.DispatchStream(ctx, req)
+	e.request = req
+	stream, err := e.base.DispatchStream(ctx, req)
+	e.err = err
+	if err != nil || stream == nil {
+		return stream, err
+	}
+	e.streamed = true
+	return e.captureStream(req, stream), nil
 }
 
 func (e *capturingInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
 	return e.base.ListModels(ctx)
 }
 
+func (e *capturingInferenceEngine) captureStream(req *providers.ChatRequest, stream <-chan providers.StreamChunk) <-chan providers.StreamChunk {
+	out := make(chan providers.StreamChunk)
+	go func() {
+		defer close(out)
+		var lastModel string
+		var lastUsage *providers.Usage
+		for chunk := range stream {
+			if chunk.Model != "" {
+				lastModel = chunk.Model
+			}
+			if chunk.Usage != nil {
+				usageCopy := *chunk.Usage
+				lastUsage = &usageCopy
+			}
+			out <- chunk
+		}
+		if e.onStreamComplete != nil {
+			e.onStreamComplete(req, lastModel, lastUsage)
+		}
+	}()
+	return out
+}
+
 func (s *Server) requestLogsEnabled() bool {
+	if s.config.EnableRequestLogs {
+		return true
+	}
 	if s.config.Store == nil {
 		return false
 	}
@@ -220,6 +273,98 @@ func (s *Server) requestLogsEnabled() bool {
 		return false
 	}
 	return settings.EnableRequestLogs
+}
+
+type requestLogMetadata struct {
+	provider     string
+	model        string
+	connectionID *string
+	authType     string
+	apiKeyID     *string
+}
+
+func inferenceLogMetadata(ctx *fasthttp.RequestCtx, request *providers.ChatRequest, response *providers.ChatResponse, streamModel string) requestLogMetadata {
+	model := streamModel
+	provider := ""
+	var connectionID *string
+	authType := authTypeForRequest(false)
+
+	if request != nil && model == "" {
+		model = request.Model
+	}
+	if response != nil {
+		if response.Model != "" {
+			model = response.Model
+		}
+		if response.Provider != "" {
+			provider = response.Provider.String()
+		}
+		connectionID = stringPtrIfNotEmpty(response.ConnectionID)
+		if response.AuthType != "" {
+			authType = response.AuthType
+		}
+	}
+	if provider == "" {
+		provider = providerFromModel(model)
+	}
+	if value, ok := ctx.UserValue(requestAuthTypeKey).(string); ok && value != "" {
+		authType = value
+	} else if response == nil || response.AuthType == "" {
+		authType = authTypeForRequest(false)
+	}
+
+	return requestLogMetadata{
+		provider:     provider,
+		model:        model,
+		connectionID: connectionID,
+		authType:     authType,
+		apiKeyID:     userValueStringPtr(ctx, requestAPIKeyIDKey),
+	}
+}
+
+func sanitizedLogError(ctx *fasthttp.RequestCtx, dispatchErr error, statusCode int) *string {
+	if dispatchErr != nil {
+		classification := proxy.ClassifyDispatchError(dispatchErr)
+		value := classification.Code + ": " + classification.Message
+		return &value
+	}
+	if statusCode < 400 {
+		return nil
+	}
+
+	var openAIError struct {
+		Error struct {
+			Message string `json:"message"`
+			Code    string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &openAIError); err == nil && openAIError.Error.Message != "" {
+		code := openAIError.Error.Code
+		if code == "" {
+			code = "request_error"
+		}
+		value := code + ": " + openAIError.Error.Message
+		return &value
+	}
+
+	var simpleError struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &simpleError); err == nil && simpleError.Error != "" {
+		value := "request_error: " + simpleError.Error
+		return &value
+	}
+
+	value := fmt.Sprintf("request_error: status %d", statusCode)
+	return &value
+}
+
+func userValueStringPtr(ctx *fasthttp.RequestCtx, key string) *string {
+	value, ok := ctx.UserValue(key).(string)
+	if !ok || value == "" {
+		return nil
+	}
+	return &value
 }
 
 func costForUsage(provider, model string, extractedUsage *usage.Usage) *float64 {
@@ -252,10 +397,6 @@ func authTypeForRequest(requireAPIKey bool) string {
 		return "api_key"
 	}
 	return "noauth"
-}
-
-func intPtr(value int) *int {
-	return &value
 }
 
 func stringPtrIfNotEmpty(value string) *string {

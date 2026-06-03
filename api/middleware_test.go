@@ -15,6 +15,23 @@ func (f fakeAPIKeyValidator) ValidateAPIKey(key, secret string) (bool, error) {
 	return f.validKeys[key] && secret == "test-secret", nil
 }
 
+type fakeIdentityAPIKeyValidator struct {
+	validKeys map[string]string
+}
+
+func (f fakeIdentityAPIKeyValidator) ValidateAPIKey(key, secret string) (bool, error) {
+	_, ok := f.validKeys[key]
+	return ok && secret == "test-secret", nil
+}
+
+func (f fakeIdentityAPIKeyValidator) ValidateAPIKeyIdentity(key, secret string) (*APIKeyIdentity, bool, error) {
+	id, ok := f.validKeys[key]
+	if !ok || secret != "test-secret" {
+		return nil, false, nil
+	}
+	return &APIKeyIdentity{ID: id}, true, nil
+}
+
 func TestCORSHeaders(t *testing.T) {
 	_, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test"})
 

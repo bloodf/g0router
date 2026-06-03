@@ -126,6 +126,32 @@ func TestServeCommandUsesEnvironmentDefaults(t *testing.T) {
 	}
 }
 
+func TestServeCommandPassesEnableRequestLogsFromEnvironment(t *testing.T) {
+	var got serveConfig
+	dataDir := filepath.Join(t.TempDir(), "env-data")
+	t.Setenv("DATA_DIR", dataDir)
+	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
+	t.Setenv("ENABLE_REQUEST_LOGS", "true")
+	cmd := newRootCommand(rootConfig{
+		Version: "0.1.0-test",
+		Serve: func(ctx context.Context, config serveConfig) error {
+			got = config
+			return nil
+		},
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"serve"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if !got.EnableRequestLogs {
+		t.Fatal("EnableRequestLogs = false, want true from environment")
+	}
+}
+
 func TestServeCommandFlagsOverrideEnvironmentDefaults(t *testing.T) {
 	var got serveConfig
 	flagDataDir := filepath.Join(t.TempDir(), "flag-data")
@@ -672,6 +698,21 @@ func TestDefaultServerConfigUsesAuthEnvironment(t *testing.T) {
 	}
 	if !ok {
 		t.Fatal("ValidateAPIKey = false, want true")
+	}
+}
+
+func TestDefaultServerConfigPassesRequestLoggingToggle(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	cfg := newServerConfig(context.Background(), serveConfig{
+		Port:              20128,
+		Version:           "test",
+		EnableRequestLogs: true,
+	}, s)
+
+	if !cfg.EnableRequestLogs {
+		t.Fatal("EnableRequestLogs = false, want true")
 	}
 }
 
