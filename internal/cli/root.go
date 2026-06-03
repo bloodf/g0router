@@ -187,17 +187,23 @@ func runServer(ctx context.Context, config serveConfig) error {
 }
 
 func newServerConfig(config serveConfig, s *store.Store) api.ServerConfig {
+	engine := newDefaultInferenceEngine(s)
+	mcpClients, mcpTools := newDefaultMCPRuntime()
+
 	return api.ServerConfig{
-		Port:            config.Port,
-		Version:         config.Version,
-		RequireAPIKey:   config.RequireAPIKey,
-		APIKeySecret:    config.APIKeySecret,
-		APIKeyValidator: storeAPIKeyValidator{s: s},
-		Store:           s,
-		ModelSource:     staticModelSource{},
-		OAuthFlows:      defaultOAuthFlows(),
-		UsageStore:      s,
-		QuotaFetchers:   defaultQuotaFetchers(),
+		Port:             config.Port,
+		Version:          config.Version,
+		RequireAPIKey:    config.RequireAPIKey,
+		APIKeySecret:     config.APIKeySecret,
+		APIKeyValidator:  storeAPIKeyValidator{s: s},
+		InferenceEngine:  engine,
+		Store:            s,
+		ModelSource:      engine,
+		OAuthFlows:       defaultOAuthFlows(),
+		UsageStore:       s,
+		QuotaFetchers:    defaultQuotaFetchers(),
+		MCPClientManager: mcpClients,
+		MCPToolManager:   mcpTools,
 	}
 }
 

@@ -30,8 +30,8 @@
 ```yaml
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
-current_wave: "7.B"
-last_updated: "2026-06-02T23:14:52Z"
+current_wave: "7.C"
+last_updated: "2026-06-03T01:27:07Z"
 last_agent: "orchestrator"
 ```
 
@@ -941,22 +941,60 @@ tasks:
 
 ```yaml
 wave: "7.B"
-status: PENDING
+status: DONE
 max_agents: 3
 depends_on: ["7.A"]
-gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
 
 tasks:
   - id: "7.B.1"
     name: "Wire real inference engine and provider registry in serve startup"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T01:27:07Z"
+    files_owned:
+      - internal/cli/root.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/root_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/proxy/pool.go
   - id: "7.B.2"
     name: "Wire MCP runtime managers in serve startup"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T01:27:07Z"
+    files_owned:
+      - internal/cli/root.go
+      - internal/cli/mcp_runtime.go
+      - internal/cli/root_test.go
+      - internal/mcp/launcher.go
   - id: "7.B.3"
     name: "Propagate request contexts through inference, models, and MCP handlers"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T01:27:07Z"
+    files_owned:
+      - api/handlers/context.go
+      - api/handlers/inference.go
+      - api/handlers/inference_test.go
+      - api/handlers/models.go
+      - api/handlers/providers.go
+      - api/handlers/usage.go
+      - api/handlers/usage_test.go
+      - api/handlers/mcp.go
+  - id: "7.B.4"
+    name: "Wave 7.B integration verification and evaluator prompt"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T01:27:07Z"
+    files_owned:
+      - internal/cli/root_test.go
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-7B-evaluator-prompt.md
 ```
+
+**Checkpoint**: Wave 7.B complete → advance to Wave 7.C.
 
 ### Waves 7.C-7.I — Remaining Remediation Backlog
 

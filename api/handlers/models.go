@@ -25,7 +25,7 @@ func Models(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 		return
 	}
 
-	models, err := engine.ListModels(context.Background())
+	models, err := engine.ListModels(requestContext(ctx))
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list models: %v", err))
 		return

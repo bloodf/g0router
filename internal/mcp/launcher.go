@@ -10,6 +10,7 @@ type LaunchResult struct {
 	Transport   Transport
 	SessionID   string
 	Diagnostics string
+	Process     Process
 }
 
 type Launcher struct {
@@ -85,7 +86,7 @@ func (l *Launcher) launchProcess(ctx context.Context, cfg InstanceConfig) (Launc
 	if stderr := process.Stderr(); stderr != nil {
 		diagnostics = stderr.String()
 	}
-	return LaunchResult{Transport: TransportStdio, Diagnostics: diagnostics}, nil
+	return LaunchResult{Transport: TransportStdio, Diagnostics: diagnostics, Process: process}, nil
 }
 
 func (l *Launcher) launchHTTP(ctx context.Context, cfg InstanceConfig) (LaunchResult, error) {

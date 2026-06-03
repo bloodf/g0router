@@ -32,7 +32,7 @@ func Providers(ctx *fasthttp.RequestCtx, source ManagementModelSource, providerI
 		return
 	}
 
-	models, err := source.ListModels(context.Background())
+	models, err := source.ListModels(requestContext(ctx))
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list models: %v", err))
 		return

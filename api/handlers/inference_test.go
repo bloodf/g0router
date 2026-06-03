@@ -16,6 +16,7 @@ import (
 	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
+	"github.com/valyala/fasthttp"
 )
 
 type fakeEngine struct {
@@ -26,19 +27,25 @@ type fakeEngine struct {
 	streamErr      error
 	received       *providers.ChatRequest
 	streamReceived *providers.ChatRequest
+	dispatchCtx    context.Context
+	streamCtx      context.Context
+	modelsCtx      context.Context
 }
 
 func (f *fakeEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	f.dispatchCtx = ctx
 	f.received = req
 	return f.response, f.err
 }
 
 func (f *fakeEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	f.streamCtx = ctx
 	f.streamReceived = req
 	return f.stream, f.streamErr
 }
 
 func (f *fakeEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
+	f.modelsCtx = ctx
 	return f.models, f.err
 }
 
@@ -76,6 +83,9 @@ func TestSyncInference(t *testing.T) {
 	}
 	if engine.received == nil || engine.received.Model != "gpt-4o" {
 		t.Fatalf("engine received = %+v", engine.received)
+	}
+	if _, ok := engine.dispatchCtx.(*fasthttp.RequestCtx); !ok {
+		t.Fatalf("dispatch context is %T, want *fasthttp.RequestCtx", engine.dispatchCtx)
 	}
 }
 
@@ -131,6 +141,9 @@ func TestStreamInference(t *testing.T) {
 	}
 	if engine.streamReceived == nil || engine.streamReceived.Stream == nil || !*engine.streamReceived.Stream {
 		t.Fatalf("stream request = %+v", engine.streamReceived)
+	}
+	if _, ok := engine.streamCtx.(*fasthttp.RequestCtx); !ok {
+		t.Fatalf("stream context is %T, want *fasthttp.RequestCtx", engine.streamCtx)
 	}
 }
 
@@ -215,6 +228,9 @@ func TestGetModels(t *testing.T) {
 	}
 	if decoded.Data[0].ID != "gpt-4o" || decoded.Data[1].ID != "claude-3-5-sonnet" {
 		t.Fatalf("models = %+v", decoded.Data)
+	}
+	if _, ok := engine.modelsCtx.(*fasthttp.RequestCtx); !ok {
+		t.Fatalf("models context is %T, want *fasthttp.RequestCtx", engine.modelsCtx)
 	}
 }
 

@@ -14,6 +14,7 @@ type fakeProvider struct {
 	name        providers.ModelProvider
 	response    *providers.ChatResponse
 	stream      <-chan providers.StreamChunk
+	models      []providers.Model
 	err         error
 	called      bool
 	streamed    bool
@@ -40,7 +41,7 @@ func (f *fakeProvider) ChatCompletionStream(ctx context.Context, key providers.K
 }
 
 func (f *fakeProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
-	return nil, nil
+	return f.models, f.err
 }
 
 func TestDispatchRoutesToCorrectProvider(t *testing.T) {
@@ -127,6 +128,62 @@ func TestDispatchNoConnections(t *testing.T) {
 	if !errors.Is(err, ErrNoConnections) {
 		t.Fatalf("expected ErrNoConnections, got %v", err)
 	}
+}
+
+func TestListModelsReturnsCatalogWithoutConnections(t *testing.T) {
+	engine := NewEngine(openProxyTestStore(t))
+	engine.Register(&fakeProvider{name: providers.ProviderOpenAI})
+	engine.Register(&fakeProvider{name: providers.ProviderAnthropic})
+
+	models, err := engine.ListModels(context.Background())
+	if err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	if len(models) == 0 {
+		t.Fatal("models should not be empty for a fresh registered engine")
+	}
+
+	foundOpenAI := false
+	foundAnthropic := false
+	for _, model := range models {
+		if model.ID == "gpt-4o" && model.Provider == providers.ProviderOpenAI {
+			foundOpenAI = true
+		}
+		if model.ID == "claude-sonnet-4" && model.Provider == providers.ProviderAnthropic {
+			foundAnthropic = true
+		}
+	}
+	if !foundOpenAI || !foundAnthropic {
+		t.Fatalf("models = %+v, want openai and anthropic catalog models", models)
+	}
+}
+
+func TestListModelsFallsBackToCatalogWhenProviderListFails(t *testing.T) {
+	s := openProxyTestStore(t)
+	apiKey := "sk-openai"
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "openai",
+		Name:     "primary",
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   &apiKey,
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	engine := NewEngine(s)
+	engine.Register(&fakeProvider{name: providers.ProviderOpenAI, err: errors.New("upstream unavailable")})
+
+	models, err := engine.ListModels(context.Background())
+	if err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	for _, model := range models {
+		if model.ID == "gpt-4o" && model.Provider == providers.ProviderOpenAI {
+			return
+		}
+	}
+	t.Fatalf("models = %+v, want openai catalog fallback", models)
 }
 
 func TestDispatchStreamReturnsChannel(t *testing.T) {

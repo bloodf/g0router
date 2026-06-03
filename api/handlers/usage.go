@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -124,7 +123,7 @@ func UsageQuota(ctx *fasthttp.RequestCtx, fetchers map[providers.ModelProvider]u
 	}
 
 	key.Provider = provider
-	quota, err := fetcher.FetchQuota(context.Background(), key)
+	quota, err := fetcher.FetchQuota(requestContext(ctx), key)
 	if err != nil {
 		if errors.Is(err, usage.ErrQuotaUnsupported) {
 			writeError(ctx, fasthttp.StatusNotImplemented, err.Error())

@@ -1,0 +1,68 @@
+package cli
+
+import (
+	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/anthropic"
+	"github.com/bloodf/g0router/internal/providers/azure"
+	"github.com/bloodf/g0router/internal/providers/bedrock"
+	"github.com/bloodf/g0router/internal/providers/cohere"
+	"github.com/bloodf/g0router/internal/providers/gemini"
+	"github.com/bloodf/g0router/internal/providers/mistral"
+	"github.com/bloodf/g0router/internal/providers/ollama"
+	"github.com/bloodf/g0router/internal/providers/openai"
+	"github.com/bloodf/g0router/internal/providers/openaicompat"
+	"github.com/bloodf/g0router/internal/providers/replicate"
+	"github.com/bloodf/g0router/internal/proxy"
+	"github.com/bloodf/g0router/internal/store"
+)
+
+func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
+	engine := proxy.NewEngine(s)
+	engine.Register(openai.New(""))
+	engine.Register(anthropic.New(""))
+	engine.Register(gemini.New(""))
+	engine.Register(azure.New("", ""))
+	engine.Register(bedrock.New(""))
+	registerOpenAICompatible(engine)
+	registerProvider(engine, func() (providers.Provider, error) {
+		return mistral.NewDefault()
+	})
+	registerProvider(engine, func() (providers.Provider, error) {
+		return cohere.NewDefault()
+	})
+	registerProvider(engine, func() (providers.Provider, error) {
+		return ollama.NewDefault()
+	})
+	registerProvider(engine, func() (providers.Provider, error) {
+		return replicate.NewDefault()
+	})
+	return engine
+}
+
+func registerOpenAICompatible(engine *proxy.Engine) {
+	for _, provider := range []providers.ModelProvider{
+		providers.ProviderGroq,
+		providers.ProviderCerebras,
+		providers.ProviderPerplexity,
+		providers.ProviderFireworks,
+		providers.ProviderTogether,
+		providers.ProviderNVIDIA,
+		providers.ProviderDeepSeek,
+		providers.ProviderOpenRouter,
+		providers.ProviderHuggingFace,
+		providers.ProviderNebius,
+	} {
+		provider := provider
+		registerProvider(engine, func() (providers.Provider, error) {
+			return openaicompat.NewDefault(provider)
+		})
+	}
+}
+
+func registerProvider(engine *proxy.Engine, factory func() (providers.Provider, error)) {
+	provider, err := factory()
+	if err != nil {
+		return
+	}
+	engine.Register(provider)
+}

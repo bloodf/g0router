@@ -3,13 +3,21 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/proxy"
 )
 
 func TestRootCommandPrintsVersion(t *testing.T) {
@@ -321,6 +329,98 @@ func TestDefaultServerConfigWiresWave4ADependencies(t *testing.T) {
 	}
 }
 
+func TestDefaultServerConfigWiresWave7BRuntime(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	cfg := newServerConfig(serveConfig{
+		Port:          20128,
+		Version:       "test",
+		RequireAPIKey: true,
+		APIKeySecret:  "env-secret",
+	}, s)
+	if cfg.InferenceEngine == nil {
+		t.Fatal("InferenceEngine is nil")
+	}
+	if cfg.MCPClientManager == nil {
+		t.Fatal("MCPClientManager is nil")
+	}
+	if cfg.MCPToolManager == nil {
+		t.Fatal("MCPToolManager is nil")
+	}
+
+	models, err := cfg.InferenceEngine.ListModels(context.Background())
+	if err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	if len(models) == 0 {
+		t.Fatal("ListModels returned no models")
+	}
+
+	_, err = cfg.InferenceEngine.Dispatch(context.Background(), &providers.ChatRequest{
+		Model:    "gpt-4o",
+		Messages: []providers.Message{{Role: "user", Content: "ping"}},
+	})
+	if !errors.Is(err, proxy.ErrNoConnections) {
+		t.Fatalf("Dispatch error = %v, want ErrNoConnections", err)
+	}
+}
+
+func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	cfg := newServerConfig(serveConfig{Port: 20128, Version: "test"}, s)
+	_, baseURL := startCLITestServer(t, cfg)
+
+	resp, body := getCLITest(t, baseURL+"/v1/models")
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /v1/models status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	if strings.Contains(string(body), "engine unavailable") {
+		t.Fatalf("/v1/models returned unavailable body: %s", body)
+	}
+
+	resp, body = postCLITest(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("POST /v1/chat/completions status = %d, want 503; body=%s", resp.StatusCode, body)
+	}
+	if !strings.Contains(string(body), proxy.ErrNoConnections.Error()) {
+		t.Fatalf("chat response body = %s, want no active connections", body)
+	}
+	if strings.Contains(string(body), "engine unavailable") {
+		t.Fatalf("chat response returned unavailable body: %s", body)
+	}
+
+	mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("mcp method = %q, want POST", r.Method)
+		}
+		if got := r.Header.Get("MCP-Protocol-Version"); got == "" {
+			t.Fatal("mcp initialize request missing protocol version")
+		}
+		w.Header().Set("Mcp-Session-Id", "session-1")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      1,
+			"result":  map[string]any{},
+		})
+	}))
+	defer mcpServer.Close()
+
+	resp, body = postCLITest(t, baseURL+"/api/mcp/clients", `{"name":"docs","transport":"streamable-http","url":"`+mcpServer.URL+`","is_active":true}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("POST /api/mcp/clients status = %d, want 201; body=%s", resp.StatusCode, body)
+	}
+	if strings.Contains(string(body), "runtime unavailable") {
+		t.Fatalf("mcp registration returned runtime unavailable body: %s", body)
+	}
+}
+
 func TestDefaultServerConfigUsesAuthEnvironment(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
@@ -352,4 +452,68 @@ func TestDefaultServerConfigUsesAuthEnvironment(t *testing.T) {
 	if !ok {
 		t.Fatal("ValidateAPIKey = false, want true")
 	}
+}
+
+func startCLITestServer(t *testing.T, config api.ServerConfig) (*api.Server, string) {
+	t.Helper()
+
+	srv := api.NewServer(config)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	go func() {
+		if err := srv.Serve(ln); err != nil && !errors.Is(err, net.ErrClosed) {
+			t.Errorf("Serve: %v", err)
+		}
+	}()
+	t.Cleanup(func() { _ = srv.Stop() })
+
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("listener addr is %T, want *net.TCPAddr", ln.Addr())
+	}
+	return srv, "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(addr.Port))
+}
+
+func getCLITest(t *testing.T, url string) (*http.Response, []byte) {
+	t.Helper()
+
+	resp, err := cliHTTPClient().Get(url)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	return resp, readCLIResponseBody(t, resp)
+}
+
+func postCLITest(t *testing.T, url string, body string) (*http.Response, []byte) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := cliHTTPClient().Do(req)
+	if err != nil {
+		t.Fatalf("POST %s: %v", url, err)
+	}
+	return resp, readCLIResponseBody(t, resp)
+}
+
+func readCLIResponseBody(t *testing.T, resp *http.Response) []byte {
+	t.Helper()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		_ = resp.Body.Close()
+		t.Fatalf("read response body: %v", err)
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	return body
+}
+
+func cliHTTPClient() *http.Client {
+	return &http.Client{Timeout: 2 * time.Second}
 }

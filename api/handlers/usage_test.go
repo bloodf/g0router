@@ -16,12 +16,14 @@ import (
 
 type fakeQuotaFetcher struct {
 	gotKey providers.Key
+	gotCtx context.Context
 	quota  usage.Quota
 	err    error
 }
 
 func (f *fakeQuotaFetcher) FetchQuota(ctx context.Context, key providers.Key) (usage.Quota, error) {
 	f.gotKey = key
+	f.gotCtx = ctx
 	if f.err != nil {
 		return usage.Quota{}, f.err
 	}
@@ -137,6 +139,9 @@ func TestUsageQuotaFetchesProviderQuota(t *testing.T) {
 	}
 	if fetcher.gotKey.Provider != providers.ProviderOpenAI || fetcher.gotKey.Value != "sk-test" {
 		t.Fatalf("key = %+v, want openai/sk-test", fetcher.gotKey)
+	}
+	if fetcher.gotCtx != ctx {
+		t.Fatalf("quota context is %T, want request context", fetcher.gotCtx)
 	}
 	var decoded usage.Quota
 	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {

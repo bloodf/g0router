@@ -215,7 +215,7 @@ func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientMan
 			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create mcp client: %v", err))
 			return
 		}
-		manifest, err := registerMCPClient(clients, tools, client)
+		manifest, err := registerMCPClient(requestContext(ctx), clients, tools, client)
 		if err != nil {
 			_ = s.DeleteMCPClient(client.ID)
 			writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("register mcp client: %v", err))
@@ -278,7 +278,7 @@ func MCPTools(ctx *fasthttp.RequestCtx, s *store.Store, tools *mcp.ToolManager, 
 		if !ok {
 			return
 		}
-		result, err := tools.Call(context.Background(), name, req.Arguments)
+		result, err := tools.Call(requestContext(ctx), name, req.Arguments)
 		if err != nil {
 			writeMCPToolError(ctx, err)
 			return
@@ -340,8 +340,8 @@ func decodeMCPToolExecuteRequest(ctx *fasthttp.RequestCtx) (mcpToolExecuteReques
 	return req, true
 }
 
-func registerMCPClient(clients *mcp.ClientManager, tools *mcp.ToolManager, client *store.MCPClient) (mcp.Manifest, error) {
-	manifest, err := clients.Register(context.Background(), client.ClientConfig())
+func registerMCPClient(ctx context.Context, clients *mcp.ClientManager, tools *mcp.ToolManager, client *store.MCPClient) (mcp.Manifest, error) {
+	manifest, err := clients.Register(ctx, client.ClientConfig())
 	if err != nil {
 		return mcp.Manifest{}, err
 	}

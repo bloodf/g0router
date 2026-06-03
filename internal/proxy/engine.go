@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 
+	"github.com/bloodf/g0router/internal/modelcatalog"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -55,6 +57,59 @@ func (e *Engine) DispatchStream(ctx context.Context, req *providers.ChatRequest)
 		return nil, fmt.Errorf("chat completion stream: %w", err)
 	}
 	return stream, nil
+}
+
+func (e *Engine) ListModels(ctx context.Context) ([]providers.Model, error) {
+	var models []providers.Model
+	for _, providerName := range e.pool.names() {
+		providerModels, err := e.providerModels(ctx, providerName)
+		if err != nil {
+			return nil, err
+		}
+		models = append(models, providerModels...)
+	}
+	return models, nil
+}
+
+func (e *Engine) providerModels(ctx context.Context, providerName providers.ModelProvider) ([]providers.Model, error) {
+	provider, ok := e.pool.get(providerName)
+	if !ok {
+		return nil, ErrProviderNotFound
+	}
+
+	key, err := e.keyFor(providerName)
+	if errors.Is(err, ErrNoConnections) {
+		return catalogModels(providerName), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	models, err := provider.ListModels(ctx, key)
+	if err == nil && len(models) > 0 {
+		return models, nil
+	}
+	return catalogModels(providerName), nil
+}
+
+func catalogModels(providerName providers.ModelProvider) []providers.Model {
+	prices := modelcatalog.NewCatalog().Models(providerName)
+	modelIDs := make([]string, 0, len(prices))
+	for modelID := range prices {
+		modelIDs = append(modelIDs, modelID)
+	}
+	sort.Strings(modelIDs)
+
+	models := make([]providers.Model, 0, len(modelIDs))
+	for _, modelID := range modelIDs {
+		models = append(models, providers.Model{
+			ID:       modelID,
+			Object:   "model",
+			OwnedBy:  providerName.String(),
+			Provider: providerName,
+		})
+	}
+	return models
 }
 
 func (e *Engine) providerFor(model string) (providers.Provider, providers.Key, error) {
