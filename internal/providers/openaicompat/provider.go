@@ -2,12 +2,12 @@ package openaicompat
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -29,9 +29,10 @@ type Config struct {
 }
 
 type Provider struct {
-	provider providers.ModelProvider
-	baseURL  string
-	client   *fasthttp.Client
+	provider     providers.ModelProvider
+	baseURL      string
+	client       *fasthttp.Client
+	streamClient *http.Client
 }
 
 type RateLimitError struct {
@@ -61,9 +62,10 @@ func New(config Config) (*Provider, error) {
 		return nil, fmt.Errorf("%s base URL: empty", config.Provider)
 	}
 	return &Provider{
-		provider: config.Provider,
-		baseURL:  strings.TrimRight(config.BaseURL, "/"),
-		client:   &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		provider:     config.Provider,
+		baseURL:      strings.TrimRight(config.BaseURL, "/"),
+		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		streamClient: &http.Client{},
 	}, nil
 }
 
@@ -100,27 +102,29 @@ func (p *Provider) ChatCompletionStream(ctx context.Context, key providers.Key, 
 	streamReq := *req
 	streamReq.Stream = &stream
 
-	httpReq, err := p.newJSONRequest(fasthttp.MethodPost, "/v1/chat/completions", key, &streamReq)
+	httpReq, err := p.newHTTPJSONRequest(ctx, http.MethodPost, "/v1/chat/completions", key, &streamReq)
 	if err != nil {
 		return nil, err
 	}
-	defer fasthttp.ReleaseRequest(httpReq)
 
-	resp, err := p.do(ctx, httpReq)
+	resp, err := p.streamClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("%s chat completion stream: %w", p.provider, err)
 	}
-	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
-		defer fasthttp.ReleaseResponse(resp)
-		return nil, mapError(p.provider, resp)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("read %s error response: %w", p.provider, readErr)
+		}
+		return nil, mapStatusError(p.provider, resp.StatusCode, body, resp.Header.Get("Retry-After"))
 	}
 
 	chunks := make(chan providers.StreamChunk)
-	body := append([]byte(nil), resp.Body()...)
-	fasthttp.ReleaseResponse(resp)
 	go func() {
 		defer close(chunks)
-		parseSSE(bytes.NewReader(body), chunks)
+		defer resp.Body.Close()
+		parseSSE(resp.Body, chunks)
 	}()
 	return chunks, nil
 }
@@ -173,6 +177,26 @@ func (p *Provider) newJSONRequest(method, path string, key providers.Key, body a
 			return nil, fmt.Errorf("marshal %s request: %w", p.provider, err)
 		}
 		req.SetBody(data)
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, nil
+}
+
+func (p *Provider) newHTTPJSONRequest(ctx context.Context, method, path string, key providers.Key, body any) (*http.Request, error) {
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("marshal %s request: %w", p.provider, err)
+		}
+		reader = strings.NewReader(string(data))
+	}
+	req, err := http.NewRequestWithContext(ctx, method, p.baseURL+path, reader)
+	if err != nil {
+		return nil, fmt.Errorf("create %s request: %w", p.provider, err)
+	}
+	req.Header.Set("Authorization", "Bearer "+key.Value)
+	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	return req, nil
@@ -248,19 +272,22 @@ func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk) bool
 }
 
 func mapError(provider providers.ModelProvider, resp *fasthttp.Response) error {
-	body := resp.Body()
+	return mapStatusError(provider, resp.StatusCode(), resp.Body(), string(resp.Header.Peek("Retry-After")))
+}
+
+func mapStatusError(provider providers.ModelProvider, statusCode int, body []byte, retryAfter string) error {
 	message := parseErrorMessage(body)
 
-	switch resp.StatusCode() {
+	switch statusCode {
 	case fasthttp.StatusUnauthorized, fasthttp.StatusForbidden:
 		return fmt.Errorf("%w: %s", ErrAuth, message)
 	case fasthttp.StatusTooManyRequests:
-		return &RateLimitError{Message: message, RetryAfter: retryAfterSeconds(string(resp.Header.Peek("Retry-After")))}
+		return &RateLimitError{Message: message, RetryAfter: retryAfterSeconds(retryAfter)}
 	default:
-		if resp.StatusCode() >= 500 {
+		if statusCode >= 500 {
 			return fmt.Errorf("%w: %s", ErrServer, message)
 		}
-		return fmt.Errorf("%s error status %d: %s", provider, resp.StatusCode(), message)
+		return fmt.Errorf("%s error status %d: %s", provider, statusCode, message)
 	}
 }
 

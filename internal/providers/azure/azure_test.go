@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/valyala/fasthttp"
@@ -140,6 +141,50 @@ func TestChatCompletionStreamParsesSSE(t *testing.T) {
 	}
 }
 
+func TestChatCompletionStreamReturnsBeforeUpstreamCompletes(t *testing.T) {
+	release := make(chan struct{})
+	server := liveStreamServer(t, release, streamChunkContentJSON, streamChunkFinalJSON)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	type streamResult struct {
+		chunks <-chan providers.StreamChunk
+		err    error
+	}
+	result := make(chan streamResult, 1)
+	go func() {
+		chunks, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+		result <- streamResult{chunks: chunks, err: err}
+	}()
+
+	var chunks <-chan providers.StreamChunk
+	select {
+	case got := <-result:
+		if got.err != nil {
+			t.Fatalf("ChatCompletionStream: %v", got.err)
+		}
+		chunks = got.chunks
+	case <-time.After(200 * time.Millisecond):
+		close(release)
+		t.Fatal("ChatCompletionStream blocked until the upstream response completed")
+	}
+
+	select {
+	case chunk := <-chunks:
+		if chunk.Choices[0].Delta.Content == nil || *chunk.Choices[0].Delta.Content != "hello" {
+			t.Fatalf("first chunk = %+v", chunk)
+		}
+	case <-time.After(200 * time.Millisecond):
+		close(release)
+		t.Fatal("stream did not deliver the first chunk before upstream completion")
+	}
+
+	close(release)
+	rest := collectChunks(chunks)
+	if len(rest) != 1 || rest[0].Choices[0].FinishReason == nil || *rest[0].Choices[0].FinishReason != "stop" {
+		t.Fatalf("remaining chunks = %+v", rest)
+	}
+}
+
 func TestListModelsParsesDeployments(t *testing.T) {
 	var gotPath string
 	var gotAPIVersion string
@@ -262,6 +307,38 @@ func streamServer(t *testing.T, body string) *httptest.Server {
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func liveStreamServer(t *testing.T, release <-chan struct{}, firstChunk string, secondChunk string) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/openai/deployments/gpt-4o-prod/chat/completions" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		if r.URL.Query().Get("api-version") != "2024-02-15-preview" {
+			t.Errorf("api-version = %q", r.URL.Query().Get("api-version"))
+		}
+		if r.Header.Get("api-key") != "azure-key" {
+			t.Errorf("api-key = %q", r.Header.Get("api-key"))
+		}
+		var got providers.ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode stream request: %v", err)
+		}
+		if got.Stream == nil || !*got.Stream {
+			t.Errorf("stream = %+v", got.Stream)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: " + firstChunk + "\n\n"))
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		<-release
+		_, _ = w.Write([]byte("data: " + secondChunk + "\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	}))
 	t.Cleanup(server.Close)
 	return server

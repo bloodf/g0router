@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/valyala/fasthttp"
@@ -214,6 +215,53 @@ func TestParseSSEStream(t *testing.T) {
 	}
 }
 
+func TestChatCompletionStreamReturnsBeforeUpstreamCompletes(t *testing.T) {
+	release := make(chan struct{})
+	server := liveStreamServer(t, release, streamChunkContentJSON, streamChunkRoleJSON)
+	provider, err := New(Config{Provider: providers.ProviderGroq, BaseURL: server.URL})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	type streamResult struct {
+		chunks <-chan providers.StreamChunk
+		err    error
+	}
+	result := make(chan streamResult, 1)
+	go func() {
+		chunks, err := provider.ChatCompletionStream(context.Background(), testKey(providers.ProviderGroq), testChatRequest())
+		result <- streamResult{chunks: chunks, err: err}
+	}()
+
+	var chunks <-chan providers.StreamChunk
+	select {
+	case got := <-result:
+		if got.err != nil {
+			t.Fatalf("ChatCompletionStream: %v", got.err)
+		}
+		chunks = got.chunks
+	case <-time.After(200 * time.Millisecond):
+		close(release)
+		t.Fatal("ChatCompletionStream blocked until the upstream response completed")
+	}
+
+	select {
+	case chunk := <-chunks:
+		if chunk.Choices[0].Delta.Content == nil || *chunk.Choices[0].Delta.Content != "hello" {
+			t.Fatalf("first chunk = %+v", chunk)
+		}
+	case <-time.After(200 * time.Millisecond):
+		close(release)
+		t.Fatal("stream did not deliver the first chunk before upstream completion")
+	}
+
+	close(release)
+	rest := collectChunks(chunks)
+	if len(rest) != 1 || rest[0].Choices[0].Delta.Role == nil || *rest[0].Choices[0].Delta.Role != "assistant" {
+		t.Fatalf("remaining chunks = %+v", rest)
+	}
+}
+
 func testKey(provider providers.ModelProvider) providers.Key {
 	return providers.Key{Value: "sk-test", Provider: provider, ConnID: "conn-1", AuthType: "api_key"}
 }
@@ -242,6 +290,32 @@ func streamServer(t *testing.T, body string) *httptest.Server {
 		}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func liveStreamServer(t *testing.T, release <-chan struct{}, firstChunk string, secondChunk string) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Errorf("path = %q", r.URL.Path)
+		}
+		var got providers.ChatRequest
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode stream request: %v", err)
+		}
+		if got.Stream == nil || !*got.Stream {
+			t.Errorf("stream = %+v", got.Stream)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: " + firstChunk + "\n\n"))
+		if flusher, ok := w.(http.Flusher); ok {
+			flusher.Flush()
+		}
+		<-release
+		_, _ = w.Write([]byte("data: " + secondChunk + "\n\n"))
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
 	}))
 	t.Cleanup(server.Close)
 	return server

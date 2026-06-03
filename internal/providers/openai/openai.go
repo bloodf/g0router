@@ -2,11 +2,11 @@ package openai
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -18,8 +18,9 @@ import (
 const defaultBaseURL = "https://api.openai.com"
 
 type OpenAIProvider struct {
-	baseURL string
-	client  *fasthttp.Client
+	baseURL      string
+	client       *fasthttp.Client
+	streamClient *http.Client
 }
 
 func New(baseURL string) *OpenAIProvider {
@@ -27,8 +28,9 @@ func New(baseURL string) *OpenAIProvider {
 		baseURL = defaultBaseURL
 	}
 	return &OpenAIProvider{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		client:  &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		baseURL:      strings.TrimRight(baseURL, "/"),
+		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		streamClient: &http.Client{},
 	}
 }
 
@@ -65,27 +67,29 @@ func (p *OpenAIProvider) ChatCompletionStream(ctx context.Context, key providers
 	streamReq := *req
 	streamReq.Stream = &stream
 
-	httpReq, err := p.newJSONRequest(fasthttp.MethodPost, "/v1/chat/completions", key, &streamReq)
+	httpReqNet, err := p.newHTTPJSONRequest(ctx, http.MethodPost, "/v1/chat/completions", key, &streamReq)
 	if err != nil {
 		return nil, err
 	}
-	defer fasthttp.ReleaseRequest(httpReq)
 
-	resp, err := p.do(ctx, httpReq)
+	resp, err := p.streamClient.Do(httpReqNet)
 	if err != nil {
 		return nil, fmt.Errorf("openai chat completion stream: %w", err)
 	}
-	if resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
-		defer fasthttp.ReleaseResponse(resp)
-		return nil, mapError(resp)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("read openai error response: %w", readErr)
+		}
+		return nil, mapStatusError(resp.StatusCode, body, resp.Header.Get("Retry-After"))
 	}
 
 	chunks := make(chan providers.StreamChunk)
-	body := append([]byte(nil), resp.Body()...)
-	fasthttp.ReleaseResponse(resp)
 	go func() {
 		defer close(chunks)
-		parseSSE(bytes.NewReader(body), chunks)
+		defer resp.Body.Close()
+		parseSSE(resp.Body, chunks)
 	}()
 	return chunks, nil
 }
@@ -138,6 +142,26 @@ func (p *OpenAIProvider) newJSONRequest(method, path string, key providers.Key, 
 			return nil, fmt.Errorf("marshal openai request: %w", err)
 		}
 		req.SetBody(data)
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, nil
+}
+
+func (p *OpenAIProvider) newHTTPJSONRequest(ctx context.Context, method, path string, key providers.Key, body any) (*http.Request, error) {
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("marshal openai request: %w", err)
+		}
+		reader = strings.NewReader(string(data))
+	}
+	req, err := http.NewRequestWithContext(ctx, method, p.baseURL+path, reader)
+	if err != nil {
+		return nil, fmt.Errorf("create openai request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+key.Value)
+	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	return req, nil
@@ -213,19 +237,22 @@ func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk) bool
 }
 
 func mapError(resp *fasthttp.Response) error {
-	body := resp.Body()
+	return mapStatusError(resp.StatusCode(), resp.Body(), string(resp.Header.Peek("Retry-After")))
+}
+
+func mapStatusError(statusCode int, body []byte, retryAfter string) error {
 	message := parseErrorMessage(body)
 
-	switch resp.StatusCode() {
+	switch statusCode {
 	case fasthttp.StatusUnauthorized, fasthttp.StatusForbidden:
 		return fmt.Errorf("%w: %s", ErrAuth, message)
 	case fasthttp.StatusTooManyRequests:
-		return &RateLimitError{Message: message, RetryAfter: retryAfterSeconds(string(resp.Header.Peek("Retry-After")))}
+		return &RateLimitError{Message: message, RetryAfter: retryAfterSeconds(retryAfter)}
 	default:
-		if resp.StatusCode() >= 500 {
+		if statusCode >= 500 {
 			return fmt.Errorf("%w: %s", ErrServer, message)
 		}
-		return fmt.Errorf("openai error status %d: %s", resp.StatusCode(), message)
+		return fmt.Errorf("openai error status %d: %s", statusCode, message)
 	}
 }
 

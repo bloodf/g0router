@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.F"
-last_updated: "2026-06-03T03:48:48Z"
+last_updated: "2026-06-03T03:56:11Z"
 last_agent: "orchestrator"
 ```
 
@@ -1255,13 +1255,59 @@ tasks:
       - docs/WORKFLOW.md
 ```
 
-### Waves 7.F-7.I — Remaining Remediation Backlog
+### Wave 7.F — Provider correctness
+
+```yaml
+wave: "7.F"
+status: IN_PROGRESS
+max_agents: 3
+depends_on: ["7.E"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.F.1"
+    name: "Live upstream streaming for OpenAI, Azure, and OpenAI-compatible providers"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7f-live-streaming"
+    completed_at: "2026-06-03T03:56:11Z"
+    files_owned:
+      - internal/providers/openai/openai.go
+      - internal/providers/openai/openai_test.go
+      - internal/providers/azure/azure.go
+      - internal/providers/azure/azure_test.go
+      - internal/providers/openaicompat/provider.go
+      - internal/providers/openaicompat/provider_test.go
+      - docs/WORKFLOW.md
+  - id: "7.F.2"
+    name: "Stable sanitized provider error responses"
+    status: PENDING
+    files_owned:
+      - api/handlers/inference.go
+      - api/handlers/inference_test.go
+      - internal/providers/*/errors.go
+      - internal/providers/*/*_test.go
+      - docs/WORKFLOW.md
+  - id: "7.F.3"
+    name: "Bedrock Converse downgrade or implementation accuracy"
+    status: PENDING
+    files_owned:
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+  - id: "7.F.4"
+    name: "Wave 7.F evaluator prompt"
+    status: PENDING
+    files_owned:
+      - docs/evaluations/wave-7F-evaluator-prompt.md
+      - docs/WORKFLOW.md
+```
+
+### Waves 7.G-7.I — Remaining Remediation Backlog
 
 ```yaml
 waves:
-  - wave: "7.F"
-    name: "Provider correctness"
-    status: PENDING
   - wave: "7.G"
     name: "Real MCP runtime"
     status: PENDING
