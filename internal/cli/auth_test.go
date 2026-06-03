@@ -6,10 +6,45 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/spf13/cobra"
 )
+
+type fakeCLILoginFlow struct {
+	provider oauth.ProviderID
+	token    *oauth.TokenResult
+	status   oauth.PollStatus
+}
+
+func (f fakeCLILoginFlow) ProviderID() oauth.ProviderID {
+	return f.provider
+}
+
+func (f fakeCLILoginFlow) Start(ctx context.Context) (oauth.AuthSession, error) {
+	return oauth.AuthSession{
+		Provider:     f.provider,
+		AuthURL:      "https://auth.example/device",
+		SessionID:    "device-session",
+		UserCode:     "USER-CODE",
+		Verification: "https://auth.example",
+		PollInterval: 1,
+	}, nil
+}
+
+func (f fakeCLILoginFlow) Exchange(ctx context.Context, session oauth.AuthSession, code string) (oauth.TokenResult, error) {
+	return oauth.TokenResult{}, nil
+}
+
+func (f fakeCLILoginFlow) Poll(ctx context.Context, session oauth.AuthSession) (oauth.PollResult, error) {
+	status := f.status
+	if status == "" {
+		status = oauth.PollStatusComplete
+	}
+	return oauth.PollResult{Status: status, Token: f.token}, nil
+}
 
 func TestAuthListShowsSupportedProviders(t *testing.T) {
 	cmd := NewAuthCommand()
@@ -104,6 +139,115 @@ func TestLoginCommandRejectsConflictingModes(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "choose either --device or --key") {
 		t.Fatalf("error = %q, want conflicting mode message", err.Error())
+	}
+}
+
+func TestLoginDevicePersistsCompletedConnection(t *testing.T) {
+	dataDir := t.TempDir()
+	expiresAt := time.Now().Add(time.Hour)
+	cmd := newAuthLoginCommand("login", &dataDir, func(provider string) (oauth.Flow, error) {
+		return fakeCLILoginFlow{
+			provider: oauth.ProviderID("codex"),
+			token: &oauth.TokenResult{
+				Provider:     oauth.ProviderID("codex"),
+				AccessToken:  "codex-access",
+				RefreshToken: "codex-refresh",
+				TokenType:    "bearer",
+				ExpiresAt:    expiresAt,
+			},
+		}, nil
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"codex", "--device"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	s := openCLIStoreForTest(t, dataDir)
+	defer s.Close()
+	connections, err := s.GetConnections("openai")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(connections) != 1 {
+		t.Fatalf("connections = %d, want 1", len(connections))
+	}
+	if connections[0].AccessToken == nil || *connections[0].AccessToken != "codex-access" {
+		t.Fatalf("access token = %v, want codex-access", connections[0].AccessToken)
+	}
+	if connections[0].RefreshToken == nil || *connections[0].RefreshToken != "codex-refresh" {
+		t.Fatalf("refresh token = %v, want codex-refresh", connections[0].RefreshToken)
+	}
+	if got := out.String(); strings.Contains(got, "codex-access") || strings.Contains(got, "codex-refresh") {
+		t.Fatalf("login output leaked token material: %s", got)
+	}
+}
+
+func TestLoginDevicePersistsGitHubAliasAsCopilot(t *testing.T) {
+	dataDir := t.TempDir()
+	cmd := newAuthLoginCommand("login", &dataDir, func(provider string) (oauth.Flow, error) {
+		if provider != "github" {
+			t.Fatalf("provider = %q, want github alias", provider)
+		}
+		return fakeCLILoginFlow{
+			provider: oauth.ProviderID("github-copilot"),
+			token: &oauth.TokenResult{
+				Provider:    oauth.ProviderID("github-copilot"),
+				AccessToken: "gh-access",
+				TokenType:   "bearer",
+			},
+		}, nil
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"github", "--device"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	s := openCLIStoreForTest(t, dataDir)
+	defer s.Close()
+	connections, err := s.GetConnections("github-copilot")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(connections) != 1 {
+		t.Fatalf("github-copilot connections = %d, want 1", len(connections))
+	}
+	aliasConnections, err := s.GetConnections("github")
+	if err != nil {
+		t.Fatalf("GetConnections github: %v", err)
+	}
+	if len(aliasConnections) != 0 {
+		t.Fatalf("github alias connections = %d, want 0", len(aliasConnections))
+	}
+}
+
+func TestLoginDeviceDoesNotPersistPendingPoll(t *testing.T) {
+	dataDir := t.TempDir()
+	cmd := newAuthLoginCommand("login", &dataDir, func(provider string) (oauth.Flow, error) {
+		return fakeCLILoginFlow{provider: oauth.ProviderID("codex"), status: oauth.PollStatusPending}, nil
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"codex", "--device"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	s := openCLIStoreForTest(t, dataDir)
+	defer s.Close()
+	connections, err := s.GetConnections("openai")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(connections) != 0 {
+		t.Fatalf("connections = %d, want 0", len(connections))
 	}
 }
 

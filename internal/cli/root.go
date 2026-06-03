@@ -65,7 +65,7 @@ func newRootCommand(config rootConfig) *cobra.Command {
 	cmd.Flags().BoolVar(&showVersion, "version", false, "print version and exit")
 	cmd.PersistentFlags().StringVar(&dataDir, "data-dir", dataDir, "data directory")
 	cmd.AddCommand(newAuthCommand(&dataDir))
-	cmd.AddCommand(newLoginCommand())
+	cmd.AddCommand(newLoginCommand(&dataDir))
 	cmd.AddCommand(newLogoutCommand(&dataDir))
 	cmd.AddCommand(newKeysCommand(&dataDir))
 	cmd.AddCommand(newMCPCommand(&dataDir))

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
@@ -279,34 +280,7 @@ func persistOAuthConnection(s *store.Store, token oauth.TokenResult, accountLabe
 	if s == nil {
 		return nil, fmt.Errorf("store unavailable")
 	}
-	provider := oauth.CanonicalProviderID(token.Provider)
-	name := strings.TrimSpace(accountLabel)
-	if name == "" {
-		name = provider
-	}
-
-	accessToken := token.AccessToken
-	conn := &store.Connection{
-		Provider:     provider,
-		Name:         name,
-		AuthType:     store.AuthTypeOAuth,
-		AccessToken:  &accessToken,
-		RefreshToken: emptyStringPtr(token.RefreshToken),
-		ExpiresAt:    timePtrUnix(token.ExpiresAt),
-		IsActive:     true,
-		ProviderSpecificData: map[string]any{
-			"oauth_provider": token.Provider.String(),
-			"token_type":     token.TokenType,
-			"scopes":         append([]string(nil), token.Scopes...),
-		},
-	}
-	if token.TokenType == "api_key" {
-		conn.AuthType = store.AuthTypeAPIKey
-		conn.APIKey = &accessToken
-		conn.AccessToken = nil
-		conn.RefreshToken = nil
-		conn.ExpiresAt = nil
-	}
+	conn := provider.ConnectionFromOAuthToken(token, accountLabel)
 	if err := s.CreateConnection(conn); err != nil {
 		return nil, err
 	}
@@ -318,19 +292,4 @@ func persistOAuthConnection(s *store.Store, token oauth.TokenResult, accountLabe
 		ExpiresAt: conn.ExpiresAt,
 		Scopes:    append([]string(nil), token.Scopes...),
 	}, nil
-}
-
-func emptyStringPtr(value string) *string {
-	if value == "" {
-		return nil
-	}
-	return &value
-}
-
-func timePtrUnix(value time.Time) *int64 {
-	if value.IsZero() {
-		return nil
-	}
-	unix := value.Unix()
-	return &unix
 }

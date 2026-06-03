@@ -6,9 +6,12 @@ import (
 	"sort"
 	"strings"
 
+	providercred "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/spf13/cobra"
 )
+
+type oauthFlowFactory func(provider string) (oauth.Flow, error)
 
 // NewAuthCommand builds OAuth credential commands.
 func NewAuthCommand() *cobra.Command {
@@ -22,13 +25,13 @@ func newAuthCommand(dataDir *string) *cobra.Command {
 		Short: "Manage provider authentication",
 	}
 	cmd.AddCommand(newAuthListCommand())
-	cmd.AddCommand(newAuthLoginCommand("login"))
+	cmd.AddCommand(newAuthLoginCommand("login", dataDir, newOAuthFlow))
 	cmd.AddCommand(newAuthLogoutCommand(dataDir))
 	return cmd
 }
 
-func newLoginCommand() *cobra.Command {
-	cmd := newAuthLoginCommand("login")
+func newLoginCommand(dataDir *string) *cobra.Command {
+	cmd := newAuthLoginCommand("login", dataDir, newOAuthFlow)
 	cmd.Short = "Start provider authentication"
 	return cmd
 }
@@ -52,7 +55,7 @@ func newAuthListCommand() *cobra.Command {
 	}
 }
 
-func newAuthLoginCommand(use string) *cobra.Command {
+func newAuthLoginCommand(use string, dataDir *string, flowFactory oauthFlowFactory) *cobra.Command {
 	var device bool
 	var key bool
 
@@ -69,23 +72,57 @@ func newAuthLoginCommand(use string) *cobra.Command {
 				return nil
 			}
 
-			flow, err := newOAuthFlow(args[0])
+			flow, err := flowFactory(args[0])
 			if err != nil {
 				return err
 			}
 
-			session, err := flow.Start(context.Background())
+			session, err := flow.Start(cmd.Context())
 			if err != nil {
 				return fmt.Errorf("start oauth flow: %w", err)
 			}
 
 			printAuthSession(cmd, session)
+			if device {
+				status, err := completeDeviceLogin(cmd.Context(), *dataDir, flow, session)
+				if err != nil {
+					return err
+				}
+				if status != "" {
+					fmt.Fprintf(cmd.OutOrStdout(), "Device login status: %s\n", status)
+				}
+			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&device, "device", false, "start device authorization flow")
 	cmd.Flags().BoolVar(&key, "key", false, "start API key credential flow")
 	return cmd
+}
+
+func completeDeviceLogin(ctx context.Context, dataDir string, flow oauth.Flow, session oauth.AuthSession) (oauth.PollStatus, error) {
+	if session.UserCode == "" && session.Verification == "" {
+		return "", nil
+	}
+	result, err := flow.Poll(ctx, session)
+	if err != nil {
+		return "", fmt.Errorf("poll oauth flow: %w", err)
+	}
+	if result.Status != oauth.PollStatusComplete || result.Token == nil {
+		return result.Status, nil
+	}
+
+	s, err := openCLIStore(dataDir)
+	if err != nil {
+		return "", err
+	}
+	defer s.Close()
+
+	conn := providercred.ConnectionFromOAuthToken(*result.Token, "")
+	if err := s.CreateConnection(conn); err != nil {
+		return "", fmt.Errorf("create oauth connection: %w", err)
+	}
+	return result.Status, nil
 }
 
 func newAuthLogoutCommand(dataDir *string) *cobra.Command {

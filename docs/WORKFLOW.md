@@ -1032,7 +1032,17 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.C.2"
     name: "Make CLI login complete supported flows and persist connections"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T01:55:43Z"
+    files_owned:
+      - api/handlers/oauth.go
+      - internal/cli/auth.go
+      - internal/cli/auth_test.go
+      - internal/cli/root.go
+      - internal/provider/credentials.go
+      - internal/provider/credentials_test.go
+      - docs/WORKFLOW.md
   - id: "7.C.3"
     name: "Refresh OAuth credentials before dispatch when near expiry"
     status: PENDING
