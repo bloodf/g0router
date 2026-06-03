@@ -186,7 +186,7 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, 
 
 	var costUSD *float64
 	if extractedUsage != nil {
-		costUSD = costForUsage(metadata.provider, metadata.model, extractedUsage)
+		costUSD = costForUsage(s.config.Store, metadata.provider, metadata.model, extractedUsage)
 	}
 	entry := logging.RequestLog{
 		RequestID:    string(ctx.Response.Header.Peek(requestIDHeader)),
@@ -368,11 +368,11 @@ func userValueStringPtr(ctx *fasthttp.RequestCtx, key string) *string {
 	return &value
 }
 
-func costForUsage(provider, model string, extractedUsage *usage.Usage) *float64 {
+func costForUsage(overrides usage.PricingOverrideResolver, provider, model string, extractedUsage *usage.Usage) *float64 {
 	if provider == "" || provider == "unknown" {
 		return nil
 	}
-	cost, err := usage.CalculateCostUSD(modelcatalog.NewCatalog(), providers.ModelProvider(provider), model, extractedUsage)
+	cost, err := usage.CalculateCostUSDWithOverrides(modelcatalog.NewCatalog(), overrides, providers.ModelProvider(provider), model, extractedUsage)
 	if err != nil {
 		return nil
 	}
