@@ -49,6 +49,7 @@ type Engine struct {
 	refreshManager *providercore.RefreshManager
 	fallback       *providercore.FallbackManager
 	quotaFetchers  map[providers.ModelProvider]usage.QuotaFetcher
+	aliasCache     *aliasCache
 	refreshWindow  time.Duration
 	now            func() time.Time
 }
@@ -60,6 +61,7 @@ func NewEngine(s *store.Store) *Engine {
 		refreshers:     make(map[oauth.ProviderID]oauthRefresher),
 		refreshManager: providercore.NewRefreshManager(),
 		quotaFetchers:  make(map[providers.ModelProvider]usage.QuotaFetcher),
+		aliasCache:     newAliasCache(defaultAliasCacheTTL),
 		refreshWindow:  defaultRefreshWindow,
 		now:            time.Now,
 	}
@@ -255,15 +257,15 @@ func (e *Engine) providerForRoute(ctx context.Context, route modelRoute) (provid
 }
 
 func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
-	alias, err := e.store.ResolveModelAlias(model)
-	if err == nil {
+	alias, ok, err := e.resolveModelAlias(model)
+	if err != nil {
+		return modelRoute{}, err
+	}
+	if ok {
 		return routableModelRoute(modelRoute{
 			Provider: providers.ModelProvider(providercore.CanonicalProviderID(alias.Provider)),
 			Model:    alias.Model,
 		})
-	}
-	if err != nil && !errors.Is(err, store.ErrNotFound) {
-		return modelRoute{}, fmt.Errorf("resolve model alias: %w", err)
 	}
 
 	if provider, ok := modelcatalog.NewCatalog().ProviderForModel(model); ok {
@@ -275,6 +277,24 @@ func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
 	}
 
 	return modelRoute{}, ErrProviderNotFound
+}
+
+func (e *Engine) resolveModelAlias(model string) (store.ModelAlias, bool, error) {
+	now := e.now()
+	if alias, ok := e.aliasCache.get(model, now); ok {
+		return alias, true, nil
+	}
+
+	alias, err := e.store.ResolveModelAlias(model)
+	if errors.Is(err, store.ErrNotFound) {
+		return store.ModelAlias{}, false, nil
+	}
+	if err != nil {
+		return store.ModelAlias{}, false, fmt.Errorf("resolve model alias: %w", err)
+	}
+
+	e.aliasCache.set(model, alias, now)
+	return alias, true, nil
 }
 
 func (e *Engine) resolveComboStepRoute(step ComboStep) (modelRoute, error) {
