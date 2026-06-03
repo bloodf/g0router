@@ -30,8 +30,8 @@
 ```yaml
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
-current_wave: "7.H"
-last_updated: "2026-06-03T05:51:31Z"
+current_wave: "7.I"
+last_updated: "2026-06-03T06:26:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1588,15 +1588,45 @@ tasks:
   - id: "7.I.1"
     name: "Honor ENABLE_REQUEST_LOGS and log complete request metadata"
     status: PENDING
+    branch: "codex/wave-7i-logging"
+    files_owned:
+      - api/middleware.go
+      - api/middleware_test.go
+      - api/server.go
+      - api/server_test.go
+      - internal/cli/root.go
+      - internal/cli/root_test.go
+      - internal/logging/requestlog.go
+      - internal/logging/logger_test.go
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
   - id: "7.I.2"
     name: "Expand pricing and model catalog coverage"
     status: PENDING
+    branch: "codex/wave-7i-catalog"
+    files_owned:
+      - internal/modelcatalog/catalog.go
+      - internal/modelcatalog/pricing.go
+      - internal/modelcatalog/pricing_test.go
+      - docs/PROVIDERS.md
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
   - id: "7.I.3"
     name: "Enforce quotas across direct models, aliases, fallback, and combos"
     status: PENDING
+    branch: "codex/wave-7i-quotas"
+    files_owned:
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/proxy/combo_test.go
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
   - id: "7.I.4"
     name: "Wave 7.I evaluator prompt"
     status: PENDING
+    branch: "codex/wave-7i-evaluator"
+    depends_on_tasks: ["7.I.1", "7.I.2", "7.I.3"]
+    files_owned:
+      - docs/evaluations/wave-7I-evaluator-prompt.md
+      - docs/WORKFLOW.md
+    phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
 ```
 
 ---
