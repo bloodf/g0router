@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: REMEDIATION_EVALUATED
+project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
-current_wave: "7.I"
-last_updated: "2026-06-03T09:45:00Z"
+current_wave: "7.J"
+last_updated: "2026-06-03T10:05:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1640,6 +1640,77 @@ tasks:
       - docs/evaluations/wave-7I-remediation-evaluator-prompt.md
       - docs/WORKFLOW.md
     phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
+```
+
+---
+
+### Wave 7.J — Release readiness hardening
+
+```yaml
+wave: "7.J"
+status: PENDING
+max_agents: 3
+depends_on: ["7.I"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.J.1"
+    name: "Dashboard control-plane authentication"
+    status: PENDING
+    branch: "codex/wave-7j-dashboard-auth"
+    files_owned:
+      - ui/src/api.ts
+      - ui/src/api.test.ts
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - ui/src/pages/*.test.tsx
+    phase_doc: "docs/phases/phase-10-dashboard-ui.md"
+  - id: "7.J.2"
+    name: "Self-contained installer and service bootstrap"
+    status: PENDING
+    branch: "codex/wave-7j-installer"
+    files_owned:
+      - internal/cli/install.go
+      - internal/cli/install_test.go
+      - deploy/g0router.default
+      - deploy/g0router.service
+    phase_doc: "docs/phases/phase-11-packaging-deployment-polish.md"
+  - id: "7.J.3"
+    name: "Docker release bootstrap and writable data"
+    status: PENDING
+    branch: "codex/wave-7j-docker"
+    files_owned:
+      - Dockerfile
+      - docker-compose.yml
+      - .dockerignore
+      - docs/DEPLOYMENT.md
+      - README.md
+    phase_doc: "docs/phases/phase-11-packaging-deployment-polish.md"
+  - id: "7.J.4"
+    name: "Live MCP instance and OAuth lifecycle"
+    status: PENDING
+    branch: "codex/wave-7j-mcp-runtime"
+    files_owned:
+      - api/server.go
+      - api/server_test.go
+      - api/handlers/mcp.go
+      - api/handlers/mcp_test.go
+      - api/handlers/mcpoauth.go
+      - api/handlers/mcpoauth_test.go
+      - internal/mcp/*.go
+      - internal/store/mcp*.go
+    phase_doc: "docs/phases/phase-12-advanced-mcp-gateway.md"
+  - id: "7.J.5"
+    name: "Wave 7.J evaluator prompt and workflow closure"
+    status: PENDING
+    branch: "codex/wave-7j-evaluator"
+    depends_on_tasks: ["7.J.1", "7.J.2", "7.J.3", "7.J.4"]
+    files_owned:
+      - docs/evaluations/wave-7J-evaluator-prompt.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+    phase_doc: "docs/phases/phase-11-packaging-deployment-polish.md"
 ```
 
 ---
