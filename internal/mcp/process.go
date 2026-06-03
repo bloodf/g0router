@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"io"
 )
 
 type ProcessSpec struct {
@@ -13,6 +14,8 @@ type ProcessSpec struct {
 }
 
 type Process interface {
+	Stdin() io.WriteCloser
+	Stdout() io.ReadCloser
 	Stderr() *bytes.Buffer
 	Close() error
 }

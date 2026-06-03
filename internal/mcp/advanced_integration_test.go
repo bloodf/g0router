@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -208,6 +209,14 @@ func (r *recordingRunner) Start(ctx context.Context, spec mcp.ProcessSpec) (mcp.
 
 type integrationProcess struct{}
 
+func (p integrationProcess) Stdin() io.WriteCloser {
+	return nopWriteCloser{Writer: &bytes.Buffer{}}
+}
+
+func (p integrationProcess) Stdout() io.ReadCloser {
+	return io.NopCloser(bytes.NewReader(nil))
+}
+
 func (p integrationProcess) Stderr() *bytes.Buffer {
 	return bytes.NewBufferString("ready\n")
 }
@@ -282,4 +291,12 @@ func containsAll(values, wants []string) bool {
 		}
 	}
 	return true
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (w nopWriteCloser) Close() error {
+	return nil
 }

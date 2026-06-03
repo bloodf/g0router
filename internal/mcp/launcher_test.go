@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -181,6 +182,14 @@ type fakeProcess struct {
 	stderr string
 }
 
+func (p fakeProcess) Stdin() io.WriteCloser {
+	return nopWriteCloser{Writer: &bytes.Buffer{}}
+}
+
+func (p fakeProcess) Stdout() io.ReadCloser {
+	return io.NopCloser(bytes.NewReader(nil))
+}
+
 func (p fakeProcess) Stderr() *bytes.Buffer {
 	return bytes.NewBufferString(p.stderr)
 }
@@ -199,4 +208,12 @@ func stringSlicesEqual(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (w nopWriteCloser) Close() error {
+	return nil
 }

@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.G"
-last_updated: "2026-06-03T04:25:30Z"
+last_updated: "2026-06-03T04:30:20Z"
 last_agent: "orchestrator"
 ```
 
@@ -1330,13 +1330,87 @@ tasks:
       - docs/WORKFLOW.md
 ```
 
-### Waves 7.G-7.I — Remaining Remediation Backlog
+### Wave 7.G — Real MCP runtime
+
+```yaml
+wave: "7.G"
+status: IN_PROGRESS
+max_agents: 3
+depends_on: ["7.F"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.G.1"
+    name: "Real stdio MCP JSON-RPC client"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7g-stdio"
+    completed_at: "2026-06-03T04:30:20Z"
+    files_owned:
+      - internal/mcp/jsonrpc.go
+      - internal/mcp/stdio.go
+      - internal/mcp/stdio_test.go
+      - internal/mcp/process.go
+      - internal/mcp/launcher_test.go
+      - internal/mcp/advanced_integration_test.go
+      - internal/cli/mcp_runtime.go
+      - internal/cli/mcp_runtime_test.go
+      - docs/WORKFLOW.md
+  - id: "7.G.2"
+    name: "Real MCP HTTP OAuth token exchange and account selection"
+    status: IN_PROGRESS
+    agent: "Dirac the 2nd"
+    branch: "codex/wave-7g-oauth"
+    files_owned:
+      - internal/mcp/oauth.go
+      - internal/mcp/oauth_test.go
+      - internal/store/mcpoauth.go
+      - internal/store/mcpoauth_test.go
+      - api/handlers/mcp.go
+      - api/handlers/mcp_test.go
+      - api/handlers/mcpoauth.go
+      - api/handlers/mcpoauth_test.go
+      - internal/cli/mcp_auth.go
+      - internal/cli/mcp_auth_test.go
+  - id: "7.G.3"
+    name: "Streamable HTTP and SSE MCP JSON-RPC clients"
+    status: PENDING
+    files_owned:
+      - internal/mcp/http.go
+      - internal/mcp/http_test.go
+      - internal/mcp/launcher.go
+      - internal/mcp/launcher_test.go
+      - internal/cli/mcp_runtime.go
+      - internal/cli/mcp_runtime_test.go
+  - id: "7.G.4"
+    name: "Tool manager concurrency, schema validation, and request filtering"
+    status: PENDING
+    files_owned:
+      - internal/mcp/toolmanager.go
+      - internal/mcp/toolmanager_test.go
+      - internal/mcp/agent.go
+      - internal/mcp/agent_test.go
+      - api/handlers/mcp.go
+      - api/handlers/mcp_test.go
+  - id: "7.G.5"
+    name: "Startup rehydration, tool sync, health persistence, and evaluator prompt"
+    status: PENDING
+    files_owned:
+      - internal/cli/mcp_runtime.go
+      - internal/cli/root.go
+      - internal/cli/root_test.go
+      - internal/mcp/healthmonitor.go
+      - internal/mcp/healthmonitor_test.go
+      - internal/store/mcpinstances.go
+      - internal/store/mcpinstances_test.go
+      - docs/evaluations/wave-7G-evaluator-prompt.md
+      - docs/WORKFLOW.md
+```
+
+### Waves 7.H-7.I — Remaining Remediation Backlog
 
 ```yaml
 waves:
-  - wave: "7.G"
-    name: "Real MCP runtime"
-    status: PENDING
   - wave: "7.H"
     name: "Real dashboard"
     status: PENDING

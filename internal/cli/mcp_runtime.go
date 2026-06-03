@@ -32,6 +32,9 @@ func (c mcpLauncherConnector) Connect(ctx context.Context, cfg mcp.ClientConfig)
 	if err != nil {
 		return nil, err
 	}
+	if result.Transport == mcp.TransportStdio {
+		return mcp.NewStdioClient(result.Process), nil
+	}
 	return &launchedMCPClient{process: result.Process}, nil
 }
 
@@ -97,19 +100,36 @@ func (commandProcessRunner) Start(ctx context.Context, spec mcp.ProcessSpec) (mc
 	cmd := exec.CommandContext(ctx, spec.Command, spec.Args...)
 	cmd.Env = processEnv(spec.Env)
 	cmd.Dir = spec.CWD
-	cmd.Stdout = io.Discard
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open command %q stdin: %w", spec.Command, err)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("open command %q stdout: %w", spec.Command, err)
+	}
 
 	stderr := &bytes.Buffer{}
 	cmd.Stderr = stderr
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start command %q: %w", spec.Command, err)
 	}
-	return &commandProcess{cmd: cmd, stderr: stderr}, nil
+	return &commandProcess{cmd: cmd, stdin: stdin, stdout: stdout, stderr: stderr}, nil
 }
 
 type commandProcess struct {
 	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	stdout io.ReadCloser
 	stderr *bytes.Buffer
+}
+
+func (p *commandProcess) Stdin() io.WriteCloser {
+	return p.stdin
+}
+
+func (p *commandProcess) Stdout() io.ReadCloser {
+	return p.stdout
 }
 
 func (p *commandProcess) Stderr() *bytes.Buffer {
@@ -119,6 +139,12 @@ func (p *commandProcess) Stderr() *bytes.Buffer {
 func (p *commandProcess) Close() error {
 	if p.cmd == nil || p.cmd.Process == nil {
 		return nil
+	}
+	if p.stdin != nil {
+		_ = p.stdin.Close()
+	}
+	if p.stdout != nil {
+		_ = p.stdout.Close()
 	}
 	if err := p.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		return fmt.Errorf("kill mcp process: %w", err)
