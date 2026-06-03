@@ -264,6 +264,8 @@ export class ApiError extends Error {
   }
 }
 
+const controlPlaneKeyStorageKey = "g0router.controlPlaneKey";
+
 const apiPaths = {
   providers: "/api/providers",
   connections: "/api/connections",
@@ -277,6 +279,35 @@ const apiPaths = {
   mcpTools: "/api/mcp/tools",
   settings: "/api/settings"
 } as const;
+
+export function getControlPlaneKey() {
+  try {
+    return globalThis.localStorage?.getItem(controlPlaneKeyStorageKey) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function saveControlPlaneKey(key: string) {
+  const trimmed = key.trim();
+  try {
+    if (trimmed) {
+      globalThis.localStorage?.setItem(controlPlaneKeyStorageKey, trimmed);
+    } else {
+      globalThis.localStorage?.removeItem(controlPlaneKeyStorageKey);
+    }
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+}
+
+export function clearControlPlaneKey() {
+  try {
+    globalThis.localStorage?.removeItem(controlPlaneKeyStorageKey);
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+}
 
 export function getProvidersPath() {
   return apiPaths.providers;
@@ -335,10 +366,15 @@ export function getSettingsPath() {
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const optionHeaders = options.headers as Record<string, string> | undefined;
   const headers = {
     "Content-Type": "application/json",
-    ...(options.headers as Record<string, string> | undefined)
-  };
+    ...optionHeaders
+  } as Record<string, string>;
+  const savedKey = getControlPlaneKey();
+  if (savedKey && !headers.Authorization && !headers["X-API-Key"]) {
+    headers.Authorization = `Bearer ${savedKey}`;
+  }
 
   const response = await fetch(path, {
     ...options,

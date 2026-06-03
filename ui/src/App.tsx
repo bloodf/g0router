@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import "./index.css";
+import { clearControlPlaneKey, getControlPlaneKey, saveControlPlaneKey } from "./api";
 import { CombosPage } from "./pages/CombosPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EndpointPage } from "./pages/EndpointPage";
@@ -15,56 +16,56 @@ const pages = [
     label: "Dashboard",
     title: "Gateway overview",
     description: "Live operational summary for the local g0router instance.",
-    component: <DashboardPage />
+    Component: DashboardPage
   },
   {
     id: "endpoint",
     label: "Endpoint",
     title: "Endpoint configuration",
     description: "API keys, RTK, caveman, and request controls.",
-    component: <EndpointPage />
+    Component: EndpointPage
   },
   {
     id: "providers",
     label: "Providers",
     title: "Providers",
     description: "Connection status and provider account management.",
-    component: <ProvidersPage />
+    Component: ProvidersPage
   },
   {
     id: "usage",
     label: "Usage",
     title: "Usage",
     description: "Request volume, token spend, and recent gateway traffic.",
-    component: <UsagePage />
+    Component: UsagePage
   },
   {
     id: "quota",
     label: "Quota",
     title: "Quota",
     description: "Provider limit usage and reset windows.",
-    component: <QuotaPage />
+    Component: QuotaPage
   },
   {
     id: "combos",
     label: "Combos",
     title: "Combos",
     description: "Fallback and routing chains for models and accounts.",
-    component: <CombosPage />
+    Component: CombosPage
   },
   {
     id: "mcp",
     label: "MCP",
     title: "MCP",
     description: "Tool server health and compact manifest status.",
-    component: <McpPage />
+    Component: McpPage
   },
   {
     id: "settings",
     label: "Settings",
     title: "Settings",
     description: "Runtime defaults and local control-plane configuration.",
-    component: <SettingsPage />
+    Component: SettingsPage
   }
 ] as const;
 
@@ -72,7 +73,24 @@ type PageId = (typeof pages)[number]["id"];
 
 function App() {
   const [activePageId, setActivePageId] = useState<PageId>("dashboard");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [authRevision, setAuthRevision] = useState(0);
   const activePage = pages.find((page) => page.id === activePageId) ?? pages[0];
+  const ActivePageComponent = activePage.Component;
+  const hasControlPlaneKey = getControlPlaneKey() !== "";
+
+  function saveKey(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    saveControlPlaneKey(apiKeyInput);
+    setApiKeyInput("");
+    setAuthRevision((value) => value + 1);
+  }
+
+  function clearKey() {
+    clearControlPlaneKey();
+    setApiKeyInput("");
+    setAuthRevision((value) => value + 1);
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-950">
@@ -103,10 +121,35 @@ function App() {
               <h2 className="text-2xl font-semibold tracking-normal">{activePage.title}</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500">{activePage.description}</p>
             </div>
-            <div className="inline-flex w-fit items-center gap-2 rounded-md border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Local control plane
-            </div>
+            <form onSubmit={saveKey} className="flex w-full flex-col gap-2 sm:w-fit sm:flex-row sm:items-end">
+              <label className="block text-sm font-medium text-zinc-700">
+                Control-plane API key
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(event) => setApiKeyInput(event.target.value)}
+                  className="mt-1 min-h-10 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-400 sm:w-64"
+                  autoComplete="off"
+                />
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="min-h-10 rounded-md bg-zinc-950 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+                  disabled={apiKeyInput.trim() === ""}
+                >
+                  Save key
+                </button>
+                <button
+                  type="button"
+                  onClick={clearKey}
+                  className="min-h-10 rounded-md border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+                  disabled={!hasControlPlaneKey}
+                >
+                  Clear
+                </button>
+              </div>
+            </form>
           </div>
 
           <nav aria-label="Sections" className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
@@ -125,7 +168,7 @@ function App() {
         </header>
 
         <section className="px-5 py-6 lg:px-8">
-          {activePage.component}
+          <ActivePageComponent key={`${activePage.id}-${authRevision}`} />
         </section>
       </main>
     </div>
