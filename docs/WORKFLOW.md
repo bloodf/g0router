@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.H"
-last_updated: "2026-06-03T05:43:00Z"
+last_updated: "2026-06-03T05:44:27Z"
 last_agent: "orchestrator"
 ```
 
@@ -1526,10 +1526,12 @@ tasks:
       - ui/src/pages/SettingsPage.test.tsx
   - id: "7.H.5"
     name: "MCP dashboard page uses real API contracts without exposing credentials"
-    status: IN_PROGRESS
+    status: DONE
     agent: "Newton the 2nd"
     branch: "codex/wave-7h-mcp-page"
     started_at: "2026-06-03T05:29:55Z"
+    commit: "83cce34"
+    completed_at: "2026-06-03T05:44:27Z"
     depends_on_tasks: ["7.H.1"]
     files_owned:
       - ui/src/pages/McpPage.tsx
