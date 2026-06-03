@@ -233,6 +233,30 @@ func TestDispatchUsesModelAliasProviderAndRewritesUpstreamModel(t *testing.T) {
 	}
 }
 
+func TestDispatchBlocksAliasToProviderWithoutInference(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "bedrock", "bedrock-key")
+	if err := s.SetModelAlias(store.ModelAlias{
+		Alias:    "bedrock-alias",
+		Provider: "bedrock",
+		Model:    "anthropic.claude-3-haiku-20240307-v1:0",
+	}); err != nil {
+		t.Fatalf("SetModelAlias: %v", err)
+	}
+
+	bedrock := &fakeProvider{name: providers.ProviderBedrock, response: &providers.ChatResponse{ID: "bedrock-should-not-run"}}
+	engine := NewEngine(s)
+	engine.Register(bedrock)
+
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "bedrock-alias"})
+	if !errors.Is(err, ErrProviderInferenceUnavailable) {
+		t.Fatalf("Dispatch error = %v, want ErrProviderInferenceUnavailable", err)
+	}
+	if bedrock.called {
+		t.Fatal("bedrock provider should not be called through an alias")
+	}
+}
+
 func TestDispatchUsesComboModelThroughEngine(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "groq", "groq-key")

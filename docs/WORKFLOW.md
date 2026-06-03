@@ -30,8 +30,8 @@
 ```yaml
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
-current_wave: "7.G"
-last_updated: "2026-06-03T04:06:47Z"
+current_wave: "7.F"
+last_updated: "2026-06-03T04:19:16Z"
 last_agent: "orchestrator"
 ```
 
@@ -1259,7 +1259,7 @@ tasks:
 
 ```yaml
 wave: "7.F"
-status: DONE
+status: IN_PROGRESS
 max_agents: 3
 depends_on: ["7.E"]
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
@@ -1311,6 +1311,22 @@ tasks:
     completed_at: "2026-06-03T04:06:47Z"
     files_owned:
       - docs/evaluations/wave-7F-evaluator-prompt.md
+      - docs/WORKFLOW.md
+  - id: "7.F.5"
+    name: "Wave 7.F evaluator remediation"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7f-eval-remediation"
+    completed_at: "2026-06-03T04:19:16Z"
+    files_owned:
+      - api/handlers/inference.go
+      - api/handlers/inference_test.go
+      - internal/proxy/errors.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/proxy/combo_test.go
+      - docs/PROVIDERS.md
+      - docs/evaluations/wave-7F-remediation-evaluator-prompt.md
       - docs/WORKFLOW.md
 ```
 

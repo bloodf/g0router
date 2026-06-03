@@ -175,6 +175,39 @@ func TestComboDispatchResolvesAliasStepAndRewritesModel(t *testing.T) {
 	}
 }
 
+func TestComboDispatchBlocksProviderWithoutInferenceBeforeFallback(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "bedrock", "bedrock-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "bedrock-then-openai",
+		Steps: []store.ComboStep{
+			{Provider: "bedrock", Model: "anthropic.claude-3-haiku-20240307-v1:0"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	bedrock := &fakeProvider{name: providers.ProviderBedrock, response: &providers.ChatResponse{ID: "bedrock-should-not-run"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-openai"}}
+	engine := NewEngine(s)
+	engine.Register(bedrock)
+	engine.Register(openAI)
+
+	resp, err := NewComboResolver(s).Dispatch(context.Background(), engine, "bedrock-then-openai", &providers.ChatRequest{Model: "combo/bedrock-then-openai"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if bedrock.called {
+		t.Fatal("bedrock provider should not be called through a combo step")
+	}
+	if !openAI.called || resp.ID != "chatcmpl-openai" {
+		t.Fatalf("openai fallback called=%v resp=%+v", openAI.called, resp)
+	}
+}
+
 func TestComboDispatchRetriesNextAccountBeforeNextStep(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "groq", "groq-key-1")

@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	ErrProviderNotFound = errors.New("provider not found")
-	ErrNoConnections    = errors.New("no active connections")
-	ErrQuotaExhausted   = errors.New("quota exhausted")
+	ErrProviderNotFound             = errors.New("provider not found")
+	ErrProviderInferenceUnavailable = errors.New("provider inference unavailable")
+	ErrNoConnections                = errors.New("no active connections")
+	ErrQuotaExhausted               = errors.New("quota exhausted")
 )
 
 const defaultRefreshWindow = 5 * time.Minute
@@ -260,21 +261,21 @@ func (e *Engine) providerForRoute(ctx context.Context, route modelRoute) (provid
 func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
 	alias, err := e.store.ResolveModelAlias(model)
 	if err == nil {
-		return modelRoute{
+		return routableModelRoute(modelRoute{
 			Provider: providers.ModelProvider(providercore.CanonicalProviderID(alias.Provider)),
 			Model:    alias.Model,
-		}, nil
+		})
 	}
 	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		return modelRoute{}, fmt.Errorf("resolve model alias: %w", err)
 	}
 
 	if provider, ok := modelcatalog.NewCatalog().ProviderForModel(model); ok {
-		return modelRoute{Provider: provider, Model: model}, nil
+		return routableModelRoute(modelRoute{Provider: provider, Model: model})
 	}
 
 	if provider, ok := resolveProvider(model); ok {
-		return modelRoute{Provider: provider, Model: model}, nil
+		return routableModelRoute(modelRoute{Provider: provider, Model: model})
 	}
 
 	return modelRoute{}, ErrProviderNotFound
@@ -288,7 +289,15 @@ func (e *Engine) resolveComboStepRoute(step ComboStep) (modelRoute, error) {
 	if err != nil && !errors.Is(err, ErrProviderNotFound) {
 		return modelRoute{}, err
 	}
-	return modelRoute{Provider: step.Provider, Model: step.Model}, nil
+	return routableModelRoute(modelRoute{Provider: step.Provider, Model: step.Model})
+}
+
+func routableModelRoute(route modelRoute) (modelRoute, error) {
+	entry, ok := providercore.ProviderMatrix().Provider(route.Provider.String())
+	if ok && !entry.Inference {
+		return modelRoute{}, fmt.Errorf("%w: %s", ErrProviderInferenceUnavailable, route.Provider)
+	}
+	return route, nil
 }
 
 func requestWithModel(req *providers.ChatRequest, model string) *providers.ChatRequest {

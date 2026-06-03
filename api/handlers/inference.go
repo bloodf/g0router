@@ -3,7 +3,6 @@ package handlers
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -135,16 +134,8 @@ func Responses(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 }
 
 func writeDispatchError(ctx *fasthttp.RequestCtx, err error) {
-	switch {
-	case errors.Is(err, proxy.ErrProviderNotFound):
-		writeOpenAIError(ctx, fasthttp.StatusNotFound, "provider not found", "invalid_request_error", "provider_not_found")
-	case errors.Is(err, proxy.ErrNoConnections):
-		writeOpenAIError(ctx, fasthttp.StatusServiceUnavailable, "no active provider connections", "server_error", "no_active_connections")
-	case errors.Is(err, proxy.ErrQuotaExhausted):
-		writeOpenAIError(ctx, fasthttp.StatusTooManyRequests, "quota exhausted", "rate_limit_error", "quota_exhausted")
-	default:
-		writeOpenAIError(ctx, fasthttp.StatusBadGateway, "upstream provider error", "server_error", "upstream_error")
-	}
+	classification := proxy.ClassifyDispatchError(err)
+	writeOpenAIError(ctx, classification.StatusCode, classification.Message, classification.Type, classification.Code)
 }
 
 type anthropicMessageContent struct {

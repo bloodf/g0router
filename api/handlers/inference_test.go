@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/openai"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/valyala/fasthttp"
 )
@@ -215,6 +217,38 @@ func TestStreamInferenceDispatchErrorIsSanitizedOpenAIError(t *testing.T) {
 	}
 	if engine.streamReceived == nil || engine.streamReceived.Stream == nil || !*engine.streamReceived.Stream {
 		t.Fatalf("stream request = %+v", engine.streamReceived)
+	}
+}
+
+func TestInferenceClassifiedUpstreamAuthErrorKeepsStatusAndIsSanitized(t *testing.T) {
+	engine := &fakeEngine{err: fmt.Errorf("chat completion: %w: Authorization: Bearer sk-live-secret", openai.ErrAuth)}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401; body=%s", resp.StatusCode, body)
+	}
+	assertOpenAIError(t, body, "upstream provider authentication failed", "invalid_request_error", "upstream_auth_error")
+	if strings.Contains(string(body), "sk-live-secret") || strings.Contains(string(body), "Authorization") {
+		t.Fatalf("response leaked upstream auth detail: %s", body)
+	}
+}
+
+func TestStreamInferenceClassifiedUpstreamRateLimitKeepsStatusAndIsSanitized(t *testing.T) {
+	engine := &fakeEngine{streamErr: fmt.Errorf("chat completion stream: %w", &openai.RateLimitError{Message: "retry later with api_key=sk-live-secret"})}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}],"stream":true}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429; body=%s", resp.StatusCode, body)
+	}
+	assertOpenAIError(t, body, "upstream provider rate limit", "rate_limit_error", "upstream_rate_limit")
+	if strings.Contains(string(body), "sk-live-secret") || strings.Contains(string(body), "retry later") {
+		t.Fatalf("response leaked upstream rate-limit detail: %s", body)
 	}
 }
 
