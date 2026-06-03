@@ -56,6 +56,9 @@ func (r *ComboResolver) Dispatch(ctx context.Context, engine *Engine, name strin
 		if err == nil {
 			return resp, nil
 		}
+		if errors.Is(err, ErrQuotaExhausted) {
+			return nil, err
+		}
 		lastErr = err
 	}
 
@@ -76,6 +79,9 @@ func (r *ComboResolver) DispatchStream(ctx context.Context, engine *Engine, name
 		stream, err := dispatchComboStreamStep(ctx, engine, step, req)
 		if err == nil {
 			return stream, nil
+		}
+		if errors.Is(err, ErrQuotaExhausted) {
+			return nil, err
 		}
 		lastErr = err
 	}

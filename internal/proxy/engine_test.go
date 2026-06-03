@@ -550,7 +550,7 @@ func TestDispatchQuotaErrorsFailOpen(t *testing.T) {
 	}
 }
 
-func TestDispatchExplicitQuotaErrorSkipsConnectionAndBacksItOff(t *testing.T) {
+func TestDispatchExplicitQuotaErrorStopsBeforeProviderAndFallback(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "openai", "openai-key-1")
 	createProxyConnection(t, s, "openai", "openai-key-2")
@@ -568,35 +568,26 @@ func TestDispatchExplicitQuotaErrorSkipsConnectionAndBacksItOff(t *testing.T) {
 	engine.Register(openAI)
 	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
 
-	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
-	if err != nil {
-		t.Fatalf("Dispatch: %v", err)
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("Dispatch error = %v, want ErrQuotaExhausted", err)
 	}
-	if resp.ID != "chatcmpl-second-account" {
-		t.Fatalf("response ID = %q, want chatcmpl-second-account", resp.ID)
+	if openAI.calls != 0 {
+		t.Fatalf("provider calls = %d, want 0", openAI.calls)
 	}
-	if openAI.calls != 1 {
-		t.Fatalf("provider calls = %d, want 1", openAI.calls)
-	}
-	if len(quota.keys) != 2 || quota.keys[0].Value == quota.keys[1].Value {
-		t.Fatalf("quota keys = %+v; want two different accounts", quota.keys)
-	}
-	if openAI.receivedKey.Value != quota.keys[1].Value {
-		t.Fatalf("provider key = %q, want quota-approved key %q", openAI.receivedKey.Value, quota.keys[1].Value)
+	if len(quota.keys) != 1 {
+		t.Fatalf("quota keys = %+v; want only one selected account", quota.keys)
 	}
 	firstConn, err := s.GetConnection(quota.keys[0].ConnID)
 	if err != nil {
 		t.Fatalf("GetConnection first: %v", err)
 	}
-	if firstConn.BackoffLevel != 1 {
-		t.Fatalf("backoff level = %d, want 1", firstConn.BackoffLevel)
-	}
-	if firstConn.ModelLocks["gpt-4o"] != now.Add(time.Second).Unix() {
-		t.Fatalf("model locks = %+v", firstConn.ModelLocks)
+	if firstConn.BackoffLevel != 0 || len(firstConn.ModelLocks) != 0 {
+		t.Fatalf("quota exhaustion should not create fallback backoff: level=%d locks=%+v", firstConn.BackoffLevel, firstConn.ModelLocks)
 	}
 }
 
-func TestDispatchSkipsQuotaExhaustedConnectionAndBacksItOff(t *testing.T) {
+func TestDispatchQuotaExhaustedConnectionStopsBeforeProviderAndFallback(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "openai", "openai-key-1")
 	createProxyConnection(t, s, "openai", "openai-key-2")
@@ -611,31 +602,22 @@ func TestDispatchSkipsQuotaExhaustedConnectionAndBacksItOff(t *testing.T) {
 	engine.Register(openAI)
 	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
 
-	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
-	if err != nil {
-		t.Fatalf("Dispatch: %v", err)
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("Dispatch error = %v, want ErrQuotaExhausted", err)
 	}
-	if resp.ID != "chatcmpl-second-account" {
-		t.Fatalf("response ID = %q, want chatcmpl-second-account", resp.ID)
+	if openAI.calls != 0 {
+		t.Fatalf("provider calls = %d, want 0", openAI.calls)
 	}
-	if openAI.calls != 1 {
-		t.Fatalf("provider calls = %d, want 1", openAI.calls)
-	}
-	if len(quota.keys) != 2 || quota.keys[0].Value == quota.keys[1].Value {
-		t.Fatalf("quota keys = %+v; want two different accounts", quota.keys)
-	}
-	if openAI.receivedKey.Value != quota.keys[1].Value {
-		t.Fatalf("provider key = %q, want quota-approved key %q", openAI.receivedKey.Value, quota.keys[1].Value)
+	if len(quota.keys) != 1 {
+		t.Fatalf("quota keys = %+v; want only one selected account", quota.keys)
 	}
 	firstConn, err := s.GetConnection(quota.keys[0].ConnID)
 	if err != nil {
 		t.Fatalf("GetConnection first: %v", err)
 	}
-	if firstConn.BackoffLevel != 1 {
-		t.Fatalf("backoff level = %d, want 1", firstConn.BackoffLevel)
-	}
-	if firstConn.ModelLocks["gpt-4o"] != now.Add(time.Second).Unix() {
-		t.Fatalf("model locks = %+v", firstConn.ModelLocks)
+	if firstConn.BackoffLevel != 0 || len(firstConn.ModelLocks) != 0 {
+		t.Fatalf("quota exhaustion should not create fallback backoff: level=%d locks=%+v", firstConn.BackoffLevel, firstConn.ModelLocks)
 	}
 }
 
@@ -659,8 +641,8 @@ func TestDispatchAllQuotaExhaustedConnectionsReturnQuotaError(t *testing.T) {
 	if openAI.called {
 		t.Fatal("provider should not be called when all connections are quota exhausted")
 	}
-	if quota.calls != 2 {
-		t.Fatalf("quota calls = %d, want 2", quota.calls)
+	if quota.calls != 1 {
+		t.Fatalf("quota calls = %d, want 1", quota.calls)
 	}
 }
 

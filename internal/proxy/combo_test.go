@@ -429,7 +429,7 @@ func TestComboDispatchQuotaUsesStepProviderConnection(t *testing.T) {
 	}
 }
 
-func TestComboDispatchSkipsQuotaExhaustedAccountBeforeNextStep(t *testing.T) {
+func TestComboDispatchQuotaExhaustedAccountStopsBeforeNextStep(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "groq", "groq-key-1")
 	createProxyConnection(t, s, "groq", "groq-key-2")
@@ -456,29 +456,23 @@ func TestComboDispatchSkipsQuotaExhaustedAccountBeforeNextStep(t *testing.T) {
 	engine.Register(openAI)
 	engine.RegisterQuotaFetcher(providers.ProviderGroq, quota)
 
-	resp, err := NewComboResolver(s).Dispatch(
+	_, err := NewComboResolver(s).Dispatch(
 		context.Background(),
 		engine,
 		"quota-account-fallback",
 		&providers.ChatRequest{Model: "combo/quota-account-fallback"},
 	)
-	if err != nil {
-		t.Fatalf("Dispatch: %v", err)
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("Dispatch error = %v, want ErrQuotaExhausted", err)
 	}
-	if resp.ID != "chatcmpl-groq-second-account" {
-		t.Fatalf("response ID = %q, want second Groq account", resp.ID)
+	if groq.calls != 0 {
+		t.Fatalf("groq calls = %d, want 0", groq.calls)
 	}
-	if groq.calls != 1 {
-		t.Fatalf("groq calls = %d, want 1", groq.calls)
-	}
-	if len(quota.keys) != 2 || quota.keys[0].Value == quota.keys[1].Value {
-		t.Fatalf("quota keys = %+v; want two different Groq accounts", quota.keys)
-	}
-	if groq.receivedKey.Value != quota.keys[1].Value {
-		t.Fatalf("groq key = %q, want quota-approved key %q", groq.receivedKey.Value, quota.keys[1].Value)
+	if len(quota.keys) != 1 {
+		t.Fatalf("quota keys = %+v; want only one selected Groq account", quota.keys)
 	}
 	if openAI.called {
-		t.Fatal("second combo step should not run before retrying next Groq account")
+		t.Fatal("second combo step should not run after quota exhaustion")
 	}
 }
 
@@ -603,7 +597,7 @@ func TestComboDispatchStreamQuotaExhaustionBlocksProviderCall(t *testing.T) {
 	}
 }
 
-func TestComboDispatchStreamSkipsQuotaExhaustedStep(t *testing.T) {
+func TestComboDispatchStreamQuotaExhaustedStepStopsBeforeFallback(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "groq", "groq-key")
 	createProxyConnection(t, s, "openai", "openai-key")
@@ -631,30 +625,20 @@ func TestComboDispatchStreamSkipsQuotaExhaustedStep(t *testing.T) {
 	engine.RegisterQuotaFetcher(providers.ProviderGroq, &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderGroq, Remaining: 0}})
 	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderOpenAI, Remaining: 8}})
 
-	stream, err := NewComboResolver(s).DispatchStream(
+	_, err := NewComboResolver(s).DispatchStream(
 		context.Background(),
 		engine,
 		"quota-stream-fallback",
 		&providers.ChatRequest{Model: "combo/quota-stream-fallback"},
 	)
-	if err != nil {
-		t.Fatalf("DispatchStream: %v", err)
-	}
-	got, ok := <-stream
-	if !ok {
-		t.Fatal("stream closed before first chunk")
-	}
-	if got.ID != "chunk-openai" {
-		t.Fatalf("chunk ID = %q, want chunk-openai", got.ID)
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("DispatchStream error = %v, want ErrQuotaExhausted", err)
 	}
 	if groq.streamed {
 		t.Fatal("quota-exhausted combo stream step should not open provider stream")
 	}
-	if !openAI.streamed {
-		t.Fatal("fallback combo stream step should open provider stream")
-	}
-	if openAI.receivedKey.Value != "openai-key" {
-		t.Fatalf("openai key = %q, want openai-key", openAI.receivedKey.Value)
+	if openAI.streamed {
+		t.Fatal("fallback combo stream step should not open after quota exhaustion")
 	}
 }
 
