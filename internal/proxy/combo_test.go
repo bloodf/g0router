@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -93,6 +95,66 @@ func TestComboDispatchFallsBackSequentially(t *testing.T) {
 	}
 	if openAI.receivedKey.Value != "openai-key" {
 		t.Fatalf("openai key = %q, want openai-key", openAI.receivedKey.Value)
+	}
+}
+
+func TestComboDispatchRefreshesOAuthConnectionBeforeProviderCall(t *testing.T) {
+	s := openProxyTestStore(t)
+	now := time.Unix(1700000000, 0)
+	oldExpires := now.Add(time.Minute).Unix()
+	token := "old-access"
+	refresh := "old-refresh"
+	if err := s.CreateConnection(&store.Connection{
+		Provider:     "openai",
+		Name:         "oauth",
+		AuthType:     store.AuthTypeOAuth,
+		AccessToken:  &token,
+		RefreshToken: &refresh,
+		ExpiresAt:    &oldExpires,
+		IsActive:     true,
+		ProviderSpecificData: map[string]any{
+			"oauth_provider": "codex",
+		},
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	if err := s.CreateCombo(&store.Combo{
+		Name: "openai-only",
+		Steps: []store.ComboStep{
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-combo"}}
+	refresher := &fakeOAuthRefresher{token: oauth.TokenResult{
+		Provider:     oauth.ProviderID("codex"),
+		AccessToken:  "new-access",
+		RefreshToken: "new-refresh",
+		TokenType:    "bearer",
+		ExpiresAt:    now.Add(time.Hour),
+	}}
+	engine := NewEngine(s)
+	engine.now = func() time.Time { return now }
+	engine.Register(openAI)
+	engine.RegisterOAuthRefresher(oauth.ProviderID("codex"), refresher)
+
+	_, err := NewComboResolver(s).Dispatch(
+		context.Background(),
+		engine,
+		"openai-only",
+		&providers.ChatRequest{Model: "combo/openai-only"},
+	)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if refresher.calls != 1 {
+		t.Fatalf("refresh calls = %d, want 1", refresher.calls)
+	}
+	if openAI.receivedKey.Value != "new-access" {
+		t.Fatalf("combo key = %q, want refreshed access token", openAI.receivedKey.Value)
 	}
 }
 

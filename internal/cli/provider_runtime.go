@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/anthropic"
 	"github.com/bloodf/g0router/internal/providers/azure"
@@ -19,6 +20,7 @@ import (
 
 func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
 	engine := proxy.NewEngine(s)
+	registerOAuthRefreshers(engine)
 	engine.Register(openai.New(""))
 	engine.Register(anthropic.New(""))
 	engine.Register(gemini.New(""))
@@ -39,6 +41,17 @@ func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
 		return replicate.NewDefault()
 	})
 	return engine
+}
+
+func registerOAuthRefreshers(engine *proxy.Engine) {
+	for _, factory := range oauthFlowFactories() {
+		flow := factory()
+		refresher, ok := flow.(oauth.RefreshableFlow)
+		if !ok {
+			continue
+		}
+		engine.RegisterOAuthRefresher(flow.ProviderID(), refresher)
+	}
 }
 
 func registerOpenAICompatible(engine *proxy.Engine) {

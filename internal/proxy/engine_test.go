@@ -5,7 +5,9 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -42,6 +44,22 @@ func (f *fakeProvider) ChatCompletionStream(ctx context.Context, key providers.K
 
 func (f *fakeProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
 	return f.models, f.err
+}
+
+type fakeOAuthRefresher struct {
+	token                oauth.TokenResult
+	err                  error
+	calls                int
+	receivedRefreshToken string
+}
+
+func (f *fakeOAuthRefresher) Refresh(ctx context.Context, refreshToken string) (oauth.TokenResult, error) {
+	f.calls++
+	f.receivedRefreshToken = refreshToken
+	if f.err != nil {
+		return oauth.TokenResult{}, f.err
+	}
+	return f.token, nil
 }
 
 func TestDispatchRoutesToCorrectProvider(t *testing.T) {
@@ -107,6 +125,159 @@ func TestDispatchRoutesToCorrectProvider(t *testing.T) {
 	}
 	if openAI.receivedKey.AuthType != string(store.AuthTypeAPIKey) {
 		t.Fatalf("auth type = %q, want api_key", openAI.receivedKey.AuthType)
+	}
+}
+
+func TestDispatchRefreshesOAuthConnectionBeforeProviderCall(t *testing.T) {
+	s := openProxyTestStore(t)
+	now := time.Unix(1700000000, 0)
+	oldExpires := now.Add(time.Minute).Unix()
+	token := "old-access"
+	refresh := "old-refresh"
+	if err := s.CreateConnection(&store.Connection{
+		Provider:     "openai",
+		Name:         "oauth",
+		AuthType:     store.AuthTypeOAuth,
+		AccessToken:  &token,
+		RefreshToken: &refresh,
+		ExpiresAt:    &oldExpires,
+		IsActive:     true,
+		ProviderSpecificData: map[string]any{
+			"oauth_provider": "codex",
+		},
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-1"}}
+	refresher := &fakeOAuthRefresher{token: oauth.TokenResult{
+		Provider:     oauth.ProviderID("codex"),
+		AccessToken:  "new-access",
+		RefreshToken: "new-refresh",
+		TokenType:    "bearer",
+		ExpiresAt:    now.Add(time.Hour),
+	}}
+	engine := NewEngine(s)
+	engine.now = func() time.Time { return now }
+	engine.Register(openAI)
+	engine.RegisterOAuthRefresher(oauth.ProviderID("codex"), refresher)
+
+	if _, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"}); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+
+	if refresher.calls != 1 {
+		t.Fatalf("refresh calls = %d, want 1", refresher.calls)
+	}
+	if refresher.receivedRefreshToken != "old-refresh" {
+		t.Fatalf("refresh token = %q, want old-refresh", refresher.receivedRefreshToken)
+	}
+	if openAI.receivedKey.Value != "new-access" {
+		t.Fatalf("provider key = %q, want refreshed access token", openAI.receivedKey.Value)
+	}
+
+	connections, err := s.GetActiveConnections("openai")
+	if err != nil {
+		t.Fatalf("GetActiveConnections: %v", err)
+	}
+	if len(connections) != 1 {
+		t.Fatalf("connections = %d, want 1", len(connections))
+	}
+	if connections[0].AccessToken == nil || *connections[0].AccessToken != "new-access" {
+		t.Fatalf("stored access token = %v, want new-access", connections[0].AccessToken)
+	}
+	if connections[0].RefreshToken == nil || *connections[0].RefreshToken != "new-refresh" {
+		t.Fatalf("stored refresh token = %v, want new-refresh", connections[0].RefreshToken)
+	}
+	wantExpires := now.Add(time.Hour).Unix()
+	if connections[0].ExpiresAt == nil || *connections[0].ExpiresAt != wantExpires {
+		t.Fatalf("stored expires at = %v, want %d", connections[0].ExpiresAt, wantExpires)
+	}
+}
+
+func TestDispatchStreamRefreshesOAuthConnectionBeforeProviderCall(t *testing.T) {
+	s := openProxyTestStore(t)
+	now := time.Unix(1700000000, 0)
+	oldExpires := now.Add(time.Minute).Unix()
+	token := "old-access"
+	refresh := "old-refresh"
+	if err := s.CreateConnection(&store.Connection{
+		Provider:     "anthropic",
+		Name:         "oauth",
+		AuthType:     store.AuthTypeOAuth,
+		AccessToken:  &token,
+		RefreshToken: &refresh,
+		ExpiresAt:    &oldExpires,
+		IsActive:     true,
+		ProviderSpecificData: map[string]any{
+			"oauth_provider": "anthropic",
+		},
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	chunks := make(chan providers.StreamChunk)
+	close(chunks)
+	anthropic := &fakeProvider{name: providers.ProviderAnthropic, stream: chunks}
+	refresher := &fakeOAuthRefresher{token: oauth.TokenResult{
+		Provider:     oauth.ProviderID("anthropic"),
+		AccessToken:  "new-access",
+		RefreshToken: "new-refresh",
+		TokenType:    "bearer",
+		ExpiresAt:    now.Add(time.Hour),
+	}}
+	engine := NewEngine(s)
+	engine.now = func() time.Time { return now }
+	engine.Register(anthropic)
+	engine.RegisterOAuthRefresher(oauth.ProviderID("anthropic"), refresher)
+
+	if _, err := engine.DispatchStream(context.Background(), &providers.ChatRequest{Model: "claude-3-5-sonnet"}); err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	if refresher.calls != 1 {
+		t.Fatalf("refresh calls = %d, want 1", refresher.calls)
+	}
+	if anthropic.receivedKey.Value != "new-access" {
+		t.Fatalf("stream key = %q, want refreshed access token", anthropic.receivedKey.Value)
+	}
+}
+
+func TestDispatchDoesNotRefreshFreshOAuthConnection(t *testing.T) {
+	s := openProxyTestStore(t)
+	now := time.Unix(1700000000, 0)
+	expires := now.Add(time.Hour).Unix()
+	token := "current-access"
+	refresh := "current-refresh"
+	if err := s.CreateConnection(&store.Connection{
+		Provider:     "openai",
+		Name:         "oauth",
+		AuthType:     store.AuthTypeOAuth,
+		AccessToken:  &token,
+		RefreshToken: &refresh,
+		ExpiresAt:    &expires,
+		IsActive:     true,
+		ProviderSpecificData: map[string]any{
+			"oauth_provider": "codex",
+		},
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-1"}}
+	refresher := &fakeOAuthRefresher{token: oauth.TokenResult{Provider: oauth.ProviderID("codex"), AccessToken: "new-access"}}
+	engine := NewEngine(s)
+	engine.now = func() time.Time { return now }
+	engine.Register(openAI)
+	engine.RegisterOAuthRefresher(oauth.ProviderID("codex"), refresher)
+
+	if _, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"}); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if refresher.calls != 0 {
+		t.Fatalf("refresh calls = %d, want 0", refresher.calls)
+	}
+	if openAI.receivedKey.Value != "current-access" {
+		t.Fatalf("provider key = %q, want current access token", openAI.receivedKey.Value)
 	}
 }
 

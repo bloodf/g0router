@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/bloodf/g0router/internal/modelcatalog"
+	providerrefresh "github.com/bloodf/g0router/internal/provider"
+	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -17,15 +20,29 @@ var (
 	ErrNoConnections    = errors.New("no active connections")
 )
 
+const defaultRefreshWindow = 5 * time.Minute
+
+type oauthRefresher interface {
+	Refresh(ctx context.Context, refreshToken string) (oauth.TokenResult, error)
+}
+
 type Engine struct {
-	store *store.Store
-	pool  providerPool
+	store          *store.Store
+	pool           providerPool
+	refreshers     map[oauth.ProviderID]oauthRefresher
+	refreshManager *providerrefresh.RefreshManager
+	refreshWindow  time.Duration
+	now            func() time.Time
 }
 
 func NewEngine(s *store.Store) *Engine {
 	return &Engine{
-		store: s,
-		pool:  newProviderPool(),
+		store:          s,
+		pool:           newProviderPool(),
+		refreshers:     make(map[oauth.ProviderID]oauthRefresher),
+		refreshManager: providerrefresh.NewRefreshManager(),
+		refreshWindow:  defaultRefreshWindow,
+		now:            time.Now,
 	}
 }
 
@@ -33,12 +50,16 @@ func (e *Engine) Register(provider providers.Provider) {
 	e.pool.register(provider)
 }
 
+func (e *Engine) RegisterOAuthRefresher(provider oauth.ProviderID, refresher oauthRefresher) {
+	e.refreshers[provider] = refresher
+}
+
 func (e *Engine) RegisteredProviders() []providers.ModelProvider {
 	return e.pool.names()
 }
 
 func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
-	provider, key, err := e.providerFor(req.Model)
+	provider, key, err := e.providerFor(ctx, req.Model)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +72,7 @@ func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*pro
 }
 
 func (e *Engine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	provider, key, err := e.providerFor(req.Model)
+	provider, key, err := e.providerFor(ctx, req.Model)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +102,7 @@ func (e *Engine) providerModels(ctx context.Context, providerName providers.Mode
 		return nil, ErrProviderNotFound
 	}
 
-	key, err := e.keyFor(providerName)
+	key, err := e.keyFor(ctx, providerName)
 	if errors.Is(err, ErrNoConnections) {
 		return catalogModels(providerName), nil
 	}
@@ -116,7 +137,7 @@ func catalogModels(providerName providers.ModelProvider) []providers.Model {
 	return models
 }
 
-func (e *Engine) providerFor(model string) (providers.Provider, providers.Key, error) {
+func (e *Engine) providerFor(ctx context.Context, model string) (providers.Provider, providers.Key, error) {
 	providerName, ok := resolveProvider(model)
 	if !ok {
 		return nil, providers.Key{}, ErrProviderNotFound
@@ -127,14 +148,14 @@ func (e *Engine) providerFor(model string) (providers.Provider, providers.Key, e
 		return nil, providers.Key{}, ErrProviderNotFound
 	}
 
-	key, err := e.keyFor(providerName)
+	key, err := e.keyFor(ctx, providerName)
 	if err != nil {
 		return nil, providers.Key{}, err
 	}
 	return provider, key, nil
 }
 
-func (e *Engine) keyFor(provider providers.ModelProvider) (providers.Key, error) {
+func (e *Engine) keyFor(ctx context.Context, provider providers.ModelProvider) (providers.Key, error) {
 	conns, err := e.store.GetActiveConnections(provider.String())
 	if err != nil {
 		return providers.Key{}, fmt.Errorf("get active connections: %w", err)
@@ -144,6 +165,11 @@ func (e *Engine) keyFor(provider providers.ModelProvider) (providers.Key, error)
 	}
 
 	conn := conns[0]
+	conn, err = e.refreshConnectionIfNeeded(ctx, provider, conn)
+	if err != nil {
+		return providers.Key{}, err
+	}
+
 	key := providers.Key{
 		Provider: provider,
 		ConnID:   conn.ID,
@@ -156,6 +182,76 @@ func (e *Engine) keyFor(provider providers.ModelProvider) (providers.Key, error)
 	}
 
 	return key, nil
+}
+
+func (e *Engine) refreshConnectionIfNeeded(ctx context.Context, provider providers.ModelProvider, conn *store.Connection) (*store.Connection, error) {
+	if !e.connectionNeedsRefresh(conn) {
+		return conn, nil
+	}
+	oauthProvider := e.oauthProviderForConnection(provider, conn)
+	refresher, ok := e.refreshers[oauthProvider]
+	if !ok {
+		return conn, nil
+	}
+
+	token, err := e.refreshManager.Refresh(ctx, conn, func(ctx context.Context, conn *store.Connection) (oauth.TokenResult, error) {
+		return refresher.Refresh(ctx, *conn.RefreshToken)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("refresh oauth credentials: %w", err)
+	}
+	if token.AccessToken == "" {
+		return nil, errors.New("refresh oauth credentials: access token is required")
+	}
+
+	accessToken := token.AccessToken
+	refreshToken := conn.RefreshToken
+	if token.RefreshToken != "" {
+		newRefreshToken := token.RefreshToken
+		refreshToken = &newRefreshToken
+	}
+	expiresAt := conn.ExpiresAt
+	if !token.ExpiresAt.IsZero() {
+		newExpiresAt := token.ExpiresAt.Unix()
+		expiresAt = &newExpiresAt
+	}
+
+	if err := e.store.UpdateConnectionCredentials(conn.ID, &accessToken, refreshToken, expiresAt); err != nil {
+		return nil, fmt.Errorf("update refreshed credentials: %w", err)
+	}
+
+	updated := *conn
+	updated.AccessToken = &accessToken
+	updated.RefreshToken = refreshToken
+	updated.ExpiresAt = expiresAt
+	return &updated, nil
+}
+
+func (e *Engine) oauthProviderForConnection(runtimeProvider providers.ModelProvider, conn *store.Connection) oauth.ProviderID {
+	if conn.ProviderSpecificData != nil {
+		if value, ok := conn.ProviderSpecificData["oauth_provider"].(string); ok {
+			if value = strings.TrimSpace(value); value != "" {
+				return oauth.ProviderID(value)
+			}
+		}
+	}
+	if runtimeProvider == providers.ProviderOpenAI {
+		return oauth.ProviderID("codex")
+	}
+	return oauth.ProviderID(runtimeProvider.String())
+}
+
+func (e *Engine) connectionNeedsRefresh(conn *store.Connection) bool {
+	if conn.AuthType != store.AuthTypeOAuth {
+		return false
+	}
+	if conn.RefreshToken == nil || *conn.RefreshToken == "" {
+		return false
+	}
+	if conn.ExpiresAt == nil {
+		return false
+	}
+	return time.Unix(*conn.ExpiresAt, 0).Before(e.now().Add(e.refreshWindow))
 }
 
 func resolveProvider(model string) (providers.ModelProvider, bool) {

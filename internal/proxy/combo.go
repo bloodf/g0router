@@ -67,7 +67,7 @@ func dispatchComboStep(ctx context.Context, engine *Engine, step ComboStep, req 
 		return nil, fmt.Errorf("combo step provider %s: %w", step.Provider, ErrProviderNotFound)
 	}
 
-	key, err := engine.keyFor(step.Provider)
+	key, err := engine.keyFor(ctx, step.Provider)
 	if err != nil {
 		return nil, fmt.Errorf("combo step key %s: %w", step.Provider, err)
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -173,6 +174,63 @@ func TestCodexFlowPollComplete(t *testing.T) {
 	}
 	if strings.Join(result.Token.Scopes, " ") != "openid profile offline_access" {
 		t.Errorf("scopes = %+v", result.Token.Scopes)
+	}
+}
+
+func TestCodexFlowRefreshPostsRefreshTokenGrant(t *testing.T) {
+	var gotForm url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse form: %v", err)
+		}
+		gotForm = r.PostForm
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "new-access",
+			"refresh_token": "new-refresh",
+			"token_type":    "Bearer",
+			"expires_in":    3600,
+			"scope":         "openid profile offline_access",
+		})
+	}))
+	defer server.Close()
+
+	flow := NewCodexFlow(CodexFlowConfig{
+		ClientID:   "client-123",
+		TokenURL:   server.URL,
+		HTTPClient: server.Client(),
+	})
+
+	before := time.Now()
+	token, err := flow.Refresh(context.Background(), "old-refresh")
+	if err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	if got := gotForm.Get("grant_type"); got != "refresh_token" {
+		t.Errorf("grant_type = %q, want refresh_token", got)
+	}
+	if got := gotForm.Get("client_id"); got != "client-123" {
+		t.Errorf("client_id = %q, want client-123", got)
+	}
+	if got := gotForm.Get("refresh_token"); got != "old-refresh" {
+		t.Errorf("refresh_token = %q, want old-refresh", got)
+	}
+	if token.Provider != ProviderID("codex") {
+		t.Errorf("provider = %q, want codex", token.Provider)
+	}
+	if token.AccessToken != "new-access" || token.RefreshToken != "new-refresh" {
+		t.Fatalf("token = %+v, want refreshed credentials", token)
+	}
+	if !token.ExpiresAt.After(before) {
+		t.Fatalf("expires at = %v, want after %v", token.ExpiresAt, before)
+	}
+	if strings.Join(token.Scopes, " ") != "openid profile offline_access" {
+		t.Fatalf("scopes = %+v", token.Scopes)
 	}
 }
 

@@ -73,3 +73,8 @@ type Flow interface {
 	Exchange(ctx context.Context, session AuthSession, code string) (TokenResult, error)
 	Poll(ctx context.Context, session AuthSession) (PollResult, error)
 }
+
+type RefreshableFlow interface {
+	Flow
+	Refresh(ctx context.Context, refreshToken string) (TokenResult, error)
+}

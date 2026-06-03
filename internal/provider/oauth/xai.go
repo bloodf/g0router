@@ -80,6 +80,10 @@ func (f *XAIFlow) Exchange(ctx context.Context, session AuthSession, code string
 	return f.oauth.exchange(ctx, session, code)
 }
 
+func (f *XAIFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return f.oauth.refresh(ctx, refreshToken)
+}
+
 func (f *XAIFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, errors.New("xai oauth does not support poll")
 }
@@ -221,6 +225,10 @@ func (f *callbackOAuthFlow) exchange(ctx context.Context, session AuthSession, c
 	}
 
 	return result, nil
+}
+
+func (f *callbackOAuthFlow) refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return refreshTokenGrant(ctx, f.client, f.tokenURL, f.clientID, f.provider, refreshToken)
 }
 
 func parseCallbackSessionID(sessionID string) (string, string, error) {

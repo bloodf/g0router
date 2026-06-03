@@ -95,6 +95,10 @@ func (f *KimiFlow) Exchange(ctx context.Context, session AuthSession, code strin
 	return TokenResult{}, errors.New("kimi oauth does not support callback exchange")
 }
 
+func (f *KimiFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return refreshTokenGrant(ctx, f.client, f.tokenURL, f.clientID, kimiProviderID, refreshToken)
+}
+
 func (f *KimiFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	var response tokenResponse
 	err := f.postForm(ctx, f.tokenURL, url.Values{

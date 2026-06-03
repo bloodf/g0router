@@ -74,6 +74,10 @@ func (f *KiroFlow) Exchange(ctx context.Context, session AuthSession, code strin
 	return f.oauth.exchange(ctx, session, code)
 }
 
+func (f *KiroFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return f.oauth.refresh(ctx, refreshToken)
+}
+
 func (f *KiroFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, errors.New("kiro oauth does not support poll")
 }

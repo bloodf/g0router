@@ -105,6 +105,10 @@ func (f *GitHubCopilotFlow) Exchange(ctx context.Context, session AuthSession, c
 	return TokenResult{}, errors.New("github copilot oauth does not support callback exchange")
 }
 
+func (f *GitHubCopilotFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return refreshTokenGrant(ctx, f.client, f.tokenURL, f.clientID, githubCopilotProviderID, refreshToken)
+}
+
 func (f *GitHubCopilotFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	var response tokenResponse
 	err := f.postForm(ctx, f.tokenURL, url.Values{

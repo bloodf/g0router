@@ -74,6 +74,10 @@ func (f *GitLabFlow) Exchange(ctx context.Context, session AuthSession, code str
 	return f.oauth.exchange(ctx, session, code)
 }
 
+func (f *GitLabFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return f.oauth.refresh(ctx, refreshToken)
+}
+
 func (f *GitLabFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, errors.New("gitlab oauth does not support poll")
 }

@@ -182,6 +182,10 @@ func (f *AnthropicFlow) Exchange(ctx context.Context, session AuthSession, code 
 	return result, nil
 }
 
+func (f *AnthropicFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return refreshTokenGrant(ctx, f.client, f.tokenURL, f.clientID, anthropicProviderID, refreshToken)
+}
+
 func (f *AnthropicFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, fmt.Errorf("anthropic oauth does not support poll")
 }

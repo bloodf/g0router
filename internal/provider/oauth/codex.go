@@ -92,6 +92,10 @@ func (f *CodexFlow) Exchange(ctx context.Context, session AuthSession, code stri
 	return TokenResult{}, errors.New("codex oauth does not support callback exchange")
 }
 
+func (f *CodexFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return refreshTokenGrant(ctx, f.client, f.tokenURL, f.clientID, codexProviderID, refreshToken)
+}
+
 func (f *CodexFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	var response tokenResponse
 	err := f.postForm(ctx, f.tokenURL, url.Values{

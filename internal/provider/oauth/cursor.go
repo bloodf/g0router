@@ -177,6 +177,10 @@ func (f *CursorFlow) Exchange(ctx context.Context, session AuthSession, code str
 	return result, nil
 }
 
+func (f *CursorFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return refreshTokenGrant(ctx, f.client, f.tokenURL, f.clientID, cursorProviderID, refreshToken)
+}
+
 func (f *CursorFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, fmt.Errorf("cursor oauth does not support poll")
 }

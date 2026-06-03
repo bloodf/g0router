@@ -65,6 +65,10 @@ func (f *AntigravityFlow) Exchange(ctx context.Context, session AuthSession, cod
 	return f.google.exchange(ctx, session, code)
 }
 
+func (f *AntigravityFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return f.google.refresh(ctx, refreshToken)
+}
+
 func (f *AntigravityFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, errors.New("antigravity oauth does not support poll")
 }

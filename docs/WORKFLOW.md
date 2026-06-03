@@ -1045,7 +1045,35 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.C.3"
     name: "Refresh OAuth credentials before dispatch when near expiry"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T02:06:42Z"
+    files_owned:
+      - internal/cli/provider_runtime.go
+      - internal/provider/oauth/anthropic.go
+      - internal/provider/oauth/anthropic_test.go
+      - internal/provider/oauth/antigravity.go
+      - internal/provider/oauth/codex.go
+      - internal/provider/oauth/codex_test.go
+      - internal/provider/oauth/cursor.go
+      - internal/provider/oauth/deepseek.go
+      - internal/provider/oauth/gemini.go
+      - internal/provider/oauth/gemini_test.go
+      - internal/provider/oauth/github.go
+      - internal/provider/oauth/gitlab.go
+      - internal/provider/oauth/kimi.go
+      - internal/provider/oauth/kiro.go
+      - internal/provider/oauth/refresh.go
+      - internal/provider/oauth/types.go
+      - internal/provider/oauth/xai.go
+      - internal/provider/oauth/xiaomi.go
+      - internal/proxy/combo.go
+      - internal/proxy/combo_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/store/connections.go
+      - internal/store/connections_test.go
+      - docs/WORKFLOW.md
   - id: "7.C.4"
     name: "Normalize provider IDs across auth, routing, docs, and store rows"
     status: PENDING

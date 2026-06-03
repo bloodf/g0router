@@ -64,6 +64,10 @@ func (f *XiaomiFlow) Exchange(ctx context.Context, session AuthSession, code str
 	return f.oauth.exchange(ctx, session, code)
 }
 
+func (f *XiaomiFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return f.oauth.refresh(ctx, refreshToken)
+}
+
 func (f *XiaomiFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, errors.New("xiaomi oauth does not support poll")
 }

@@ -124,6 +124,10 @@ func (f *DeepSeekFlow) Exchange(ctx context.Context, session AuthSession, passwo
 	return result, nil
 }
 
+func (f *DeepSeekFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return refreshTokenGrant(ctx, f.client, f.tokenURL, f.clientID, deepseekProviderID, refreshToken)
+}
+
 func (f *DeepSeekFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, errors.New("deepseek oauth does not support poll")
 }

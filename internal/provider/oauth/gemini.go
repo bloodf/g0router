@@ -63,6 +63,10 @@ func (f *GeminiFlow) Exchange(ctx context.Context, session AuthSession, code str
 	return f.google.exchange(ctx, session, code)
 }
 
+func (f *GeminiFlow) Refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return f.google.refresh(ctx, refreshToken)
+}
+
 func (f *GeminiFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
 	return PollResult{}, errors.New("gemini oauth does not support poll")
 }
@@ -228,6 +232,10 @@ func (f *googleOAuthFlow) exchange(ctx context.Context, session AuthSession, cod
 	}
 
 	return result, nil
+}
+
+func (f *googleOAuthFlow) refresh(ctx context.Context, refreshToken string) (TokenResult, error) {
+	return refreshTokenGrant(ctx, f.client, f.tokenURL, f.clientID, f.provider, refreshToken)
 }
 
 type googleTokenResponse struct {

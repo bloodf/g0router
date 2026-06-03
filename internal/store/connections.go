@@ -143,6 +143,29 @@ func (s *Store) UpdateConnection(conn *Connection) error {
 	return nil
 }
 
+func (s *Store) UpdateConnectionCredentials(id string, accessToken, refreshToken *string, expiresAt *int64) error {
+	result, err := s.db.Exec(
+		`UPDATE connections SET
+			access_token = ?,
+			refresh_token = ?,
+			expires_at = ?,
+			updated_at = datetime('now')
+		WHERE id = ?`,
+		accessToken,
+		refreshToken,
+		expiresAt,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("update connection credentials: %w", err)
+	}
+	if err := requireRowsAffected(result); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (s *Store) DeleteConnection(id string) error {
 	result, err := s.db.Exec("DELETE FROM connections WHERE id = ?", id)
 	if err != nil {

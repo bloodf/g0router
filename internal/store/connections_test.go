@@ -177,6 +177,80 @@ func TestConnectionUpdateNotFound(t *testing.T) {
 	}
 }
 
+func TestConnectionUpdateCredentialsPreservesMetadata(t *testing.T) {
+	s := openTestStore(t)
+	oldExpires := time.Now().Add(time.Minute).Unix()
+	newExpires := time.Now().Add(time.Hour).Unix()
+	unavailableUntil := time.Now().Add(2 * time.Hour).Unix()
+
+	conn := &Connection{
+		Provider:             "openai",
+		Name:                 "work",
+		AuthType:             AuthTypeOAuth,
+		AccessToken:          strPtr("old-access"),
+		RefreshToken:         strPtr("old-refresh"),
+		ExpiresAt:            &oldExpires,
+		IsActive:             true,
+		ProviderSpecificData: map[string]any{"oauth_provider": "codex"},
+		AccountID:            strPtr("acct-123"),
+		Email:                strPtr("user@example.com"),
+		UnavailableUntil:     &unavailableUntil,
+		BackoffLevel:         2,
+		ModelLocks:           map[string]int64{"gpt-4o": unavailableUntil},
+	}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	if err := s.UpdateConnectionCredentials(conn.ID, strPtr("new-access"), strPtr("new-refresh"), &newExpires); err != nil {
+		t.Fatalf("UpdateConnectionCredentials: %v", err)
+	}
+
+	got, err := s.GetConnection(conn.ID)
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if got.Provider != "openai" || got.Name != "work" || !got.IsActive {
+		t.Fatalf("metadata changed: %+v", got)
+	}
+	if got.AccessToken == nil || *got.AccessToken != "new-access" {
+		t.Fatalf("access token = %v, want new-access", got.AccessToken)
+	}
+	if got.RefreshToken == nil || *got.RefreshToken != "new-refresh" {
+		t.Fatalf("refresh token = %v, want new-refresh", got.RefreshToken)
+	}
+	if got.ExpiresAt == nil || *got.ExpiresAt != newExpires {
+		t.Fatalf("expires at = %v, want %d", got.ExpiresAt, newExpires)
+	}
+	if got.ProviderSpecificData["oauth_provider"] != "codex" {
+		t.Fatalf("provider data changed: %+v", got.ProviderSpecificData)
+	}
+	if got.AccountID == nil || *got.AccountID != "acct-123" {
+		t.Fatalf("account ID changed: %+v", got.AccountID)
+	}
+	if got.Email == nil || *got.Email != "user@example.com" {
+		t.Fatalf("email changed: %+v", got.Email)
+	}
+	if got.UnavailableUntil == nil || *got.UnavailableUntil != unavailableUntil {
+		t.Fatalf("unavailable until changed: %+v", got.UnavailableUntil)
+	}
+	if got.BackoffLevel != 2 {
+		t.Fatalf("backoff level = %d, want 2", got.BackoffLevel)
+	}
+	if got.ModelLocks["gpt-4o"] != unavailableUntil {
+		t.Fatalf("model locks changed: %+v", got.ModelLocks)
+	}
+}
+
+func TestConnectionUpdateCredentialsNotFound(t *testing.T) {
+	s := openTestStore(t)
+
+	err := s.UpdateConnectionCredentials("missing", strPtr("new-access"), strPtr("new-refresh"), nil)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got: %v", err)
+	}
+}
+
 func TestConnectionDelete(t *testing.T) {
 	s := openTestStore(t)
 
