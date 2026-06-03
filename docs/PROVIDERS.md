@@ -5,7 +5,7 @@
 Status meanings:
 
 - `supported`: public inference works through normal `g0router serve` routing today.
-- `adapter_only`: an adapter is registered in startup, but ordinary `/v1/chat/completions` model selection cannot route to it until Wave 7.E catalog routing lands.
+- `adapter_only`: an adapter is registered in startup, but public support is still limited by missing model catalog entries, provider capability routing, authentication, streaming, tooling, or other documented gaps.
 - `auth_only`: credential capture exists, but no inference adapter is wired.
 - `unsupported`: explicitly not implemented; do not advertise as usable.
 
