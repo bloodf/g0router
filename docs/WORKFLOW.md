@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: REMEDIATION_HYGIENE_EVALUATED
+project_status: REMEDIATION_FINAL_EVALUATION_PENDING
 current_stage: 7
-current_wave: "7.K"
-last_updated: "2026-06-03T18:26:14Z"
+current_wave: "7.L"
+last_updated: "2026-06-03T18:27:33Z"
 last_agent: "orchestrator"
 ```
 
@@ -1783,6 +1783,43 @@ evaluation:
   prompt: "docs/evaluations/wave-7K-evaluator-prompt.md"
   non_blocking_findings:
     - "MCP instance delete returns 500 if runtime close fails after successful store delete; decide whether to ignore/log runtime-close failures after persistence succeeds."
+```
+
+---
+
+### Wave 7.L — Final MCP delete semantics
+
+```yaml
+wave: "7.L"
+status: DONE
+max_agents: 1
+depends_on: ["7.K"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.L.1"
+    name: "Make post-delete MCP runtime close best-effort"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7l-mcp-delete-close"
+    completed_at: "2026-06-03T18:27:33Z"
+    files_owned:
+      - api/handlers/mcp.go
+      - api/handlers/mcp_test.go
+  - id: "7.L.2"
+    name: "Wave 7.L evaluator prompt"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7l-mcp-delete-close"
+    completed_at: "2026-06-03T18:27:33Z"
+    depends_on_tasks: ["7.L.1"]
+    files_owned:
+      - docs/evaluations/wave-7L-evaluator-prompt.md
+      - docs/WORKFLOW.md
+
+evaluation:
+  status: PENDING
+  prompt: "docs/evaluations/wave-7L-evaluator-prompt.md"
 ```
 
 ---

@@ -53,6 +53,7 @@ func (f *fakeMCPClient) Close() error {
 type fakeMCPInstanceRuntime struct {
 	manifest   mcp.Manifest
 	err        error
+	closeErr   error
 	registered []string
 	closed     []string
 	reapplied  []string
@@ -70,7 +71,7 @@ func (f *fakeMCPInstanceRuntime) RegisterInstance(ctx context.Context, instance 
 
 func (f *fakeMCPInstanceRuntime) CloseInstance(instanceID string) error {
 	f.closed = append(f.closed, instanceID)
-	return nil
+	return f.closeErr
 }
 
 func (f *fakeMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
@@ -544,6 +545,25 @@ func TestMCPInstancesDeleteDoesNotCloseRuntimeWhenStoreDeleteFails(t *testing.T)
 	}
 	if len(runtime.closed) != 0 {
 		t.Fatalf("closed = %+v, want runtime untouched when store delete fails", runtime.closed)
+	}
+}
+
+func TestMCPInstancesDeleteReturnsNoContentWhenRuntimeCloseFailsAfterStoreDelete(t *testing.T) {
+	s := openMCPHandlerStore(t)
+	instance := createHandlerMCPInstance(t, s, "atlassian-a", "account-a")
+	runtime := &fakeMCPInstanceRuntime{closeErr: errors.New("runtime already gone")}
+
+	ctx := newHandlerCtx(fasthttp.MethodDelete, "/api/mcp/instances/"+instance.ID)
+	MCPInstances(ctx, s, runtime, instance.ID)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusNoContent {
+		t.Fatalf("status = %d, want 204 after persisted delete; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if len(runtime.closed) != 1 || runtime.closed[0] != instance.ID {
+		t.Fatalf("closed = %+v, want close attempt", runtime.closed)
+	}
+	if _, err := s.GetMCPInstance(instance.ID); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("GetMCPInstance err = %v, want ErrNotFound", err)
 	}
 }
 
