@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.G"
-last_updated: "2026-06-03T04:43:40Z"
+last_updated: "2026-06-03T04:53:16Z"
 last_agent: "orchestrator"
 ```
 
@@ -1391,10 +1391,12 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.G.4"
     name: "Tool manager concurrency, schema validation, and request filtering"
-    status: IN_PROGRESS
+    status: DONE
     agent: "Anscombe the 2nd"
     branch: "codex/wave-7g-tools"
     started_at: "2026-06-03T04:43:40Z"
+    commit: "8be8705"
+    completed_at: "2026-06-03T04:53:16Z"
     files_owned:
       - internal/mcp/toolmanager.go
       - internal/mcp/toolmanager_test.go
@@ -1404,7 +1406,10 @@ tasks:
       - api/handlers/mcp_test.go
   - id: "7.G.5"
     name: "Startup rehydration, tool sync, health persistence, and evaluator prompt"
-    status: PENDING
+    status: IN_PROGRESS
+    agent: "orchestrator"
+    branch: "codex/wave-7g-rehydrate"
+    started_at: "2026-06-03T04:53:16Z"
     files_owned:
       - internal/cli/mcp_runtime.go
       - internal/cli/root.go
