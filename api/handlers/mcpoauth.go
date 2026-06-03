@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/bloodf/g0router/internal/mcp"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -26,7 +27,7 @@ type mcpOAuthCompleteResponse struct {
 	AccountLabel string `json:"account_label"`
 }
 
-func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter) {
+func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s *store.Store) {
 	instanceID := decodeCallbackInstanceID(strings.TrimSpace(string(ctx.QueryArgs().Peek("instance_id"))))
 	if instanceID == "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "instance_id is required")
@@ -36,10 +37,10 @@ func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter) {
 	if callbackURL == "" {
 		callbackURL = string(ctx.URI().RequestURI())
 	}
-	completeMCPOAuth(ctx, completer, instanceID, callbackURL)
+	completeMCPOAuth(ctx, completer, runtime, s, instanceID, callbackURL)
 }
 
-func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, instanceID string) {
+func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s *store.Store, instanceID string) {
 	if strings.TrimSpace(instanceID) == "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "instance id is required")
 		return
@@ -50,10 +51,10 @@ func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, ins
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 		return
 	}
-	completeMCPOAuth(ctx, completer, instanceID, req.CallbackURL)
+	completeMCPOAuth(ctx, completer, runtime, s, instanceID, req.CallbackURL)
 }
 
-func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, instanceID, callbackURL string) {
+func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s *store.Store, instanceID, callbackURL string) {
 	if completer == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "mcp oauth unavailable")
 		return
@@ -62,7 +63,8 @@ func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, ins
 		writeError(ctx, fasthttp.StatusBadRequest, err.Error())
 		return
 	}
-	account, err := completer.CompleteCallback(context.Background(), instanceID, callbackURL)
+	reqCtx := requestContext(ctx)
+	account, err := completer.CompleteCallback(reqCtx, instanceID, callbackURL)
 	if err != nil {
 		if errors.Is(err, mcp.ErrOAuthFlowNotFound) {
 			writeError(ctx, fasthttp.StatusNotFound, "mcp oauth flow not found")
@@ -70,6 +72,23 @@ func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, ins
 		}
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("complete mcp oauth: %v", err))
 		return
+	}
+	if runtime != nil {
+		manifest, err := runtime.ReapplyInstanceCredentials(reqCtx, s, instanceID)
+		if err != nil {
+			if s != nil {
+				_ = s.UpdateMCPInstanceHealth(instanceID, "unhealthy")
+			}
+			writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("reapply mcp credentials: %v", err))
+			return
+		}
+		if s != nil {
+			if err := s.UpdateMCPInstanceManifest(instanceID, manifest); err != nil {
+				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("cache mcp manifest: %v", err))
+				return
+			}
+			_ = s.UpdateMCPInstanceHealth(instanceID, "healthy")
+		}
 	}
 	writeJSON(ctx, fasthttp.StatusOK, mcpOAuthCompleteResponse{
 		InstanceID:   account.InstanceID,

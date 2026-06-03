@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"sync"
 
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/store"
@@ -32,18 +33,29 @@ func newDefaultMCPRuntime() *defaultMCPRuntime {
 }
 
 type mcpLauncherConnector struct {
+	mu              sync.RWMutex
 	launcher        *mcp.Launcher
 	instanceConfigs map[string]mcp.InstanceConfig
 }
 
 func (c *mcpLauncherConnector) RememberInstanceConfig(cfg mcp.InstanceConfig) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.instanceConfigs == nil {
 		c.instanceConfigs = make(map[string]mcp.InstanceConfig)
 	}
 	c.instanceConfigs[cfg.ID] = cfg
 }
 
-func (c mcpLauncherConnector) Connect(ctx context.Context, cfg mcp.ClientConfig) (mcp.Client, error) {
+func (c *mcpLauncherConnector) ForgetInstanceConfig(instanceID string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	delete(c.instanceConfigs, instanceID)
+}
+
+func (c *mcpLauncherConnector) Connect(ctx context.Context, cfg mcp.ClientConfig) (mcp.Client, error) {
 	instanceCfg, err := c.instanceConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -64,7 +76,10 @@ func (c mcpLauncherConnector) Connect(ctx context.Context, cfg mcp.ClientConfig)
 	return &launchedMCPClient{process: result.Process}, nil
 }
 
-func (c mcpLauncherConnector) instanceConfig(cfg mcp.ClientConfig) (mcp.InstanceConfig, error) {
+func (c *mcpLauncherConnector) instanceConfig(cfg mcp.ClientConfig) (mcp.InstanceConfig, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	if c.instanceConfigs != nil {
 		if instanceCfg, ok := c.instanceConfigs[cfg.ID]; ok {
 			return instanceCfg, nil
@@ -97,6 +112,36 @@ func (r *defaultMCPRuntime) RegisterInstance(ctx context.Context, instance *stor
 	}
 	r.tools.RegisterClient(instance.ID, registered)
 	return manifest, nil
+}
+
+func (r *defaultMCPRuntime) CloseInstance(instanceID string) error {
+	if r == nil || r.clients == nil || r.tools == nil || r.connector == nil {
+		return mcp.ErrInvalidDiscovery
+	}
+	r.tools.UnregisterClient(instanceID)
+	r.connector.ForgetInstanceConfig(instanceID)
+	if err := r.clients.Close(instanceID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *defaultMCPRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
+	if s == nil {
+		return mcp.Manifest{}, store.ErrNotFound
+	}
+	instance, err := s.GetMCPInstance(instanceID)
+	if err != nil {
+		return mcp.Manifest{}, err
+	}
+	runtimeInstance, err := mcpInstanceForRuntime(ctx, s, instance)
+	if err != nil {
+		return mcp.Manifest{}, err
+	}
+	if err := r.CloseInstance(instanceID); err != nil && !errors.Is(err, mcp.ErrClientNotFound) {
+		return mcp.Manifest{}, err
+	}
+	return r.RegisterInstance(ctx, runtimeInstance)
 }
 
 func clientInstanceConfig(cfg mcp.ClientConfig) (mcp.InstanceConfig, error) {

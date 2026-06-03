@@ -50,6 +50,34 @@ func (f *fakeMCPClient) Close() error {
 	return nil
 }
 
+type fakeMCPInstanceRuntime struct {
+	manifest   mcp.Manifest
+	err        error
+	registered []string
+	closed     []string
+	reapplied  []string
+}
+
+func (f *fakeMCPInstanceRuntime) RegisterInstance(ctx context.Context, instance *store.MCPInstance) (mcp.Manifest, error) {
+	f.registered = append(f.registered, instance.ID)
+	if f.err != nil {
+		return mcp.Manifest{}, f.err
+	}
+	manifest := f.manifest
+	manifest.ClientID = instance.ID
+	return manifest, nil
+}
+
+func (f *fakeMCPInstanceRuntime) CloseInstance(instanceID string) error {
+	f.closed = append(f.closed, instanceID)
+	return nil
+}
+
+func (f *fakeMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
+	f.reapplied = append(f.reapplied, instanceID)
+	return f.manifest, nil
+}
+
 func TestMCPClientsCreateDiscoversAndPersistsManifest(t *testing.T) {
 	s := openMCPHandlerStore(t)
 	client := &fakeMCPClient{tools: []mcp.Tool{{Name: "search", Description: "Search docs", InputSchema: json.RawMessage(`{"type":"object"}`)}}}
@@ -183,6 +211,17 @@ func TestMCPToolsListAndExecute(t *testing.T) {
 	if len(client.calls) != 1 || client.calls[0].Name != "search" || string(client.calls[0].Arguments) != `{"query":"mcp"}` {
 		t.Fatalf("calls = %+v, want search with args", client.calls)
 	}
+
+	ctx = newHandlerCtx(fasthttp.MethodDelete, "/api/mcp/clients/"+created.ID)
+	MCPClients(ctx, s, manager, tools, created.ID)
+	if ctx.Response.StatusCode() != fasthttp.StatusNoContent {
+		t.Fatalf("delete status = %d, want 204; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	ctx = newHandlerCtx(fasthttp.MethodGet, "/api/mcp/tools")
+	MCPTools(ctx, s, tools, "")
+	if strings.Contains(string(ctx.Response.Body()), toolName) {
+		t.Fatalf("tools after delete = %s, should not contain deleted client tool", ctx.Response.Body())
+	}
 }
 
 func TestMCPToolsExecuteMissingTool(t *testing.T) {
@@ -276,14 +315,16 @@ func TestMCPToolsRequestAllowedToolFilterLimitsListAndExecute(t *testing.T) {
 	if len(client.calls) != 1 || client.calls[0].Name != "search" {
 		t.Fatalf("client calls = %+v, want search call", client.calls)
 	}
+
 }
 
 func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	s := openMCPHandlerStore(t)
+	runtime := &fakeMCPInstanceRuntime{manifest: mcp.Manifest{Tools: []mcp.Tool{{Name: "search", Description: "Search"}}}}
 
 	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances")
 	ctx.Request.SetBodyString(`{"name":"atlassian-a","server_key":"atlassian","launch_type":"http","transport":"streamable-http","url":"https://mcp.atlassian.com/mcp","headers":{"Authorization":"Bearer secret"},"env":{"API_TOKEN":"secret"},"account_label":"account-a","is_active":true}`)
-	MCPInstances(ctx, s, "")
+	MCPInstances(ctx, s, runtime, "")
 
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("status = %d, want 201; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
@@ -295,9 +336,19 @@ func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	if created.Name != "atlassian-a" || created.AccountLabel == nil || *created.AccountLabel != "account-a" {
 		t.Fatalf("created = %+v, want account-a instance", created)
 	}
+	if len(runtime.registered) != 1 || runtime.registered[0] != created.ID {
+		t.Fatalf("registered = %+v, want created instance", runtime.registered)
+	}
+	stored, err := s.GetMCPInstance(created.ID)
+	if err != nil {
+		t.Fatalf("GetMCPInstance: %v", err)
+	}
+	if stored.ToolManifest == nil || len(stored.ToolManifest.Tools) != 1 {
+		t.Fatalf("stored manifest = %+v, want one live tool", stored.ToolManifest)
+	}
 
 	ctx = newHandlerCtx(fasthttp.MethodGet, "/api/mcp/instances")
-	MCPInstances(ctx, s, "")
+	MCPInstances(ctx, s, runtime, "")
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("list status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
 	}
@@ -345,6 +396,26 @@ func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	}
 	if pkceChallengeForHandlerTest(flow.CodeVerifierSecret) != query.Get("code_challenge") {
 		t.Fatalf("stored verifier does not match code challenge")
+	}
+}
+
+func TestMCPInstancesCreateRollsBackStoreWhenRuntimeRegistrationFails(t *testing.T) {
+	s := openMCPHandlerStore(t)
+	runtime := &fakeMCPInstanceRuntime{err: errors.New("offline")}
+
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances")
+	ctx.Request.SetBodyString(`{"name":"atlassian-a","server_key":"atlassian","launch_type":"http","transport":"streamable-http","url":"https://mcp.atlassian.com/mcp","is_active":true}`)
+	MCPInstances(ctx, s, runtime, "")
+
+	if ctx.Response.StatusCode() != fasthttp.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	instances, err := s.ListMCPInstances()
+	if err != nil {
+		t.Fatalf("ListMCPInstances: %v", err)
+	}
+	if len(instances) != 0 {
+		t.Fatalf("instances = %+v, want rollback", instances)
 	}
 }
 
@@ -435,7 +506,8 @@ func TestMCPInstancesDeleteRemovesAccountsAndCachedToolsOnlyForOneInstance(t *te
 	}
 
 	ctx := newHandlerCtx(fasthttp.MethodDelete, "/api/mcp/instances/"+first.ID)
-	MCPInstances(ctx, s, first.ID)
+	runtime := &fakeMCPInstanceRuntime{}
+	MCPInstances(ctx, s, runtime, first.ID)
 	if ctx.Response.StatusCode() != fasthttp.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
 	}
@@ -444,6 +516,9 @@ func TestMCPInstancesDeleteRemovesAccountsAndCachedToolsOnlyForOneInstance(t *te
 	}
 	if accounts, err := s.ListMCPOAuthAccounts(second.ID); err != nil || len(accounts) != 1 {
 		t.Fatalf("second accounts = %+v err=%v, want one", accounts, err)
+	}
+	if len(runtime.closed) != 1 || runtime.closed[0] != first.ID {
+		t.Fatalf("closed = %+v, want first instance", runtime.closed)
 	}
 
 	ctx = newHandlerCtx(fasthttp.MethodGet, "/api/mcp/tools")

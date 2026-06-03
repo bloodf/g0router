@@ -69,7 +69,13 @@ type mcpToolExecuteRequest struct {
 	AllowedTools []string        `json:"allowed_tools"`
 }
 
-func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
+type MCPInstanceRuntime interface {
+	RegisterInstance(ctx context.Context, instance *store.MCPInstance) (mcp.Manifest, error)
+	CloseInstance(instanceID string) error
+	ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error)
+}
+
+func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, runtime MCPInstanceRuntime, id string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
@@ -92,11 +98,42 @@ func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create mcp instance: %v", err))
 			return
 		}
+		if instance.IsActive {
+			if runtime == nil {
+				_ = s.DeleteMCPInstance(instance.ID)
+				writeError(ctx, fasthttp.StatusServiceUnavailable, "mcp instance runtime unavailable")
+				return
+			}
+			manifest, err := runtime.RegisterInstance(requestContext(ctx), instance)
+			if err != nil {
+				_ = s.DeleteMCPInstance(instance.ID)
+				writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("register mcp instance: %v", err))
+				return
+			}
+			if err := s.UpdateMCPInstanceManifest(instance.ID, manifest); err != nil {
+				_ = runtime.CloseInstance(instance.ID)
+				_ = s.DeleteMCPInstance(instance.ID)
+				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("cache mcp manifest: %v", err))
+				return
+			}
+			got, err := s.GetMCPInstance(instance.ID)
+			if err != nil {
+				writeStoreError(ctx, "get mcp instance", err)
+				return
+			}
+			instance = got
+		}
 		writeJSON(ctx, fasthttp.StatusCreated, redactedMCPInstance(instance))
 	case fasthttp.MethodDelete:
 		if strings.TrimSpace(id) == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "mcp instance id required")
 			return
+		}
+		if runtime != nil {
+			if err := runtime.CloseInstance(id); err != nil && !errors.Is(err, mcp.ErrClientNotFound) {
+				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("close mcp instance: %v", err))
+				return
+			}
 		}
 		if err := s.DeleteMCPInstance(id); err != nil {
 			writeStoreError(ctx, "delete mcp instance", err)
@@ -241,6 +278,9 @@ func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientMan
 				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("close mcp client: %v", err))
 				return
 			}
+		}
+		if tools != nil {
+			tools.UnregisterClient(id)
 		}
 		if err := s.DeleteMCPClient(id); err != nil {
 			writeStoreError(ctx, "delete mcp client", err)
