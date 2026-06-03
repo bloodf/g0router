@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 2 complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 2 complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -29,9 +29,9 @@
 
 ### TODO
 
-- [ ] Initialize Vite + React + Tailwind
-- [ ] Verify `npm run build` succeeds
-- [ ] Commit: `phase-10/task-1: ui scaffold`
+- [x] Initialize Vite + React + Tailwind
+- [x] Verify `npm run build` succeeds
+- [x] Commit: `phase-10/task-1: ui scaffold`
 
 ### Pre-conditions
 
@@ -80,8 +80,8 @@ phase-10/task-1: ui scaffold
 
 ### TODO
 
-- [ ] Build overview page
-- [ ] Commit: `phase-10/task-2: dashboard overview page`
+- [x] Build overview page
+- [x] Commit: `phase-10/task-2: dashboard overview page`
 
 ### Pre-conditions
 
@@ -130,8 +130,8 @@ phase-10/task-2: dashboard overview page
 
 ### TODO
 
-- [ ] Build API key + RTK + caveman controls
-- [ ] Commit: `phase-10/task-3: endpoint configuration page`
+- [x] Build API key + RTK + caveman controls
+- [x] Commit: `phase-10/task-3: endpoint configuration page`
 
 ### Pre-conditions
 
@@ -180,8 +180,8 @@ phase-10/task-3: endpoint configuration page
 
 ### TODO
 
-- [ ] Build provider grid + connect flow
-- [ ] Commit: `phase-10/task-4: providers management page`
+- [x] Build provider grid + connect flow
+- [x] Commit: `phase-10/task-4: providers management page`
 
 ### Pre-conditions
 
@@ -230,8 +230,8 @@ phase-10/task-4: providers management page
 
 ### TODO
 
-- [ ] Build charts + request table
-- [ ] Commit: `phase-10/task-5: usage analytics page`
+- [x] Build charts + request table
+- [x] Commit: `phase-10/task-5: usage analytics page`
 
 ### Pre-conditions
 
@@ -280,8 +280,8 @@ phase-10/task-5: usage analytics page
 
 ### TODO
 
-- [ ] Build quota bars
-- [ ] Commit: `phase-10/task-6: quota display page`
+- [x] Build quota bars
+- [x] Commit: `phase-10/task-6: quota display page`
 
 ### Pre-conditions
 
@@ -330,8 +330,8 @@ phase-10/task-6: quota display page
 
 ### TODO
 
-- [ ] Build combos, MCP, settings pages
-- [ ] Commit: `phase-10/task-7: combos mcp settings pages`
+- [x] Build combos, MCP, settings pages
+- [x] Commit: `phase-10/task-7: combos mcp settings pages`
 
 ### Pre-conditions
 
@@ -380,10 +380,10 @@ phase-10/task-7: combos mcp settings pages
 
 ### TODO
 
-- [ ] Write `embed.go`
-- [ ] Update server to serve embedded files
-- [ ] Verify `go build` includes UI
-- [ ] Commit: `phase-10/task-8: embed ui in go binary`
+- [x] Write `embed.go`
+- [x] Update server to serve embedded files
+- [x] Verify `go build` includes UI
+- [x] Commit: `phase-10/task-8: embed ui in go binary`
 
 ### Pre-conditions
 
@@ -438,17 +438,17 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 10.1 complete (UI Scaffold)
-- [ ] Task 10.2 complete (Dashboard Page)
-- [ ] Task 10.3 complete (Endpoint Page)
-- [ ] Task 10.4 complete (Providers Page)
-- [ ] Task 10.5 complete (Usage Page)
-- [ ] Task 10.6 complete (Quota Page)
-- [ ] Task 10.7 complete (Remaining Pages)
-- [ ] Task 10.8 complete (Embed UI in Go Binary)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-10/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_10.status → `DONE`
-- [ ] **PHASE_10_COMPLETE**
+- [x] Task 10.1 complete (UI Scaffold)
+- [x] Task 10.2 complete (Dashboard Page)
+- [x] Task 10.3 complete (Endpoint Page)
+- [x] Task 10.4 complete (Providers Page)
+- [x] Task 10.5 complete (Usage Page)
+- [x] Task 10.6 complete (Quota Page)
+- [x] Task 10.7 complete (Remaining Pages)
+- [x] Task 10.8 complete (Embed UI in Go Binary)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-10/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_10.status → `DONE`
+- [x] **PHASE_10_COMPLETE**

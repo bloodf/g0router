@@ -267,15 +267,15 @@ Wave: {wave_id}
 ## Orchestrator Checklist (per wave)
 
 ```
-- [ ] All prerequisite waves merged and green
-- [ ] Stage branch up to date
-- [ ] Dispatch agents with task assignments
-- [ ] Monitor: all agents report completion
-- [ ] Merge task branches in order: task/N.1, task/N.2, ...
-- [ ] Run: go test ./... && go vet ./... && go build ./cmd/g0router
-- [ ] If RED: identify conflict file, assign fix agent
-- [ ] If GREEN: update WORKFLOW.md statuses
-- [ ] Advance to next wave
+- [x] All prerequisite waves merged and green
+- [x] Stage branch up to date
+- [x] Dispatch agents with task assignments
+- [x] Monitor: all agents report completion
+- [x] Merge task branches in order: task/N.1, task/N.2, ...
+- [x] Run: go test ./... && go vet ./... && go build ./cmd/g0router
+- [x] If RED: identify conflict file, assign fix agent
+- [x] If GREEN: update WORKFLOW.md statuses
+- [x] Advance to next wave
 ```
 
 ---
@@ -291,6 +291,9 @@ Wave: {wave_id}
 | 4 | 2 | 6 | 12 |
 | 5 | 2 | 3 | 5 |
 | 6 | 1 | 1 | 6 |
-| **Total** | **13 waves** | — | **77 tasks** |
+| 7 | 13 | 8 | remediation Waves 7.A–7.M |
+| **Total** | **26 waves** | — | **77 original tasks + remediation** |
 
-With 8 agents, the 77 tasks compress into ~13 sequential merge points instead of 77.
+With 8 agents, the original 77 tasks compressed into ~13 sequential merge
+points instead of 77. Stage 7 then ran the principal-engineer remediation and
+completion-audit waves.

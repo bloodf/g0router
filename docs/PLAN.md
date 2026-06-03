@@ -16,14 +16,17 @@
 
 | Metric | Value |
 |--------|-------|
-| Phases | 13 (0–12) |
-| Tasks | 77 |
-| Stages | 7 (sequential barriers) |
-| Waves | 13 (parallel batches within stages) |
+| Original phases | 13 (0–12) |
+| Original tasks | 77 |
+| Original stages | 7 (sequential barriers) |
+| Original waves | 13 (parallel batches within stages) |
+| Remediation stage | Stage 7, Waves 7.A–7.M |
 | Max parallel agents | 8 |
-| Critical path | Stage 0 → 1 → 2 → 3 → 4 → 5 → 6 |
+| Critical path | Stage 0 → 1 → 2 → 3 → 4 → 5 → 6 → remediation |
 
-With 8 agents, 77 tasks compress into **13 merge points** instead of 77 sequential steps.
+With 8 agents, the original 77 tasks compressed into **13 merge points** before
+principal-engineer remediation. Stage 7 then corrected release, security,
+gateway, dashboard, MCP, provider, and documentation gaps found by review.
 
 ## Stage → Wave → Task Map
 
@@ -41,6 +44,7 @@ STAGE 4 ─┬─ Wave 4.A [6 tasks]  ──► mgmt API, OAuth endpoints, CLI, 
 STAGE 5 ─┬─ Wave 5.A [3 tasks]  ──► Makefile, systemd, Docker
           └─ Wave 5.B [2 tasks]  ──► README polish, E2E tests
 STAGE 6 ─── Wave 6.A [6 tasks]   ──► advanced MCP instances, OAuth, callbacks
+STAGE 7 ─── Waves 7.A–7.M        ──► remediation, release hardening, docs reconciliation
 ```
 
 ## Phase Index

@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Go 1.24+ installed (`go version`)
-- [ ] Git initialized (`git init` if needed)
-- [ ] Working directory is repo root
+- [x] Go 1.24+ installed (`go version`)
+- [x] Git initialized (`git init` if needed)
+- [x] Working directory is repo root
 
 ---
 
@@ -18,18 +18,18 @@
 
 ### TODO
 
-- [ ] Create `go.mod`
-- [ ] Create `cmd/g0router/main.go`
-- [ ] Create `.gitignore`
-- [ ] Create `.env.example`
-- [ ] Create `CLAUDE.md`
-- [ ] Create `README.md`
-- [ ] Create `docs/` directory with all documentation files
-- [ ] Create `docs/phases/` directory with all phase files
-- [ ] Verify `go build ./cmd/g0router` succeeds
-- [ ] Verify `./g0router --version` prints `0.1.0-dev`
-- [ ] Verify `go vet ./...` passes
-- [ ] Commit: `phase-0/task-1: initialize go module and project documentation`
+- [x] Create `go.mod`
+- [x] Create `cmd/g0router/main.go`
+- [x] Create `.gitignore`
+- [x] Create `.env.example`
+- [x] Create `CLAUDE.md`
+- [x] Create `README.md`
+- [x] Create `docs/` directory with all documentation files
+- [x] Create `docs/phases/` directory with all phase files
+- [x] Verify `go build ./cmd/g0router` succeeds
+- [x] Verify `./g0router --version` prints `0.1.0-dev`
+- [x] Verify `go vet ./...` passes
+- [x] Commit: `phase-0/task-1: initialize go module and project documentation`
 
 ### Pre-conditions
 
@@ -212,9 +212,9 @@ All four must succeed.
 
 ## Phase Checklist
 
-- [ ] Task 0.1 complete
-- [ ] All verification commands pass
-- [ ] Committed with `phase-0/task-1: ...`
-- [ ] Update `docs/WORKFLOW.md`: phase_0.status → `DONE`
-- [ ] Update `docs/WORKFLOW.md`: current_phase → `1`
-- [ ] **PHASE_0_COMPLETE**
+- [x] Task 0.1 complete
+- [x] All verification commands pass
+- [x] Committed with `phase-0/task-1: ...`
+- [x] Update `docs/WORKFLOW.md`: phase_0.status → `DONE`
+- [x] Update `docs/WORKFLOW.md`: current_phase → `1`
+- [x] **PHASE_0_COMPLETE**

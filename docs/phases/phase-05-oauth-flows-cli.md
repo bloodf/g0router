@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 1 complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 1 complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -29,9 +29,9 @@
 
 ### TODO
 
-- [ ] Write `internal/provider/oauth/types_test.go` — test FIRST
-- [ ] Implement types.go
-- [ ] Commit: `phase-5/task-1: oauth types and interface`
+- [x] Write `internal/provider/oauth/types_test.go` — test FIRST
+- [x] Implement types.go
+- [x] Commit: `phase-5/task-1: oauth types and interface`
 
 ### Pre-conditions
 
@@ -80,9 +80,9 @@ phase-5/task-1: oauth types and interface
 
 ### TODO
 
-- [ ] Write `internal/provider/oauth/anthropic_test.go` — test FIRST
-- [ ] Implement PKCE flow
-- [ ] Commit: `phase-5/task-2: anthropic oauth with pkce`
+- [x] Write `internal/provider/oauth/anthropic_test.go` — test FIRST
+- [x] Implement PKCE flow
+- [x] Commit: `phase-5/task-2: anthropic oauth with pkce`
 
 ### Pre-conditions
 
@@ -131,9 +131,9 @@ phase-5/task-2: anthropic oauth with pkce
 
 ### TODO
 
-- [ ] Write test FIRST
-- [ ] Implement device-code flow
-- [ ] Commit: `phase-5/task-3: openai codex device-code oauth`
+- [x] Write test FIRST
+- [x] Implement device-code flow
+- [x] Commit: `phase-5/task-3: openai codex device-code oauth`
 
 ### Pre-conditions
 
@@ -182,9 +182,9 @@ phase-5/task-3: openai codex device-code oauth
 
 ### TODO
 
-- [ ] Write test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-5/task-4: github copilot oauth`
+- [x] Write test FIRST
+- [x] Implement
+- [x] Commit: `phase-5/task-4: github copilot oauth`
 
 ### Pre-conditions
 
@@ -233,9 +233,9 @@ phase-5/task-4: github copilot oauth
 
 ### TODO
 
-- [ ] Write test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-5/task-5: cursor pkce oauth`
+- [x] Write test FIRST
+- [x] Implement
+- [x] Commit: `phase-5/task-5: cursor pkce oauth`
 
 ### Pre-conditions
 
@@ -284,9 +284,9 @@ phase-5/task-5: cursor pkce oauth
 
 ### TODO
 
-- [ ] Write tests FIRST
-- [ ] Implement both flows
-- [ ] Commit: `phase-5/task-6: google oauth flows`
+- [x] Write tests FIRST
+- [x] Implement both flows
+- [x] Commit: `phase-5/task-6: google oauth flows`
 
 ### Pre-conditions
 
@@ -335,9 +335,9 @@ phase-5/task-6: google oauth flows
 
 ### TODO
 
-- [ ] Write tests FIRST
-- [ ] Implement each
-- [ ] Commit: `phase-5/task-7: xai deepseek gitlab kiro oauth`
+- [x] Write tests FIRST
+- [x] Implement each
+- [x] Commit: `phase-5/task-7: xai deepseek gitlab kiro oauth`
 
 ### Pre-conditions
 
@@ -386,9 +386,9 @@ phase-5/task-7: xai deepseek gitlab kiro oauth
 
 ### TODO
 
-- [ ] Write tests FIRST
-- [ ] Implement each
-- [ ] Commit: `phase-5/task-8: chinese provider oauth`
+- [x] Write tests FIRST
+- [x] Implement each
+- [x] Commit: `phase-5/task-8: chinese provider oauth`
 
 ### Pre-conditions
 
@@ -437,9 +437,9 @@ phase-5/task-8: chinese provider oauth
 
 ### TODO
 
-- [ ] Write `internal/provider/refresh_test.go` — test FIRST
-- [ ] Implement singleflight dedup
-- [ ] Commit: `phase-5/task-9: token refresh with singleflight dedup`
+- [x] Write `internal/provider/refresh_test.go` — test FIRST
+- [x] Implement singleflight dedup
+- [x] Commit: `phase-5/task-9: token refresh with singleflight dedup`
 
 ### Pre-conditions
 
@@ -488,9 +488,9 @@ phase-5/task-9: token refresh with singleflight dedup
 
 ### TODO
 
-- [ ] Write handler tests FIRST
-- [ ] Implement authorize/poll/callback
-- [ ] Commit: `phase-5/task-10: oauth http endpoints`
+- [x] Write handler tests FIRST
+- [x] Implement authorize/poll/callback
+- [x] Commit: `phase-5/task-10: oauth http endpoints`
 
 ### Pre-conditions
 
@@ -539,11 +539,11 @@ phase-5/task-10: oauth http endpoints
 
 ### TODO
 
-- [ ] go get github.com/spf13/cobra
-- [ ] Write CLI tests FIRST
-- [ ] Implement all commands
-- [ ] Update cmd/g0router/main.go
-- [ ] Commit: `phase-5/task-11: cobra cli with all commands`
+- [x] go get github.com/spf13/cobra
+- [x] Write CLI tests FIRST
+- [x] Implement all commands
+- [x] Update cmd/g0router/main.go
+- [x] Commit: `phase-5/task-11: cobra cli with all commands`
 
 ### Pre-conditions
 
@@ -598,20 +598,20 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 5.1 complete (OAuth Types and Interface)
-- [ ] Task 5.2 complete (Anthropic OAuth (Claude Code))
-- [ ] Task 5.3 complete (OpenAI Codex OAuth)
-- [ ] Task 5.4 complete (GitHub Copilot OAuth)
-- [ ] Task 5.5 complete (Cursor PKCE OAuth)
-- [ ] Task 5.6 complete (Google OAuth (Gemini CLI, Antigravity))
-- [ ] Task 5.7 complete (xAI, DeepSeek, GitLab, Kiro OAuth)
-- [ ] Task 5.8 complete (Chinese Provider OAuth)
-- [ ] Task 5.9 complete (Token Refresh with Dedup)
-- [ ] Task 5.10 complete (OAuth HTTP Endpoints)
-- [ ] Task 5.11 complete (CLI Commands (Cobra))
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-5/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_5.status → `DONE`
-- [ ] **PHASE_5_COMPLETE**
+- [x] Task 5.1 complete (OAuth Types and Interface)
+- [x] Task 5.2 complete (Anthropic OAuth (Claude Code))
+- [x] Task 5.3 complete (OpenAI Codex OAuth)
+- [x] Task 5.4 complete (GitHub Copilot OAuth)
+- [x] Task 5.5 complete (Cursor PKCE OAuth)
+- [x] Task 5.6 complete (Google OAuth (Gemini CLI, Antigravity))
+- [x] Task 5.7 complete (xAI, DeepSeek, GitLab, Kiro OAuth)
+- [x] Task 5.8 complete (Chinese Provider OAuth)
+- [x] Task 5.9 complete (Token Refresh with Dedup)
+- [x] Task 5.10 complete (OAuth HTTP Endpoints)
+- [x] Task 5.11 complete (CLI Commands (Cobra))
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-5/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_5.status → `DONE`
+- [x] **PHASE_5_COMPLETE**

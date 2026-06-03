@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 1 complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 1 complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -28,11 +28,11 @@
 
 ### TODO
 
-- [ ] Write `internal/rtk/autodetect_test.go` — test FIRST with real samples
-- [ ] Run tests → RED
-- [ ] Write `internal/rtk/autodetect.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-7/task-1: rtk content format autodetection`
+- [x] Write `internal/rtk/autodetect_test.go` — test FIRST with real samples
+- [x] Run tests → RED
+- [x] Write `internal/rtk/autodetect.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-7/task-1: rtk content format autodetection`
 
 ### Pre-conditions
 
@@ -81,10 +81,10 @@ phase-7/task-1: rtk content format autodetection
 
 ### TODO
 
-- [ ] For EACH filter: write test FIRST with real-world sample
-- [ ] Implement filter
-- [ ] Run tests → GREEN
-- [ ] Commit per filter or batch: `phase-7/task-2: rtk filters`
+- [x] For EACH filter: write test FIRST with real-world sample
+- [x] Implement filter
+- [x] Run tests → GREEN
+- [x] Commit per filter or batch: `phase-7/task-2: rtk filters`
 
 ### Pre-conditions
 
@@ -127,11 +127,11 @@ go vet ./...              # Clean
 
 ### TODO
 
-- [ ] Write `internal/rtk/rtk_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/rtk/rtk.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-7/task-3: rtk message compression`
+- [x] Write `internal/rtk/rtk_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/rtk/rtk.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-7/task-3: rtk message compression`
 
 ### Pre-conditions
 
@@ -180,11 +180,11 @@ phase-7/task-3: rtk message compression
 
 ### TODO
 
-- [ ] Write `internal/rtk/caveman_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/rtk/caveman.go` + prompts.go
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-7/task-4: caveman prompt injection`
+- [x] Write `internal/rtk/caveman_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/rtk/caveman.go` + prompts.go
+- [x] Run tests → GREEN
+- [x] Commit: `phase-7/task-4: caveman prompt injection`
 
 ### Pre-conditions
 
@@ -239,13 +239,13 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 7.1 complete (RTK Autodetect)
-- [ ] Task 7.2 complete (RTK Filters (11 total))
-- [ ] Task 7.3 complete (RTK Message Compression)
-- [ ] Task 7.4 complete (Caveman Prompt Injection)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-7/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_7.status → `DONE`
-- [ ] **PHASE_7_COMPLETE**
+- [x] Task 7.1 complete (RTK Autodetect)
+- [x] Task 7.2 complete (RTK Filters (11 total))
+- [x] Task 7.3 complete (RTK Message Compression)
+- [x] Task 7.4 complete (Caveman Prompt Injection)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-7/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_7.status → `DONE`
+- [x] **PHASE_7_COMPLETE**

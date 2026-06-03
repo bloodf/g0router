@@ -10,6 +10,13 @@ Start here to understand the project, then dive into specific areas.
 4. **[CONFIG.md](CONFIG.md)** — Environment variables and settings
 5. **[PROVIDERS.md](PROVIDERS.md)** — Provider parity/status matrix with auth and capability flags
 
+## Current Status
+
+Implementation and remediation waves through **7.M** are complete and merged.
+Use [WORKFLOW.md](WORKFLOW.md) as the source of truth for gate results,
+evaluator prompts, and remaining non-blocking caveats. Phase documents are
+retained as completed implementation guides.
+
 ## Reference
 
 | Document | When to Read |

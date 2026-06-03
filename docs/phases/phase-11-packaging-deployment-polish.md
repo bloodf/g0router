@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] All previous phases complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] All previous phases complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ---
 
@@ -18,9 +18,9 @@
 
 ### TODO
 
-- [ ] Write Makefile with build, test, lint, ui, docker, install targets
-- [ ] Verify `make build` + `make test`
-- [ ] Commit: `phase-11/task-1: makefile`
+- [x] Write Makefile with build, test, lint, ui, docker, install targets
+- [x] Verify `make build` + `make test`
+- [x] Commit: `phase-11/task-1: makefile`
 
 ### Pre-conditions
 
@@ -69,11 +69,11 @@ phase-11/task-1: makefile
 
 ### TODO
 
-- [ ] Write `internal/cli/install_test.go` — test FIRST
-- [ ] Write `deploy/g0router.service`
-- [ ] Write `deploy/g0router.default`
-- [ ] Implement install/uninstall commands
-- [ ] Commit: `phase-11/task-2: systemd service and install command`
+- [x] Write `internal/cli/install_test.go` — test FIRST
+- [x] Write `deploy/g0router.service`
+- [x] Write `deploy/g0router.default`
+- [x] Implement install/uninstall commands
+- [x] Commit: `phase-11/task-2: systemd service and install command`
 
 ### Pre-conditions
 
@@ -122,11 +122,11 @@ phase-11/task-2: systemd service and install command
 
 ### TODO
 
-- [ ] Write `Dockerfile` (multi-stage)
-- [ ] Write `docker-compose.yml`
-- [ ] Write `.dockerignore`
-- [ ] Verify `docker build` succeeds
-- [ ] Commit: `phase-11/task-3: docker support`
+- [x] Write `Dockerfile` (multi-stage)
+- [x] Write `docker-compose.yml`
+- [x] Write `.dockerignore`
+- [x] Verify `docker build` succeeds
+- [x] Commit: `phase-11/task-3: docker support`
 
 ### Pre-conditions
 
@@ -175,9 +175,9 @@ phase-11/task-3: docker support
 
 ### TODO
 
-- [ ] Verify all docs are accurate
-- [ ] Update README with tested examples
-- [ ] Commit: `phase-11/task-4: documentation polish`
+- [x] Verify all docs are accurate
+- [x] Update README with tested examples
+- [x] Commit: `phase-11/task-4: documentation polish`
 
 ### Pre-conditions
 
@@ -226,9 +226,9 @@ phase-11/task-4: documentation polish
 
 ### TODO
 
-- [ ] Write E2E test (server start → login → request → usage)
-- [ ] Run with real API keys
-- [ ] Commit: `phase-11/task-5: end-to-end integration tests`
+- [x] Write E2E test (server start → login → request → usage)
+- [x] Run with real API keys
+- [x] Commit: `phase-11/task-5: end-to-end integration tests`
 
 ### Pre-conditions
 
@@ -283,14 +283,14 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 11.1 complete (Makefile)
-- [ ] Task 11.2 complete (systemd + Install CLI)
-- [ ] Task 11.3 complete (Docker Support)
-- [ ] Task 11.4 complete (.env.example + README)
-- [ ] Task 11.5 complete (Final Integration Test Suite)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-11/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_11.status → `DONE`
-- [ ] **PHASE_11_COMPLETE** -> advance to Phase 12
+- [x] Task 11.1 complete (Makefile)
+- [x] Task 11.2 complete (systemd + Install CLI)
+- [x] Task 11.3 complete (Docker Support)
+- [x] Task 11.4 complete (.env.example + README)
+- [x] Task 11.5 complete (Final Integration Test Suite)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-11/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_11.status → `DONE`
+- [x] **PHASE_11_COMPLETE** -> advance to Phase 12

@@ -9,8 +9,8 @@ All configuration via environment variables. Runtime overrides via the `settings
 | `PORT` | int | No | `20128` | HTTP listen port. Range: 1–65535. |
 | `BIND_ADDRESS` | IP address | No | `127.0.0.1` | HTTP listen address. Use `0.0.0.0` or `::` only when public exposure is intentional and protected by Docker host binding, firewall, or reverse proxy controls. |
 | `DATA_DIR` | path | No | `~/.g0router` | Directory for SQLite database and any persistent data. Created automatically if missing. `~` is expanded to `$HOME`. |
-| `JWT_SECRET` | string | For dashboard auth | — | HMAC secret for signing JWT session tokens. Min 32 chars recommended. Generate: `openssl rand -hex 32`. |
-| `API_KEY_SECRET` | string | When `REQUIRE_API_KEY=true` | — | HMAC secret for hashing gateway API keys. Same generation method as JWT_SECRET. **Different secret from JWT.** |
+| `JWT_SECRET` | string | No | — | Reserved bootstrap setting loaded by config but not used by the current control-plane auth path. |
+| `API_KEY_SECRET` | string | When `REQUIRE_API_KEY=true` | — | HMAC secret for hashing gateway API keys. Generate with `openssl rand -hex 32`. |
 | `REQUIRE_API_KEY` | bool | No | `true` | When true, all `/v1/*` inference endpoints and `/api/*` management endpoints require a valid API key via `Authorization: Bearer <key>` or `X-API-Key` header. OAuth callback endpoints remain public so provider redirects can complete. |
 | `ENABLE_REQUEST_LOGS` | bool | No | `false` | Store request/response metadata in `request_log` table. Increases disk usage. Does NOT store request/response bodies — only metadata (tokens, cost, latency, model, etc.). |
 | `RTK_ENABLED` | bool | No | `true` | Enable Response Token Kompression. Autodetects tool output format and applies compression filters. See [Phase 7](phases/phase-07-rtk-caveman.md). |
@@ -105,7 +105,7 @@ type Config struct {
     Port              int    // Default: 20128
     DataDir           string // Default: ~/.g0router (expanded)
     BindAddress       string // Default: 127.0.0.1
-    JWTSecret         string // From JWT_SECRET env
+    JWTSecret         string // Reserved; loaded from JWT_SECRET env
     APIKeySecret      string // From API_KEY_SECRET env
     RequireAPIKey     bool   // Default: true
     EnableRequestLogs bool   // Default: false

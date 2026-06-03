@@ -9,9 +9,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 0 complete (`PHASE_0_COMPLETE`)
-- [ ] `go build ./cmd/g0router` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 0 complete (`PHASE_0_COMPLETE`)
+- [x] `go build ./cmd/g0router` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -31,13 +31,13 @@
 
 ### TODO
 
-- [ ] Write `internal/providers/types_test.go` — **test file FIRST**
-- [ ] Run tests → see RED (types don't exist)
-- [ ] Write `internal/providers/types.go` — all types
-- [ ] Write `internal/providers/interface.go` — Provider interface
-- [ ] Run tests → see GREEN
-- [ ] Run `go vet ./...` → clean
-- [ ] Commit: `phase-1/task-1: define core types with OpenAI-compatible JSON`
+- [x] Write `internal/providers/types_test.go` — **test file FIRST**
+- [x] Run tests → see RED (types don't exist)
+- [x] Write `internal/providers/types.go` — all types
+- [x] Write `internal/providers/interface.go` — Provider interface
+- [x] Run tests → see GREEN
+- [x] Run `go vet ./...` → clean
+- [x] Commit: `phase-1/task-1: define core types with OpenAI-compatible JSON`
 
 ### Pre-conditions
 
@@ -463,13 +463,13 @@ phase-1/task-1: define core types with OpenAI-compatible JSON
 
 ### TODO
 
-- [ ] `go get modernc.org/sqlite`
-- [ ] Write `internal/store/sqlite_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Write `internal/store/sqlite.go` — NewStore, Close, migrate
-- [ ] Run tests → see GREEN
-- [ ] Run `go vet ./...` → clean
-- [ ] Commit: `phase-1/task-2: sqlite store foundation with migration`
+- [x] `go get modernc.org/sqlite`
+- [x] Write `internal/store/sqlite_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Write `internal/store/sqlite.go` — NewStore, Close, migrate
+- [x] Run tests → see GREEN
+- [x] Run `go vet ./...` → clean
+- [x] Commit: `phase-1/task-2: sqlite store foundation with migration`
 
 ### Pre-conditions
 
@@ -716,13 +716,13 @@ phase-1/task-2: sqlite store foundation with migration
 
 ### TODO
 
-- [ ] Write `internal/store/connections_test.go` — **test file FIRST**
-- [ ] Write `internal/store/errors.go` — `ErrNotFound`
-- [ ] Run tests → see RED
-- [ ] Write `internal/store/connections.go`
-- [ ] Run tests → see GREEN
-- [ ] Run `go vet ./...` → clean
-- [ ] Commit: `phase-1/task-3: connection CRUD with provider filtering`
+- [x] Write `internal/store/connections_test.go` — **test file FIRST**
+- [x] Write `internal/store/errors.go` — `ErrNotFound`
+- [x] Run tests → see RED
+- [x] Write `internal/store/connections.go`
+- [x] Run tests → see GREEN
+- [x] Run `go vet ./...` → clean
+- [x] Commit: `phase-1/task-3: connection CRUD with provider filtering`
 
 ### Pre-conditions
 
@@ -945,14 +945,14 @@ phase-1/task-3: connection CRUD with provider filtering
 
 ### TODO
 
-- [ ] Write `internal/store/settings_test.go` — **test file FIRST**
-- [ ] Write `internal/store/apikeys_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Write `internal/store/settings.go`
-- [ ] Write `internal/store/apikeys.go`
-- [ ] Run tests → see GREEN
-- [ ] Run `go vet ./...` → clean
-- [ ] Commit: `phase-1/task-4: settings and API key store with HMAC validation`
+- [x] Write `internal/store/settings_test.go` — **test file FIRST**
+- [x] Write `internal/store/apikeys_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Write `internal/store/settings.go`
+- [x] Write `internal/store/apikeys.go`
+- [x] Run tests → see GREEN
+- [x] Run `go vet ./...` → clean
+- [x] Commit: `phase-1/task-4: settings and API key store with HMAC validation`
 
 ### Pre-conditions
 
@@ -1015,12 +1015,12 @@ phase-1/task-4: settings and API key store with HMAC validation
 
 ### TODO
 
-- [ ] Write `internal/store/usage_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Write `internal/store/usage.go`
-- [ ] Run tests → see GREEN
-- [ ] Run `go vet ./...` → clean
-- [ ] Commit: `phase-1/task-5: usage log store with filtering and aggregation`
+- [x] Write `internal/store/usage_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Write `internal/store/usage.go`
+- [x] Run tests → see GREEN
+- [x] Run `go vet ./...` → clean
+- [x] Commit: `phase-1/task-5: usage log store with filtering and aggregation`
 
 ### Pre-conditions
 
@@ -1067,12 +1067,12 @@ phase-1/task-5: usage log store with filtering and aggregation
 
 ### TODO
 
-- [ ] Write `internal/config/config_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Write `internal/config/config.go`
-- [ ] Run tests → see GREEN
-- [ ] Run `go vet ./...` → clean
-- [ ] Commit: `phase-1/task-6: config loading from env with validation`
+- [x] Write `internal/config/config_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Write `internal/config/config.go`
+- [x] Run tests → see GREEN
+- [x] Run `go vet ./...` → clean
+- [x] Commit: `phase-1/task-6: config loading from env with validation`
 
 ### Pre-conditions
 
@@ -1135,16 +1135,16 @@ go build ./cmd/g0router   # Binary still builds
 
 ## Phase Checklist
 
-- [ ] Task 1.1 complete (core types)
-- [ ] Task 1.2 complete (SQLite store)
-- [ ] Task 1.3 complete (connection CRUD)
-- [ ] Task 1.4 complete (settings + API keys)
-- [ ] Task 1.5 complete (usage log)
-- [ ] Task 1.6 complete (config loading)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-1/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_1.status → `DONE`
-- [ ] Update `docs/WORKFLOW.md`: current_phase → `2`
-- [ ] **PHASE_1_COMPLETE**
+- [x] Task 1.1 complete (core types)
+- [x] Task 1.2 complete (SQLite store)
+- [x] Task 1.3 complete (connection CRUD)
+- [x] Task 1.4 complete (settings + API keys)
+- [x] Task 1.5 complete (usage log)
+- [x] Task 1.6 complete (config loading)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-1/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_1.status → `DONE`
+- [x] Update `docs/WORKFLOW.md`: current_phase → `2`
+- [x] **PHASE_1_COMPLETE**

@@ -235,6 +235,16 @@ POST   /api/combos                   — Create combo
 PUT    /api/combos/:id               — Update combo
 DELETE /api/combos/:id               — Delete combo
 
+GET    /api/aliases                  — List model aliases
+POST   /api/aliases                  — Create model alias
+PUT    /api/aliases/:alias           — Update model alias
+DELETE /api/aliases/:alias           — Delete model alias
+
+GET    /api/pricing                  — List pricing overrides
+POST   /api/pricing                  — Create pricing override
+PUT    /api/pricing/:provider/:model — Update pricing override
+DELETE /api/pricing/:provider/:model — Delete pricing override
+
 GET    /api/settings                 — Get settings
 PUT    /api/settings                 — Update settings
 
