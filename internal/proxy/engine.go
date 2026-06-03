@@ -123,9 +123,7 @@ func (e *Engine) dispatchRoute(ctx context.Context, route modelRoute, req *provi
 		}
 
 		if err := e.checkQuota(ctx, key); err != nil {
-			e.recordProviderFailure(conn, upstreamModel)
-			lastErr = err
-			continue
+			return nil, err
 		}
 
 		resp, err := provider.ChatCompletion(ctx, key, requestWithModel(req, upstreamModel))
@@ -160,9 +158,7 @@ func (e *Engine) dispatchStreamRoute(ctx context.Context, route modelRoute, req 
 		}
 
 		if err := e.checkQuota(ctx, key); err != nil {
-			e.recordProviderFailure(conn, upstreamModel)
-			lastErr = err
-			continue
+			return nil, err
 		}
 
 		stream, err := provider.ChatCompletionStream(ctx, key, requestWithModel(req, upstreamModel))
