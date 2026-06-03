@@ -1155,7 +1155,7 @@ tasks:
 
 ```yaml
 wave: "7.E"
-status: IN_PROGRESS
+status: DONE
 max_agents: 3
 depends_on: ["7.D"]
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
@@ -1228,7 +1228,9 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.E.6"
     name: "Wave 7.E evaluator prompt"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T03:22:01Z"
     files_owned:
       - docs/evaluations/wave-7E-evaluator-prompt.md
       - docs/WORKFLOW.md
