@@ -53,16 +53,19 @@ sudo systemctl status g0router
 
 # Docker image
 make docker
+export JWT_SECRET="$(openssl rand -hex 32)"
+export API_KEY_SECRET="$(openssl rand -hex 32)"
 docker run --rm -p 127.0.0.1:20128:20128 \
-  -e API_KEY_SECRET="$(openssl rand -hex 32)" \
+  -e JWT_SECRET="${JWT_SECRET}" \
+  -e API_KEY_SECRET="${API_KEY_SECRET}" \
   -e BIND_ADDRESS=0.0.0.0 \
   g0router:latest
 
 # Docker Compose
-API_KEY_SECRET="$(openssl rand -hex 32)" docker compose up -d
+JWT_SECRET="${JWT_SECRET}" API_KEY_SECRET="${API_KEY_SECRET}" docker compose up -d
 ```
 
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, Docker, logs, health checks, and upgrade steps.
+Keep both secrets stable across restarts. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, Docker, API key bootstrap, logs, health checks, and upgrade steps.
 
 ## Supported Providers
 

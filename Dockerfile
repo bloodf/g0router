@@ -11,10 +11,12 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=ui-builder /app/ui/dist ./ui/dist
+RUN mkdir -p /docker-data && touch /docker-data/.keep
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o g0router ./cmd/g0router
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=go-builder /app/g0router /g0router
+COPY --from=go-builder --chown=65532:65532 /docker-data/ /data/
 VOLUME ["/data"]
 EXPOSE 20128
 ENV DATA_DIR=/data
