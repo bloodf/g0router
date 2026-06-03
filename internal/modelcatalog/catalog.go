@@ -11,26 +11,76 @@ type Catalog struct {
 }
 
 func NewCatalog() Catalog {
+	paid := func(input, cachedInput, output float64) Pricing {
+		return Pricing{
+			InputPerMillionUSD:       input,
+			CachedInputPerMillionUSD: cachedInput,
+			OutputPerMillionUSD:      output,
+		}
+	}
+	noHostedCacheDiscount := func(input, output float64) Pricing {
+		return paid(input, input, output)
+	}
+
 	return Catalog{
 		prices: map[providers.ModelProvider]map[string]Pricing{
 			providers.ProviderOpenAI: {
-				"gpt-4o": {
-					InputPerMillionUSD:       2.50,
-					CachedInputPerMillionUSD: 1.25,
-					OutputPerMillionUSD:      10.00,
-				},
-				"gpt-4o-mini": {
-					InputPerMillionUSD:       0.15,
-					CachedInputPerMillionUSD: 0.075,
-					OutputPerMillionUSD:      0.60,
-				},
+				"gpt-4o":      paid(2.50, 1.25, 10.00),
+				"gpt-4o-mini": paid(0.15, 0.075, 0.60),
 			},
 			providers.ProviderAnthropic: {
-				"claude-sonnet-4": {
-					InputPerMillionUSD:       3.00,
-					CachedInputPerMillionUSD: 0.30,
-					OutputPerMillionUSD:      15.00,
-				},
+				"claude-sonnet-4":           paid(3.00, 0.30, 15.00),
+				"claude-sonnet-4-20250514":  paid(3.00, 0.30, 15.00),
+				"claude-opus-4":             paid(15.00, 1.50, 75.00),
+				"claude-opus-4-20250514":    paid(15.00, 1.50, 75.00),
+				"claude-3-5-haiku-20241022": paid(0.80, 0.08, 4.00),
+			},
+			providers.ProviderGemini: {
+				"gemini-2.5-flash":      paid(0.30, 0.03, 2.50),
+				"gemini-2.5-flash-lite": paid(0.10, 0.01, 0.40),
+			},
+			providers.ProviderGroq: {
+				"llama-3.3-70b-versatile": noHostedCacheDiscount(0.59, 0.79),
+				"llama-3.1-8b-instant":    noHostedCacheDiscount(0.05, 0.08),
+			},
+			providers.ProviderMistral: {
+				"mistral-large-latest":   noHostedCacheDiscount(2.00, 6.00),
+				"mistral-small-latest":   noHostedCacheDiscount(0.10, 0.30),
+				"magistral-small-latest": noHostedCacheDiscount(0.50, 1.50),
+				"ministral-8b-latest":    noHostedCacheDiscount(0.15, 0.15),
+			},
+			providers.ProviderOpenRouter: {
+				"openai/gpt-4o":      noHostedCacheDiscount(2.50, 10.00),
+				"openai/gpt-4o-mini": noHostedCacheDiscount(0.15, 0.60),
+			},
+			providers.ProviderDeepSeek: {
+				"deepseek-chat":     paid(0.27, 0.07, 1.10),
+				"deepseek-reasoner": paid(0.55, 0.14, 2.19),
+			},
+			providers.ProviderPerplexity: {
+				"sonar":               noHostedCacheDiscount(1.00, 1.00),
+				"sonar-pro":           noHostedCacheDiscount(3.00, 15.00),
+				"sonar-reasoning-pro": noHostedCacheDiscount(2.00, 8.00),
+			},
+			providers.ProviderCerebras: {
+				"llama3.1-8b": noHostedCacheDiscount(0.10, 0.10),
+			},
+			providers.ProviderFireworks: {
+				"accounts/fireworks/models/deepseek-v4-flash":       paid(0.14, 0.028, 0.28),
+				"accounts/fireworks/models/llama-v3p1-70b-instruct": paid(0.30, 0.15, 1.20),
+				"accounts/fireworks/models/llama-v3p3-70b-instruct": noHostedCacheDiscount(0.90, 0.90),
+			},
+			providers.ProviderTogether: {
+				"meta-llama/Llama-3.3-70B-Instruct-Turbo":  noHostedCacheDiscount(1.04, 1.04),
+				"meta-llama/Meta-Llama-3-8B-Instruct-Lite": noHostedCacheDiscount(0.10, 0.10),
+			},
+			providers.ProviderOllama: {
+				"llama3.1:8b":  {},
+				"llama3.3:70b": {},
+			},
+			providers.ProviderVertex: {
+				"gemini-2.5-flash":      paid(0.30, 0.03, 2.50),
+				"gemini-2.5-flash-lite": paid(0.10, 0.01, 0.40),
 			},
 		},
 	}
