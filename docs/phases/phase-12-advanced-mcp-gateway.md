@@ -130,7 +130,7 @@ POST   /api/mcp/instances
 DELETE /api/mcp/instances/:id
 
 GET    /api/mcp/instances/:id/accounts
-POST   /api/mcp/instances/:id/oauth/start
+POST   /api/mcp/instances/:id/auth/start
 POST   /api/mcp/instances/:id/oauth/complete
 GET    /api/mcp/oauth/callback
 ```
@@ -139,18 +139,18 @@ GET    /api/mcp/oauth/callback
 delete endpoints are not exposed as separate management routes in the current
 release. Instance deletion cascades stored OAuth accounts and flows.
 
-## CLI Plan
+## Implemented CLI Surface
 
 ```text
-g0router mcp add command <name> -- <command> [args...]
-g0router mcp add npx <name> <package> [-- <args...>]
-g0router mcp add docker <name> <image> [-- <args...>]
-g0router mcp add http <name> <url>
+g0router mcp add <name> --launch-type command --transport stdio --command <command> [--arg <arg>...]
+g0router mcp add <name> --launch-type npx --transport stdio --command <package> [--arg <arg>...]
+g0router mcp add <name> --launch-type docker --transport stdio --command <image> [--arg <arg>...]
+g0router mcp add <name> --launch-type http --transport streamable-http --url <url>
 g0router mcp auth start <instance>
 g0router mcp auth complete <instance> <callback-url>
 g0router mcp accounts <instance>
-g0router mcp tools [--instance <name>]
-g0router mcp rm <instance>
+g0router mcp tools <instance>
+g0router mcp remove <instance>
 ```
 
 ---

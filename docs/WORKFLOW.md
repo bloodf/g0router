@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: REMEDIATION_WAVE_7M_READY_FOR_EVALUATION
+project_status: COMPLETE_EVALUATED
 current_stage: 7
 current_wave: "7.M"
-last_updated: "2026-06-03T19:40:00Z"
+last_updated: "2026-06-03T19:58:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1935,8 +1935,13 @@ gate_results:
     status: PASS
 
 evaluation:
-  status: PENDING
+  status: PASS
+  completed_at: "2026-06-03T19:58:00Z"
+  evaluator_agent: "McClintock"
   prompt: "docs/evaluations/wave-7M-evaluator-prompt.md"
+  non_blocking_findings:
+    - "Node emitted deprecation/experimental localStorage warnings during UI test/build; commands exited 0."
+    - "POST /api/connections/:id/test is a stored-row/is_active health check, not a live upstream credential probe."
 ```
 
 ---

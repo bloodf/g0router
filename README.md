@@ -53,19 +53,17 @@ sudo systemctl status g0router
 
 # Docker image
 make docker
-export JWT_SECRET="$(openssl rand -hex 32)"
 export API_KEY_SECRET="$(openssl rand -hex 32)"
 docker run --rm -p 127.0.0.1:20128:20128 \
-  -e JWT_SECRET="${JWT_SECRET}" \
   -e API_KEY_SECRET="${API_KEY_SECRET}" \
   -e BIND_ADDRESS=0.0.0.0 \
   g0router:latest
 
 # Docker Compose
-JWT_SECRET="${JWT_SECRET}" API_KEY_SECRET="${API_KEY_SECRET}" docker compose up -d
+API_KEY_SECRET="${API_KEY_SECRET}" docker compose up -d
 ```
 
-Keep both secrets stable across restarts. `API_KEY_SECRET` validates gateway and dashboard control-plane API keys; `JWT_SECRET` is separate session-signing material for dashboard/admin flows. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, Docker, API key bootstrap, logs, health checks, and upgrade steps.
+Keep `API_KEY_SECRET` stable across restarts. It validates gateway and dashboard control-plane API keys. `JWT_SECRET` is currently only a reserved compatibility setting loaded by config. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, Docker, API key bootstrap, logs, health checks, and upgrade steps.
 
 ## Supported Providers
 
@@ -76,7 +74,7 @@ Public direct-dispatch support is currently OpenAI and Anthropic. Registered ada
 | Document | Description |
 |----------|-------------|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, request pipeline, interfaces |
-| [docs/PLAN.md](docs/PLAN.md) | Implementation roadmap (12 phases, 71 tasks) |
+| [docs/PLAN.md](docs/PLAN.md) | Implementation roadmap and remediation summary |
 | [docs/SCHEMA.md](docs/SCHEMA.md) | SQLite schema + API contracts |
 | [docs/CONFIG.md](docs/CONFIG.md) | Environment variables reference |
 | [docs/PROVIDERS.md](docs/PROVIDERS.md) | Provider catalog with auth details |
