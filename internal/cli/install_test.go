@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,14 +13,16 @@ func TestInstallSystemWritesFilesAndRunsSystemctl(t *testing.T) {
 	root := t.TempDir()
 	binary := writeExecutable(t, root)
 	recorder := &commandRecorder{fail: map[string]bool{"id -u g0router": true}}
+	secrets := newSecretGenerator("jwt-secret", "api-key-secret")
 
 	var out bytes.Buffer
 	err := runInstall(installOptions{
-		Root:       root,
-		HomeDir:    filepath.Join(root, "home"),
-		Executable: binary,
-		RunCommand: recorder.run,
-		Out:        &out,
+		Root:            root,
+		HomeDir:         filepath.Join(root, "home"),
+		Executable:      binary,
+		RunCommand:      recorder.run,
+		SecretGenerator: secrets.next,
+		Out:             &out,
 	})
 	if err != nil {
 		t.Fatalf("install: %v", err)
@@ -28,6 +31,8 @@ func TestInstallSystemWritesFilesAndRunsSystemctl(t *testing.T) {
 	assertFileContains(t, filepath.Join(root, "usr/local/bin/g0router"), "test binary")
 	assertFileContains(t, filepath.Join(root, "etc/systemd/system/g0router.service"), "ExecStart=/usr/local/bin/g0router serve")
 	assertFileContains(t, filepath.Join(root, "etc/default/g0router"), "DATA_DIR=/var/lib/g0router")
+	assertFileContains(t, filepath.Join(root, "etc/default/g0router"), "JWT_SECRET=jwt-secret")
+	assertFileContains(t, filepath.Join(root, "etc/default/g0router"), "API_KEY_SECRET=api-key-secret")
 	if _, err := os.Stat(filepath.Join(root, "var/lib/g0router")); err != nil {
 		t.Fatalf("data dir missing: %v", err)
 	}
@@ -38,6 +43,63 @@ func TestInstallSystemWritesFilesAndRunsSystemctl(t *testing.T) {
 	if got := out.String(); !strings.Contains(got, "installed system service") {
 		t.Fatalf("output = %q, want installed system service", got)
 	}
+}
+
+func TestInstallUsesDeployTemplatesOutsideCheckout(t *testing.T) {
+	root := t.TempDir()
+	binary := writeExecutable(t, root)
+	recorder := &commandRecorder{fail: map[string]bool{"id -u g0router": true}}
+	originalCWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get cwd: %v", err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(originalCWD); err != nil {
+			t.Fatalf("restore cwd: %v", err)
+		}
+	})
+
+	err = runInstall(installOptions{
+		Root:            root,
+		HomeDir:         filepath.Join(root, "home"),
+		Executable:      binary,
+		RunCommand:      recorder.run,
+		SecretGenerator: newSecretGenerator("jwt-secret", "api-key-secret").next,
+		Out:             io.Discard,
+	})
+	if err != nil {
+		t.Fatalf("install outside checkout: %v", err)
+	}
+
+	assertFileContains(t, filepath.Join(root, "etc/systemd/system/g0router.service"), "ExecStart=/usr/local/bin/g0router serve")
+	assertFileContains(t, filepath.Join(root, "etc/default/g0router"), "API_KEY_SECRET=api-key-secret")
+}
+
+func TestInstallSkipsCopyWhenExecutableAlreadyInstalled(t *testing.T) {
+	root := t.TempDir()
+	installed := filepath.Join(root, "usr/local/bin/g0router")
+	mustWrite(t, installed, "already installed")
+	if err := os.Chmod(installed, 0o755); err != nil {
+		t.Fatalf("chmod installed binary: %v", err)
+	}
+	recorder := &commandRecorder{fail: map[string]bool{"id -u g0router": true}}
+
+	err := runInstall(installOptions{
+		Root:            root,
+		HomeDir:         filepath.Join(root, "home"),
+		Executable:      installed,
+		RunCommand:      recorder.run,
+		SecretGenerator: newSecretGenerator("jwt-secret", "api-key-secret").next,
+		Out:             io.Discard,
+	})
+	if err != nil {
+		t.Fatalf("install same binary: %v", err)
+	}
+
+	assertFileContains(t, installed, "already installed")
 }
 
 func TestInstallUserWritesFilesAndRunsUserSystemctl(t *testing.T) {
@@ -145,6 +207,24 @@ func TestDeployTemplatesExist(t *testing.T) {
 type commandRecorder struct {
 	commands []string
 	fail     map[string]bool
+}
+
+type secretGenerator struct {
+	values []string
+	index  int
+}
+
+func newSecretGenerator(values ...string) *secretGenerator {
+	return &secretGenerator{values: values}
+}
+
+func (g *secretGenerator) next() (string, error) {
+	if g.index >= len(g.values) {
+		return "", os.ErrNotExist
+	}
+	value := g.values[g.index]
+	g.index++
+	return value, nil
 }
 
 func (r *commandRecorder) run(name string, args ...string) error {
