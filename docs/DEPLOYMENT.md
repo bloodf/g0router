@@ -125,6 +125,21 @@ CAVEMAN_LEVEL=full
 
 ## Docker
 
+Docker runs as a non-root user and persists SQLite data in `/data`. The image
+seeds `/data` with non-root ownership so a new named volume is writable on first
+boot.
+
+Generate both bootstrap secrets before starting Docker and keep them stable
+across restarts:
+
+```bash
+export JWT_SECRET="$(openssl rand -hex 32)"
+export API_KEY_SECRET="$(openssl rand -hex 32)"
+```
+
+`JWT_SECRET` signs dashboard/admin sessions. `API_KEY_SECRET` hashes gateway API
+keys and gates `/v1/*` plus `/api/*` routes when `REQUIRE_API_KEY=true`.
+
 ### Build + Run
 
 ```bash
@@ -137,11 +152,22 @@ docker run -d \
   --restart unless-stopped \
   -p 127.0.0.1:20128:20128 \
   -v g0router-data:/data \
-  -e JWT_SECRET=$(openssl rand -hex 32) \
-  -e API_KEY_SECRET=$(openssl rand -hex 32) \
+  -e JWT_SECRET="${JWT_SECRET}" \
+  -e API_KEY_SECRET="${API_KEY_SECRET}" \
   -e BIND_ADDRESS=0.0.0.0 \
   -e REQUIRE_API_KEY=true \
   g0router
+```
+
+Create the first gateway API key with the same `API_KEY_SECRET` value used by
+the running container:
+
+```bash
+docker run --rm \
+  -v g0router-data:/data \
+  -e DATA_DIR=/data \
+  -e API_KEY_SECRET="${API_KEY_SECRET}" \
+  g0router keys add default
 ```
 
 ### Docker Compose (docker-compose.yml)
@@ -161,12 +187,12 @@ services:
       PORT: "20128"
       BIND_ADDRESS: "0.0.0.0"
       DATA_DIR: "/data"
-      JWT_SECRET: "${JWT_SECRET}"
-      API_KEY_SECRET: "${API_KEY_SECRET:?API_KEY_SECRET is required for docker-compose}"
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required for docker-compose dashboard auth}"
+      API_KEY_SECRET: "${API_KEY_SECRET:?API_KEY_SECRET is required for docker-compose API keys}"
       REQUIRE_API_KEY: "true"
       RTK_ENABLED: "true"
     healthcheck:
-      test: ["/g0router", "healthcheck"]
+      test: ["CMD", "/g0router", "healthcheck"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -174,6 +200,12 @@ services:
 
 volumes:
   g0router-data:
+```
+
+Start compose with both secrets exported:
+
+```bash
+JWT_SECRET="${JWT_SECRET}" API_KEY_SECRET="${API_KEY_SECRET}" docker compose up -d
 ```
 
 ### Dockerfile
@@ -192,10 +224,12 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=ui-builder /app/ui/dist ./ui/dist
+RUN mkdir -p /docker-data && touch /docker-data/.keep
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o g0router ./cmd/g0router
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=go-builder /app/g0router /g0router
+COPY --from=go-builder --chown=65532:65532 /docker-data/ /data/
 VOLUME ["/data"]
 EXPOSE 20128
 ENV DATA_DIR=/data
