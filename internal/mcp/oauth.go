@@ -91,10 +91,7 @@ type tokenResponse struct {
 }
 
 func NewOAuthEngine(store OAuthStore, client OAuthHTTPClient) *OAuthEngine {
-	if client == nil {
-		client = http.DefaultClient
-	}
-	return &OAuthEngine{store: store, http: client}
+	return &OAuthEngine{store: store, http: noRedirectOAuthClient(client)}
 }
 
 func BuildOAuthStartFlow(config OAuthStartConfig) (OAuthFlow, error) {
@@ -411,4 +408,20 @@ func selectedAccountLabel(store OAuthStore, instanceID string) string {
 	return strings.TrimSpace(label)
 }
 
-var _ = context.Background
+func noRedirectOAuthClient(client OAuthHTTPClient) OAuthHTTPClient {
+	if client == nil {
+		return noRedirectHTTPClient(http.DefaultClient)
+	}
+	if httpClient, ok := client.(*http.Client); ok {
+		return noRedirectHTTPClient(httpClient)
+	}
+	return client
+}
+
+func noRedirectHTTPClient(client *http.Client) *http.Client {
+	cloned := *client
+	cloned.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	return &cloned
+}

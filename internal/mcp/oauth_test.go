@@ -194,6 +194,52 @@ func TestOAuthEngineRequiresRealTokenEndpoint(t *testing.T) {
 	}
 }
 
+func TestOAuthEngineRejectsRedirectingTokenEndpointWithoutFollowing(t *testing.T) {
+	store := newFakeOAuthStore()
+	var redirectHit bool
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			http.Redirect(w, r, "/redirect-token", http.StatusTemporaryRedirect)
+		case "/redirect-token":
+			redirectHit = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "redirected-token",
+				"expires_in":   3600,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer tokenServer.Close()
+
+	engine := NewOAuthEngine(store, tokenServer.Client())
+	if err := store.CreateFlow(OAuthFlow{
+		InstanceID:         "inst-1",
+		State:              "state-1",
+		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost/callback?instance_id=inst-1",
+		AuthorizationURL:   tokenServer.URL + "/authorize",
+		ResourceURI:        "https://mcp.example",
+		ExpiresAt:          time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateFlow: %v", err)
+	}
+
+	_, err := engine.CompleteCallback(context.Background(), "inst-1", "https://callback.example?code=ok&state=state-1")
+
+	if !errors.Is(err, errOAuthTokenEndpointUnavailable) {
+		t.Fatalf("err = %v, want token endpoint unavailable", err)
+	}
+	if redirectHit {
+		t.Fatal("token redirect target was followed")
+	}
+	if len(store.accounts) != 0 {
+		t.Fatalf("stored accounts = %+v, want none", store.accounts)
+	}
+}
+
 func TestOAuthEngineAddsBearerAndProtocolHeaders(t *testing.T) {
 	var gotAuth string
 	var gotProtocol string
@@ -239,6 +285,48 @@ func TestOAuthEngineRequiresReauthForExpiredOrWrongResource(t *testing.T) {
 	err = engine.AuthorizeRequest(req, OAuthAccount{AccessToken: "token", ResourceURI: "https://other.example", ExpiresAt: time.Now().Add(time.Hour)})
 	if err != ErrReauthRequired {
 		t.Fatalf("wrong resource err = %v, want ErrReauthRequired", err)
+	}
+}
+
+func TestOAuthEngineRefreshRejectsRedirectingTokenEndpointWithoutFollowing(t *testing.T) {
+	store := newFakeOAuthStore()
+	var redirectHit bool
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			http.Redirect(w, r, "/redirect-token", http.StatusTemporaryRedirect)
+		case "/redirect-token":
+			redirectHit = true
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "redirected-refresh-token",
+				"expires_in":   3600,
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer tokenServer.Close()
+
+	engine := NewOAuthEngine(store, tokenServer.Client())
+	_, err := engine.RefreshAccount(context.Background(), OAuthAccount{
+		InstanceID:   "inst-1",
+		AccountLabel: "work",
+		ResourceURI:  "https://mcp.example",
+		AccessToken:  "old-access",
+		RefreshToken: "old-refresh",
+		ExpiresAt:    time.Now().Add(-time.Minute),
+		AuthMetadata: map[string]string{"token_endpoint": tokenServer.URL + "/token"},
+	})
+
+	if !errors.Is(err, errOAuthTokenEndpointUnavailable) {
+		t.Fatalf("err = %v, want token endpoint unavailable", err)
+	}
+	if redirectHit {
+		t.Fatal("refresh token redirect target was followed")
+	}
+	if len(store.accounts) != 0 {
+		t.Fatalf("stored accounts = %+v, want no refresh persistence", store.accounts)
 	}
 }
 

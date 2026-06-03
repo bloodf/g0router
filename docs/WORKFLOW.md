@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.G"
-last_updated: "2026-06-03T05:06:12Z"
+last_updated: "2026-06-03T05:14:58Z"
 last_agent: "orchestrator"
 ```
 
@@ -1436,6 +1436,16 @@ tasks:
       - internal/mcp/oauth_test.go
       - internal/mcp/advanced_integration_test.go
       - docs/evaluations/wave-7G-remediation-evaluator-prompt.md
+      - docs/WORKFLOW.md
+  - id: "7.G.7"
+    name: "Wave 7.G OAuth redirect remediation"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7g-redirect-fix"
+    completed_at: "2026-06-03T05:14:58Z"
+    files_owned:
+      - internal/mcp/oauth.go
+      - internal/mcp/oauth_test.go
       - docs/WORKFLOW.md
 ```
 
