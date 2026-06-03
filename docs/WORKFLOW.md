@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.H"
-last_updated: "2026-06-03T05:39:39Z"
+last_updated: "2026-06-03T05:43:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1512,10 +1512,12 @@ tasks:
       - ui/src/pages/DashboardPage.test.tsx
   - id: "7.H.4"
     name: "Combos and settings pages use real API contracts"
-    status: IN_PROGRESS
+    status: DONE
     agent: "Peirce the 2nd"
     branch: "codex/wave-7h-combos-settings"
     started_at: "2026-06-03T05:29:55Z"
+    commit: "4704dae"
+    completed_at: "2026-06-03T05:43:00Z"
     depends_on_tasks: ["7.H.1"]
     files_owned:
       - ui/src/pages/CombosPage.tsx
