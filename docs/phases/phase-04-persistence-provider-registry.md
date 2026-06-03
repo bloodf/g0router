@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 1 complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 1 complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -27,11 +27,11 @@
 
 ### TODO
 
-- [ ] Write `internal/provider/registry_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/provider/registry.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-4/task-1: provider registry with model resolution`
+- [x] Write `internal/provider/registry_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/provider/registry.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-4/task-1: provider registry with model resolution`
 
 ### Pre-conditions
 
@@ -80,11 +80,11 @@ phase-4/task-1: provider registry with model resolution
 
 ### TODO
 
-- [ ] Write `internal/provider/connection_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/provider/connection.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-4/task-2: round-robin connection selection`
+- [x] Write `internal/provider/connection_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/provider/connection.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-4/task-2: round-robin connection selection`
 
 ### Pre-conditions
 
@@ -133,11 +133,11 @@ phase-4/task-2: round-robin connection selection
 
 ### TODO
 
-- [ ] Write `internal/store/combos_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/store/combos.go` + `internal/proxy/combo.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-4/task-3: combo model store and resolver`
+- [x] Write `internal/store/combos_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/store/combos.go` + `internal/proxy/combo.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-4/task-3: combo model store and resolver`
 
 ### Pre-conditions
 
@@ -186,9 +186,9 @@ phase-4/task-3: combo model store and resolver
 
 ### TODO
 
-- [ ] Write tests FIRST
-- [ ] Implement `internal/store/aliases.go` + `internal/store/pricing.go`
-- [ ] Commit: `phase-4/task-4: model aliases and pricing overrides`
+- [x] Write tests FIRST
+- [x] Implement `internal/store/aliases.go` + `internal/store/pricing.go`
+- [x] Commit: `phase-4/task-4: model aliases and pricing overrides`
 
 ### Pre-conditions
 
@@ -237,9 +237,9 @@ phase-4/task-4: model aliases and pricing overrides
 
 ### TODO
 
-- [ ] Write handler tests FIRST
-- [ ] Implement all CRUD endpoints
-- [ ] Commit: `phase-4/task-5: management API endpoints`
+- [x] Write handler tests FIRST
+- [x] Implement all CRUD endpoints
+- [x] Commit: `phase-4/task-5: management API endpoints`
 
 ### Pre-conditions
 
@@ -294,14 +294,14 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 4.1 complete (Provider Registry)
-- [ ] Task 4.2 complete (Connection Management with Round-Robin)
-- [ ] Task 4.3 complete (Combos Store + Resolver)
-- [ ] Task 4.4 complete (Model Aliases + Pricing Overrides)
-- [ ] Task 4.5 complete (Management API Handlers)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-4/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_4.status → `DONE`
-- [ ] **PHASE_4_COMPLETE**
+- [x] Task 4.1 complete (Provider Registry)
+- [x] Task 4.2 complete (Connection Management with Round-Robin)
+- [x] Task 4.3 complete (Combos Store + Resolver)
+- [x] Task 4.4 complete (Model Aliases + Pricing Overrides)
+- [x] Task 4.5 complete (Management API Handlers)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-4/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_4.status → `DONE`
+- [x] **PHASE_4_COMPLETE**

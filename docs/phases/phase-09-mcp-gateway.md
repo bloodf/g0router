@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 2 complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 2 complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -28,9 +28,9 @@
 
 ### TODO
 
-- [ ] Write `internal/mcp/clientmanager_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-9/task-1: mcp client manager`
+- [x] Write `internal/mcp/clientmanager_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-9/task-1: mcp client manager`
 
 ### Pre-conditions
 
@@ -79,9 +79,9 @@ phase-9/task-1: mcp client manager
 
 ### TODO
 
-- [ ] Write `internal/mcp/toolmanager_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-9/task-2: mcp tool manager`
+- [x] Write `internal/mcp/toolmanager_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-9/task-2: mcp tool manager`
 
 ### Pre-conditions
 
@@ -130,9 +130,9 @@ phase-9/task-2: mcp tool manager
 
 ### TODO
 
-- [ ] Write `internal/mcp/discovery_test.go` — test FIRST
-- [ ] Implement compact manifests
-- [ ] Commit: `phase-9/task-3: mcp compact tool discovery`
+- [x] Write `internal/mcp/discovery_test.go` — test FIRST
+- [x] Implement compact manifests
+- [x] Commit: `phase-9/task-3: mcp compact tool discovery`
 
 ### Pre-conditions
 
@@ -181,9 +181,9 @@ phase-9/task-3: mcp compact tool discovery
 
 ### TODO
 
-- [ ] Write `internal/mcp/agent_test.go` — test FIRST
-- [ ] Implement multi-turn execution
-- [ ] Commit: `phase-9/task-4: mcp agent loop`
+- [x] Write `internal/mcp/agent_test.go` — test FIRST
+- [x] Implement multi-turn execution
+- [x] Commit: `phase-9/task-4: mcp agent loop`
 
 ### Pre-conditions
 
@@ -232,9 +232,9 @@ phase-9/task-4: mcp agent loop
 
 ### TODO
 
-- [ ] Write `internal/mcp/healthmonitor_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-9/task-5: mcp health monitor`
+- [x] Write `internal/mcp/healthmonitor_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-9/task-5: mcp health monitor`
 
 ### Pre-conditions
 
@@ -283,9 +283,9 @@ phase-9/task-5: mcp health monitor
 
 ### TODO
 
-- [ ] Write tests FIRST
-- [ ] Implement
-- [ ] Commit: `phase-9/task-6: mcp api handlers and store`
+- [x] Write tests FIRST
+- [x] Implement
+- [x] Commit: `phase-9/task-6: mcp api handlers and store`
 
 ### Pre-conditions
 
@@ -340,15 +340,15 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 9.1 complete (MCP Client Manager)
-- [ ] Task 9.2 complete (MCP Tool Manager)
-- [ ] Task 9.3 complete (MCP Tool Discovery)
-- [ ] Task 9.4 complete (MCP Agent Loop)
-- [ ] Task 9.5 complete (MCP Health Monitor)
-- [ ] Task 9.6 complete (MCP API Handlers + Store)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-9/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_9.status → `DONE`
-- [ ] **PHASE_9_COMPLETE**
+- [x] Task 9.1 complete (MCP Client Manager)
+- [x] Task 9.2 complete (MCP Tool Manager)
+- [x] Task 9.3 complete (MCP Tool Discovery)
+- [x] Task 9.4 complete (MCP Agent Loop)
+- [x] Task 9.5 complete (MCP Health Monitor)
+- [x] Task 9.6 complete (MCP API Handlers + Store)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-9/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_9.status → `DONE`
+- [x] **PHASE_9_COMPLETE**

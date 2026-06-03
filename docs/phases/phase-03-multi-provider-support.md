@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 2 complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 2 complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -29,13 +29,13 @@
 
 ### TODO
 
-- [ ] Write `internal/providers/anthropic/anthropic_test.go` — test FIRST
-- [ ] Run tests → RED (types don't exist)
-- [ ] Write `internal/providers/anthropic/anthropic.go`
-- [ ] Write `internal/providers/anthropic/types.go`
-- [ ] Write `internal/providers/anthropic/errors.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-3/task-1: anthropic provider with Messages API`
+- [x] Write `internal/providers/anthropic/anthropic_test.go` — test FIRST
+- [x] Run tests → RED (types don't exist)
+- [x] Write `internal/providers/anthropic/anthropic.go`
+- [x] Write `internal/providers/anthropic/types.go`
+- [x] Write `internal/providers/anthropic/errors.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-3/task-1: anthropic provider with Messages API`
 
 ### Pre-conditions
 
@@ -84,14 +84,14 @@ phase-3/task-1: anthropic provider with Messages API
 
 ### TODO
 
-- [ ] Write `internal/translate/detect_test.go` — test FIRST
-- [ ] Write `internal/translate/anthropic_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/translate/detect.go`
-- [ ] Write `internal/translate/openai.go`
-- [ ] Write `internal/translate/anthropic.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-3/task-2: format translation engine`
+- [x] Write `internal/translate/detect_test.go` — test FIRST
+- [x] Write `internal/translate/anthropic_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/translate/detect.go`
+- [x] Write `internal/translate/openai.go`
+- [x] Write `internal/translate/anthropic.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-3/task-2: format translation engine`
 
 ### Pre-conditions
 
@@ -140,12 +140,12 @@ phase-3/task-2: format translation engine
 
 ### TODO
 
-- [ ] Write `internal/providers/openaicompat/provider_test.go` — parameterized test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/providers/openaicompat/provider.go`
-- [ ] Write `internal/providers/openaicompat/registry.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-3/task-3: openai-compatible provider factory`
+- [x] Write `internal/providers/openaicompat/provider_test.go` — parameterized test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/providers/openaicompat/provider.go`
+- [x] Write `internal/providers/openaicompat/registry.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-3/task-3: openai-compatible provider factory`
 
 ### Pre-conditions
 
@@ -194,11 +194,11 @@ phase-3/task-3: openai-compatible provider factory
 
 ### TODO
 
-- [ ] Write `internal/providers/gemini/gemini_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/providers/gemini/gemini.go` + types.go
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-3/task-4: gemini provider with generateContent`
+- [x] Write `internal/providers/gemini/gemini_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/providers/gemini/gemini.go` + types.go
+- [x] Run tests → GREEN
+- [x] Commit: `phase-3/task-4: gemini provider with generateContent`
 
 ### Pre-conditions
 
@@ -247,11 +247,11 @@ phase-3/task-4: gemini provider with generateContent
 
 ### TODO
 
-- [ ] Write `internal/translate/gemini_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/translate/gemini.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-3/task-5: openai to gemini format translation`
+- [x] Write `internal/translate/gemini_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/translate/gemini.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-3/task-5: openai to gemini format translation`
 
 ### Pre-conditions
 
@@ -300,9 +300,9 @@ phase-3/task-5: openai to gemini format translation
 
 ### TODO
 
-- [ ] Write `internal/providers/vertex/vertex_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-3/task-6: vertex ai provider`
+- [x] Write `internal/providers/vertex/vertex_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-3/task-6: vertex ai provider`
 
 ### Pre-conditions
 
@@ -351,9 +351,9 @@ phase-3/task-6: vertex ai provider
 
 ### TODO
 
-- [ ] Write `internal/providers/bedrock/bedrock_test.go` — test FIRST
-- [ ] Implement with SigV4 signing
-- [ ] Commit: `phase-3/task-7: aws bedrock provider with sigv4`
+- [x] Write `internal/providers/bedrock/bedrock_test.go` — test FIRST
+- [x] Implement with SigV4 signing
+- [x] Commit: `phase-3/task-7: aws bedrock provider with sigv4`
 
 ### Pre-conditions
 
@@ -402,9 +402,9 @@ phase-3/task-7: aws bedrock provider with sigv4
 
 ### TODO
 
-- [ ] Write `internal/providers/azure/azure_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-3/task-8: azure openai provider`
+- [x] Write `internal/providers/azure/azure_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-3/task-8: azure openai provider`
 
 ### Pre-conditions
 
@@ -453,9 +453,9 @@ phase-3/task-8: azure openai provider
 
 ### TODO
 
-- [ ] Write tests FIRST for each
-- [ ] Implement each
-- [ ] Commit: `phase-3/task-9: additional providers`
+- [x] Write tests FIRST for each
+- [x] Implement each
+- [x] Commit: `phase-3/task-9: additional providers`
 
 ### Pre-conditions
 
@@ -504,9 +504,9 @@ phase-3/task-9: additional providers
 
 ### TODO
 
-- [ ] Write `internal/providers/openai/responses_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-3/task-10: openai responses api support`
+- [x] Write `internal/providers/openai/responses_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-3/task-10: openai responses api support`
 
 ### Pre-conditions
 
@@ -561,19 +561,19 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 3.1 complete (Anthropic Provider)
-- [ ] Task 3.2 complete (Format Translation Engine)
-- [ ] Task 3.3 complete (OpenAI-Compatible Providers (batch))
-- [ ] Task 3.4 complete (Gemini Provider)
-- [ ] Task 3.5 complete (Gemini Format Translation)
-- [ ] Task 3.6 complete (Vertex AI Provider)
-- [ ] Task 3.7 complete (AWS Bedrock Provider)
-- [ ] Task 3.8 complete (Azure OpenAI Provider)
-- [ ] Task 3.9 complete (Mistral, Ollama, Cohere, Replicate)
-- [ ] Task 3.10 complete (Responses API Support)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-3/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_3.status → `DONE`
-- [ ] **PHASE_3_COMPLETE**
+- [x] Task 3.1 complete (Anthropic Provider)
+- [x] Task 3.2 complete (Format Translation Engine)
+- [x] Task 3.3 complete (OpenAI-Compatible Providers (batch))
+- [x] Task 3.4 complete (Gemini Provider)
+- [x] Task 3.5 complete (Gemini Format Translation)
+- [x] Task 3.6 complete (Vertex AI Provider)
+- [x] Task 3.7 complete (AWS Bedrock Provider)
+- [x] Task 3.8 complete (Azure OpenAI Provider)
+- [x] Task 3.9 complete (Mistral, Ollama, Cohere, Replicate)
+- [x] Task 3.10 complete (Responses API Support)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-3/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_3.status → `DONE`
+- [x] **PHASE_3_COMPLETE**

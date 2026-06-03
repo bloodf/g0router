@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: REMEDIATION_FINAL_EVALUATED
+project_status: REMEDIATION_WAVE_7M_READY_FOR_EVALUATION
 current_stage: 7
-current_wave: "7.L"
-last_updated: "2026-06-03T18:35:15Z"
+current_wave: "7.M"
+last_updated: "2026-06-03T19:40:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1824,6 +1824,119 @@ evaluation:
   prompt: "docs/evaluations/wave-7L-evaluator-prompt.md"
   non_blocking_findings:
     - "Node emitted deprecation/experimental warnings during UI test/build; commands exited 0."
+```
+
+---
+
+### Wave 7.M — Completion audit remediation and docs reconciliation
+
+```yaml
+wave: "7.M"
+status: DONE
+max_agents: 5
+depends_on: ["7.L"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.M.1"
+    name: "Alias TTL cache"
+    status: DONE
+    agent: "Cicero"
+    branch: "codex/wave-7m-alias-cache-ttl"
+    completed_at: "2026-06-03T19:20:00Z"
+    files_owned:
+      - internal/proxy/alias_cache.go
+      - internal/proxy/alias_cache_test.go
+      - internal/proxy/engine.go
+    commit: "1dc2159c7ea9e3b293cf47b6b31530e36bc70153"
+  - id: "7.M.2"
+    name: "Pricing override cost integration"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7m-pricing-overrides"
+    completed_at: "2026-06-03T19:31:00Z"
+    files_owned:
+      - internal/usage/cost.go
+      - internal/usage/cost_test.go
+      - internal/store/pricing.go
+      - api/server.go
+      - api/server_test.go
+    commit: "07b63b3647a647d603d02ab7222c81d972686b93"
+  - id: "7.M.3"
+    name: "Quota fetch cache"
+    status: DONE
+    agent: "Dalton"
+    branch: "codex/wave-7m-quota-cache"
+    completed_at: "2026-06-03T19:25:00Z"
+    files_owned:
+      - internal/usage/quota.go
+      - internal/usage/quota_test.go
+      - internal/cli/root.go
+      - internal/cli/root_test.go
+    commit: "39f575aa4af07e553f784474ad7a8e17d817b93c"
+  - id: "7.M.4"
+    name: "Periodic MCP health checks"
+    status: DONE
+    agent: "Helmholtz"
+    branch: "codex/wave-7m-mcp-health-monitor"
+    completed_at: "2026-06-03T19:28:00Z"
+    files_owned:
+      - internal/mcp/healthmonitor.go
+      - internal/mcp/healthmonitor_test.go
+      - internal/mcp/toolmanager.go
+    commit: "4ae4de4706d80e389ce711d38a47db4749bf4732"
+  - id: "7.M.5"
+    name: "Alias, pricing, and connection-test management APIs"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7m-management-api"
+    completed_at: "2026-06-03T19:16:00Z"
+    files_owned:
+      - api/handlers/aliases.go
+      - api/handlers/aliases_test.go
+      - api/handlers/pricing.go
+      - api/handlers/pricing_test.go
+      - api/handlers/connections.go
+      - api/server.go
+      - api/server_test.go
+    commit: "d40f7d0e30cae1e86b66eb2895be2716228ef2f3"
+  - id: "7.M.6"
+    name: "Docs completion reconciliation and evaluator prompt"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7m-docs-reconcile"
+    completed_at: "2026-06-03T19:40:00Z"
+    depends_on_tasks: ["7.M.1", "7.M.2", "7.M.3", "7.M.4", "7.M.5"]
+    files_owned:
+      - docs/README.md
+      - docs/PLAN.md
+      - docs/SCHEMA.md
+      - docs/CONFIG.md
+      - docs/DEPLOYMENT.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/phases/*.md
+      - docs/evaluations/wave-7M-evaluator-prompt.md
+
+gate_results:
+  - command: "go test ./... -count=1"
+    status: PASS
+  - command: "go vet ./..."
+    status: PASS
+  - command: "go build ./cmd/g0router"
+    status: PASS
+  - command: "npm --prefix ui test -- --run"
+    status: PASS
+    notes: "Node emitted deprecation/experimental warnings; exit code 0."
+  - command: "npm --prefix ui run build"
+    status: PASS
+    notes: "Node emitted deprecation warning; exit code 0."
+  - command: "make build"
+    status: PASS
+
+evaluation:
+  status: PENDING
+  prompt: "docs/evaluations/wave-7M-evaluator-prompt.md"
 ```
 
 ---

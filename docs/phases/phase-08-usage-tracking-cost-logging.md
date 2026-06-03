@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 1 complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 1 complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -18,7 +18,7 @@
 |----------|--------|-----------|
 | Pricing source | Embedded Go map + DB overrides | No external API dependency; DB overrides for custom pricing |
 | Cost precision | float64 USD | Sufficient for per-request tracking; aggregate in DB |
-| Quota fetching | On-demand with 5-min cache | Don't poll providers constantly |
+| Quota fetching | On-demand with 5-min cache wrapper | Don't poll providers constantly; providers without reliable quota endpoints return explicit unsupported errors. |
 | Logging toggle | Per-request via settings | Full body logging is expensive; off by default |
 
 ---
@@ -27,9 +27,9 @@
 
 ### TODO
 
-- [ ] Write `internal/usage/tracker_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-8/task-1: usage extraction from provider responses`
+- [x] Write `internal/usage/tracker_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-8/task-1: usage extraction from provider responses`
 
 ### Pre-conditions
 
@@ -78,9 +78,9 @@ phase-8/task-1: usage extraction from provider responses
 
 ### TODO
 
-- [ ] Write `internal/modelcatalog/pricing_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-8/task-2: model pricing catalog`
+- [x] Write `internal/modelcatalog/pricing_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-8/task-2: model pricing catalog`
 
 ### Pre-conditions
 
@@ -129,9 +129,9 @@ phase-8/task-2: model pricing catalog
 
 ### TODO
 
-- [ ] Write `internal/usage/cost_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-8/task-3: cost calculation`
+- [x] Write `internal/usage/cost_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-8/task-3: cost calculation`
 
 ### Pre-conditions
 
@@ -180,9 +180,9 @@ phase-8/task-3: cost calculation
 
 ### TODO
 
-- [ ] Write `internal/usage/quota_test.go` — test FIRST
-- [ ] Implement per-provider fetchers
-- [ ] Commit: `phase-8/task-4: provider quota fetchers`
+- [x] Write `internal/usage/quota_test.go` — test FIRST
+- [x] Implement quota fetcher contract and 5-minute cache wrapper; unsupported providers return explicit unsupported errors instead of fabricated quotas
+- [x] Commit: `phase-8/task-4: provider quota fetchers`
 
 ### Pre-conditions
 
@@ -231,9 +231,9 @@ phase-8/task-4: provider quota fetchers
 
 ### TODO
 
-- [ ] Write `internal/logging/logger_test.go` — test FIRST
-- [ ] Implement
-- [ ] Commit: `phase-8/task-5: request response logging`
+- [x] Write `internal/logging/logger_test.go` — test FIRST
+- [x] Implement
+- [x] Commit: `phase-8/task-5: request response logging`
 
 ### Pre-conditions
 
@@ -282,9 +282,9 @@ phase-8/task-5: request response logging
 
 ### TODO
 
-- [ ] Write handler tests FIRST
-- [ ] Implement endpoints
-- [ ] Commit: `phase-8/task-6: usage and logging api handlers`
+- [x] Write handler tests FIRST
+- [x] Implement endpoints
+- [x] Commit: `phase-8/task-6: usage and logging api handlers`
 
 ### Pre-conditions
 
@@ -339,15 +339,15 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 8.1 complete (Usage Extraction)
-- [ ] Task 8.2 complete (Model Pricing Catalog)
-- [ ] Task 8.3 complete (Cost Calculation)
-- [ ] Task 8.4 complete (Provider Quota Fetchers)
-- [ ] Task 8.5 complete (Request/Response Logging)
-- [ ] Task 8.6 complete (Usage + Logging API Handlers)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-8/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_8.status → `DONE`
-- [ ] **PHASE_8_COMPLETE**
+- [x] Task 8.1 complete (Usage Extraction)
+- [x] Task 8.2 complete (Model Pricing Catalog)
+- [x] Task 8.3 complete (Cost Calculation)
+- [x] Task 8.4 complete (Provider Quota Fetchers)
+- [x] Task 8.5 complete (Request/Response Logging)
+- [x] Task 8.6 complete (Usage + Logging API Handlers)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-8/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_8.status → `DONE`
+- [x] **PHASE_8_COMPLETE**

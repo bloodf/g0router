@@ -8,11 +8,11 @@
 
 ## Prerequisites
 
-- [ ] Phase 11 complete
-- [ ] Phase 9 MCP base complete
-- [ ] Dashboard, CLI, management API, packaging, and E2E suite complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 11 complete
+- [x] Phase 9 MCP base complete
+- [x] Dashboard, CLI, management API, packaging, and E2E suite complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Scope
 
@@ -122,23 +122,22 @@ mcp_oauth_flows (
 )
 ```
 
-## API Plan
+## Implemented API Surface
 
 ```text
 GET    /api/mcp/instances
 POST   /api/mcp/instances
-GET    /api/mcp/instances/:id
-PUT    /api/mcp/instances/:id
 DELETE /api/mcp/instances/:id
-POST   /api/mcp/instances/:id/test
-POST   /api/mcp/instances/:id/refresh-tools
 
 GET    /api/mcp/instances/:id/accounts
 POST   /api/mcp/instances/:id/oauth/start
 POST   /api/mcp/instances/:id/oauth/complete
 GET    /api/mcp/oauth/callback
-DELETE /api/mcp/instances/:id/accounts/:account_id
 ```
+
+`GET`/`PUT` per-instance mutation, explicit refresh-tools endpoints, and account
+delete endpoints are not exposed as separate management routes in the current
+release. Instance deletion cascades stored OAuth accounts and flows.
 
 ## CLI Plan
 
@@ -160,11 +159,11 @@ g0router mcp rm <instance>
 
 ### TODO
 
-- [ ] Write `internal/store/mcpinstances_test.go` first.
-- [ ] Write `internal/mcp/instances_test.go` first.
-- [ ] Define instance identity, launch config, account labels, and manifest ownership.
-- [ ] Migrate existing `mcp_clients` behavior into instance-oriented APIs without breaking Phase 9 handlers.
-- [ ] Commit: `phase-12/task-1: mcp instance model and store`
+- [x] Write `internal/store/mcpinstances_test.go` first.
+- [x] Write `internal/mcp/instances_test.go` first.
+- [x] Define instance identity, launch config, account labels, and manifest ownership.
+- [x] Migrate existing `mcp_clients` behavior into instance-oriented APIs without breaking Phase 9 handlers.
+- [x] Commit: `phase-12/task-1: mcp instance model and store`
 
 ### Required Tests
 
@@ -180,11 +179,11 @@ g0router mcp rm <instance>
 
 ### TODO
 
-- [ ] Write `internal/mcp/launcher_test.go` first.
-- [ ] Implement launch specs for `command`, `npx`, `docker`, and `http`.
-- [ ] Use fakes for process runners and HTTP servers; do not use mocks.
-- [ ] Keep docker and npx as launch modes, not protocol transports.
-- [ ] Commit: `phase-12/task-2: mcp launcher matrix`
+- [x] Write `internal/mcp/launcher_test.go` first.
+- [x] Implement launch specs for `command`, `npx`, `docker`, and `http`.
+- [x] Use fakes for process runners and HTTP servers; do not use mocks.
+- [x] Keep docker and npx as launch modes, not protocol transports.
+- [x] Commit: `phase-12/task-2: mcp launcher matrix`
 
 ### Required Tests
 
@@ -201,12 +200,12 @@ g0router mcp rm <instance>
 
 ### TODO
 
-- [ ] Write `internal/mcp/oauth_test.go` first.
-- [ ] Write `internal/store/mcpoauth_test.go` first.
-- [ ] Implement pending auth flow state, PKCE verifier storage, resource URI handling, token storage, and refresh.
-- [ ] Support HTTP MCP auth discovery from `WWW-Authenticate` and well-known resource metadata.
-- [ ] Support user-provided client credentials when metadata documents and dynamic registration are unavailable.
-- [ ] Commit: `phase-12/task-3: mcp oauth account engine`
+- [x] Write `internal/mcp/oauth_test.go` first.
+- [x] Write `internal/store/mcpoauth_test.go` first.
+- [x] Implement pending auth flow state, PKCE verifier storage, resource URI handling, token storage, and refresh.
+- [x] Support HTTP MCP auth discovery from `WWW-Authenticate` and well-known resource metadata.
+- [x] Support user-provided client credentials when metadata documents and dynamic registration are unavailable.
+- [x] Commit: `phase-12/task-3: mcp oauth account engine`
 
 ### Required Tests
 
@@ -224,12 +223,12 @@ g0router mcp rm <instance>
 
 ### TODO
 
-- [ ] Write `api/handlers/mcpoauth_test.go` first.
-- [ ] Write CLI tests for pasted callback URL completion first.
-- [ ] Implement `/api/mcp/oauth/callback`.
-- [ ] Implement `POST /api/mcp/instances/:id/oauth/complete`.
-- [ ] Implement `g0router mcp auth complete <instance> <callback-url>`.
-- [ ] Commit: `phase-12/task-4: mcp oauth callback completion`
+- [x] Write `api/handlers/mcpoauth_test.go` first.
+- [x] Write CLI tests for pasted callback URL completion first.
+- [x] Implement `/api/mcp/oauth/callback`.
+- [x] Implement `POST /api/mcp/instances/:id/oauth/complete`.
+- [x] Implement `g0router mcp auth complete <instance> <callback-url>`.
+- [x] Commit: `phase-12/task-4: mcp oauth callback completion`
 
 ### Required Tests
 
@@ -246,11 +245,11 @@ g0router mcp rm <instance>
 
 ### TODO
 
-- [ ] Write API tests first for instance CRUD, auth start, auth complete, accounts, and tool listing.
-- [ ] Write CLI tests first for add/auth/accounts/tools/remove commands.
-- [ ] Update the dashboard MCP page to manage instances and accounts.
-- [ ] Show per-instance health, auth status, launch type, tool count, and account label.
-- [ ] Commit: `phase-12/task-5: mcp instance management surfaces`
+- [x] Write API tests first for instance CRUD, auth start, auth complete, accounts, and tool listing.
+- [x] Write CLI tests first for add/auth/accounts/tools/remove commands.
+- [x] Update the dashboard MCP page to manage instances and accounts.
+- [x] Show per-instance health, auth status, launch type, tool count, and account label.
+- [x] Commit: `phase-12/task-5: mcp instance management surfaces`
 
 ### Required Tests
 
@@ -266,10 +265,10 @@ g0router mcp rm <instance>
 
 ### TODO
 
-- [ ] Write integration tests first with fake MCP servers and fake OAuth endpoints.
-- [ ] Add a documented manual verification path for real `npx`, `docker`, and remote HTTP MCP servers.
-- [ ] Update `docs/SCHEMA.md`, `docs/CONFIG.md`, `docs/DEPLOYMENT.md`, and README examples with the final implemented contracts.
-- [ ] Commit: `phase-12/task-6: advanced mcp integration docs`
+- [x] Write integration tests first with fake MCP servers and fake OAuth endpoints.
+- [x] Add a documented manual verification path for real `npx`, `docker`, and remote HTTP MCP servers.
+- [x] Update `docs/SCHEMA.md`, `docs/CONFIG.md`, `docs/DEPLOYMENT.md`, and README examples with the final implemented contracts.
+- [x] Commit: `phase-12/task-6: advanced mcp integration docs`
 
 ### Required Tests
 
@@ -292,15 +291,15 @@ go build ./cmd/g0router
 
 ## Phase Checklist
 
-- [ ] Task 12.1 complete (MCP Instance Model + Store)
-- [ ] Task 12.2 complete (MCP Launchers for Command, Npx, Docker, and HTTP)
-- [ ] Task 12.3 complete (MCP OAuth Account Engine)
-- [ ] Task 12.4 complete (OAuth Callback URL Completion)
-- [ ] Task 12.5 complete (MCP Management Surfaces)
-- [ ] Task 12.6 complete (Advanced MCP Integration Tests + Docs)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-12/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_12.status -> `DONE`
-- [ ] **PHASE_12_COMPLETE** -> **PROJECT COMPLETE**
+- [x] Task 12.1 complete (MCP Instance Model + Store)
+- [x] Task 12.2 complete (MCP Launchers for Command, Npx, Docker, and HTTP)
+- [x] Task 12.3 complete (MCP OAuth Account Engine)
+- [x] Task 12.4 complete (OAuth Callback URL Completion)
+- [x] Task 12.5 complete (MCP Management Surfaces)
+- [x] Task 12.6 complete (Advanced MCP Integration Tests + Docs)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-12/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_12.status -> `DONE`
+- [x] **PHASE_12_COMPLETE** -> **PROJECT COMPLETE**

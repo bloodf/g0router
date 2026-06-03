@@ -129,18 +129,17 @@ Docker runs as a non-root user and persists SQLite data in `/data`. The image
 seeds `/data` with non-root ownership so a new named volume is writable on first
 boot.
 
-Generate both bootstrap secrets before starting Docker and keep them stable
-across restarts:
+Generate the API-key secret before starting Docker and keep it stable across
+restarts. `JWT_SECRET` is accepted by the config loader for compatibility but
+the current dashboard/control-plane auth path uses gateway API keys, not JWT
+sessions.
 
 ```bash
-export JWT_SECRET="$(openssl rand -hex 32)"
 export API_KEY_SECRET="$(openssl rand -hex 32)"
 ```
 
 `API_KEY_SECRET` hashes gateway API keys. Those API keys gate `/v1/*` inference
 and `/api/*` dashboard/control-plane routes when `REQUIRE_API_KEY=true`.
-`JWT_SECRET` is separate dashboard/admin session-signing material; do not reuse
-it as an API key secret.
 
 ### Build + Run
 
@@ -154,7 +153,6 @@ docker run -d \
   --restart unless-stopped \
   -p 127.0.0.1:20128:20128 \
   -v g0router-data:/data \
-  -e JWT_SECRET="${JWT_SECRET}" \
   -e API_KEY_SECRET="${API_KEY_SECRET}" \
   -e BIND_ADDRESS=0.0.0.0 \
   -e REQUIRE_API_KEY=true \
@@ -192,7 +190,7 @@ services:
       PORT: "20128"
       BIND_ADDRESS: "0.0.0.0"
       DATA_DIR: "/data"
-      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required for docker-compose dashboard auth}"
+      JWT_SECRET: "${JWT_SECRET:-}"
       API_KEY_SECRET: "${API_KEY_SECRET:?API_KEY_SECRET is required for docker-compose API keys}"
       REQUIRE_API_KEY: "true"
       RTK_ENABLED: "true"
@@ -207,10 +205,10 @@ volumes:
   g0router-data:
 ```
 
-Start compose with both secrets exported:
+Start compose with the API-key secret exported:
 
 ```bash
-JWT_SECRET="${JWT_SECRET}" API_KEY_SECRET="${API_KEY_SECRET}" docker compose up -d
+API_KEY_SECRET="${API_KEY_SECRET}" docker compose up -d
 ```
 
 ### Dockerfile

@@ -8,9 +8,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 2, Phase 4 complete
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 2, Phase 4 complete
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -27,11 +27,11 @@
 
 ### TODO
 
-- [ ] Write `internal/provider/fallback_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/provider/fallback.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-6/task-1: account fallback with exponential backoff`
+- [x] Write `internal/provider/fallback_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/provider/fallback.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-6/task-1: account fallback with exponential backoff`
 
 ### Pre-conditions
 
@@ -80,11 +80,11 @@ phase-6/task-1: account fallback with exponential backoff
 
 ### TODO
 
-- [ ] Write `internal/proxy/combo_test.go` — test FIRST
-- [ ] Run tests → RED
-- [ ] Write `internal/proxy/combo.go`
-- [ ] Run tests → GREEN
-- [ ] Commit: `phase-6/task-2: combo model sequential fallback`
+- [x] Write `internal/proxy/combo_test.go` — test FIRST
+- [x] Run tests → RED
+- [x] Write `internal/proxy/combo.go`
+- [x] Run tests → GREEN
+- [x] Commit: `phase-6/task-2: combo model sequential fallback`
 
 ### Pre-conditions
 
@@ -139,11 +139,11 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 6.1 complete (Account Fallback Engine)
-- [ ] Task 6.2 complete (Combo Model Resolution)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-6/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_6.status → `DONE`
-- [ ] **PHASE_6_COMPLETE**
+- [x] Task 6.1 complete (Account Fallback Engine)
+- [x] Task 6.2 complete (Combo Model Resolution)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-6/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_6.status → `DONE`
+- [x] **PHASE_6_COMPLETE**

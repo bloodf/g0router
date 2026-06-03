@@ -9,9 +9,9 @@
 
 ## Prerequisites
 
-- [ ] Phase 1 complete (`PHASE_1_COMPLETE`)
-- [ ] `go test ./...` passes
-- [ ] `go vet ./...` passes
+- [x] Phase 1 complete (`PHASE_1_COMPLETE`)
+- [x] `go test ./...` passes
+- [x] `go vet ./...` passes
 
 ## Design Decisions
 
@@ -30,14 +30,14 @@
 
 ### TODO
 
-- [ ] `go get github.com/valyala/fasthttp`
-- [ ] Write `api/server_test.go` — **test file FIRST**
-- [ ] Write `api/handlers/health.go` — health handler
-- [ ] Run tests → see RED
-- [ ] Write `api/server.go` — Server struct, routing, Start/Stop
-- [ ] Run tests → see GREEN
-- [ ] Run `go vet ./...` → clean
-- [ ] Commit: `phase-2/task-1: fasthttp server with health endpoint`
+- [x] `go get github.com/valyala/fasthttp`
+- [x] Write `api/server_test.go` — **test file FIRST**
+- [x] Write `api/handlers/health.go` — health handler
+- [x] Run tests → see RED
+- [x] Write `api/server.go` — Server struct, routing, Start/Stop
+- [x] Run tests → see GREEN
+- [x] Run `go vet ./...` → clean
+- [x] Commit: `phase-2/task-1: fasthttp server with health endpoint`
 
 ### Pre-conditions
 
@@ -150,11 +150,11 @@ phase-2/task-1: fasthttp server with health endpoint
 
 ### TODO
 
-- [ ] Write `api/middleware_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Add middleware to server handler
-- [ ] Run tests → see GREEN
-- [ ] Commit: `phase-2/task-2: middleware for CORS, request ID, and API key auth`
+- [x] Write `api/middleware_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Add middleware to server handler
+- [x] Run tests → see GREEN
+- [x] Commit: `phase-2/task-2: middleware for CORS, request ID, and API key auth`
 
 ### TDD Cycle
 
@@ -198,12 +198,12 @@ phase-2/task-2: middleware for CORS, request ID, and API key auth
 
 ### TODO
 
-- [ ] Write `internal/proxy/engine_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Write `internal/proxy/engine.go`
-- [ ] Write `internal/proxy/pool.go`
-- [ ] Run tests → see GREEN
-- [ ] Commit: `phase-2/task-3: proxy engine with provider dispatch`
+- [x] Write `internal/proxy/engine_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Write `internal/proxy/engine.go`
+- [x] Write `internal/proxy/pool.go`
+- [x] Run tests → see GREEN
+- [x] Commit: `phase-2/task-3: proxy engine with provider dispatch`
 
 ### TDD Cycle
 
@@ -249,12 +249,12 @@ phase-2/task-3: proxy engine with provider dispatch
 
 ### TODO
 
-- [ ] Write `internal/providers/openai/openai_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Write `internal/providers/openai/openai.go`
-- [ ] Write `internal/providers/openai/errors.go`
-- [ ] Run tests → see GREEN
-- [ ] Commit: `phase-2/task-4: OpenAI provider with streaming SSE parser`
+- [x] Write `internal/providers/openai/openai_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Write `internal/providers/openai/openai.go`
+- [x] Write `internal/providers/openai/errors.go`
+- [x] Run tests → see GREEN
+- [x] Commit: `phase-2/task-4: OpenAI provider with streaming SSE parser`
 
 ### TDD Cycle
 
@@ -292,14 +292,14 @@ phase-2/task-4: OpenAI provider with streaming SSE parser
 
 ### TODO
 
-- [ ] Write `internal/providers/utils/http_test.go` — **test file FIRST**
-- [ ] Write `internal/providers/utils/sse_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Write `internal/providers/utils/http.go`
-- [ ] Write `internal/providers/utils/sse.go`
-- [ ] Write `internal/providers/utils/errors.go`
-- [ ] Run tests → see GREEN
-- [ ] Commit: `phase-2/task-5: shared HTTP client and SSE parser utilities`
+- [x] Write `internal/providers/utils/http_test.go` — **test file FIRST**
+- [x] Write `internal/providers/utils/sse_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Write `internal/providers/utils/http.go`
+- [x] Write `internal/providers/utils/sse.go`
+- [x] Write `internal/providers/utils/errors.go`
+- [x] Run tests → see GREEN
+- [x] Commit: `phase-2/task-5: shared HTTP client and SSE parser utilities`
 
 ### TDD Cycle
 
@@ -333,12 +333,12 @@ phase-2/task-5: shared HTTP client and SSE parser utilities
 
 ### TODO
 
-- [ ] Write `internal/streaming/accumulator_test.go` — **test file FIRST**
-- [ ] Run tests → see RED
-- [ ] Write `internal/streaming/accumulator.go`
-- [ ] Write `internal/streaming/chat.go`
-- [ ] Run tests → see GREEN
-- [ ] Commit: `phase-2/task-6: streaming accumulator for chunk collection`
+- [x] Write `internal/streaming/accumulator_test.go` — **test file FIRST**
+- [x] Run tests → see RED
+- [x] Write `internal/streaming/accumulator.go`
+- [x] Write `internal/streaming/chat.go`
+- [x] Run tests → see GREEN
+- [x] Commit: `phase-2/task-6: streaming accumulator for chunk collection`
 
 ### TDD Cycle
 
@@ -362,12 +362,12 @@ phase-2/task-6: streaming accumulator for chunk collection
 
 ### TODO
 
-- [ ] Write `api/handlers/inference_test.go` — **test file FIRST**
-- [ ] Write `api/handlers/models.go`
-- [ ] Run tests → see RED
-- [ ] Write `api/handlers/inference.go`
-- [ ] Run tests → see GREEN
-- [ ] Commit: `phase-2/task-7: inference handler with sync and streaming dispatch`
+- [x] Write `api/handlers/inference_test.go` — **test file FIRST**
+- [x] Write `api/handlers/models.go`
+- [x] Run tests → see RED
+- [x] Write `api/handlers/inference.go`
+- [x] Run tests → see GREEN
+- [x] Commit: `phase-2/task-7: inference handler with sync and streaming dispatch`
 
 ### TDD Cycle
 
@@ -400,16 +400,16 @@ go build ./cmd/g0router   # Binary builds
 
 ## Phase Checklist
 
-- [ ] Task 2.1 complete (server + health)
-- [ ] Task 2.2 complete (middleware)
-- [ ] Task 2.3 complete (proxy engine)
-- [ ] Task 2.4 complete (OpenAI provider)
-- [ ] Task 2.5 complete (HTTP/SSE utils)
-- [ ] Task 2.6 complete (accumulator)
-- [ ] Task 2.7 complete (inference handler)
-- [ ] All tests pass: `go test ./...`
-- [ ] Vet clean: `go vet ./...`
-- [ ] Build succeeds: `go build ./cmd/g0router`
-- [ ] All commits follow `phase-2/task-N: description` format
-- [ ] Update `docs/WORKFLOW.md`: phase_2.status → `DONE`
-- [ ] **PHASE_2_COMPLETE**
+- [x] Task 2.1 complete (server + health)
+- [x] Task 2.2 complete (middleware)
+- [x] Task 2.3 complete (proxy engine)
+- [x] Task 2.4 complete (OpenAI provider)
+- [x] Task 2.5 complete (HTTP/SSE utils)
+- [x] Task 2.6 complete (accumulator)
+- [x] Task 2.7 complete (inference handler)
+- [x] All tests pass: `go test ./...`
+- [x] Vet clean: `go vet ./...`
+- [x] Build succeeds: `go build ./cmd/g0router`
+- [x] All commits follow `phase-2/task-N: description` format
+- [x] Update `docs/WORKFLOW.md`: phase_2.status → `DONE`
+- [x] **PHASE_2_COMPLETE**
