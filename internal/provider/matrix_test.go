@@ -1,6 +1,9 @@
 package provider
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestProviderMatrixCoversRemediationParityTiers(t *testing.T) {
 	required := []string{
@@ -86,9 +89,32 @@ func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *test
 		if !entry.RegisteredAdapter {
 			t.Fatalf("%s should mark registered adapter", id)
 		}
+		if id != "bedrock" && !entry.Inference {
+			t.Fatalf("%s should mark adapter inference capability even without public dispatch", id)
+		}
 		if entry.PublicInference || entry.DirectDispatch {
 			t.Fatalf("%s should not be public/direct dispatch yet: %+v", id, entry)
 		}
+	}
+}
+
+func TestProviderMatrixLocksBedrockBehindIncompleteConverseStatus(t *testing.T) {
+	entry, ok := ProviderMatrix().Provider("bedrock")
+	if !ok {
+		t.Fatal("provider matrix missing bedrock")
+	}
+	if entry.PublicStatus != ProviderStatusAdapterOnly {
+		t.Fatalf("bedrock status = %q, want adapter_only", entry.PublicStatus)
+	}
+	if !entry.RegisteredAdapter {
+		t.Fatal("bedrock should mark registered adapter")
+	}
+	if entry.PublicInference || entry.DirectDispatch || entry.Inference || entry.Streaming || entry.ModelCatalog || entry.ListModels || entry.Quota {
+		t.Fatalf("bedrock capabilities should all be false except registered adapter: %+v", entry)
+	}
+	note := strings.ToLower(entry.Notes)
+	if !strings.Contains(note, "converse") || strings.Contains(note, "wave 7.f") {
+		t.Fatalf("bedrock notes = %q, want explicit non-Converse status without Wave 7.F TODO", entry.Notes)
 	}
 }
 

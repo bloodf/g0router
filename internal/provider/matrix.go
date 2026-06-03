@@ -142,13 +142,15 @@ func adapterOnlyProvider(id string, oauthProvider string, refresh, streaming, li
 	entry.OAuthProvider = oauthProvider
 	entry.Refresh = refresh
 	entry.RegisteredAdapter = true
+	entry.Inference = true
 	entry.Streaming = streaming
 	entry.ListModels = listModels
 	entry.Quota = quota
 	entry.PublicStatus = ProviderStatusAdapterOnly
-	entry.Notes = "Adapter is registered in normal startup, but /v1/chat/completions cannot route ordinary model names to it until catalog routing lands."
+	entry.Notes = "Adapter is registered in normal startup, but public routing remains limited by model catalog and capability coverage."
 	if id == "bedrock" {
-		entry.Notes = "Adapter is registered, but it uses an incomplete invoke path and no public model routing; Wave 7.F must fix or downgrade it further."
+		entry.Inference = false
+		entry.Notes = "Adapter is registered, but it does not implement Bedrock Converse, streaming, model catalog/ListModels, quota, or public direct dispatch."
 	}
 	return entry
 }

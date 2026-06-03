@@ -79,7 +79,7 @@ func knownProviders() []providerResponse {
 			RegisteredAdapter: entry.RegisteredAdapter,
 			PublicInference:   entry.PublicInference,
 			DirectDispatch:    entry.DirectDispatch,
-			Inference:         entry.PublicInference,
+			Inference:         entry.Inference,
 			Streaming:         entry.Streaming,
 			ModelCatalog:      entry.ModelCatalog,
 			ListModels:        entry.ListModels,

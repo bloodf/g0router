@@ -26,7 +26,7 @@ Current public direct-dispatch providers are only `openai` and `anthropic`. Ever
 | `anthropic` | `anthropic` | `anthropic` | `anthropic` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Claude adapter is public-routable. |
 | `antigravity` | `antigravity` | `antigravity` | `antigravity` | `auth_only` | OAuth | yes | no | no | no | no | no | Google OAuth credential flow exists; dispatch is not a separate Antigravity provider. |
 | `azure` | `azure` | `azure` | `azure` | `adapter_only` | API key | no | yes | no | yes | no | yes | Registered adapter, but no ordinary model-name routing yet. |
-| `bedrock` | `bedrock` | `bedrock` | `bedrock` | `adapter_only` | API key/AWS material | no | yes | no | no | no | no | Registered adapter still uses an incomplete invoke path; Wave 7.F must fix or downgrade it. |
+| `bedrock` | `bedrock` | `bedrock` | `bedrock` | `adapter_only` | API key/AWS material | no | yes | no | no | no | no | Registered adapter does not implement Bedrock Converse, streaming, model catalog/ListModels, quota, or public direct dispatch. |
 | `cerebras` | `cerebras` | `cerebras` | `cerebras` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
 | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `unsupported` | none | no | no | no | no | no | no | No gateway adapter. |
 | `cohere` | `cohere` | `cohere` | `cohere` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible wrapper exists; not public-routable yet. |

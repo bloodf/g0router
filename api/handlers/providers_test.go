@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	providerinfo "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
@@ -37,6 +39,11 @@ func TestProvidersListKnownProviders(t *testing.T) {
 			PublicInference   bool   `json:"public_inference"`
 			DirectDispatch    bool   `json:"direct_dispatch"`
 			Inference         bool   `json:"inference"`
+			Streaming         bool   `json:"streaming"`
+			ModelCatalog      bool   `json:"model_catalog"`
+			ListModels        bool   `json:"list_models"`
+			Quota             bool   `json:"quota"`
+			Notes             string `json:"notes"`
 		} `json:"data"`
 	}
 	decodeJSON(t, body, &decoded)
@@ -68,14 +75,71 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["openai"].PublicStatus != "supported" || !byID["openai"].PublicInference || !byID["openai"].DirectDispatch || !byID["openai"].Inference {
 		t.Fatalf("openai provider = %+v, want supported inference provider", byID["openai"])
 	}
-	if byID["groq"].PublicStatus != "adapter_only" || !byID["groq"].RegisteredAdapter || byID["groq"].PublicInference || byID["groq"].DirectDispatch || byID["groq"].Inference {
-		t.Fatalf("groq provider = %+v, want registered adapter without public inference", byID["groq"])
+	if byID["groq"].PublicStatus != "adapter_only" || !byID["groq"].RegisteredAdapter || byID["groq"].PublicInference || byID["groq"].DirectDispatch || !byID["groq"].Inference {
+		t.Fatalf("groq provider = %+v, want inference-capable adapter without public dispatch", byID["groq"])
 	}
 	if byID["github-copilot"].PublicStatus != "auth_only" || byID["github-copilot"].Inference {
 		t.Fatalf("github-copilot provider = %+v, want auth_only without inference", byID["github-copilot"])
 	}
 	if byID["qwen"].PublicStatus != "unsupported" || byID["qwen"].Inference {
 		t.Fatalf("qwen provider = %+v, want unsupported without inference", byID["qwen"])
+	}
+
+	matrix := providerinfo.ProviderMatrix()
+	for _, got := range decoded.Data {
+		entry, ok := matrix.Provider(got.ID)
+		if !ok {
+			t.Fatalf("provider %q missing from matrix", got.ID)
+		}
+		if got.Inference != entry.Inference {
+			t.Fatalf("%s inference = %v, want matrix value %v", got.ID, got.Inference, entry.Inference)
+		}
+	}
+	var bedrock struct {
+		PublicStatus      string
+		RegisteredAdapter bool
+		PublicInference   bool
+		DirectDispatch    bool
+		Inference         bool
+		Streaming         bool
+		ModelCatalog      bool
+		ListModels        bool
+		Quota             bool
+		Notes             string
+	}
+	for _, provider := range decoded.Data {
+		if provider.ID == "bedrock" {
+			bedrock = struct {
+				PublicStatus      string
+				RegisteredAdapter bool
+				PublicInference   bool
+				DirectDispatch    bool
+				Inference         bool
+				Streaming         bool
+				ModelCatalog      bool
+				ListModels        bool
+				Quota             bool
+				Notes             string
+			}{
+				PublicStatus:      provider.PublicStatus,
+				RegisteredAdapter: provider.RegisteredAdapter,
+				PublicInference:   provider.PublicInference,
+				DirectDispatch:    provider.DirectDispatch,
+				Inference:         provider.Inference,
+				Streaming:         provider.Streaming,
+				ModelCatalog:      provider.ModelCatalog,
+				ListModels:        provider.ListModels,
+				Quota:             provider.Quota,
+				Notes:             provider.Notes,
+			}
+			break
+		}
+	}
+	if bedrock.PublicStatus != "adapter_only" || !bedrock.RegisteredAdapter || bedrock.PublicInference || bedrock.DirectDispatch || bedrock.Inference || bedrock.Streaming || bedrock.ModelCatalog || bedrock.ListModels || bedrock.Quota {
+		t.Fatalf("bedrock provider = %+v, want registered adapter without public capabilities", bedrock)
+	}
+	if !strings.Contains(strings.ToLower(bedrock.Notes), "converse") || strings.Contains(strings.ToLower(bedrock.Notes), "wave 7.f") {
+		t.Fatalf("bedrock notes = %q, want explicit non-Converse status without Wave 7.F TODO", bedrock.Notes)
 	}
 }
 

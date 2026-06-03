@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.F"
-last_updated: "2026-06-03T03:59:22Z"
+last_updated: "2026-06-03T04:04:28Z"
 last_agent: "orchestrator"
 ```
 
@@ -1292,8 +1292,13 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.F.3"
     name: "Bedrock Converse downgrade or implementation accuracy"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7f-bedrock-status"
+    completed_at: "2026-06-03T04:04:28Z"
     files_owned:
+      - api/handlers/providers.go
+      - api/handlers/providers_test.go
       - internal/provider/matrix.go
       - internal/provider/matrix_test.go
       - docs/PROVIDERS.md
