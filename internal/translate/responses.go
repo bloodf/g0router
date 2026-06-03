@@ -151,6 +151,79 @@ func ResponsesToOpenAIChat(resp *ResponsesResponse) providers.ChatResponse {
 	}
 }
 
+func ResponsesRequestToOpenAIChat(req *ResponsesRequest) (*providers.ChatRequest, error) {
+	if req == nil {
+		return nil, fmt.Errorf("responses to openai chat: nil request")
+	}
+
+	translated := &providers.ChatRequest{
+		Model:               req.Model,
+		Stream:              req.Stream,
+		Temperature:         req.Temperature,
+		TopP:                req.TopP,
+		MaxCompletionTokens: req.MaxOutputTokens,
+		ResponseFormat:      req.Text,
+		ToolChoice:          req.ToolChoice,
+		Tools:               openAITools(req.Tools),
+		Messages:            make([]providers.Message, 0, len(req.Input)),
+	}
+	if req.Instructions != nil {
+		translated.System = *req.Instructions
+	}
+
+	for i, input := range req.Input {
+		text := responsesContentText(input.Content)
+		if text == "" {
+			continue
+		}
+		if input.Role == "" {
+			return nil, fmt.Errorf("responses to openai chat input %d: role is required", i)
+		}
+		translated.Messages = append(translated.Messages, providers.Message{
+			Role:    input.Role,
+			Content: text,
+		})
+	}
+	return translated, nil
+}
+
+func OpenAIChatToResponsesResponse(resp *providers.ChatResponse) ResponsesResponse {
+	if resp == nil {
+		return ResponsesResponse{Object: "response", Status: "completed"}
+	}
+
+	output := make([]ResponsesOutput, 0, len(resp.Choices))
+	var outputText strings.Builder
+	for _, choice := range resp.Choices {
+		text := openAIMessageContentText(choice.Message.Content)
+		if text == "" {
+			continue
+		}
+		if outputText.Len() > 0 {
+			outputText.WriteString("\n")
+		}
+		outputText.WriteString(text)
+		output = append(output, ResponsesOutput{
+			Type: "message",
+			Role: choice.Message.Role,
+			Content: []ResponsesContent{
+				{Type: "output_text", Text: text},
+			},
+		})
+	}
+
+	return ResponsesResponse{
+		ID:         resp.ID,
+		Object:     "response",
+		CreatedAt:  resp.Created,
+		Model:      resp.Model,
+		Status:     "completed",
+		OutputText: outputText.String(),
+		Output:     output,
+		Usage:      providerUsageToResponses(resp.Usage),
+	}
+}
+
 func maxResponsesOutputTokens(req *providers.ChatRequest) *int {
 	if req.MaxCompletionTokens != nil {
 		return req.MaxCompletionTokens
@@ -197,14 +270,44 @@ func responseTools(tools []providers.Tool) []ResponsesTool {
 	return translated
 }
 
+func openAITools(tools []ResponsesTool) []providers.Tool {
+	if len(tools) == 0 {
+		return nil
+	}
+
+	translated := make([]providers.Tool, 0, len(tools))
+	for _, tool := range tools {
+		translated = append(translated, providers.Tool{
+			Type: tool.Type,
+			Function: providers.ToolFunction{
+				Name:        tool.Name,
+				Description: tool.Description,
+				Parameters:  append(json.RawMessage(nil), tool.Parameters...),
+			},
+		})
+	}
+	return translated
+}
+
 func responsesContentText(content []ResponsesContent) string {
 	var builder strings.Builder
 	for _, part := range content {
-		if part.Type == "output_text" || part.Type == "text" {
+		if part.Type == "input_text" || part.Type == "output_text" || part.Type == "text" {
 			builder.WriteString(part.Text)
 		}
 	}
 	return builder.String()
+}
+
+func openAIMessageContentText(content any) string {
+	switch value := content.(type) {
+	case nil:
+		return ""
+	case string:
+		return value
+	default:
+		return fmt.Sprint(value)
+	}
 }
 
 func responseUsage(usage *ResponsesUsage) *providers.Usage {
@@ -215,5 +318,16 @@ func responseUsage(usage *ResponsesUsage) *providers.Usage {
 		PromptTokens:     usage.InputTokens,
 		CompletionTokens: usage.OutputTokens,
 		TotalTokens:      usage.TotalTokens,
+	}
+}
+
+func providerUsageToResponses(usage *providers.Usage) *ResponsesUsage {
+	if usage == nil {
+		return nil
+	}
+	return &ResponsesUsage{
+		InputTokens:  usage.PromptTokens,
+		OutputTokens: usage.CompletionTokens,
+		TotalTokens:  usage.TotalTokens,
 	}
 }

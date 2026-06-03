@@ -90,6 +90,18 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 			return
 		}
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
+	case "/v1/messages":
+		if string(ctx.Method()) == fasthttp.MethodPost {
+			handlers.Messages(ctx, s.config.InferenceEngine)
+			return
+		}
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+	case "/v1/responses":
+		if string(ctx.Method()) == fasthttp.MethodPost {
+			handlers.Responses(ctx, s.config.InferenceEngine)
+			return
+		}
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
 	case "/v1/models":
 		if string(ctx.Method()) == fasthttp.MethodGet {
 			handlers.Models(ctx, s.config.InferenceEngine)

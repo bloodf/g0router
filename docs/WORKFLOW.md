@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.E"
-last_updated: "2026-06-03T02:55:09Z"
+last_updated: "2026-06-03T02:59:10Z"
 last_agent: "orchestrator"
 ```
 
@@ -1187,7 +1187,10 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.E.3"
     name: "Documented /v1/messages and /v1/responses route availability"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7e-routes"
+    completed_at: "2026-06-03T02:59:10Z"
     files_owned:
       - api/server.go
       - api/server_test.go

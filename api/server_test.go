@@ -391,6 +391,95 @@ func TestInferenceLoggingRecordsUsageAndCostWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestDocumentedV1MessagesRouteDispatches(t *testing.T) {
+	var received []providers.ChatRequest
+	engine := routeInferenceEngine{response: routeChatResponseWithUsage(), received: &received}
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		InferenceEngine: engine,
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","system":"answer tersely","max_tokens":128,"messages":[{"role":"user","content":"hello"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	if len(received) != 1 {
+		t.Fatalf("engine requests = %d, want 1", len(received))
+	}
+	req := received[0]
+	if req.Model != "claude-sonnet-4" || req.System != "answer tersely" {
+		t.Fatalf("engine request model/system = %q/%#v", req.Model, req.System)
+	}
+	if req.MaxTokens == nil || *req.MaxTokens != 128 {
+		t.Fatalf("max tokens = %+v, want 128", req.MaxTokens)
+	}
+	if len(req.Messages) != 1 || req.Messages[0].Role != "user" || req.Messages[0].Content != "hello" {
+		t.Fatalf("messages = %+v", req.Messages)
+	}
+
+	var decoded struct {
+		Type    string `json:"type"`
+		Role    string `json:"role"`
+		Model   string `json:"model"`
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("unmarshal messages response: %v; body=%s", err, body)
+	}
+	if decoded.Type != "message" || decoded.Role != "assistant" || decoded.Model != "gpt-4o" {
+		t.Fatalf("messages response metadata = %+v", decoded)
+	}
+	if len(decoded.Content) != 1 || decoded.Content[0].Type != "text" || decoded.Content[0].Text != "hello back" {
+		t.Fatalf("messages content = %+v", decoded.Content)
+	}
+}
+
+func TestDocumentedV1ResponsesRouteDispatches(t *testing.T) {
+	var received []providers.ChatRequest
+	engine := routeInferenceEngine{response: routeChatResponseWithUsage(), received: &received}
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		InferenceEngine: engine,
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/responses", `{"model":"gpt-4o","instructions":"be brief","max_output_tokens":64,"input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	if len(received) != 1 {
+		t.Fatalf("engine requests = %d, want 1", len(received))
+	}
+	req := received[0]
+	if req.Model != "gpt-4o" || req.System != "be brief" {
+		t.Fatalf("engine request model/system = %q/%#v", req.Model, req.System)
+	}
+	if req.MaxCompletionTokens == nil || *req.MaxCompletionTokens != 64 {
+		t.Fatalf("max completion tokens = %+v, want 64", req.MaxCompletionTokens)
+	}
+	if len(req.Messages) != 1 || req.Messages[0].Role != "user" || req.Messages[0].Content != "hello" {
+		t.Fatalf("messages = %+v", req.Messages)
+	}
+
+	var decoded struct {
+		Object     string `json:"object"`
+		Status     string `json:"status"`
+		OutputText string `json:"output_text"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("unmarshal responses response: %v; body=%s", err, body)
+	}
+	if decoded.Object != "response" || decoded.Status != "completed" || decoded.OutputText != "hello back" {
+		t.Fatalf("responses body = %+v", decoded)
+	}
+}
+
 func httpClient() *http.Client {
 	return &http.Client{Timeout: 2 * time.Second}
 }
@@ -464,9 +553,13 @@ func (routeQuotaFetcher) FetchQuota(ctx context.Context, key providers.Key) (usa
 
 type routeInferenceEngine struct {
 	response *providers.ChatResponse
+	received *[]providers.ChatRequest
 }
 
 func (e routeInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	if e.received != nil {
+		*e.received = append(*e.received, *req)
+	}
 	return e.response, nil
 }
 

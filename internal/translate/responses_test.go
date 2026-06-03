@@ -100,6 +100,81 @@ func TestResponsesToOpenAIChatResponse(t *testing.T) {
 	}
 }
 
+func TestResponsesRequestToOpenAIChat(t *testing.T) {
+	instructions := "Be brief."
+	maxOutputTokens := 64
+	stream := true
+	req := &ResponsesRequest{
+		Model:           "gpt-4o-mini",
+		Instructions:    &instructions,
+		MaxOutputTokens: &maxOutputTokens,
+		Stream:          &stream,
+		Input: []ResponsesInput{
+			{
+				Role: "user",
+				Content: []ResponsesContent{
+					{Type: "input_text", Text: "Hello"},
+					{Type: "input_text", Text: " world"},
+				},
+			},
+		},
+		Tools: []ResponsesTool{
+			{Type: "function", Name: "lookup", Description: "Look up a value", Parameters: json.RawMessage(`{"type":"object"}`)},
+		},
+	}
+
+	got, err := ResponsesRequestToOpenAIChat(req)
+	if err != nil {
+		t.Fatalf("ResponsesRequestToOpenAIChat: %v", err)
+	}
+	if got.Model != "gpt-4o-mini" {
+		t.Fatalf("model = %q", got.Model)
+	}
+	if got.Stream == nil || !*got.Stream {
+		t.Fatalf("stream = %+v, want true", got.Stream)
+	}
+	if got.MaxCompletionTokens == nil || *got.MaxCompletionTokens != 64 {
+		t.Fatalf("max completion tokens = %+v, want 64", got.MaxCompletionTokens)
+	}
+	if got.System != "Be brief." {
+		t.Fatalf("system = %#v, want instructions", got.System)
+	}
+	if len(got.Messages) != 1 || got.Messages[0].Role != "user" || got.Messages[0].Content != "Hello world" {
+		t.Fatalf("messages = %+v", got.Messages)
+	}
+	if len(got.Tools) != 1 || got.Tools[0].Function.Name != "lookup" {
+		t.Fatalf("tools = %+v", got.Tools)
+	}
+}
+
+func TestOpenAIChatToResponsesResponse(t *testing.T) {
+	resp := &providers.ChatResponse{
+		ID:      "chatcmpl-123",
+		Created: 1700000000,
+		Model:   "gpt-4o-mini",
+		Choices: []providers.Choice{
+			{
+				Message: providers.Message{Role: "assistant", Content: "Hello world"},
+			},
+		},
+		Usage: &providers.Usage{PromptTokens: 4, CompletionTokens: 3, TotalTokens: 7},
+	}
+
+	got := OpenAIChatToResponsesResponse(resp)
+	if got.ID != "chatcmpl-123" || got.Object != "response" || got.Status != "completed" {
+		t.Fatalf("metadata = %+v", got)
+	}
+	if got.OutputText != "Hello world" {
+		t.Fatalf("output text = %q, want Hello world", got.OutputText)
+	}
+	if len(got.Output) != 1 || got.Output[0].Role != "assistant" || got.Output[0].Content[0].Type != "output_text" {
+		t.Fatalf("output = %+v", got.Output)
+	}
+	if got.Usage == nil || got.Usage.TotalTokens != 7 {
+		t.Fatalf("usage = %+v", got.Usage)
+	}
+}
+
 func TestOpenAIChatToResponsesRejectsUnsupportedContent(t *testing.T) {
 	_, err := OpenAIChatToResponses(&providers.ChatRequest{
 		Model: "gpt-4o-mini",
