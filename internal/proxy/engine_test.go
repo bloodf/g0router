@@ -77,16 +77,27 @@ type fakeOAuthRefresher struct {
 
 type fakeQuotaFetcher struct {
 	quota  usage.Quota
+	quotas []usage.Quota
 	err    error
+	errs   []error
 	calls  int
 	gotKey providers.Key
+	keys   []providers.Key
 }
 
 func (f *fakeQuotaFetcher) FetchQuota(ctx context.Context, key providers.Key) (usage.Quota, error) {
 	f.calls++
 	f.gotKey = key
+	f.keys = append(f.keys, key)
+	index := f.calls - 1
 	if f.err != nil {
 		return usage.Quota{}, f.err
+	}
+	if index < len(f.errs) && f.errs[index] != nil {
+		return usage.Quota{}, f.errs[index]
+	}
+	if index < len(f.quotas) {
+		return f.quotas[index], nil
 	}
 	return f.quota, nil
 }
@@ -458,6 +469,258 @@ func TestDispatchQuotaExhaustionBlocksProviderCall(t *testing.T) {
 	}
 	if quota.gotKey.Value != "openai-key" || quota.gotKey.Provider != providers.ProviderOpenAI {
 		t.Fatalf("quota key = %+v", quota.gotKey)
+	}
+}
+
+func TestDispatchExplicitZeroRemainingQuotaBlocksProviderCall(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key")
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-should-not-run"}}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{
+		Provider:  providers.ProviderOpenAI,
+		Remaining: 0,
+	}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
+
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("Dispatch error = %v, want ErrQuotaExhausted", err)
+	}
+	if openAI.called {
+		t.Fatal("provider should not be called when quota reports zero remaining")
+	}
+}
+
+func TestDispatchPrefixModelQuotaExhaustionBlocksProviderCall(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key")
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-should-not-run"}}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{
+		Provider:  providers.ProviderOpenAI,
+		Remaining: 0,
+	}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
+
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-prefix-only-model"})
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("Dispatch error = %v, want ErrQuotaExhausted", err)
+	}
+	if openAI.called {
+		t.Fatal("provider should not be called when prefix route quota is exhausted")
+	}
+	if quota.gotKey.Provider != providers.ProviderOpenAI || quota.gotKey.Value != "openai-key" {
+		t.Fatalf("quota key = %+v", quota.gotKey)
+	}
+}
+
+func TestDispatchQuotaErrorsFailOpen(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{name: "unsupported", err: usage.ErrQuotaUnsupported},
+		{name: "transient", err: errors.New("quota API temporarily unavailable")},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := openProxyTestStore(t)
+			createProxyConnection(t, s, "openai", "openai-key")
+			openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-ok"}}
+			quota := &fakeQuotaFetcher{err: tc.err}
+			engine := NewEngine(s)
+			engine.Register(openAI)
+			engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
+
+			resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+			if err != nil {
+				t.Fatalf("Dispatch: %v", err)
+			}
+			if resp.ID != "chatcmpl-ok" {
+				t.Fatalf("response ID = %q, want chatcmpl-ok", resp.ID)
+			}
+			if !openAI.called {
+				t.Fatal("provider should be called when quota check fails open")
+			}
+		})
+	}
+}
+
+func TestDispatchExplicitQuotaErrorSkipsConnectionAndBacksItOff(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key-1")
+	createProxyConnection(t, s, "openai", "openai-key-2")
+	now := time.Unix(1_700_000_000, 0)
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-second-account"}}
+	quota := &fakeQuotaFetcher{
+		errs: []error{ErrQuotaExhausted, nil},
+		quotas: []usage.Quota{
+			{},
+			{Provider: providers.ProviderOpenAI, Remaining: 10},
+		},
+	}
+	engine := NewEngine(s)
+	engine.now = func() time.Time { return now }
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-second-account" {
+		t.Fatalf("response ID = %q, want chatcmpl-second-account", resp.ID)
+	}
+	if openAI.calls != 1 {
+		t.Fatalf("provider calls = %d, want 1", openAI.calls)
+	}
+	if len(quota.keys) != 2 || quota.keys[0].Value == quota.keys[1].Value {
+		t.Fatalf("quota keys = %+v; want two different accounts", quota.keys)
+	}
+	if openAI.receivedKey.Value != quota.keys[1].Value {
+		t.Fatalf("provider key = %q, want quota-approved key %q", openAI.receivedKey.Value, quota.keys[1].Value)
+	}
+	firstConn, err := s.GetConnection(quota.keys[0].ConnID)
+	if err != nil {
+		t.Fatalf("GetConnection first: %v", err)
+	}
+	if firstConn.BackoffLevel != 1 {
+		t.Fatalf("backoff level = %d, want 1", firstConn.BackoffLevel)
+	}
+	if firstConn.ModelLocks["gpt-4o"] != now.Add(time.Second).Unix() {
+		t.Fatalf("model locks = %+v", firstConn.ModelLocks)
+	}
+}
+
+func TestDispatchSkipsQuotaExhaustedConnectionAndBacksItOff(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key-1")
+	createProxyConnection(t, s, "openai", "openai-key-2")
+	now := time.Unix(1_700_000_000, 0)
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-second-account"}}
+	quota := &fakeQuotaFetcher{quotas: []usage.Quota{
+		{Provider: providers.ProviderOpenAI, Remaining: 0},
+		{Provider: providers.ProviderOpenAI, Remaining: 10},
+	}}
+	engine := NewEngine(s)
+	engine.now = func() time.Time { return now }
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-second-account" {
+		t.Fatalf("response ID = %q, want chatcmpl-second-account", resp.ID)
+	}
+	if openAI.calls != 1 {
+		t.Fatalf("provider calls = %d, want 1", openAI.calls)
+	}
+	if len(quota.keys) != 2 || quota.keys[0].Value == quota.keys[1].Value {
+		t.Fatalf("quota keys = %+v; want two different accounts", quota.keys)
+	}
+	if openAI.receivedKey.Value != quota.keys[1].Value {
+		t.Fatalf("provider key = %q, want quota-approved key %q", openAI.receivedKey.Value, quota.keys[1].Value)
+	}
+	firstConn, err := s.GetConnection(quota.keys[0].ConnID)
+	if err != nil {
+		t.Fatalf("GetConnection first: %v", err)
+	}
+	if firstConn.BackoffLevel != 1 {
+		t.Fatalf("backoff level = %d, want 1", firstConn.BackoffLevel)
+	}
+	if firstConn.ModelLocks["gpt-4o"] != now.Add(time.Second).Unix() {
+		t.Fatalf("model locks = %+v", firstConn.ModelLocks)
+	}
+}
+
+func TestDispatchAllQuotaExhaustedConnectionsReturnQuotaError(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key-1")
+	createProxyConnection(t, s, "openai", "openai-key-2")
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-should-not-run"}}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{
+		Provider:  providers.ProviderOpenAI,
+		Remaining: 0,
+	}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
+
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("Dispatch error = %v, want ErrQuotaExhausted", err)
+	}
+	if openAI.called {
+		t.Fatal("provider should not be called when all connections are quota exhausted")
+	}
+	if quota.calls != 2 {
+		t.Fatalf("quota calls = %d, want 2", quota.calls)
+	}
+}
+
+func TestDispatchAliasQuotaUsesTargetProviderConnection(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	if err := s.SetModelAlias(store.ModelAlias{
+		Alias:    "fast",
+		Provider: "groq",
+		Model:    "llama-3.3-70b-versatile",
+	}); err != nil {
+		t.Fatalf("SetModelAlias: %v", err)
+	}
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "chatcmpl-groq"}}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderGroq, Remaining: 42}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.RegisterQuotaFetcher(providers.ProviderGroq, quota)
+
+	if _, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "fast"}); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if quota.gotKey.Provider != providers.ProviderGroq {
+		t.Fatalf("quota provider = %q, want groq", quota.gotKey.Provider)
+	}
+	if quota.gotKey.ConnID == "" {
+		t.Fatal("quota key should include selected connection ID")
+	}
+	if quota.gotKey.ConnID != groq.receivedKey.ConnID {
+		t.Fatalf("quota connection = %q, provider connection = %q", quota.gotKey.ConnID, groq.receivedKey.ConnID)
+	}
+	if quota.gotKey.Value != "groq-key" {
+		t.Fatalf("quota key value = %q, want groq-key", quota.gotKey.Value)
+	}
+}
+
+func TestDispatchPrefixModelQuotaUsesResolvedProviderConnection(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-prefix-key")
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-prefix"}}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderOpenAI, Remaining: 8}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-experimental-prefix"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-prefix" {
+		t.Fatalf("response ID = %q, want chatcmpl-prefix", resp.ID)
+	}
+	if quota.gotKey.Provider != providers.ProviderOpenAI {
+		t.Fatalf("quota provider = %q, want openai", quota.gotKey.Provider)
+	}
+	if quota.gotKey.ConnID == "" || quota.gotKey.ConnID != openAI.receivedKey.ConnID {
+		t.Fatalf("quota connection = %q, provider connection = %q", quota.gotKey.ConnID, openAI.receivedKey.ConnID)
+	}
+	if openAI.received.Model != "gpt-experimental-prefix" {
+		t.Fatalf("provider model = %q, want prefix model unchanged", openAI.received.Model)
 	}
 }
 
