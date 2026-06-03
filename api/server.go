@@ -420,6 +420,8 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		handlers.Connections(ctx, s.config.Store, "")
 	case len(parts) == 3 && parts[0] == "api" && parts[1] == "connections":
 		handlers.Connections(ctx, s.config.Store, parts[2])
+	case len(parts) == 4 && parts[0] == "api" && parts[1] == "connections" && parts[3] == "test":
+		handlers.ConnectionTest(ctx, s.config.Store, parts[2])
 	case path == "/api/settings":
 		handlers.Settings(ctx, s.config.Store)
 	case path == "/api/keys":
@@ -430,6 +432,14 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		handlers.Combos(ctx, s.config.Store, "")
 	case len(parts) == 3 && parts[0] == "api" && parts[1] == "combos":
 		handlers.Combos(ctx, s.config.Store, parts[2])
+	case path == "/api/aliases":
+		handlers.Aliases(ctx, s.config.Store, "")
+	case len(parts) == 3 && parts[0] == "api" && parts[1] == "aliases":
+		handlers.Aliases(ctx, s.config.Store, parts[2])
+	case path == "/api/pricing":
+		handlers.Pricing(ctx, s.config.Store, "", "")
+	case len(parts) == 4 && parts[0] == "api" && parts[1] == "pricing":
+		handlers.Pricing(ctx, s.config.Store, parts[2], parts[3])
 	case path == "/api/oauth/callback":
 		if !requireMethod(ctx, fasthttp.MethodGet) {
 			return

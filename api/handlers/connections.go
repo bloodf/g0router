@@ -108,6 +108,31 @@ func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 	}
 }
 
+func ConnectionTest(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
+	if s == nil {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+	if string(ctx.Method()) != fasthttp.MethodPost {
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+		return
+	}
+	if id == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "connection id required")
+		return
+	}
+	conn, err := s.GetConnection(id)
+	if err != nil {
+		writeStoreError(ctx, "get connection", err)
+		return
+	}
+	writeJSON(ctx, fasthttp.StatusOK, map[string]any{
+		"ok":       conn.IsActive,
+		"provider": conn.Provider,
+		"name":     conn.Name,
+	})
+}
+
 func decodeConnectionRequest(ctx *fasthttp.RequestCtx) (*store.Connection, bool) {
 	var req connectionRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
