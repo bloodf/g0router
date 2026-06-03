@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: REMEDIATION_EVALUATION_PENDING
+project_status: REMEDIATION_EVALUATED
 current_stage: 7
 current_wave: "7.J"
-last_updated: "2026-06-03T17:41:09Z"
+last_updated: "2026-06-03T17:53:22Z"
 last_agent: "orchestrator"
 ```
 
@@ -1729,6 +1729,15 @@ tasks:
       - docs/PLAN.md
       - docs/ORCHESTRATION.md
     phase_doc: "docs/phases/phase-11-packaging-deployment-polish.md"
+
+evaluation:
+  status: PASS
+  completed_at: "2026-06-03T17:53:22Z"
+  evaluator_agent: "Wegener"
+  non_blocking_findings:
+    - "Frontend build output churns tracked ui/dist assets; evaluate deterministic generated output or a cleaner embed build path."
+    - "Operator docs should more clearly distinguish dashboard/API-key auth from JWT secret requirements."
+    - "MCP instance delete closes runtime before store delete; a store-delete failure can leave a stale row without live tools."
 ```
 
 ---
