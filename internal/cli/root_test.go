@@ -20,6 +20,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/usage"
 )
 
 func TestRootCommandPrintsVersion(t *testing.T) {
@@ -354,6 +355,22 @@ func TestDefaultServerConfigWiresWave4ADependencies(t *testing.T) {
 
 	if cfg.QuotaFetchers[providers.ProviderOpenAI] == nil {
 		t.Fatal("openai quota fetcher should be wired")
+	}
+}
+
+func TestDefaultServerConfigWrapsDefaultQuotaFetchersWithCache(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s)
+	fetcher := cfg.QuotaFetchers[providers.ProviderOpenAI]
+	if _, ok := fetcher.(*usage.CachingQuotaFetcher); !ok {
+		t.Fatalf("openai quota fetcher is %T, want cached fetcher", fetcher)
+	}
+
+	_, err := fetcher.FetchQuota(context.Background(), providers.Key{Provider: providers.ProviderOpenAI})
+	if !errors.Is(err, usage.ErrQuotaUnsupported) {
+		t.Fatalf("error = %v, want ErrQuotaUnsupported", err)
 	}
 }
 
