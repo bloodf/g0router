@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.H"
-last_updated: "2026-06-03T05:29:55Z"
+last_updated: "2026-06-03T05:38:42Z"
 last_agent: "orchestrator"
 ```
 
@@ -1482,10 +1482,12 @@ tasks:
       - ui/dist/**
   - id: "7.H.2"
     name: "Providers and endpoint pages use real API contracts"
-    status: IN_PROGRESS
+    status: DONE
     agent: "Hume the 2nd"
     branch: "codex/wave-7h-providers-endpoint"
     started_at: "2026-06-03T05:29:55Z"
+    commit: "973e9a9"
+    completed_at: "2026-06-03T05:38:42Z"
     depends_on_tasks: ["7.H.1"]
     files_owned:
       - ui/src/pages/ProvidersPage.tsx
