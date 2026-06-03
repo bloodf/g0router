@@ -51,6 +51,31 @@ func TestCatalogLookupUnknownModel(t *testing.T) {
 	}
 }
 
+func TestCatalogProviderForModel(t *testing.T) {
+	catalog := NewCatalog()
+
+	provider, ok := catalog.ProviderForModel("claude-sonnet-4")
+	if !ok {
+		t.Fatal("expected claude-sonnet-4 provider")
+	}
+	if provider != providers.ProviderAnthropic {
+		t.Fatalf("provider = %q, want anthropic", provider)
+	}
+
+	provider, ok = catalog.ProviderForModel("gpt-4o")
+	if !ok {
+		t.Fatal("expected gpt-4o provider")
+	}
+	if provider != providers.ProviderOpenAI {
+		t.Fatalf("provider = %q, want openai", provider)
+	}
+
+	_, ok = catalog.ProviderForModel("missing-model")
+	if ok {
+		t.Fatal("expected missing model provider")
+	}
+}
+
 func TestCatalogModelsReturnsCopy(t *testing.T) {
 	catalog := NewCatalog()
 

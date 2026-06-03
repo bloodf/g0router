@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.E"
-last_updated: "2026-06-03T02:39:45Z"
+last_updated: "2026-06-03T02:51:40Z"
 last_agent: "orchestrator"
 ```
 
@@ -1151,13 +1151,82 @@ tasks:
       - docs/WORKFLOW.md
 ```
 
-### Waves 7.E-7.I — Remaining Remediation Backlog
+### Wave 7.E — Real 9Router-style dispatch pipeline
+
+```yaml
+wave: "7.E"
+status: IN_PROGRESS
+max_agents: 3
+depends_on: ["7.D"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.E.1"
+    name: "Alias and catalog-driven model resolution"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7e-routing"
+    completed_at: "2026-06-03T02:51:40Z"
+    files_owned:
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/modelcatalog/catalog.go
+      - internal/modelcatalog/pricing_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+  - id: "7.E.2"
+    name: "Request logging and cost wiring"
+    status: PENDING
+    files_owned:
+      - api/server.go
+      - api/server_test.go
+      - internal/usage/*
+      - internal/logging/*
+      - docs/WORKFLOW.md
+  - id: "7.E.3"
+    name: "Documented /v1/messages and /v1/responses route availability"
+    status: PENDING
+    files_owned:
+      - api/server.go
+      - api/server_test.go
+      - api/handlers/inference.go
+      - api/handlers/inference_test.go
+      - internal/translate/*
+      - internal/providers/openai/responses.go
+      - docs/WORKFLOW.md
+  - id: "7.E.4"
+    name: "Tool-call preservation across provider adapters"
+    status: PENDING
+    files_owned:
+      - internal/providers/anthropic/*
+      - internal/providers/gemini/*
+      - internal/translate/*
+      - docs/WORKFLOW.md
+  - id: "7.E.5"
+    name: "Combo dispatch hardening, fallback/backoff, and quota gates"
+    status: PENDING
+    files_owned:
+      - internal/proxy/combo.go
+      - internal/proxy/combo_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/provider/fallback.go
+      - internal/provider/fallback_test.go
+      - api/server.go
+      - api/server_test.go
+      - docs/WORKFLOW.md
+  - id: "7.E.6"
+    name: "Wave 7.E evaluator prompt"
+    status: PENDING
+    files_owned:
+      - docs/evaluations/wave-7E-evaluator-prompt.md
+      - docs/WORKFLOW.md
+```
+
+### Waves 7.F-7.I — Remaining Remediation Backlog
 
 ```yaml
 waves:
-  - wave: "7.E"
-    name: "Real 9Router-style dispatch pipeline"
-    status: PENDING
   - wave: "7.F"
     name: "Provider correctness"
     status: PENDING

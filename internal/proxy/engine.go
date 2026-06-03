@@ -26,6 +26,11 @@ type oauthRefresher interface {
 	Refresh(ctx context.Context, refreshToken string) (oauth.TokenResult, error)
 }
 
+type modelRoute struct {
+	Provider providers.ModelProvider
+	Model    string
+}
+
 type Engine struct {
 	store          *store.Store
 	pool           providerPool
@@ -59,12 +64,12 @@ func (e *Engine) RegisteredProviders() []providers.ModelProvider {
 }
 
 func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
-	provider, key, err := e.providerFor(ctx, req.Model)
+	provider, key, upstreamModel, err := e.providerFor(ctx, req.Model)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := provider.ChatCompletion(ctx, key, req)
+	resp, err := provider.ChatCompletion(ctx, key, requestWithModel(req, upstreamModel))
 	if err != nil {
 		return nil, fmt.Errorf("chat completion: %w", err)
 	}
@@ -72,12 +77,12 @@ func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*pro
 }
 
 func (e *Engine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	provider, key, err := e.providerFor(ctx, req.Model)
+	provider, key, upstreamModel, err := e.providerFor(ctx, req.Model)
 	if err != nil {
 		return nil, err
 	}
 
-	stream, err := provider.ChatCompletionStream(ctx, key, req)
+	stream, err := provider.ChatCompletionStream(ctx, key, requestWithModel(req, upstreamModel))
 	if err != nil {
 		return nil, fmt.Errorf("chat completion stream: %w", err)
 	}
@@ -137,22 +142,54 @@ func catalogModels(providerName providers.ModelProvider) []providers.Model {
 	return models
 }
 
-func (e *Engine) providerFor(ctx context.Context, model string) (providers.Provider, providers.Key, error) {
-	providerName, ok := resolveProvider(model)
-	if !ok {
-		return nil, providers.Key{}, ErrProviderNotFound
-	}
-
-	provider, ok := e.pool.get(providerName)
-	if !ok {
-		return nil, providers.Key{}, ErrProviderNotFound
-	}
-
-	key, err := e.keyFor(ctx, providerName)
+func (e *Engine) providerFor(ctx context.Context, model string) (providers.Provider, providers.Key, string, error) {
+	route, err := e.resolveModelRoute(model)
 	if err != nil {
-		return nil, providers.Key{}, err
+		return nil, providers.Key{}, "", err
 	}
-	return provider, key, nil
+
+	provider, ok := e.pool.get(route.Provider)
+	if !ok {
+		return nil, providers.Key{}, "", ErrProviderNotFound
+	}
+
+	key, err := e.keyFor(ctx, route.Provider)
+	if err != nil {
+		return nil, providers.Key{}, "", err
+	}
+	return provider, key, route.Model, nil
+}
+
+func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
+	alias, err := e.store.ResolveModelAlias(model)
+	if err == nil {
+		return modelRoute{
+			Provider: providers.ModelProvider(providercore.CanonicalProviderID(alias.Provider)),
+			Model:    alias.Model,
+		}, nil
+	}
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return modelRoute{}, fmt.Errorf("resolve model alias: %w", err)
+	}
+
+	if provider, ok := modelcatalog.NewCatalog().ProviderForModel(model); ok {
+		return modelRoute{Provider: provider, Model: model}, nil
+	}
+
+	if provider, ok := resolveProvider(model); ok {
+		return modelRoute{Provider: provider, Model: model}, nil
+	}
+
+	return modelRoute{}, ErrProviderNotFound
+}
+
+func requestWithModel(req *providers.ChatRequest, model string) *providers.ChatRequest {
+	if req.Model == model {
+		return req
+	}
+	copied := *req
+	copied.Model = model
+	return &copied
 }
 
 func (e *Engine) keyFor(ctx context.Context, provider providers.ModelProvider) (providers.Key, error) {

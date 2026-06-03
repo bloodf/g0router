@@ -128,6 +128,110 @@ func TestDispatchRoutesToCorrectProvider(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesModelAliasProviderAndRewritesUpstreamModel(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	if err := s.SetModelAlias(store.ModelAlias{
+		Alias:    "fast",
+		Provider: "groq",
+		Model:    "llama-3.3-70b-versatile",
+	}); err != nil {
+		t.Fatalf("SetModelAlias: %v", err)
+	}
+
+	groq := &fakeProvider{
+		name: providers.ProviderGroq,
+		response: &providers.ChatResponse{
+			ID:    "chatcmpl-groq",
+			Model: "llama-3.3-70b-versatile",
+		},
+	}
+	engine := NewEngine(s)
+	engine.Register(groq)
+
+	req := &providers.ChatRequest{Model: "fast"}
+	resp, err := engine.Dispatch(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-groq" {
+		t.Fatalf("response ID = %q, want chatcmpl-groq", resp.ID)
+	}
+	if !groq.called {
+		t.Fatal("groq provider was not called")
+	}
+	if groq.received == req {
+		t.Fatal("alias dispatch should pass a copied request")
+	}
+	if groq.received.Model != "llama-3.3-70b-versatile" {
+		t.Fatalf("provider request model = %q, want alias target", groq.received.Model)
+	}
+	if req.Model != "fast" {
+		t.Fatalf("original request model = %q, want alias name unchanged", req.Model)
+	}
+	if groq.receivedKey.Provider != providers.ProviderGroq {
+		t.Fatalf("key provider = %q, want groq", groq.receivedKey.Provider)
+	}
+	if groq.receivedKey.Value != "groq-key" {
+		t.Fatalf("key value = %q, want groq-key", groq.receivedKey.Value)
+	}
+}
+
+func TestDispatchStreamUsesModelAliasProviderAndRewritesUpstreamModel(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	if err := s.SetModelAlias(store.ModelAlias{
+		Alias:    "fast-stream",
+		Provider: "groq",
+		Model:    "llama-3.3-70b-versatile",
+	}); err != nil {
+		t.Fatalf("SetModelAlias: %v", err)
+	}
+
+	content := "hello"
+	chunks := make(chan providers.StreamChunk, 1)
+	chunks <- providers.StreamChunk{
+		ID:    "chunk-groq",
+		Model: "llama-3.3-70b-versatile",
+		Choices: []providers.StreamChoice{
+			{Delta: providers.StreamDelta{Content: &content}},
+		},
+	}
+	close(chunks)
+
+	groq := &fakeProvider{name: providers.ProviderGroq, stream: chunks}
+	engine := NewEngine(s)
+	engine.Register(groq)
+
+	req := &providers.ChatRequest{Model: "fast-stream"}
+	stream, err := engine.DispatchStream(context.Background(), req)
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	got, ok := <-stream
+	if !ok {
+		t.Fatal("stream closed before first chunk")
+	}
+	if got.ID != "chunk-groq" {
+		t.Fatalf("chunk ID = %q, want chunk-groq", got.ID)
+	}
+	if !groq.streamed {
+		t.Fatal("groq stream provider was not called")
+	}
+	if groq.received == req {
+		t.Fatal("alias stream dispatch should pass a copied request")
+	}
+	if groq.received.Model != "llama-3.3-70b-versatile" {
+		t.Fatalf("provider request model = %q, want alias target", groq.received.Model)
+	}
+	if req.Model != "fast-stream" {
+		t.Fatalf("original request model = %q, want alias name unchanged", req.Model)
+	}
+	if groq.receivedKey.Value != "groq-key" {
+		t.Fatalf("key value = %q, want groq-key", groq.receivedKey.Value)
+	}
+}
+
 func TestDispatchRefreshesOAuthConnectionBeforeProviderCall(t *testing.T) {
 	s := openProxyTestStore(t)
 	now := time.Unix(1700000000, 0)
