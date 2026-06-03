@@ -64,27 +64,35 @@ func (m *ToolManager) RegisterManifest(manifest Manifest) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	seen := make(map[string]struct{}, len(manifest.Tools))
-	for _, tool := range manifest.Tools {
-		if tool.Name == "" {
-			return ErrInvalidManifest
-		}
-		fullName := toolFullName(manifest.ClientID, tool.Name)
-		if _, ok := seen[fullName]; ok {
-			return ErrToolAlreadyRegistered
-		}
-		seen[fullName] = struct{}{}
+	fullNames, err := manifestFullNames(manifest)
+	if err != nil {
+		return err
+	}
+	for _, fullName := range fullNames {
 		if _, ok := m.tools[fullName]; ok {
 			return ErrToolAlreadyRegistered
 		}
 	}
 
-	for _, tool := range manifest.Tools {
-		fullName := toolFullName(manifest.ClientID, tool.Name)
-		tool.ClientID = manifest.ClientID
-		m.tools[fullName] = cloneTool(tool)
-		m.order = append(m.order, fullName)
+	m.registerManifestLocked(manifest, fullNames)
+	return nil
+}
+
+func (m *ToolManager) RefreshManifest(manifest Manifest) error {
+	if manifest.ClientID == "" {
+		return ErrInvalidManifest
 	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	fullNames, err := manifestFullNames(manifest)
+	if err != nil {
+		return err
+	}
+
+	m.removeClientToolsLocked(manifest.ClientID)
+	m.registerManifestLocked(manifest, fullNames)
 	return nil
 }
 
@@ -137,6 +145,18 @@ func (m *ToolManager) UnregisterClient(clientID string) {
 	defer m.mu.Unlock()
 
 	delete(m.clients, clientID)
+	m.removeClientToolsLocked(clientID)
+}
+
+func (m *ToolManager) registerManifestLocked(manifest Manifest, fullNames []string) {
+	for i, tool := range manifest.Tools {
+		tool.ClientID = manifest.ClientID
+		m.tools[fullNames[i]] = cloneTool(tool)
+		m.order = append(m.order, fullNames[i])
+	}
+}
+
+func (m *ToolManager) removeClientToolsLocked(clientID string) {
 	prefix := clientID + toolNameSeparator
 	for name := range m.tools {
 		if strings.HasPrefix(name, prefix) {
@@ -150,6 +170,23 @@ func (m *ToolManager) UnregisterClient(clientID string) {
 		}
 	}
 	m.order = order
+}
+
+func manifestFullNames(manifest Manifest) ([]string, error) {
+	seen := make(map[string]struct{}, len(manifest.Tools))
+	fullNames := make([]string, 0, len(manifest.Tools))
+	for _, tool := range manifest.Tools {
+		if tool.Name == "" {
+			return nil, ErrInvalidManifest
+		}
+		fullName := toolFullName(manifest.ClientID, tool.Name)
+		if _, ok := seen[fullName]; ok {
+			return nil, ErrToolAlreadyRegistered
+		}
+		seen[fullName] = struct{}{}
+		fullNames = append(fullNames, fullName)
+	}
+	return fullNames, nil
 }
 
 func (m *ToolManager) Call(ctx context.Context, name string, arguments json.RawMessage) (CallResult, error) {
