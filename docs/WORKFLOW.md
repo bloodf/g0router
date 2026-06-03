@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: REMEDIATION_HYGIENE_EVALUATION_PENDING
+project_status: REMEDIATION_HYGIENE_EVALUATED
 current_stage: 7
 current_wave: "7.K"
-last_updated: "2026-06-03T18:18:36Z"
+last_updated: "2026-06-03T18:26:14Z"
 last_agent: "orchestrator"
 ```
 
@@ -1777,8 +1777,12 @@ tasks:
       - docs/WORKFLOW.md
 
 evaluation:
-  status: PENDING
+  status: PASS
+  completed_at: "2026-06-03T18:26:14Z"
+  evaluator_agent: "James"
   prompt: "docs/evaluations/wave-7K-evaluator-prompt.md"
+  non_blocking_findings:
+    - "MCP instance delete returns 500 if runtime close fails after successful store delete; decide whether to ignore/log runtime-close failures after persistence succeeds."
 ```
 
 ---
