@@ -9,6 +9,7 @@ import (
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/usage"
 )
 
 func TestComboResolvePreservesStoredStepOrder(t *testing.T) {
@@ -383,6 +384,277 @@ func TestComboDispatchReturnsLastStepError(t *testing.T) {
 	)
 	if !errors.Is(err, lastErr) {
 		t.Fatalf("Dispatch error = %v, want wrapped last step error", err)
+	}
+}
+
+func TestComboDispatchQuotaUsesStepProviderConnection(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "groq-only",
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "chatcmpl-groq"}}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderGroq, Remaining: 5}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.RegisterQuotaFetcher(providers.ProviderGroq, quota)
+
+	resp, err := NewComboResolver(s).Dispatch(
+		context.Background(),
+		engine,
+		"groq-only",
+		&providers.ChatRequest{Model: "combo/groq-only"},
+	)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-groq" {
+		t.Fatalf("response ID = %q, want chatcmpl-groq", resp.ID)
+	}
+	if quota.gotKey.Provider != providers.ProviderGroq {
+		t.Fatalf("quota provider = %q, want groq", quota.gotKey.Provider)
+	}
+	if quota.gotKey.ConnID == "" || quota.gotKey.ConnID != groq.receivedKey.ConnID {
+		t.Fatalf("quota connection = %q, provider connection = %q", quota.gotKey.ConnID, groq.receivedKey.ConnID)
+	}
+	if quota.gotKey.Value != "groq-key" {
+		t.Fatalf("quota key = %q, want groq-key", quota.gotKey.Value)
+	}
+}
+
+func TestComboDispatchSkipsQuotaExhaustedAccountBeforeNextStep(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key-1")
+	createProxyConnection(t, s, "groq", "groq-key-2")
+	createProxyConnection(t, s, "openai", "openai-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "quota-account-fallback",
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "chatcmpl-groq-second-account"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-openai"}}
+	quota := &fakeQuotaFetcher{quotas: []usage.Quota{
+		{Provider: providers.ProviderGroq, Remaining: 0},
+		{Provider: providers.ProviderGroq, Remaining: 12},
+	}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderGroq, quota)
+
+	resp, err := NewComboResolver(s).Dispatch(
+		context.Background(),
+		engine,
+		"quota-account-fallback",
+		&providers.ChatRequest{Model: "combo/quota-account-fallback"},
+	)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-groq-second-account" {
+		t.Fatalf("response ID = %q, want second Groq account", resp.ID)
+	}
+	if groq.calls != 1 {
+		t.Fatalf("groq calls = %d, want 1", groq.calls)
+	}
+	if len(quota.keys) != 2 || quota.keys[0].Value == quota.keys[1].Value {
+		t.Fatalf("quota keys = %+v; want two different Groq accounts", quota.keys)
+	}
+	if groq.receivedKey.Value != quota.keys[1].Value {
+		t.Fatalf("groq key = %q, want quota-approved key %q", groq.receivedKey.Value, quota.keys[1].Value)
+	}
+	if openAI.called {
+		t.Fatal("second combo step should not run before retrying next Groq account")
+	}
+}
+
+func TestComboDispatchAllQuotaExhaustedStepsReturnQuotaError(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "all-exhausted",
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "groq-should-not-run"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "openai-should-not-run"}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderGroq, &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderGroq, Remaining: 0}})
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderOpenAI, Remaining: 0}})
+
+	_, err := NewComboResolver(s).Dispatch(
+		context.Background(),
+		engine,
+		"all-exhausted",
+		&providers.ChatRequest{Model: "combo/all-exhausted"},
+	)
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("Dispatch error = %v, want ErrQuotaExhausted", err)
+	}
+	if groq.called || openAI.called {
+		t.Fatalf("providers should not be called when quotas are exhausted: groq=%v openai=%v", groq.called, openAI.called)
+	}
+}
+
+func TestComboDispatchStreamQuotaUsesStepProviderConnection(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "anthropic", "anthropic-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "anthropic-stream",
+		Steps: []store.ComboStep{
+			{Provider: "anthropic", Model: "claude-sonnet-4"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	chunks := make(chan providers.StreamChunk, 1)
+	chunks <- providers.StreamChunk{ID: "chunk-anthropic", Model: "claude-sonnet-4"}
+	close(chunks)
+	anthropic := &fakeProvider{name: providers.ProviderAnthropic, stream: chunks}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderAnthropic, Remaining: 3}}
+	engine := NewEngine(s)
+	engine.Register(anthropic)
+	engine.RegisterQuotaFetcher(providers.ProviderAnthropic, quota)
+
+	stream, err := NewComboResolver(s).DispatchStream(
+		context.Background(),
+		engine,
+		"anthropic-stream",
+		&providers.ChatRequest{Model: "combo/anthropic-stream"},
+	)
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	got, ok := <-stream
+	if !ok {
+		t.Fatal("stream closed before first chunk")
+	}
+	if got.ID != "chunk-anthropic" {
+		t.Fatalf("chunk ID = %q, want chunk-anthropic", got.ID)
+	}
+	if quota.gotKey.Provider != providers.ProviderAnthropic {
+		t.Fatalf("quota provider = %q, want anthropic", quota.gotKey.Provider)
+	}
+	if quota.gotKey.ConnID == "" || quota.gotKey.ConnID != anthropic.receivedKey.ConnID {
+		t.Fatalf("quota connection = %q, provider connection = %q", quota.gotKey.ConnID, anthropic.receivedKey.ConnID)
+	}
+	if quota.gotKey.Value != "anthropic-key" {
+		t.Fatalf("quota key = %q, want anthropic-key", quota.gotKey.Value)
+	}
+}
+
+func TestComboDispatchStreamQuotaExhaustionBlocksProviderCall(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "anthropic", "anthropic-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "anthropic-stream-exhausted",
+		Steps: []store.ComboStep{
+			{Provider: "anthropic", Model: "claude-sonnet-4"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	chunks := make(chan providers.StreamChunk)
+	close(chunks)
+	anthropic := &fakeProvider{name: providers.ProviderAnthropic, stream: chunks}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderAnthropic, Remaining: 0}}
+	engine := NewEngine(s)
+	engine.Register(anthropic)
+	engine.RegisterQuotaFetcher(providers.ProviderAnthropic, quota)
+
+	_, err := NewComboResolver(s).DispatchStream(
+		context.Background(),
+		engine,
+		"anthropic-stream-exhausted",
+		&providers.ChatRequest{Model: "combo/anthropic-stream-exhausted"},
+	)
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("DispatchStream error = %v, want ErrQuotaExhausted", err)
+	}
+	if anthropic.streamed {
+		t.Fatal("stream provider should not be called when combo quota is exhausted")
+	}
+}
+
+func TestComboDispatchStreamSkipsQuotaExhaustedStep(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "quota-stream-fallback",
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groqChunks := make(chan providers.StreamChunk)
+	close(groqChunks)
+	openAIChunks := make(chan providers.StreamChunk, 1)
+	openAIChunks <- providers.StreamChunk{ID: "chunk-openai", Model: "gpt-4o-mini"}
+	close(openAIChunks)
+	groq := &fakeProvider{name: providers.ProviderGroq, stream: groqChunks}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, stream: openAIChunks}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderGroq, &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderGroq, Remaining: 0}})
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, &fakeQuotaFetcher{quota: usage.Quota{Provider: providers.ProviderOpenAI, Remaining: 8}})
+
+	stream, err := NewComboResolver(s).DispatchStream(
+		context.Background(),
+		engine,
+		"quota-stream-fallback",
+		&providers.ChatRequest{Model: "combo/quota-stream-fallback"},
+	)
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	got, ok := <-stream
+	if !ok {
+		t.Fatal("stream closed before first chunk")
+	}
+	if got.ID != "chunk-openai" {
+		t.Fatalf("chunk ID = %q, want chunk-openai", got.ID)
+	}
+	if groq.streamed {
+		t.Fatal("quota-exhausted combo stream step should not open provider stream")
+	}
+	if !openAI.streamed {
+		t.Fatal("fallback combo stream step should open provider stream")
+	}
+	if openAI.receivedKey.Value != "openai-key" {
+		t.Fatalf("openai key = %q, want openai-key", openAI.receivedKey.Value)
 	}
 }
 

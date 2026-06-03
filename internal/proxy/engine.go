@@ -390,6 +390,9 @@ func (e *Engine) checkQuota(ctx context.Context, key providers.Key) error {
 	}
 	quota, err := fetcher.FetchQuota(ctx, key)
 	if err != nil {
+		if errors.Is(err, ErrQuotaExhausted) {
+			return fmt.Errorf("%s quota exhausted: %w", key.Provider, ErrQuotaExhausted)
+		}
 		if errors.Is(err, usage.ErrQuotaUnsupported) {
 			return nil
 		}
@@ -402,7 +405,7 @@ func (e *Engine) checkQuota(ctx context.Context, key providers.Key) error {
 }
 
 func quotaExhausted(quota usage.Quota) bool {
-	return quota.Remaining <= 0 && (quota.Limit > 0 || quota.Used > 0)
+	return quota.Remaining <= 0
 }
 
 func (e *Engine) refreshConnectionIfNeeded(ctx context.Context, provider providers.ModelProvider, conn *store.Connection) (*store.Connection, error) {
