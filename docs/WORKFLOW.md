@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.G"
-last_updated: "2026-06-03T04:30:20Z"
+last_updated: "2026-06-03T04:41:43Z"
 last_agent: "orchestrator"
 ```
 
@@ -1358,9 +1358,11 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.G.2"
     name: "Real MCP HTTP OAuth token exchange and account selection"
-    status: IN_PROGRESS
+    status: DONE
     agent: "Dirac the 2nd"
     branch: "codex/wave-7g-oauth"
+    commit: "a95807a"
+    completed_at: "2026-06-03T04:41:43Z"
     files_owned:
       - internal/mcp/oauth.go
       - internal/mcp/oauth_test.go
