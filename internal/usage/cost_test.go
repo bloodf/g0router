@@ -45,6 +45,48 @@ func TestCalculateCostUSDWithoutUsageReturnsZero(t *testing.T) {
 	}
 }
 
+func TestCalculateCostUSDWithPricingOverridesUsesOverride(t *testing.T) {
+	usage := Usage{
+		InputTokens:  1000,
+		OutputTokens: 500,
+		TotalTokens:  1500,
+	}
+	overrides := fakePricingOverrides{
+		providers.ProviderOpenAI.String() + "/gpt-4o": {
+			InputCostPerToken:  0.00001,
+			OutputCostPerToken: 0.00002,
+		},
+	}
+
+	got, err := CalculateCostUSDWithOverrides(modelcatalog.NewCatalog(), overrides, providers.ProviderOpenAI, "gpt-4o", &usage)
+	if err != nil {
+		t.Fatalf("CalculateCostUSDWithOverrides: %v", err)
+	}
+
+	want := 0.02
+	if got != want {
+		t.Fatalf("cost = %f, want %f", got, want)
+	}
+}
+
+func TestCalculateCostUSDWithPricingOverridesFallsBackToCatalog(t *testing.T) {
+	usage := Usage{
+		InputTokens:  1000,
+		OutputTokens: 500,
+		TotalTokens:  1500,
+	}
+
+	got, err := CalculateCostUSDWithOverrides(modelcatalog.NewCatalog(), fakePricingOverrides{}, providers.ProviderOpenAI, "gpt-4o", &usage)
+	if err != nil {
+		t.Fatalf("CalculateCostUSDWithOverrides: %v", err)
+	}
+
+	want := 0.0075
+	if got != want {
+		t.Fatalf("cost = %f, want %f", got, want)
+	}
+}
+
 func TestCalculateCostUSDMissingPricingReturnsError(t *testing.T) {
 	usage := Usage{
 		InputTokens:  100,
@@ -59,4 +101,11 @@ func TestCalculateCostUSDMissingPricingReturnsError(t *testing.T) {
 	if got != 0 {
 		t.Fatalf("cost = %f, want 0", got)
 	}
+}
+
+type fakePricingOverrides map[string]PricingOverride
+
+func (f fakePricingOverrides) PricingOverride(provider, model string) (PricingOverride, bool, error) {
+	override, ok := f[provider+"/"+model]
+	return override, ok, nil
 }

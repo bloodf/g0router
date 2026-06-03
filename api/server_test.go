@@ -386,6 +386,44 @@ func TestInferenceLoggingRecordsUsageAndCostWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestInferenceLoggingUsesPricingOverrideForCost(t *testing.T) {
+	s := newAPITestStore(t)
+	enableRequestLogs(t, s)
+	if err := s.SetPricingOverride(store.PricingOverride{
+		Provider:           "openai",
+		Model:              "gpt-4o",
+		InputCostPerToken:  0.00001,
+		OutputCostPerToken: 0.00002,
+	}); err != nil {
+		t.Fatalf("SetPricingOverride: %v", err)
+	}
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: routeInferenceEngine{response: routeChatResponseWithUsage()},
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1: %+v", len(entries), entries)
+	}
+	if entries[0].CostUSD == nil || math.Abs(*entries[0].CostUSD-0.02) > 0.000000001 {
+		t.Fatalf("cost USD = %v, want 0.02", entries[0].CostUSD)
+	}
+}
+
 func TestInferenceLoggingUsesConfigEnableRequestLogs(t *testing.T) {
 	s := newAPITestStore(t)
 	config := ServerConfig{

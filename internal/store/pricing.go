@@ -3,6 +3,8 @@ package store
 import (
 	"database/sql"
 	"fmt"
+
+	"github.com/bloodf/g0router/internal/usage"
 )
 
 type PricingOverride struct {
@@ -43,6 +45,20 @@ func (s *Store) GetPricingOverride(provider, model string) (PricingOverride, err
 		return PricingOverride{}, err
 	}
 	return override, nil
+}
+
+func (s *Store) PricingOverride(provider, model string) (usage.PricingOverride, bool, error) {
+	override, err := s.GetPricingOverride(provider, model)
+	if err == ErrNotFound {
+		return usage.PricingOverride{}, false, nil
+	}
+	if err != nil {
+		return usage.PricingOverride{}, false, err
+	}
+	return usage.PricingOverride{
+		InputCostPerToken:  override.InputCostPerToken,
+		OutputCostPerToken: override.OutputCostPerToken,
+	}, true, nil
 }
 
 func (s *Store) ListPricingOverrides() ([]PricingOverride, error) {
