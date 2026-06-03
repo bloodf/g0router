@@ -17,6 +17,16 @@ type errorResponse struct {
 	Error string `json:"error"`
 }
 
+type openAIErrorResponse struct {
+	Error openAIErrorBody `json:"error"`
+}
+
+type openAIErrorBody struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+	Code    string `json:"code"`
+}
+
 func Inference(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 	if engine == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "inference engine unavailable")
@@ -127,13 +137,13 @@ func Responses(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 func writeDispatchError(ctx *fasthttp.RequestCtx, err error) {
 	switch {
 	case errors.Is(err, proxy.ErrProviderNotFound):
-		writeError(ctx, fasthttp.StatusNotFound, err.Error())
+		writeOpenAIError(ctx, fasthttp.StatusNotFound, "provider not found", "invalid_request_error", "provider_not_found")
 	case errors.Is(err, proxy.ErrNoConnections):
-		writeError(ctx, fasthttp.StatusServiceUnavailable, err.Error())
+		writeOpenAIError(ctx, fasthttp.StatusServiceUnavailable, "no active provider connections", "server_error", "no_active_connections")
 	case errors.Is(err, proxy.ErrQuotaExhausted):
-		writeError(ctx, fasthttp.StatusTooManyRequests, err.Error())
+		writeOpenAIError(ctx, fasthttp.StatusTooManyRequests, "quota exhausted", "rate_limit_error", "quota_exhausted")
 	default:
-		writeError(ctx, fasthttp.StatusInternalServerError, err.Error())
+		writeOpenAIError(ctx, fasthttp.StatusBadGateway, "upstream provider error", "server_error", "upstream_error")
 	}
 }
 
@@ -326,6 +336,24 @@ func writeJSON(ctx *fasthttp.RequestCtx, status int, value any) {
 
 func writeError(ctx *fasthttp.RequestCtx, status int, message string) {
 	body, err := json.Marshal(errorResponse{Error: message})
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		return
+	}
+
+	ctx.SetContentType("application/json")
+	ctx.SetStatusCode(status)
+	ctx.SetBody(body)
+}
+
+func writeOpenAIError(ctx *fasthttp.RequestCtx, status int, message string, typ string, code string) {
+	body, err := json.Marshal(openAIErrorResponse{
+		Error: openAIErrorBody{
+			Message: message,
+			Type:    typ,
+			Code:    code,
+		},
+	})
 	if err != nil {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		return

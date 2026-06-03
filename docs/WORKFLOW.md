@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.F"
-last_updated: "2026-06-03T03:56:11Z"
+last_updated: "2026-06-03T03:59:22Z"
 last_agent: "orchestrator"
 ```
 
@@ -1281,12 +1281,14 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.F.2"
     name: "Stable sanitized provider error responses"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7f-errors"
+    completed_at: "2026-06-03T03:59:22Z"
     files_owned:
       - api/handlers/inference.go
       - api/handlers/inference_test.go
-      - internal/providers/*/errors.go
-      - internal/providers/*/*_test.go
+      - internal/cli/root_test.go
       - docs/WORKFLOW.md
   - id: "7.F.3"
     name: "Bedrock Converse downgrade or implementation accuracy"

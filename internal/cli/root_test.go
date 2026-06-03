@@ -422,8 +422,18 @@ func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("POST /v1/chat/completions status = %d, want 503; body=%s", resp.StatusCode, body)
 	}
-	if !strings.Contains(string(body), proxy.ErrNoConnections.Error()) {
-		t.Fatalf("chat response body = %s, want no active connections", body)
+	var chatError struct {
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+			Code    string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &chatError); err != nil {
+		t.Fatalf("unmarshal chat error: %v; body=%s", err, body)
+	}
+	if chatError.Error.Message != "no active provider connections" || chatError.Error.Code != "no_active_connections" {
+		t.Fatalf("chat error = %+v, want no_active_connections", chatError.Error)
 	}
 	if strings.Contains(string(body), "engine unavailable") {
 		t.Fatalf("chat response returned unavailable body: %s", body)

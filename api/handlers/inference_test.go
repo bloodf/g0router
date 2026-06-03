@@ -183,6 +183,91 @@ func TestInferenceQuotaExhausted(t *testing.T) {
 	}
 }
 
+func TestInferenceDispatchErrorIsSanitizedOpenAIError(t *testing.T) {
+	engine := &fakeEngine{err: errors.New("chat completion: upstream said Authorization: Bearer sk-live-secret")}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body=%s", resp.StatusCode, body)
+	}
+	assertOpenAIError(t, body, "upstream provider error", "server_error", "upstream_error")
+	if strings.Contains(string(body), "sk-live-secret") || strings.Contains(string(body), "Authorization") || strings.Contains(string(body), "chat completion") {
+		t.Fatalf("response leaked upstream error detail: %s", body)
+	}
+}
+
+func TestStreamInferenceDispatchErrorIsSanitizedOpenAIError(t *testing.T) {
+	engine := &fakeEngine{streamErr: errors.New("stream failed with api_key=sk-live-secret")}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}],"stream":true}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body=%s", resp.StatusCode, body)
+	}
+	assertOpenAIError(t, body, "upstream provider error", "server_error", "upstream_error")
+	if strings.Contains(string(body), "sk-live-secret") || strings.Contains(string(body), "stream failed") {
+		t.Fatalf("response leaked upstream stream error detail: %s", body)
+	}
+	if engine.streamReceived == nil || engine.streamReceived.Stream == nil || !*engine.streamReceived.Stream {
+		t.Fatalf("stream request = %+v", engine.streamReceived)
+	}
+}
+
+func TestInferenceKnownDispatchErrorsUseStableOpenAIErrorCodes(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		status  int
+		message string
+		typ     string
+		code    string
+	}{
+		{
+			name:    "provider not found",
+			err:     proxy.ErrProviderNotFound,
+			status:  http.StatusNotFound,
+			message: "provider not found",
+			typ:     "invalid_request_error",
+			code:    "provider_not_found",
+		},
+		{
+			name:    "no connections",
+			err:     proxy.ErrNoConnections,
+			status:  http.StatusServiceUnavailable,
+			message: "no active provider connections",
+			typ:     "server_error",
+			code:    "no_active_connections",
+		},
+		{
+			name:    "quota exhausted",
+			err:     proxy.ErrQuotaExhausted,
+			status:  http.StatusTooManyRequests,
+			message: "quota exhausted",
+			typ:     "rate_limit_error",
+			code:    "quota_exhausted",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			engine := &fakeEngine{err: tc.err}
+			_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+			resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`, nil)
+			defer resp.Body.Close()
+
+			if resp.StatusCode != tc.status {
+				t.Fatalf("status = %d, want %d; body=%s", resp.StatusCode, tc.status, body)
+			}
+			assertOpenAIError(t, body, tc.message, tc.typ, tc.code)
+		})
+	}
+}
+
 func TestInferenceNoAuth(t *testing.T) {
 	engine := &fakeEngine{response: chatResponse()}
 	_, baseURL := startInferenceServer(t, api.ServerConfig{
@@ -379,6 +464,24 @@ func chatResponse() *providers.ChatResponse {
 			FinishReason: &finish,
 		}},
 		Usage: &providers.Usage{PromptTokens: 3, CompletionTokens: 2, TotalTokens: 5},
+	}
+}
+
+func assertOpenAIError(t *testing.T, body []byte, message string, typ string, code string) {
+	t.Helper()
+
+	var decoded struct {
+		Error struct {
+			Message string `json:"message"`
+			Type    string `json:"type"`
+			Code    string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("unmarshal error response: %v; body=%s", err, body)
+	}
+	if decoded.Error.Message != message || decoded.Error.Type != typ || decoded.Error.Code != code {
+		t.Fatalf("error = %+v, want message=%q type=%q code=%q", decoded.Error, message, typ, code)
 	}
 }
 
