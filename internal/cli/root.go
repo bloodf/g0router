@@ -28,12 +28,13 @@ type rootConfig struct {
 }
 
 type serveConfig struct {
-	Port          int
-	BindAddress   string
-	DataDir       string
-	Version       string
-	RequireAPIKey bool
-	APIKeySecret  string
+	Port              int
+	BindAddress       string
+	DataDir           string
+	Version           string
+	RequireAPIKey     bool
+	APIKeySecret      string
+	EnableRequestLogs bool
 }
 
 type serveRunner func(context.Context, serveConfig) error
@@ -99,12 +100,13 @@ func newServeCommand(version string, serve serveRunner, rootDataDir *string) *co
 				return err
 			}
 			return serve(cmd.Context(), serveConfig{
-				Port:          loaded.Port,
-				BindAddress:   loaded.BindAddress,
-				DataDir:       loaded.DataDir,
-				Version:       version,
-				RequireAPIKey: loaded.RequireAPIKey,
-				APIKeySecret:  loaded.APIKeySecret,
+				Port:              loaded.Port,
+				BindAddress:       loaded.BindAddress,
+				DataDir:           loaded.DataDir,
+				Version:           version,
+				RequireAPIKey:     loaded.RequireAPIKey,
+				APIKeySecret:      loaded.APIKeySecret,
+				EnableRequestLogs: loaded.EnableRequestLogs,
 			})
 		},
 	}
@@ -198,19 +200,20 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) ap
 	}
 
 	return api.ServerConfig{
-		Port:             config.Port,
-		Version:          config.Version,
-		RequireAPIKey:    config.RequireAPIKey,
-		APIKeySecret:     config.APIKeySecret,
-		APIKeyValidator:  storeAPIKeyValidator{s: s},
-		InferenceEngine:  engine,
-		Store:            s,
-		ModelSource:      engine,
-		OAuthFlows:       defaultOAuthFlows(),
-		UsageStore:       s,
-		QuotaFetchers:    quotaFetchers,
-		MCPClientManager: mcpRuntime.clients,
-		MCPToolManager:   mcpRuntime.tools,
+		Port:              config.Port,
+		Version:           config.Version,
+		EnableRequestLogs: config.EnableRequestLogs,
+		RequireAPIKey:     config.RequireAPIKey,
+		APIKeySecret:      config.APIKeySecret,
+		APIKeyValidator:   storeAPIKeyValidator{s: s},
+		InferenceEngine:   engine,
+		Store:             s,
+		ModelSource:       engine,
+		OAuthFlows:        defaultOAuthFlows(),
+		UsageStore:        s,
+		QuotaFetchers:     quotaFetchers,
+		MCPClientManager:  mcpRuntime.clients,
+		MCPToolManager:    mcpRuntime.tools,
 	}
 }
 
@@ -346,6 +349,14 @@ type storeAPIKeyValidator struct {
 func (v storeAPIKeyValidator) ValidateAPIKey(key, secret string) (bool, error) {
 	_, ok, err := v.s.ValidateAPIKey(key, secret)
 	return ok, err
+}
+
+func (v storeAPIKeyValidator) ValidateAPIKeyIdentity(key, secret string) (*api.APIKeyIdentity, bool, error) {
+	storedKey, ok, err := v.s.ValidateAPIKey(key, secret)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return &api.APIKeyIdentity{ID: storedKey.ID}, true, nil
 }
 
 func expandServeDataDir(path string) (string, error) {

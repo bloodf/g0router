@@ -13,6 +13,21 @@ type APIKeyValidator interface {
 	ValidateAPIKey(key, secret string) (bool, error)
 }
 
+type APIKeyIdentity struct {
+	ID string
+}
+
+type APIKeyIdentityValidator interface {
+	ValidateAPIKeyIdentity(key, secret string) (*APIKeyIdentity, bool, error)
+}
+
+const (
+	requestIDHeader       = "X-Request-ID"
+	requestAuthTypeKey    = "g0router.auth_type"
+	requestAPIKeyIDKey    = "g0router.api_key_id"
+	requestAuthTypeAPIKey = "api_key"
+)
+
 func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 	requestID, err := newRequestID()
 	if err != nil {
@@ -20,7 +35,7 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 		return false
 	}
 
-	ctx.Response.Header.Set("X-Request-ID", requestID)
+	ctx.Response.Header.Set(requestIDHeader, requestID)
 	s.applyCORS(ctx)
 
 	if string(ctx.Method()) == fasthttp.MethodOptions {
@@ -101,9 +116,26 @@ func (s *Server) validAPIKey(ctx *fasthttp.RequestCtx) (bool, error) {
 		return false, nil
 	}
 
+	if identityValidator, ok := s.config.APIKeyValidator.(APIKeyIdentityValidator); ok {
+		identity, ok, err := identityValidator.ValidateAPIKeyIdentity(key, s.config.APIKeySecret)
+		if err != nil {
+			return false, fmt.Errorf("validate api key: %w", err)
+		}
+		if ok {
+			ctx.SetUserValue(requestAuthTypeKey, requestAuthTypeAPIKey)
+			if identity != nil && identity.ID != "" {
+				ctx.SetUserValue(requestAPIKeyIDKey, identity.ID)
+			}
+		}
+		return ok, nil
+	}
+
 	ok, err := s.config.APIKeyValidator.ValidateAPIKey(key, s.config.APIKeySecret)
 	if err != nil {
 		return false, fmt.Errorf("validate api key: %w", err)
+	}
+	if ok {
+		ctx.SetUserValue(requestAuthTypeKey, requestAuthTypeAPIKey)
 	}
 	return ok, nil
 }
