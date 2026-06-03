@@ -138,6 +138,7 @@ func (e *Engine) dispatchRoute(ctx context.Context, route modelRoute, req *provi
 			return nil, wrapped
 		}
 		e.recordProviderSuccess(conn, upstreamModel)
+		annotateDispatchResponse(resp, key)
 		return resp, nil
 	}
 	if lastErr != nil {
@@ -297,6 +298,15 @@ func requestWithModel(req *providers.ChatRequest, model string) *providers.ChatR
 	copied := *req
 	copied.Model = model
 	return &copied
+}
+
+func annotateDispatchResponse(resp *providers.ChatResponse, key providers.Key) {
+	if resp == nil {
+		return
+	}
+	resp.Provider = key.Provider
+	resp.ConnectionID = key.ConnID
+	resp.AuthType = key.AuthType
 }
 
 func (e *Engine) keyFor(ctx context.Context, provider providers.ModelProvider) (providers.Key, error) {

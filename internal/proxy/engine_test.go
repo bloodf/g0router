@@ -164,6 +164,15 @@ func TestDispatchRoutesToCorrectProvider(t *testing.T) {
 	if openAI.receivedKey.AuthType != string(store.AuthTypeAPIKey) {
 		t.Fatalf("auth type = %q, want api_key", openAI.receivedKey.AuthType)
 	}
+	if resp.Provider != providers.ProviderOpenAI {
+		t.Fatalf("response provider = %q, want openai", resp.Provider)
+	}
+	if resp.ConnectionID != openAI.receivedKey.ConnID {
+		t.Fatalf("response connection ID = %q, want %q", resp.ConnectionID, openAI.receivedKey.ConnID)
+	}
+	if resp.AuthType != string(store.AuthTypeAPIKey) {
+		t.Fatalf("response auth type = %q, want api_key", resp.AuthType)
+	}
 }
 
 func TestDispatchUsesModelAliasProviderAndRewritesUpstreamModel(t *testing.T) {
@@ -212,6 +221,15 @@ func TestDispatchUsesModelAliasProviderAndRewritesUpstreamModel(t *testing.T) {
 	}
 	if groq.receivedKey.Value != "groq-key" {
 		t.Fatalf("key value = %q, want groq-key", groq.receivedKey.Value)
+	}
+	if resp.Provider != providers.ProviderGroq {
+		t.Fatalf("response provider = %q, want groq", resp.Provider)
+	}
+	if resp.ConnectionID != groq.receivedKey.ConnID {
+		t.Fatalf("response connection ID = %q, want %q", resp.ConnectionID, groq.receivedKey.ConnID)
+	}
+	if resp.AuthType != string(store.AuthTypeAPIKey) {
+		t.Fatalf("response auth type = %q, want api_key", resp.AuthType)
 	}
 }
 

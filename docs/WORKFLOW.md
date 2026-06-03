@@ -1234,6 +1234,25 @@ tasks:
     files_owned:
       - docs/evaluations/wave-7E-evaluator-prompt.md
       - docs/WORKFLOW.md
+  - id: "7.E.7"
+    name: "Wave 7.E evaluator remediation"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7e-eval-fix"
+    completed_at: "2026-06-03T03:40:53Z"
+    files_owned:
+      - api/handlers/inference.go
+      - api/handlers/inference_test.go
+      - api/server.go
+      - api/server_test.go
+      - internal/providers/types.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/translate/responses.go
+      - internal/translate/responses_test.go
+      - docs/PROVIDERS.md
+      - docs/evaluations/wave-7E-remediation-evaluator-prompt.md
+      - docs/WORKFLOW.md
 ```
 
 ### Waves 7.F-7.I — Remaining Remediation Backlog

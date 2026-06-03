@@ -18,6 +18,7 @@ import (
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
 )
@@ -328,14 +329,7 @@ func TestInferenceLoggingSkipsWhenRequestLogsDisabled(t *testing.T) {
 
 func TestInferenceLoggingRecordsUsageAndCostWhenEnabled(t *testing.T) {
 	s := newAPITestStore(t)
-	settings, err := s.GetSettings()
-	if err != nil {
-		t.Fatalf("GetSettings: %v", err)
-	}
-	settings.EnableRequestLogs = true
-	if err := s.UpdateSettings(settings); err != nil {
-		t.Fatalf("UpdateSettings: %v", err)
-	}
+	enableRequestLogs(t, s)
 
 	_, baseURL := startTestServer(t, ServerConfig{
 		Port:            0,
@@ -388,6 +382,145 @@ func TestInferenceLoggingRecordsUsageAndCostWhenEnabled(t *testing.T) {
 	}
 	if entry.LatencyMS == nil {
 		t.Fatal("latency should be logged")
+	}
+}
+
+func TestInferenceLoggingRecordsMessagesRouteWhenEnabled(t *testing.T) {
+	s := newAPITestStore(t)
+	enableRequestLogs(t, s)
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: routeInferenceEngine{response: routeChatResponseWithModel("llama-3.3-70b-versatile", 11, 7)},
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1: %+v", len(entries), entries)
+	}
+	entry := entries[0]
+	if entry.Provider != "unknown" || entry.Model != "llama-3.3-70b-versatile" {
+		t.Fatalf("provider/model = %s/%s, want unknown/llama-3.3-70b-versatile", entry.Provider, entry.Model)
+	}
+	if entry.InputTokens == nil || *entry.InputTokens != 11 {
+		t.Fatalf("input tokens = %v, want 11", entry.InputTokens)
+	}
+	if entry.OutputTokens == nil || *entry.OutputTokens != 7 {
+		t.Fatalf("output tokens = %v, want 7", entry.OutputTokens)
+	}
+	if entry.TotalTokens == nil || *entry.TotalTokens != 18 {
+		t.Fatalf("total tokens = %v, want 18", entry.TotalTokens)
+	}
+}
+
+func TestInferenceLoggingRecordsResponsesRouteWhenEnabled(t *testing.T) {
+	s := newAPITestStore(t)
+	enableRequestLogs(t, s)
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: routeInferenceEngine{response: routeChatResponseWithModel("gpt-4o", 13, 5)},
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/responses", `{"model":"gpt-4o","input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1: %+v", len(entries), entries)
+	}
+	entry := entries[0]
+	if entry.Provider != "openai" || entry.Model != "gpt-4o" {
+		t.Fatalf("provider/model = %s/%s, want openai/gpt-4o", entry.Provider, entry.Model)
+	}
+	if entry.InputTokens == nil || *entry.InputTokens != 13 {
+		t.Fatalf("input tokens = %v, want 13", entry.InputTokens)
+	}
+	if entry.OutputTokens == nil || *entry.OutputTokens != 5 {
+		t.Fatalf("output tokens = %v, want 5", entry.OutputTokens)
+	}
+	if entry.TotalTokens == nil || *entry.TotalTokens != 18 {
+		t.Fatalf("total tokens = %v, want 18", entry.TotalTokens)
+	}
+}
+
+func TestInferenceLoggingUsesResolvedProviderMetadataWhenEnabled(t *testing.T) {
+	s := newAPITestStore(t)
+	enableRequestLogs(t, s)
+	apiKey := "groq-key"
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "groq",
+		Name:     "primary",
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   &apiKey,
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	if err := s.SetModelAlias(store.ModelAlias{
+		Alias:    "fast",
+		Provider: "groq",
+		Model:    "llama-3.3-70b-versatile",
+	}); err != nil {
+		t.Fatalf("SetModelAlias: %v", err)
+	}
+	engine := proxy.NewEngine(s)
+	engine.Register(&routeProvider{
+		name:     providers.ProviderGroq,
+		response: routeChatResponseWithModel("llama-3.3-70b-versatile", 17, 9),
+	})
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: engine,
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/chat/completions", `{"model":"fast","messages":[{"role":"user","content":"hello"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1: %+v", len(entries), entries)
+	}
+	entry := entries[0]
+	if entry.Provider != "groq" || entry.Model != "llama-3.3-70b-versatile" {
+		t.Fatalf("provider/model = %s/%s, want groq/llama-3.3-70b-versatile", entry.Provider, entry.Model)
+	}
+	if entry.ConnectionID == nil || *entry.ConnectionID == "" {
+		t.Fatalf("connection ID = %v, want selected connection", entry.ConnectionID)
+	}
+	if entry.AuthType != string(store.AuthTypeAPIKey) {
+		t.Fatalf("auth type = %q, want api_key", entry.AuthType)
 	}
 }
 
@@ -571,23 +704,61 @@ func (e routeInferenceEngine) ListModels(ctx context.Context) ([]providers.Model
 	return nil, nil
 }
 
+type routeProvider struct {
+	name     providers.ModelProvider
+	response *providers.ChatResponse
+}
+
+func (p *routeProvider) Name() providers.ModelProvider {
+	return p.name
+}
+
+func (p *routeProvider) ChatCompletion(ctx context.Context, key providers.Key, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	return p.response, nil
+}
+
+func (p *routeProvider) ChatCompletionStream(ctx context.Context, key providers.Key, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	return nil, nil
+}
+
+func (p *routeProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
+	return nil, nil
+}
+
 func routeChatResponseWithUsage() *providers.ChatResponse {
+	return routeChatResponseWithModel("gpt-4o", 1000, 500)
+}
+
+func routeChatResponseWithModel(model string, inputTokens int, outputTokens int) *providers.ChatResponse {
 	return &providers.ChatResponse{
 		ID:      "chatcmpl-usage",
 		Object:  "chat.completion",
 		Created: 1710000000,
-		Model:   "gpt-4o",
+		Model:   model,
 		Choices: []providers.Choice{
 			{Index: 0, Message: providers.Message{Role: "assistant", Content: "hello back"}},
 		},
 		Usage: &providers.Usage{
-			PromptTokens:     1000,
-			CompletionTokens: 500,
-			TotalTokens:      1500,
+			PromptTokens:     inputTokens,
+			CompletionTokens: outputTokens,
+			TotalTokens:      inputTokens + outputTokens,
 			PromptTokensDetails: &providers.PromptTokensDetails{
 				CachedTokens: 200,
 			},
 		},
+	}
+}
+
+func enableRequestLogs(t *testing.T, s *store.Store) {
+	t.Helper()
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.EnableRequestLogs = true
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
 	}
 }
 

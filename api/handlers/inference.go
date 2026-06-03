@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
@@ -71,6 +72,10 @@ func Messages(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "inference engine unavailable")
 		return
 	}
+	if err := rejectUnsupportedAnthropicMessageShape(ctx.PostBody()); err != nil {
+		writeError(ctx, fasthttp.StatusNotImplemented, err.Error())
+		return
+	}
 
 	var req providers.ChatRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
@@ -133,8 +138,11 @@ func writeDispatchError(ctx *fasthttp.RequestCtx, err error) {
 }
 
 type anthropicMessageContent struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
+	Type  string          `json:"type"`
+	Text  string          `json:"text,omitempty"`
+	ID    string          `json:"id,omitempty"`
+	Name  string          `json:"name,omitempty"`
+	Input json.RawMessage `json:"input,omitempty"`
 }
 
 type anthropicMessageUsage struct {
@@ -162,9 +170,17 @@ func anthropicMessageResponse(resp *providers.ChatResponse) anthropicMessageBody
 	if len(resp.Choices) > 0 {
 		choice := resp.Choices[0]
 		body.Role = choice.Message.Role
-		body.StopReason = choice.FinishReason
+		body.StopReason = anthropicStopReason(choice.FinishReason)
 		if text := messageContentText(choice.Message.Content); text != "" {
-			body.Content = []anthropicMessageContent{{Type: "text", Text: text}}
+			body.Content = append(body.Content, anthropicMessageContent{Type: "text", Text: text})
+		}
+		for _, toolCall := range choice.Message.ToolCalls {
+			body.Content = append(body.Content, anthropicMessageContent{
+				Type:  "tool_use",
+				ID:    toolCall.ID,
+				Name:  toolCall.Function.Name,
+				Input: toolCallInput(toolCall.Function.Arguments),
+			})
 		}
 	}
 	if body.Role == "" {
@@ -177,6 +193,112 @@ func anthropicMessageResponse(resp *providers.ChatResponse) anthropicMessageBody
 		}
 	}
 	return body
+}
+
+func rejectUnsupportedAnthropicMessageShape(body []byte) error {
+	var req struct {
+		Tools      []json.RawMessage `json:"tools"`
+		ToolChoice json.RawMessage   `json:"tool_choice"`
+		Messages   []struct {
+			Content json.RawMessage `json:"content"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		return nil
+	}
+	for i, tool := range req.Tools {
+		if isAnthropicNativeTool(tool) {
+			return fmt.Errorf("messages native tool %d is not supported", i)
+		}
+	}
+	if len(req.ToolChoice) > 0 && string(req.ToolChoice) != "null" && isAnthropicNativeToolChoice(req.ToolChoice) {
+		return fmt.Errorf("messages native tool_choice is not supported")
+	}
+	for i, message := range req.Messages {
+		if err := rejectUnsupportedAnthropicContent(message.Content); err != nil {
+			return fmt.Errorf("messages content %d: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func isAnthropicNativeTool(raw json.RawMessage) bool {
+	var tool struct {
+		Name        string          `json:"name"`
+		InputSchema json.RawMessage `json:"input_schema"`
+		Function    json.RawMessage `json:"function"`
+	}
+	if err := json.Unmarshal(raw, &tool); err != nil {
+		return false
+	}
+	return len(tool.InputSchema) > 0 || (tool.Name != "" && len(tool.Function) == 0)
+}
+
+func isAnthropicNativeToolChoice(raw json.RawMessage) bool {
+	if len(bytesTrimSpace(raw)) == 0 || bytesTrimSpace(raw)[0] == '"' {
+		return false
+	}
+	var choice struct {
+		Type     string          `json:"type"`
+		Function json.RawMessage `json:"function"`
+	}
+	if err := json.Unmarshal(raw, &choice); err != nil {
+		return false
+	}
+	return choice.Type != "" && len(choice.Function) == 0
+}
+
+func rejectUnsupportedAnthropicContent(raw json.RawMessage) error {
+	trimmed := bytesTrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] == '"' || string(trimmed) == "null" {
+		return nil
+	}
+	if trimmed[0] != '[' {
+		return fmt.Errorf("unsupported content shape")
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(trimmed, &blocks); err != nil {
+		return nil
+	}
+	for i, block := range blocks {
+		if block.Type != "" && block.Type != "text" {
+			return fmt.Errorf("unsupported content block %d type %q", i, block.Type)
+		}
+	}
+	return nil
+}
+
+func bytesTrimSpace(raw []byte) []byte {
+	return []byte(strings.TrimSpace(string(raw)))
+}
+
+func anthropicStopReason(reason *string) *string {
+	if reason == nil {
+		return nil
+	}
+	if *reason == "tool_calls" {
+		toolUse := "tool_use"
+		return &toolUse
+	}
+	return reason
+}
+
+func toolCallInput(arguments string) json.RawMessage {
+	trimmed := strings.TrimSpace(arguments)
+	if trimmed == "" {
+		return json.RawMessage(`{}`)
+	}
+	var object map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &object); err == nil {
+		return json.RawMessage(trimmed)
+	}
+	wrapped, err := json.Marshal(map[string]string{"arguments": arguments})
+	if err != nil {
+		return json.RawMessage(`{}`)
+	}
+	return wrapped
 }
 
 func messageContentText(content any) string {

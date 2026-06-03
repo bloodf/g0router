@@ -22,6 +22,7 @@ type ResponsesRequest struct {
 }
 
 type ResponsesInput struct {
+	Type    string             `json:"type,omitempty"`
 	Role    string             `json:"role"`
 	Content []ResponsesContent `json:"content"`
 }
@@ -50,9 +51,12 @@ type ResponsesResponse struct {
 }
 
 type ResponsesOutput struct {
-	Type    string             `json:"type"`
-	Role    string             `json:"role,omitempty"`
-	Content []ResponsesContent `json:"content,omitempty"`
+	Type      string             `json:"type"`
+	Role      string             `json:"role,omitempty"`
+	Content   []ResponsesContent `json:"content,omitempty"`
+	CallID    string             `json:"call_id,omitempty"`
+	Name      string             `json:"name,omitempty"`
+	Arguments string             `json:"arguments,omitempty"`
 }
 
 type ResponsesUsage struct {
@@ -126,7 +130,10 @@ func ResponsesToOpenAIChat(resp *ResponsesResponse) providers.ChatResponse {
 		if output.Type != "message" {
 			continue
 		}
-		text := responsesContentText(output.Content)
+		text, err := responsesContentText(output.Content)
+		if err != nil {
+			continue
+		}
 		choices = append(choices, providers.Choice{
 			Index: len(choices),
 			Message: providers.Message{
@@ -172,7 +179,13 @@ func ResponsesRequestToOpenAIChat(req *ResponsesRequest) (*providers.ChatRequest
 	}
 
 	for i, input := range req.Input {
-		text := responsesContentText(input.Content)
+		if input.Type != "" && input.Type != "message" {
+			return nil, fmt.Errorf("responses to openai chat input %d: unsupported input type %q", i, input.Type)
+		}
+		text, err := responsesContentText(input.Content)
+		if err != nil {
+			return nil, fmt.Errorf("responses to openai chat input %d: %w", i, err)
+		}
 		if text == "" {
 			continue
 		}
@@ -197,6 +210,9 @@ func OpenAIChatToResponsesResponse(resp *providers.ChatResponse) ResponsesRespon
 	for _, choice := range resp.Choices {
 		text := openAIMessageContentText(choice.Message.Content)
 		if text == "" {
+			for _, toolCall := range choice.Message.ToolCalls {
+				output = append(output, responsesFunctionCallOutput(toolCall))
+			}
 			continue
 		}
 		if outputText.Len() > 0 {
@@ -210,6 +226,9 @@ func OpenAIChatToResponsesResponse(resp *providers.ChatResponse) ResponsesRespon
 				{Type: "output_text", Text: text},
 			},
 		})
+		for _, toolCall := range choice.Message.ToolCalls {
+			output = append(output, responsesFunctionCallOutput(toolCall))
+		}
 	}
 
 	return ResponsesResponse{
@@ -289,14 +308,17 @@ func openAITools(tools []ResponsesTool) []providers.Tool {
 	return translated
 }
 
-func responsesContentText(content []ResponsesContent) string {
+func responsesContentText(content []ResponsesContent) (string, error) {
 	var builder strings.Builder
-	for _, part := range content {
-		if part.Type == "input_text" || part.Type == "output_text" || part.Type == "text" {
+	for i, part := range content {
+		switch part.Type {
+		case "", "input_text", "output_text", "text":
 			builder.WriteString(part.Text)
+		default:
+			return "", fmt.Errorf("unsupported content part %d type %q", i, part.Type)
 		}
 	}
-	return builder.String()
+	return builder.String(), nil
 }
 
 func openAIMessageContentText(content any) string {
@@ -307,6 +329,15 @@ func openAIMessageContentText(content any) string {
 		return value
 	default:
 		return fmt.Sprint(value)
+	}
+}
+
+func responsesFunctionCallOutput(toolCall providers.ToolCall) ResponsesOutput {
+	return ResponsesOutput{
+		Type:      "function_call",
+		CallID:    toolCall.ID,
+		Name:      toolCall.Function.Name,
+		Arguments: toolCall.Function.Arguments,
 	}
 }
 

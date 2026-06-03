@@ -147,6 +147,41 @@ func TestResponsesRequestToOpenAIChat(t *testing.T) {
 	}
 }
 
+func TestResponsesRequestToOpenAIChatRejectsUnsupportedInputContent(t *testing.T) {
+	_, err := ResponsesRequestToOpenAIChat(&ResponsesRequest{
+		Model: "gpt-4o-mini",
+		Input: []ResponsesInput{
+			{
+				Role: "user",
+				Content: []ResponsesContent{
+					{Type: "input_image"},
+				},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected unsupported content error")
+	}
+}
+
+func TestResponsesRequestToOpenAIChatRejectsUnsupportedInputItem(t *testing.T) {
+	_, err := ResponsesRequestToOpenAIChat(&ResponsesRequest{
+		Model: "gpt-4o-mini",
+		Input: []ResponsesInput{
+			{
+				Type: "function_call_output",
+				Role: "user",
+				Content: []ResponsesContent{
+					{Type: "input_text", Text: "tool result"},
+				},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected unsupported input item error")
+	}
+}
+
 func TestOpenAIChatToResponsesResponse(t *testing.T) {
 	resp := &providers.ChatResponse{
 		ID:      "chatcmpl-123",
@@ -172,6 +207,54 @@ func TestOpenAIChatToResponsesResponse(t *testing.T) {
 	}
 	if got.Usage == nil || got.Usage.TotalTokens != 7 {
 		t.Fatalf("usage = %+v", got.Usage)
+	}
+}
+
+func TestOpenAIChatToResponsesResponsePreservesToolCalls(t *testing.T) {
+	resp := &providers.ChatResponse{
+		ID:      "chatcmpl-tool",
+		Created: 1700000000,
+		Model:   "gpt-4o-mini",
+		Choices: []providers.Choice{
+			{
+				Message: providers.Message{
+					Role: "assistant",
+					ToolCalls: []providers.ToolCall{{
+						ID:   "call_lookup",
+						Type: "function",
+						Function: providers.ToolCallFunc{
+							Name:      "lookup",
+							Arguments: `{"query":"docs"}`,
+						},
+					}},
+				},
+			},
+		},
+		Usage: &providers.Usage{PromptTokens: 4, CompletionTokens: 3, TotalTokens: 7},
+	}
+
+	got := OpenAIChatToResponsesResponse(resp)
+	body, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("marshal response: %v", err)
+	}
+	var decoded struct {
+		Output []struct {
+			Type      string `json:"type"`
+			CallID    string `json:"call_id"`
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"output"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("unmarshal response: %v; body=%s", err, body)
+	}
+	if len(decoded.Output) != 1 {
+		t.Fatalf("output len = %d, want 1: %s", len(decoded.Output), body)
+	}
+	call := decoded.Output[0]
+	if call.Type != "function_call" || call.CallID != "call_lookup" || call.Name != "lookup" || call.Arguments != `{"query":"docs"}` {
+		t.Fatalf("function call output = %+v", call)
 	}
 }
 

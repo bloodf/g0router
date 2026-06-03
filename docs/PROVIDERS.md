@@ -68,4 +68,4 @@ Current public direct-dispatch providers are only `openai` and `anthropic`. Ever
 
 ## Model Routing Caveat
 
-Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Explicit aliases can target registered adapter providers, but provider capability routing, `combo/*` hardening, and quota/cost integration remain Wave 7.E and Wave 7.I work.
+Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Explicit aliases can target registered adapter providers, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.

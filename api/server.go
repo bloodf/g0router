@@ -1,7 +1,7 @@
 package api
 
 import (
-	"encoding/json"
+	"context"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -92,13 +92,13 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 	case "/v1/messages":
 		if string(ctx.Method()) == fasthttp.MethodPost {
-			handlers.Messages(ctx, s.config.InferenceEngine)
+			s.handleMessages(ctx)
 			return
 		}
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 	case "/v1/responses":
 		if string(ctx.Method()) == fasthttp.MethodPost {
-			handlers.Responses(ctx, s.config.InferenceEngine)
+			s.handleResponses(ctx)
 			return
 		}
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
@@ -118,27 +118,52 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *Server) handleInference(ctx *fasthttp.RequestCtx) {
-	started := time.Now()
-	handlers.Inference(ctx, s.config.InferenceEngine)
-	s.logInferenceUsage(ctx, started)
+	s.handleLoggedInference(ctx, handlers.Inference)
 }
 
-func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time) {
+func (s *Server) handleMessages(ctx *fasthttp.RequestCtx) {
+	s.handleLoggedInference(ctx, handlers.Messages)
+}
+
+func (s *Server) handleResponses(ctx *fasthttp.RequestCtx) {
+	s.handleLoggedInference(ctx, handlers.Responses)
+}
+
+func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, handle func(*fasthttp.RequestCtx, handlers.InferenceEngine)) {
+	started := time.Now()
+	engine := s.config.InferenceEngine
+	var captured *capturingInferenceEngine
+	if engine != nil {
+		captured = &capturingInferenceEngine{base: engine}
+		engine = captured
+	}
+	handle(ctx, engine)
+	var resp *providers.ChatResponse
+	if captured != nil {
+		resp = captured.response
+	}
+	s.logInferenceUsage(ctx, started, resp)
+}
+
+func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, response *providers.ChatResponse) {
 	usageStore, ok := s.config.UsageStore.(requestLogStore)
-	if !ok || usageStore == nil || ctx.Response.StatusCode() != fasthttp.StatusOK || !s.requestLogsEnabled() {
+	if !ok || usageStore == nil || response == nil || ctx.Response.StatusCode() != fasthttp.StatusOK || !s.requestLogsEnabled() {
 		return
 	}
 
-	var response providers.ChatResponse
-	if err := json.Unmarshal(ctx.Response.Body(), &response); err != nil {
-		return
-	}
-	extractedUsage, ok := usage.FromChatResponse(response)
+	extractedUsage, ok := usage.FromChatResponse(*response)
 	if !ok {
 		return
 	}
 
-	provider := providerFromModel(response.Model)
+	provider := response.Provider.String()
+	if provider == "" {
+		provider = providerFromModel(response.Model)
+	}
+	authType := response.AuthType
+	if authType == "" {
+		authType = authTypeForRequest(s.config.RequireAPIKey)
+	}
 	costUSD := costForUsage(provider, response.Model, &extractedUsage)
 
 	entry := store.RequestLogEntry{
@@ -146,7 +171,8 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time) 
 		Timestamp:    started.UTC(),
 		Provider:     provider,
 		Model:        response.Model,
-		AuthType:     authTypeForRequest(s.config.RequireAPIKey),
+		ConnectionID: stringPtrIfNotEmpty(response.ConnectionID),
+		AuthType:     authType,
 		InputTokens:  intPtr(extractedUsage.InputTokens),
 		OutputTokens: intPtr(extractedUsage.OutputTokens),
 		TotalTokens:  intPtr(extractedUsage.TotalTokens),
@@ -164,6 +190,27 @@ type requestLogStore interface {
 	LogRequest(entry *store.RequestLogEntry) error
 }
 
+type capturingInferenceEngine struct {
+	base     handlers.InferenceEngine
+	response *providers.ChatResponse
+}
+
+func (e *capturingInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	resp, err := e.base.Dispatch(ctx, req)
+	if err == nil {
+		e.response = resp
+	}
+	return resp, err
+}
+
+func (e *capturingInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	return e.base.DispatchStream(ctx, req)
+}
+
+func (e *capturingInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
+	return e.base.ListModels(ctx)
+}
+
 func (s *Server) requestLogsEnabled() bool {
 	if s.config.Store == nil {
 		return false
@@ -176,7 +223,7 @@ func (s *Server) requestLogsEnabled() bool {
 }
 
 func costForUsage(provider, model string, extractedUsage *usage.Usage) *float64 {
-	if provider == "" {
+	if provider == "" || provider == "unknown" {
 		return nil
 	}
 	cost, err := usage.CalculateCostUSD(modelcatalog.NewCatalog(), providers.ModelProvider(provider), model, extractedUsage)
@@ -187,13 +234,16 @@ func costForUsage(provider, model string, extractedUsage *usage.Usage) *float64 
 }
 
 func providerFromModel(model string) string {
+	if provider, ok := modelcatalog.NewCatalog().ProviderForModel(model); ok {
+		return provider.String()
+	}
 	switch {
 	case strings.HasPrefix(model, "gpt-"):
 		return providers.ProviderOpenAI.String()
 	case strings.HasPrefix(model, "claude-"):
 		return providers.ProviderAnthropic.String()
 	default:
-		return ""
+		return "unknown"
 	}
 }
 
@@ -205,6 +255,13 @@ func authTypeForRequest(requireAPIKey bool) string {
 }
 
 func intPtr(value int) *int {
+	return &value
+}
+
+func stringPtrIfNotEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
 	return &value
 }
 

@@ -105,13 +105,16 @@ type ToolCallFunc struct {
 }
 
 type ChatResponse struct {
-	ID                string   `json:"id"`
-	Object            string   `json:"object"`
-	Created           int64    `json:"created"`
-	Model             string   `json:"model"`
-	Choices           []Choice `json:"choices"`
-	Usage             *Usage   `json:"usage,omitempty"`
-	SystemFingerprint *string  `json:"system_fingerprint,omitempty"`
+	ID                string        `json:"id"`
+	Object            string        `json:"object"`
+	Created           int64         `json:"created"`
+	Model             string        `json:"model"`
+	Choices           []Choice      `json:"choices"`
+	Usage             *Usage        `json:"usage,omitempty"`
+	SystemFingerprint *string       `json:"system_fingerprint,omitempty"`
+	Provider          ModelProvider `json:"-"`
+	ConnectionID      string        `json:"-"`
+	AuthType          string        `json:"-"`
 }
 
 type Choice struct {

@@ -246,6 +246,123 @@ func TestGetModels(t *testing.T) {
 	}
 }
 
+func TestMessagesRejectsAnthropicNativeTools(t *testing.T) {
+	engine := &fakeEngine{response: chatResponse()}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","tools":[{"name":"lookup","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hello"}]}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+	}
+	if engine.received != nil {
+		t.Fatalf("engine request = %+v, want no dispatch for unsupported native tools", engine.received)
+	}
+}
+
+func TestMessagesRejectsAnthropicNativeToolChoice(t *testing.T) {
+	engine := &fakeEngine{response: chatResponse()}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","tool_choice":{"type":"tool","name":"lookup"},"messages":[{"role":"user","content":"hello"}]}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+	}
+	if engine.received != nil {
+		t.Fatalf("engine request = %+v, want no dispatch for unsupported native tool choice", engine.received)
+	}
+}
+
+func TestMessagesRejectsAnthropicToolUseBlocks(t *testing.T) {
+	engine := &fakeEngine{response: chatResponse()}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"lookup","input":{"query":"docs"}}]}]}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+	}
+	if engine.received != nil {
+		t.Fatalf("engine request = %+v, want no dispatch for unsupported native tool use", engine.received)
+	}
+}
+
+func TestMessagesRejectsAnthropicToolResultBlocks(t *testing.T) {
+	engine := &fakeEngine{response: chatResponse()}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"value"}]}]}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+	}
+	if engine.received != nil {
+		t.Fatalf("engine request = %+v, want no dispatch for unsupported native tool results", engine.received)
+	}
+}
+
+func TestMessagesResponsePreservesToolUseBlocks(t *testing.T) {
+	finish := "tool_calls"
+	engine := &fakeEngine{response: &providers.ChatResponse{
+		ID:      "chatcmpl-tools",
+		Object:  "chat.completion",
+		Created: 1710000000,
+		Model:   "claude-sonnet-4",
+		Choices: []providers.Choice{{
+			Message: providers.Message{
+				Role: "assistant",
+				ToolCalls: []providers.ToolCall{{
+					ID:   "toolu_lookup",
+					Type: "function",
+					Function: providers.ToolCallFunc{
+						Name:      "lookup",
+						Arguments: `{"query":"docs"}`,
+					},
+				}},
+			},
+			FinishReason: &finish,
+		}},
+		Usage: &providers.Usage{PromptTokens: 3, CompletionTokens: 2, TotalTokens: 5},
+	}}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}]}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	var decoded struct {
+		Content []struct {
+			Type  string          `json:"type"`
+			ID    string          `json:"id"`
+			Name  string          `json:"name"`
+			Input json.RawMessage `json:"input"`
+		} `json:"content"`
+		StopReason *string `json:"stop_reason"`
+	}
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("unmarshal response: %v; body=%s", err, body)
+	}
+	if len(decoded.Content) != 1 {
+		t.Fatalf("content len = %d, want 1: %+v", len(decoded.Content), decoded.Content)
+	}
+	if decoded.Content[0].Type != "tool_use" || decoded.Content[0].ID != "toolu_lookup" || decoded.Content[0].Name != "lookup" {
+		t.Fatalf("tool use content = %+v", decoded.Content[0])
+	}
+	if string(decoded.Content[0].Input) != `{"query":"docs"}` {
+		t.Fatalf("tool input = %s, want query JSON", decoded.Content[0].Input)
+	}
+	if decoded.StopReason == nil || *decoded.StopReason != "tool_use" {
+		t.Fatalf("stop reason = %+v, want tool_use", decoded.StopReason)
+	}
+}
+
 func chatResponse() *providers.ChatResponse {
 	finish := "stop"
 	return &providers.ChatResponse{
