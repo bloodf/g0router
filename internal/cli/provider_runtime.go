@@ -12,6 +12,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/openai"
 	"github.com/bloodf/g0router/internal/providers/openaicompat"
 	"github.com/bloodf/g0router/internal/providers/replicate"
+	"github.com/bloodf/g0router/internal/providers/vertex"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -23,6 +24,7 @@ func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
 	engine.Register(gemini.New(""))
 	engine.Register(azure.New("", ""))
 	engine.Register(bedrock.New(""))
+	engine.Register(vertex.New("", vertex.Config{}))
 	registerOpenAICompatible(engine)
 	registerProvider(engine, func() (providers.Provider, error) {
 		return mistral.NewDefault()

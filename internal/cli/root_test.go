@@ -366,6 +366,17 @@ func TestDefaultServerConfigWiresWave7BRuntime(t *testing.T) {
 	}
 }
 
+func TestDefaultInferenceEngineRegistersImplementedVertexProvider(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	engine := newDefaultInferenceEngine(s)
+
+	if !containsModelProvider(engine.RegisteredProviders(), providers.ProviderVertex) {
+		t.Fatalf("registered providers = %v, want vertex", engine.RegisteredProviders())
+	}
+}
+
 func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
@@ -516,4 +527,13 @@ func readCLIResponseBody(t *testing.T, resp *http.Response) []byte {
 
 func cliHTTPClient() *http.Client {
 	return &http.Client{Timeout: 2 * time.Second}
+}
+
+func containsModelProvider(values []providers.ModelProvider, want providers.ModelProvider) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

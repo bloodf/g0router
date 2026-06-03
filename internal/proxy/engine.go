@@ -33,6 +33,10 @@ func (e *Engine) Register(provider providers.Provider) {
 	e.pool.register(provider)
 }
 
+func (e *Engine) RegisteredProviders() []providers.ModelProvider {
+	return e.pool.names()
+}
+
 func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
 	provider, key, err := e.providerFor(req.Model)
 	if err != nil {

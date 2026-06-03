@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.C"
-last_updated: "2026-06-03T01:27:07Z"
+last_updated: "2026-06-03T01:35:45Z"
 last_agent: "orchestrator"
 ```
 
@@ -992,6 +992,16 @@ tasks:
       - internal/cli/root_test.go
       - docs/WORKFLOW.md
       - docs/evaluations/wave-7B-evaluator-prompt.md
+  - id: "7.B.5"
+    name: "Evaluator fix: register implemented Vertex provider"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T01:35:45Z"
+    files_owned:
+      - internal/cli/provider_runtime.go
+      - internal/cli/root_test.go
+      - internal/proxy/engine.go
+      - docs/WORKFLOW.md
 ```
 
 **Checkpoint**: Wave 7.B complete → advance to Wave 7.C.
