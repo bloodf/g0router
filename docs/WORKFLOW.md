@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.H"
-last_updated: "2026-06-03T05:21:34Z"
+last_updated: "2026-06-03T05:26:23Z"
 last_agent: "orchestrator"
 ```
 
@@ -1468,13 +1468,18 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.H.1"
     name: "Dashboard API client contracts and shared async states"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7h-api"
+    completed_at: "2026-06-03T05:26:23Z"
     files_owned:
       - ui/src/api.ts
       - ui/src/api.test.ts
       - ui/src/components/Primitives.tsx
+      - ui/src/components/Primitives.test.tsx
       - ui/src/setupTests.ts
       - ui/src/App.test.tsx
+      - ui/dist/**
   - id: "7.H.2"
     name: "Providers and endpoint pages use real API contracts"
     status: PENDING

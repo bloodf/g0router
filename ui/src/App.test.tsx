@@ -42,7 +42,7 @@ describe("api helpers", () => {
     expect(getConnectionsPath()).toBe("/api/connections");
     expect(getApiKeysPath()).toBe("/api/keys");
     expect(getUsagePath()).toBe("/api/usage");
-    expect(getQuotaPath()).toBe("/api/quota");
+    expect(getQuotaPath("openai")).toBe("/api/usage/quota/openai");
     expect(getCombosPath()).toBe("/api/combos");
     expect(getMcpServersPath()).toBe("/api/mcp/instances");
     expect(getSettingsPath()).toBe("/api/settings");
