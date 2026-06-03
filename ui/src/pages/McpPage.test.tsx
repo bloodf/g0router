@@ -97,6 +97,7 @@ describe("McpPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Loading MCP data");
 
     const instancesTable = await screen.findByRole("table", { name: "MCP instances" });
+    expect(instancesTable.parentElement).toHaveClass("overflow-x-auto");
     const instanceRow = within(instancesTable).getByRole("row", { name: /atlassian-a/i });
     expect(within(instanceRow).getByText("http")).toBeInTheDocument();
     expect(within(instanceRow).getByText("streamable-http")).toBeInTheDocument();
@@ -107,6 +108,8 @@ describe("McpPage", () => {
     expect(screen.getByText("inst-1__search")).toBeInTheDocument();
     expect(screen.getByText("ops@example.com")).toBeInTheDocument();
     expect(screen.getAllByText("redacted").length).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: "Accounts" }).closest("section")).toHaveClass("overflow-x-auto");
+    expect(screen.getByRole("heading", { name: "Tools" }).closest("section")).toHaveClass("overflow-x-auto");
 
     expect(screen.queryByText("super-secret-client-token")).not.toBeInTheDocument();
     expect(screen.queryByText("Bearer live-header-token")).not.toBeInTheDocument();

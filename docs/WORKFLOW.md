@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.H"
-last_updated: "2026-06-03T05:44:27Z"
+last_updated: "2026-06-03T05:51:31Z"
 last_agent: "orchestrator"
 ```
 
@@ -1453,7 +1453,7 @@ tasks:
 
 ```yaml
 wave: "7.H"
-status: IN_PROGRESS
+status: DONE
 max_agents: 4
 depends_on: ["7.G"]
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
@@ -1537,14 +1537,19 @@ tasks:
       - ui/src/pages/McpPage.tsx
       - ui/src/pages/McpPage.test.tsx
   - id: "7.H.6"
-    name: "Dashboard integration, workflow completion, and evaluator prompt"
-    status: PENDING
+    name: "Dashboard integration, mobile overflow remediation, workflow completion, and evaluator prompt"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T05:51:31Z"
     depends_on_tasks: ["7.H.2", "7.H.3", "7.H.4", "7.H.5"]
     files_owned:
       - ui/src/App.tsx
       - ui/src/App.test.tsx
+      - ui/src/pages/McpPage.tsx
+      - ui/src/pages/McpPage.test.tsx
       - docs/evaluations/wave-7H-evaluator-prompt.md
       - docs/WORKFLOW.md
+      - ui/dist/**
 ```
 
 ### Wave 7.I — Usage, cost, logs, and quotas

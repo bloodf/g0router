@@ -381,7 +381,7 @@ function MCPDashboard({ data, totalAccounts }: { data: MCPData; totalAccounts: n
         <SummaryItem label="Accounts" value={totalAccounts} />
       </div>
 
-      <div className="overflow-hidden rounded-md border border-zinc-200">
+      <div className="overflow-x-auto rounded-md border border-zinc-200">
         <table aria-label="MCP instances" className="w-full min-w-[760px] text-left text-sm">
           <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
@@ -563,7 +563,7 @@ function SelectField({
 
 function DataTable({ children, title }: { children: ReactNode; title: string }) {
   return (
-    <section className="overflow-hidden rounded-md border border-zinc-200">
+    <section className="overflow-x-auto rounded-md border border-zinc-200">
       <h4 className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-700">{title}</h4>
       {children}
     </section>

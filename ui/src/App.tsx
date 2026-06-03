@@ -126,17 +126,6 @@ function App() {
 
         <section className="px-5 py-6 lg:px-8">
           {activePage.component}
-          {activePageId === "dashboard" ? (
-            <div className="mt-6 grid gap-4 xl:grid-cols-2">
-              <EndpointPage />
-              <ProvidersPage />
-              <UsagePage />
-              <QuotaPage />
-              <CombosPage />
-              <McpPage />
-              <SettingsPage />
-            </div>
-          ) : null}
         </section>
       </main>
     </div>
