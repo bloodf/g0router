@@ -172,21 +172,10 @@ func (e *OAuthEngine) CompleteCallback(ctx context.Context, instanceID, callback
 
 	tokenEndpoint, err := tokenEndpointForFlow(flow)
 	if err != nil {
-		account := legacyOAuthAccount(instanceID, flow, code, selectedAccountLabel(e.store, instanceID))
-		if saveErr := e.store.SaveAccount(account); saveErr != nil {
-			return OAuthAccount{}, saveErr
-		}
-		return account, nil
+		return OAuthAccount{}, err
 	}
 	token, err := e.exchangeAuthorizationCode(ctx, tokenEndpoint, flow, code)
 	if err != nil {
-		if errors.Is(err, errOAuthTokenEndpointUnavailable) {
-			account := legacyOAuthAccount(instanceID, flow, code, selectedAccountLabel(e.store, instanceID))
-			if saveErr := e.store.SaveAccount(account); saveErr != nil {
-				return OAuthAccount{}, saveErr
-			}
-			return account, nil
-		}
 		return OAuthAccount{}, err
 	}
 	account := OAuthAccount{
@@ -420,20 +409,6 @@ func selectedAccountLabel(store OAuthStore, instanceID string) string {
 		return ""
 	}
 	return strings.TrimSpace(label)
-}
-
-func legacyOAuthAccount(instanceID string, flow OAuthFlow, code, selectedLabel string) OAuthAccount {
-	if selectedLabel == "" {
-		selectedLabel = "default"
-	}
-	return OAuthAccount{
-		InstanceID:   instanceID,
-		AccountLabel: selectedLabel,
-		ResourceURI:  flow.ResourceURI,
-		AccessToken:  "mcp_" + code,
-		ExpiresAt:    time.Now().Add(time.Hour),
-		AuthMetadata: map[string]string{"legacy_fallback": "true"},
-	}
 }
 
 var _ = context.Background

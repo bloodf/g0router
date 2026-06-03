@@ -14,6 +14,7 @@ import (
 	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/api/handlers"
 	appconfig "github.com/bloodf/g0router/internal/config"
+	"github.com/bloodf/g0router/internal/mcp"
 	providerinfo "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
@@ -222,7 +223,12 @@ func rehydrateMCPRuntime(ctx context.Context, s *store.Store, runtime *defaultMC
 		return
 	}
 	for _, instance := range instances {
-		manifest, err := runtime.RegisterInstance(ctx, instance)
+		runtimeInstance, err := mcpInstanceForRuntime(ctx, s, instance)
+		if err != nil {
+			_ = s.UpdateMCPInstanceHealth(instance.ID, "unhealthy")
+			continue
+		}
+		manifest, err := runtime.RegisterInstance(ctx, runtimeInstance)
 		if err != nil {
 			_ = s.UpdateMCPInstanceHealth(instance.ID, "unhealthy")
 			continue
@@ -233,6 +239,104 @@ func rehydrateMCPRuntime(ctx context.Context, s *store.Store, runtime *defaultMC
 		}
 		_ = s.UpdateMCPInstanceHealth(instance.ID, "healthy")
 	}
+}
+
+func mcpInstanceForRuntime(ctx context.Context, s *store.Store, instance *store.MCPInstance) (*store.MCPInstance, error) {
+	account, ok, err := selectMCPRuntimeOAuthAccount(s, instance)
+	if err != nil || !ok {
+		return instance, err
+	}
+
+	oauthAccount := mcpOAuthAccountFromStore(account)
+	engine := mcp.NewOAuthEngine(s, nil)
+	if shouldRefreshMCPAccount(oauthAccount) {
+		refreshed, err := engine.RefreshAccount(ctx, oauthAccount)
+		if err != nil {
+			return nil, err
+		}
+		oauthAccount = refreshed
+	}
+
+	runtime := *instance
+	if instance.Transport == mcp.TransportStdio {
+		credentials := mcp.StdioCredentialEnv(oauthAccount)
+		runtime.Env = copyEnvMap(instance.Env)
+		if runtime.Env == nil {
+			runtime.Env = make(map[string]string)
+		}
+		for key, value := range credentials.Actual {
+			runtime.Env[key] = value
+		}
+		return &runtime, nil
+	}
+
+	urlValue := stringValue(instance.URL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlValue, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build mcp oauth authorization request: %w", err)
+	}
+	if err := engine.AuthorizeRequest(req, oauthAccount); err != nil {
+		return nil, err
+	}
+
+	runtime.Headers = copyEnvMap(instance.Headers)
+	if runtime.Headers == nil {
+		runtime.Headers = make(map[string]string)
+	}
+	runtime.Headers["Authorization"] = req.Header.Get("Authorization")
+	if protocol := req.Header.Get("MCP-Protocol-Version"); protocol != "" {
+		runtime.Headers["MCP-Protocol-Version"] = protocol
+	}
+	return &runtime, nil
+}
+
+func selectMCPRuntimeOAuthAccount(s *store.Store, instance *store.MCPInstance) (*store.MCPOAuthAccount, bool, error) {
+	accounts, err := s.ListMCPOAuthAccounts(instance.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	label := stringValue(instance.AccountLabel)
+	urlValue := stringValue(instance.URL)
+	for _, account := range accounts {
+		if label != "" && account.AccountLabel != label {
+			continue
+		}
+		if !mcpOAuthAccountMatchesURL(account, urlValue) {
+			continue
+		}
+		return account, true, nil
+	}
+	return nil, false, nil
+}
+
+func mcpOAuthAccountMatchesURL(account *store.MCPOAuthAccount, urlValue string) bool {
+	return account.ResourceURI == "" || urlValue == "" || strings.HasPrefix(urlValue, account.ResourceURI)
+}
+
+func mcpOAuthAccountFromStore(account *store.MCPOAuthAccount) mcp.OAuthAccount {
+	return mcp.OAuthAccount{
+		ID:           account.ID,
+		InstanceID:   account.InstanceID,
+		AccountLabel: account.AccountLabel,
+		Subject:      account.Subject,
+		Email:        account.Email,
+		Issuer:       account.Issuer,
+		ResourceURI:  account.ResourceURI,
+		Scopes:       append([]string(nil), account.Scopes...),
+		AccessToken:  account.AccessToken,
+		RefreshToken: account.RefreshToken,
+		ExpiresAt:    account.ExpiresAt,
+		AuthMetadata: copyEnvMap(account.AuthMetadata),
+		CreatedAt:    account.CreatedAt,
+		UpdatedAt:    account.UpdatedAt,
+	}
+}
+
+func shouldRefreshMCPAccount(account mcp.OAuthAccount) bool {
+	if account.RefreshToken == "" {
+		return false
+	}
+	return account.AccessToken == "" || (!account.ExpiresAt.IsZero() && time.Now().Add(5*time.Minute).After(account.ExpiresAt))
 }
 
 type storeAPIKeyValidator struct {

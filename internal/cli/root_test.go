@@ -545,6 +545,103 @@ func TestDefaultServerConfigRehydratesActiveMCPInstances(t *testing.T) {
 	}
 }
 
+func TestDefaultServerConfigRehydratesMCPInstanceWithPersistedOAuth(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad token request", http.StatusBadRequest)
+			return
+		}
+		if r.PostForm.Get("grant_type") != "refresh_token" || r.PostForm.Get("refresh_token") != "refresh-token" {
+			http.Error(w, "unexpected refresh form", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "refreshed-token",
+			"refresh_token": "next-refresh-token",
+			"expires_in":    3600,
+		})
+	}))
+	defer tokenServer.Close()
+
+	mcpServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer refreshed-token" {
+			http.Error(w, "missing oauth bearer", http.StatusUnauthorized)
+			return
+		}
+		var req struct {
+			ID     int    `json:"id"`
+			Method string `json:"method"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "bad request", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		switch req.Method {
+		case "initialize":
+			w.Header().Set("Mcp-Session-Id", "oauth-session")
+			_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": req.ID, "result": map[string]any{}})
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/list":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"jsonrpc": "2.0",
+				"id":      req.ID,
+				"result": map[string]any{
+					"tools": []map[string]any{{"name": "search", "description": "Search"}},
+				},
+			})
+		default:
+			http.Error(w, "unexpected method "+req.Method, http.StatusBadRequest)
+		}
+	}))
+	defer mcpServer.Close()
+
+	urlValue := mcpServer.URL
+	accountLabel := "work"
+	instance := &store.MCPInstance{
+		Name:         "oauth-docs",
+		ServerKey:    "oauth-docs",
+		LaunchType:   mcp.LaunchHTTP,
+		Transport:    mcp.TransportStreamableHTTP,
+		URL:          &urlValue,
+		AccountLabel: &accountLabel,
+		IsActive:     true,
+	}
+	if err := s.CreateMCPInstance(instance); err != nil {
+		t.Fatalf("CreateMCPInstance: %v", err)
+	}
+	if err := s.UpsertMCPOAuthAccount(&store.MCPOAuthAccount{
+		InstanceID:   instance.ID,
+		AccountLabel: accountLabel,
+		ResourceURI:  mcpServer.URL,
+		AccessToken:  "expired-token",
+		RefreshToken: "refresh-token",
+		ExpiresAt:    time.Now().Add(-time.Minute),
+		AuthMetadata: map[string]string{"token_endpoint": tokenServer.URL},
+	}); err != nil {
+		t.Fatalf("UpsertMCPOAuthAccount: %v", err)
+	}
+
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s)
+
+	tools := cfg.MCPToolManager.CompactTools()
+	if len(tools) != 1 || tools[0].Function.Name != instance.ID+"__search" {
+		t.Fatalf("tools = %+v, want oauth-backed startup tool", tools)
+	}
+	accounts, err := s.ListMCPOAuthAccounts(instance.ID)
+	if err != nil {
+		t.Fatalf("ListMCPOAuthAccounts: %v", err)
+	}
+	if len(accounts) != 1 || accounts[0].AccessToken != "refreshed-token" || accounts[0].RefreshToken != "next-refresh-token" {
+		t.Fatalf("accounts = %+v, want refreshed persisted account", accounts)
+	}
+}
+
 func TestDefaultServerConfigUsesAuthEnvironment(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()

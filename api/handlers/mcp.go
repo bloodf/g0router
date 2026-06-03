@@ -199,7 +199,7 @@ func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientMan
 			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list mcp clients: %v", err))
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusOK, listResponse[*store.MCPClient]{Data: list})
+		writeJSON(ctx, fasthttp.StatusOK, listResponse[*store.MCPClient]{Data: redactedMCPClients(list)})
 	case fasthttp.MethodPost:
 		if clients == nil || tools == nil {
 			writeError(ctx, fasthttp.StatusServiceUnavailable, "mcp runtime unavailable")
@@ -230,7 +230,7 @@ func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientMan
 			writeStoreError(ctx, "get mcp client", err)
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusCreated, got)
+		writeJSON(ctx, fasthttp.StatusCreated, redactedMCPClient(got))
 	case fasthttp.MethodDelete:
 		if id == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "mcp client id required")
@@ -428,6 +428,45 @@ func redactedMCPInstance(instance *store.MCPInstance) *store.MCPInstance {
 	redacted.Env = cfg.Env
 	redacted.Headers = cfg.Headers
 	return &redacted
+}
+
+func redactedMCPClients(clients []*store.MCPClient) []*store.MCPClient {
+	redacted := make([]*store.MCPClient, 0, len(clients))
+	for _, client := range clients {
+		redacted = append(redacted, redactedMCPClient(client))
+	}
+	return redacted
+}
+
+func redactedMCPClient(client *store.MCPClient) *store.MCPClient {
+	redacted := *client
+	redacted.Env = redactMCPSecretMap(client.Env)
+	return &redacted
+}
+
+func redactMCPSecretMap(values map[string]string) map[string]string {
+	if values == nil {
+		return nil
+	}
+	redacted := make(map[string]string, len(values))
+	for key, value := range values {
+		if isMCPSecretKey(key) {
+			redacted[key] = mcp.RedactedValue
+			continue
+		}
+		redacted[key] = value
+	}
+	return redacted
+}
+
+func isMCPSecretKey(key string) bool {
+	normalized := strings.ToLower(key)
+	for _, marker := range []string{"token", "secret", "key", "authorization", "password"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func stringValue(value *string) string {

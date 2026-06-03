@@ -63,12 +63,18 @@ func TestMCPClientsCreateDiscoversAndPersistsManifest(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("status = %d, want 201; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
 	}
+	if strings.Contains(string(ctx.Response.Body()), "secret") {
+		t.Fatalf("created response leaked env secret: %s", ctx.Response.Body())
+	}
 	var created store.MCPClient
 	if err := json.Unmarshal(ctx.Response.Body(), &created); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
 	if created.ID == "" || created.Name != "docs" {
 		t.Fatalf("created = %+v, want docs with ID", created)
+	}
+	if created.Env["TOKEN"] != mcp.RedactedValue {
+		t.Fatalf("created env TOKEN = %q, want redacted", created.Env["TOKEN"])
 	}
 	if client.config.ID != created.ID || client.config.Command != "mcp-docs" {
 		t.Fatalf("config = %+v, want created ID and command", client.config)
@@ -87,6 +93,9 @@ func TestMCPClientsCreateDiscoversAndPersistsManifest(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("list status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
 	}
+	if strings.Contains(string(ctx.Response.Body()), "secret") {
+		t.Fatalf("list response leaked env secret: %s", ctx.Response.Body())
+	}
 	var listed struct {
 		Data []store.MCPClient `json:"data"`
 	}
@@ -95,6 +104,9 @@ func TestMCPClientsCreateDiscoversAndPersistsManifest(t *testing.T) {
 	}
 	if len(listed.Data) != 1 || listed.Data[0].ID != created.ID {
 		t.Fatalf("listed = %+v, want created client", listed.Data)
+	}
+	if listed.Data[0].Env["TOKEN"] != mcp.RedactedValue {
+		t.Fatalf("listed env TOKEN = %q, want redacted", listed.Data[0].Env["TOKEN"])
 	}
 }
 

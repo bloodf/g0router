@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.G"
-last_updated: "2026-06-03T04:53:59Z"
+last_updated: "2026-06-03T05:06:12Z"
 last_agent: "orchestrator"
 ```
 
@@ -1420,6 +1420,22 @@ tasks:
       - internal/store/mcpinstances.go
       - internal/store/mcpinstances_test.go
       - docs/evaluations/wave-7G-evaluator-prompt.md
+      - docs/WORKFLOW.md
+  - id: "7.G.6"
+    name: "Wave 7.G evaluator remediation"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7g-eval-fix"
+    completed_at: "2026-06-03T05:06:12Z"
+    files_owned:
+      - api/handlers/mcp.go
+      - api/handlers/mcp_test.go
+      - internal/cli/root.go
+      - internal/cli/root_test.go
+      - internal/mcp/oauth.go
+      - internal/mcp/oauth_test.go
+      - internal/mcp/advanced_integration_test.go
+      - docs/evaluations/wave-7G-remediation-evaluator-prompt.md
       - docs/WORKFLOW.md
 ```
 

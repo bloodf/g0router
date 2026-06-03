@@ -22,8 +22,24 @@ func TestAdvancedMCPOAuthFlowCompletesRedirectAndPastedCallback(t *testing.T) {
 	instance := createIntegrationInstance(t, s, "atlassian-a", "account-a")
 
 	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		callback := "http://localhost:20128/api/mcp/oauth/callback?instance_id=" + instance.ID + "&code=redirect-code&state=" + r.URL.Query().Get("state")
-		http.Redirect(w, r, callback, http.StatusFound)
+		switch r.URL.Path {
+		case "/authorize":
+			callback := "http://localhost:20128/api/mcp/oauth/callback?instance_id=" + instance.ID + "&code=redirect-code&state=" + r.URL.Query().Get("state")
+			http.Redirect(w, r, callback, http.StatusFound)
+		case "/token":
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, "bad token request", http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token":  "token-" + r.PostForm.Get("code"),
+				"refresh_token": "refresh-" + r.PostForm.Get("code"),
+				"expires_in":    3600,
+			})
+		default:
+			http.NotFound(w, r)
+		}
 	}))
 	defer authServer.Close()
 
@@ -59,7 +75,7 @@ func TestAdvancedMCPOAuthFlowCompletesRedirectAndPastedCallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompleteCallback redirect: %v", err)
 	}
-	if account.AccessToken != "mcp_redirect-code" {
+	if account.AccessToken != "token-redirect-code" {
 		t.Fatalf("access token = %q, want redirect token", account.AccessToken)
 	}
 
@@ -67,6 +83,8 @@ func TestAdvancedMCPOAuthFlowCompletesRedirectAndPastedCallback(t *testing.T) {
 		InstanceID:         instance.ID,
 		State:              "pasted-state",
 		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost:20128/api/mcp/oauth/callback",
+		AuthorizationURL:   authServer.URL + "/authorize?state=pasted-state",
 		ResourceURI:        "https://mcp.atlassian.com",
 		ExpiresAt:          time.Now().Add(time.Hour),
 	}); err != nil {
@@ -76,7 +94,7 @@ func TestAdvancedMCPOAuthFlowCompletesRedirectAndPastedCallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CompleteCallback pasted: %v", err)
 	}
-	if pasted.AccessToken != "mcp_pasted-code" || pasted.InstanceID != instance.ID {
+	if pasted.AccessToken != "token-pasted-code" || pasted.InstanceID != instance.ID {
 		t.Fatalf("pasted account = %+v, want pasted token for instance", pasted)
 	}
 }

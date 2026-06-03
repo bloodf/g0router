@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -165,6 +166,31 @@ func TestOAuthEngineUsesSelectedInstanceAccountLabel(t *testing.T) {
 	}
 	if account.AccountLabel != "selected-work" {
 		t.Fatalf("account label = %q, want selected-work", account.AccountLabel)
+	}
+}
+
+func TestOAuthEngineRequiresRealTokenEndpoint(t *testing.T) {
+	store := newFakeOAuthStore()
+	engine := NewOAuthEngine(store, OAuthHTTPClient(nil))
+	if err := store.CreateFlow(OAuthFlow{
+		InstanceID:         "inst-1",
+		State:              "state-1",
+		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost/callback?instance_id=inst-1",
+		AuthorizationURL:   "https://auth.example/login",
+		ResourceURI:        "https://mcp.example",
+		ExpiresAt:          time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateFlow: %v", err)
+	}
+
+	_, err := engine.CompleteCallback(context.Background(), "inst-1", "https://callback.example?code=ok&state=state-1")
+
+	if !errors.Is(err, errOAuthTokenEndpointUnavailable) {
+		t.Fatalf("err = %v, want token endpoint unavailable", err)
+	}
+	if len(store.accounts) != 0 {
+		t.Fatalf("stored accounts = %+v, want none", store.accounts)
 	}
 }
 
