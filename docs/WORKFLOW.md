@@ -1099,7 +1099,12 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.C.5"
     name: "Wave 7.C evaluator prompt"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T02:15:51Z"
+    files_owned:
+      - docs/evaluations/wave-7C-evaluator-prompt.md
+      - docs/WORKFLOW.md
 ```
 
 ### Waves 7.D-7.I — Remaining Remediation Backlog
