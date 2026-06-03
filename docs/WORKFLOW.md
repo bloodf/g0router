@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.I"
-last_updated: "2026-06-03T06:26:00Z"
+last_updated: "2026-06-03T09:05:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1579,7 +1579,7 @@ tasks:
 
 ```yaml
 wave: "7.I"
-status: PENDING
+status: DONE
 max_agents: 3
 depends_on: ["7.H"]
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
@@ -1587,7 +1587,7 @@ gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm 
 tasks:
   - id: "7.I.1"
     name: "Honor ENABLE_REQUEST_LOGS and log complete request metadata"
-    status: PENDING
+    status: DONE
     branch: "codex/wave-7i-logging"
     files_owned:
       - api/middleware.go
@@ -1601,7 +1601,7 @@ tasks:
     phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
   - id: "7.I.2"
     name: "Expand pricing and model catalog coverage"
-    status: PENDING
+    status: DONE
     branch: "codex/wave-7i-catalog"
     files_owned:
       - internal/modelcatalog/catalog.go
@@ -1611,7 +1611,7 @@ tasks:
     phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
   - id: "7.I.3"
     name: "Enforce quotas across direct models, aliases, fallback, and combos"
-    status: PENDING
+    status: DONE
     branch: "codex/wave-7i-quotas"
     files_owned:
       - internal/proxy/engine.go
@@ -1620,7 +1620,7 @@ tasks:
     phase_doc: "docs/phases/phase-08-usage-tracking-cost-logging.md"
   - id: "7.I.4"
     name: "Wave 7.I evaluator prompt"
-    status: PENDING
+    status: DONE
     branch: "codex/wave-7i-evaluator"
     depends_on_tasks: ["7.I.1", "7.I.2", "7.I.3"]
     files_owned:
