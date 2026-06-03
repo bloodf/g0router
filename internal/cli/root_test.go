@@ -400,6 +400,9 @@ func TestDefaultServerConfigWiresWave7BRuntime(t *testing.T) {
 	if cfg.MCPToolManager == nil {
 		t.Fatal("MCPToolManager is nil")
 	}
+	if cfg.MCPInstanceRuntime == nil {
+		t.Fatal("MCPInstanceRuntime is nil")
+	}
 
 	models, err := cfg.InferenceEngine.ListModels(context.Background())
 	if err != nil {

@@ -132,6 +132,26 @@ func (m *ToolManager) RegisterClient(clientID string, client Client) {
 	m.clients[clientID] = client
 }
 
+func (m *ToolManager) UnregisterClient(clientID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.clients, clientID)
+	prefix := clientID + toolNameSeparator
+	for name := range m.tools {
+		if strings.HasPrefix(name, prefix) {
+			delete(m.tools, name)
+		}
+	}
+	order := m.order[:0]
+	for _, name := range m.order {
+		if !strings.HasPrefix(name, prefix) {
+			order = append(order, name)
+		}
+	}
+	m.order = order
+}
+
 func (m *ToolManager) Call(ctx context.Context, name string, arguments json.RawMessage) (CallResult, error) {
 	m.mu.RLock()
 	allowed, filtered := allowedToolsFromContext(ctx)

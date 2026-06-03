@@ -25,21 +25,22 @@ import (
 )
 
 type ServerConfig struct {
-	Port              int
-	Version           string
-	EnableRequestLogs bool
-	RequireAPIKey     bool
-	APIKeySecret      string
-	APIKeyValidator   APIKeyValidator
-	InferenceEngine   handlers.InferenceEngine
-	Store             *store.Store
-	ModelSource       handlers.ManagementModelSource
-	OAuthFlows        handlers.OAuthFlows
-	UsageStore        handlers.UsageStore
-	QuotaFetchers     map[providers.ModelProvider]usage.QuotaFetcher
-	QuotaKey          providers.Key
-	MCPClientManager  *mcp.ClientManager
-	MCPToolManager    *mcp.ToolManager
+	Port               int
+	Version            string
+	EnableRequestLogs  bool
+	RequireAPIKey      bool
+	APIKeySecret       string
+	APIKeyValidator    APIKeyValidator
+	InferenceEngine    handlers.InferenceEngine
+	Store              *store.Store
+	ModelSource        handlers.ManagementModelSource
+	OAuthFlows         handlers.OAuthFlows
+	UsageStore         handlers.UsageStore
+	QuotaFetchers      map[providers.ModelProvider]usage.QuotaFetcher
+	QuotaKey           providers.Key
+	MCPClientManager   *mcp.ClientManager
+	MCPToolManager     *mcp.ToolManager
+	MCPInstanceRuntime handlers.MCPInstanceRuntime
 }
 
 type Server struct {
@@ -462,9 +463,9 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "clients":
 		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, parts[3])
 	case path == "/api/mcp/instances":
-		handlers.MCPInstances(ctx, s.config.Store, "")
+		handlers.MCPInstances(ctx, s.config.Store, s.config.MCPInstanceRuntime, "")
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances":
-		handlers.MCPInstances(ctx, s.config.Store, parts[3])
+		handlers.MCPInstances(ctx, s.config.Store, s.config.MCPInstanceRuntime, parts[3])
 	case len(parts) == 6 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances" && parts[4] == "auth" && parts[5] == "start":
 		if !requireMethod(ctx, fasthttp.MethodPost) {
 			return
@@ -483,12 +484,12 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		if !requireMethod(ctx, fasthttp.MethodGet) {
 			return
 		}
-		handlers.MCPOAuthCallback(ctx, mcp.NewOAuthEngine(s.config.Store, nil))
+		handlers.MCPOAuthCallback(ctx, mcp.NewOAuthEngine(s.config.Store, nil), s.config.MCPInstanceRuntime, s.config.Store)
 	case len(parts) == 6 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances" && parts[4] == "oauth" && parts[5] == "complete":
 		if !requireMethod(ctx, fasthttp.MethodPost) {
 			return
 		}
-		handlers.MCPOAuthComplete(ctx, mcp.NewOAuthEngine(s.config.Store, nil), parts[3])
+		handlers.MCPOAuthComplete(ctx, mcp.NewOAuthEngine(s.config.Store, nil), s.config.MCPInstanceRuntime, s.config.Store, parts[3])
 	default:
 		if strings.HasPrefix(path, "/api/") || path == "/api" {
 			ctx.SetStatusCode(fasthttp.StatusNotFound)

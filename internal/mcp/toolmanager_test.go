@@ -124,6 +124,40 @@ func TestToolManagerCallRoutesToClient(t *testing.T) {
 	}
 }
 
+func TestToolManagerUnregisterClientRemovesOnlyThatClientsTools(t *testing.T) {
+	manager := NewToolManager()
+	if err := manager.RegisterManifest(Manifest{
+		ClientID: "docs",
+		Tools: []Tool{
+			{Name: "search", Description: "Search docs"},
+			{Name: "read", Description: "Read docs"},
+		},
+	}); err != nil {
+		t.Fatalf("RegisterManifest docs: %v", err)
+	}
+	if err := manager.RegisterManifest(Manifest{
+		ClientID: "repo",
+		Tools:    []Tool{{Name: "search", Description: "Search repos"}},
+	}); err != nil {
+		t.Fatalf("RegisterManifest repo: %v", err)
+	}
+	manager.RegisterClient("docs", &fakeClient{callResult: CallResult{Content: "docs"}})
+	manager.RegisterClient("repo", &fakeClient{callResult: CallResult{Content: "repo"}})
+
+	manager.UnregisterClient("docs")
+
+	tools := manager.CompactTools()
+	if len(tools) != 1 || tools[0].Function.Name != "repo__search" {
+		t.Fatalf("tools = %#v, want only repo__search", tools)
+	}
+	if _, err := manager.Call(context.Background(), "docs__search", json.RawMessage(`{}`)); !errors.Is(err, ErrToolNotFound) {
+		t.Fatalf("docs tool error = %v, want ErrToolNotFound", err)
+	}
+	if _, err := manager.Call(context.Background(), "repo__search", json.RawMessage(`{}`)); err != nil {
+		t.Fatalf("repo tool should remain callable: %v", err)
+	}
+}
+
 func TestToolManagerValidatesArgumentsBeforeDispatch(t *testing.T) {
 	client := &fakeClient{callResult: CallResult{Content: "found"}}
 	manager := NewToolManager()
