@@ -155,6 +155,188 @@ func TestParseMessageResponse(t *testing.T) {
 	}
 }
 
+func TestPreservesToolsAndToolMessages(t *testing.T) {
+	var gotRequest anthropicRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(anthropicToolUseResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	toolCallID := "call-1"
+	provider := New(server.URL)
+	resp, err := provider.ChatCompletion(context.Background(), testKey("api_key"), &providers.ChatRequest{
+		Model:      "claude-sonnet-4-20250514",
+		ToolChoice: "required",
+		Tools: []providers.Tool{{
+			Type: "function",
+			Function: providers.ToolFunction{
+				Name:        "weather",
+				Description: "Get weather",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}}}`),
+			},
+		}},
+		Messages: []providers.Message{
+			{Role: "user", Content: "What is the weather?"},
+			{
+				Role:    "assistant",
+				Content: "Calling weather.",
+				ToolCalls: []providers.ToolCall{{
+					ID:   toolCallID,
+					Type: "function",
+					Function: providers.ToolCallFunc{
+						Name:      "weather",
+						Arguments: `{"city":"Paris"}`,
+					},
+				}},
+			},
+			{Role: "tool", ToolCallID: &toolCallID, Content: `{"temp_c":19}`},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+
+	if len(gotRequest.Tools) != 1 {
+		t.Fatalf("tools = %+v", gotRequest.Tools)
+	}
+	if gotRequest.Tools[0].Name != "weather" || gotRequest.Tools[0].Description != "Get weather" {
+		t.Fatalf("tool = %+v", gotRequest.Tools[0])
+	}
+	if string(gotRequest.Tools[0].InputSchema) != `{"type":"object","properties":{"city":{"type":"string"}}}` {
+		t.Fatalf("input schema = %s", gotRequest.Tools[0].InputSchema)
+	}
+	if gotRequest.ToolChoice == nil || gotRequest.ToolChoice.Type != "any" {
+		t.Fatalf("tool choice = %+v", gotRequest.ToolChoice)
+	}
+	if len(gotRequest.Messages) != 3 {
+		t.Fatalf("messages = %+v", gotRequest.Messages)
+	}
+	assistantBlocks := gotRequest.Messages[1].Content
+	if len(assistantBlocks) != 2 {
+		t.Fatalf("assistant content = %+v", assistantBlocks)
+	}
+	if assistantBlocks[0].Type != "text" || assistantBlocks[0].Text != "Calling weather." {
+		t.Fatalf("assistant text = %+v", assistantBlocks[0])
+	}
+	if assistantBlocks[1].Type != "tool_use" || assistantBlocks[1].ID != toolCallID || assistantBlocks[1].Name != "weather" {
+		t.Fatalf("tool_use block = %+v", assistantBlocks[1])
+	}
+	if string(assistantBlocks[1].Input) != `{"city":"Paris"}` {
+		t.Fatalf("tool_use input = %s", assistantBlocks[1].Input)
+	}
+	toolBlocks := gotRequest.Messages[2].Content
+	if len(toolBlocks) != 1 || toolBlocks[0].Type != "tool_result" || toolBlocks[0].ToolUseID != toolCallID {
+		t.Fatalf("tool_result block = %+v", toolBlocks)
+	}
+	if toolBlocks[0].Content != `{"temp_c":19}` {
+		t.Fatalf("tool_result content = %+v", toolBlocks[0])
+	}
+
+	if len(resp.Choices) != 1 {
+		t.Fatalf("choices = %+v", resp.Choices)
+	}
+	toolCalls := resp.Choices[0].Message.ToolCalls
+	if len(toolCalls) != 1 {
+		t.Fatalf("tool calls = %+v", toolCalls)
+	}
+	if toolCalls[0].ID != "toolu_1" || toolCalls[0].Type != "function" {
+		t.Fatalf("tool call = %+v", toolCalls[0])
+	}
+	if toolCalls[0].Function.Name != "weather" || toolCalls[0].Function.Arguments != `{"city":"Paris"}` {
+		t.Fatalf("tool call function = %+v", toolCalls[0].Function)
+	}
+	if resp.Choices[0].FinishReason == nil || *resp.Choices[0].FinishReason != "tool_calls" {
+		t.Fatalf("finish reason = %+v", resp.Choices[0].FinishReason)
+	}
+}
+
+func TestAnthropicToolDefaultsChoicesAndResults(t *testing.T) {
+	toolCallID := "call-1"
+	secondToolCallID := "call-2"
+	req, err := toAnthropicRequest(&providers.ChatRequest{
+		Model:      "claude-sonnet-4-20250514",
+		ToolChoice: map[string]any{"type": "function", "function": map[string]any{"name": "weather"}},
+		Tools: []providers.Tool{{
+			Type:     "function",
+			Function: providers.ToolFunction{Name: "weather"},
+		}},
+		Messages: []providers.Message{
+			{
+				Role:    "assistant",
+				Content: "Calling tools.",
+				ToolCalls: []providers.ToolCall{
+					{
+						ID:   toolCallID,
+						Type: "function",
+						Function: providers.ToolCallFunc{
+							Name:      "weather",
+							Arguments: `{"city":"Paris"}`,
+						},
+					},
+					{
+						ID:   secondToolCallID,
+						Type: "function",
+						Function: providers.ToolCallFunc{
+							Name:      "weather",
+							Arguments: `{"city":"Lisbon"}`,
+						},
+					},
+				},
+			},
+			{Role: "tool", ToolCallID: &toolCallID, Content: "Paris 19C"},
+			{Role: "tool", ToolCallID: &secondToolCallID, Content: "Lisbon 21C"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("toAnthropicRequest: %v", err)
+	}
+
+	if len(req.Tools) != 1 {
+		t.Fatalf("tools = %+v", req.Tools)
+	}
+	if string(req.Tools[0].InputSchema) != `{"type":"object","properties":{}}` {
+		t.Fatalf("default input schema = %s", req.Tools[0].InputSchema)
+	}
+	if req.ToolChoice == nil || req.ToolChoice.Type != "tool" || req.ToolChoice.Name != "weather" {
+		t.Fatalf("tool choice = %+v", req.ToolChoice)
+	}
+	if len(req.Messages) != 2 {
+		t.Fatalf("messages = %+v", req.Messages)
+	}
+	assistantBlocks := req.Messages[0].Content
+	if len(assistantBlocks) != 3 {
+		t.Fatalf("assistant blocks = %+v", assistantBlocks)
+	}
+	if assistantBlocks[1].Type != "tool_use" || assistantBlocks[2].Type != "tool_use" {
+		t.Fatalf("tool use blocks = %+v", assistantBlocks)
+	}
+	if req.Messages[1].Role != "user" || len(req.Messages[1].Content) != 2 {
+		t.Fatalf("coalesced tool result message = %+v", req.Messages[1])
+	}
+	if req.Messages[1].Content[0].ToolUseID != toolCallID || req.Messages[1].Content[1].ToolUseID != secondToolCallID {
+		t.Fatalf("tool result IDs = %+v", req.Messages[1].Content)
+	}
+}
+
+func TestAnthropicToolResultRequiresToolCallID(t *testing.T) {
+	_, err := toAnthropicRequest(&providers.ChatRequest{
+		Model: "claude-sonnet-4-20250514",
+		Messages: []providers.Message{
+			{Role: "tool", Content: "missing id"},
+		},
+	})
+	if err == nil {
+		t.Fatal("toAnthropicRequest error = nil")
+	}
+	if !strings.Contains(err.Error(), "tool_call_id") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
 func TestParseSSEStream(t *testing.T) {
 	server := streamServer(t, strings.Join([]string{
 		"event: message_start",
@@ -192,6 +374,56 @@ func TestParseSSEStream(t *testing.T) {
 	}
 	if got[2].Usage == nil || got[2].Usage.TotalTokens != 12 {
 		t.Errorf("usage = %+v", got[2].Usage)
+	}
+}
+
+func TestParseSSEToolUseStream(t *testing.T) {
+	server := streamServer(t, strings.Join([]string{
+		"event: message_start",
+		"data: " + streamMessageStartJSON,
+		"",
+		"event: content_block_start",
+		"data: " + streamToolUseStartJSON,
+		"",
+		"event: content_block_delta",
+		"data: " + streamToolUseDeltaOneJSON,
+		"",
+		"event: content_block_delta",
+		"data: " + streamToolUseDeltaTwoJSON,
+		"",
+		"event: content_block_stop",
+		"data: " + streamToolUseStopJSON,
+		"",
+		"event: message_delta",
+		"data: " + streamToolUseMessageDeltaJSON,
+		"",
+		"event: message_stop",
+		"data: {}",
+		"",
+	}, "\n"))
+	provider := New(server.URL)
+
+	chunks, err := provider.ChatCompletionStream(context.Background(), testKey("api_key"), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+
+	got := collectChunks(chunks)
+	if len(got) != 3 {
+		t.Fatalf("chunks len = %d: %+v", len(got), got)
+	}
+	toolCalls := got[1].Choices[0].Delta.ToolCalls
+	if len(toolCalls) != 1 {
+		t.Fatalf("tool calls = %+v", toolCalls)
+	}
+	if toolCalls[0].ID != "toolu_1" || toolCalls[0].Function.Name != "weather" {
+		t.Fatalf("tool call = %+v", toolCalls[0])
+	}
+	if toolCalls[0].Function.Arguments != `{"city":"Paris"}` {
+		t.Fatalf("tool args = %q", toolCalls[0].Function.Arguments)
+	}
+	if got[2].Choices[0].FinishReason == nil || *got[2].Choices[0].FinishReason != "tool_calls" {
+		t.Fatalf("finish reason = %+v", got[2].Choices[0].FinishReason)
 	}
 }
 
@@ -322,11 +554,34 @@ const messageResponseJSON = `{
 	"usage": {"input_tokens": 5, "output_tokens": 9}
 }`
 
+const anthropicToolUseResponseJSON = `{
+	"id": "msg_tool",
+	"type": "message",
+	"role": "assistant",
+	"model": "claude-sonnet-4-20250514",
+	"content": [
+		{"type": "text", "text": "I need weather data."},
+		{"type": "tool_use", "id": "toolu_1", "name": "weather", "input": {"city": "Paris"}}
+	],
+	"stop_reason": "tool_use",
+	"usage": {"input_tokens": 8, "output_tokens": 4}
+}`
+
 const streamMessageStartJSON = `{"type":"message_start","message":{"id":"msg_123","type":"message","role":"assistant","model":"claude-sonnet-4-20250514","content":[],"usage":{"input_tokens":5,"output_tokens":0}}}`
 
 const streamContentDeltaJSON = `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}`
 
 const streamMessageDeltaJSON = `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":7}}`
+
+const streamToolUseStartJSON = `{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"weather","input":{}}}`
+
+const streamToolUseDeltaOneJSON = `{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"city\""}}`
+
+const streamToolUseDeltaTwoJSON = `{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":":\"Paris\"}"}}`
+
+const streamToolUseStopJSON = `{"type":"content_block_stop","index":1}`
+
+const streamToolUseMessageDeltaJSON = `{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":7}}`
 
 const modelsResponseJSON = `{
 	"data": [

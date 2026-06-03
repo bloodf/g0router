@@ -1,9 +1,12 @@
 package gemini
 
+import "encoding/json"
+
 type generateContentRequest struct {
 	Contents          []content         `json:"contents"`
 	SystemInstruction *content          `json:"system_instruction,omitempty"`
 	GenerationConfig  *generationConfig `json:"generationConfig,omitempty"`
+	Tools             []geminiTool      `json:"tools,omitempty"`
 }
 
 type generationConfig struct {
@@ -18,7 +21,31 @@ type content struct {
 }
 
 type part struct {
-	Text string `json:"text"`
+	Text             string                  `json:"text,omitempty"`
+	FunctionCall     *geminiFunctionCall     `json:"functionCall,omitempty"`
+	FunctionResponse *geminiFunctionResponse `json:"functionResponse,omitempty"`
+}
+
+type geminiFunctionCall struct {
+	ID   string         `json:"id,omitempty"`
+	Name string         `json:"name"`
+	Args map[string]any `json:"args,omitempty"`
+}
+
+type geminiFunctionResponse struct {
+	Name     string         `json:"name"`
+	ID       string         `json:"id,omitempty"`
+	Response map[string]any `json:"response"`
+}
+
+type geminiTool struct {
+	FunctionDeclarations []geminiFunctionDeclaration `json:"functionDeclarations"`
+}
+
+type geminiFunctionDeclaration struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters,omitempty"`
 }
 
 type generateContentResponse struct {

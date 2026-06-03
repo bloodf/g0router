@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	defaultBaseURL   = "https://api.anthropic.com"
-	anthropicVersion = "2023-06-01"
-	defaultMaxTokens = 1024
+	defaultBaseURL             = "https://api.anthropic.com"
+	anthropicVersion           = "2023-06-01"
+	defaultMaxTokens           = 1024
+	defaultToolInputSchemaJSON = `{"type":"object","properties":{}}`
 )
 
 type AnthropicProvider struct {
@@ -200,18 +201,34 @@ func toAnthropicRequest(req *providers.ChatRequest) (*anthropicRequest, error) {
 		maxTokens = *req.MaxCompletionTokens
 	}
 
-	messages := make([]anthropicMessage, 0, len(req.Messages))
 	var system any = req.System
+	inputMessages := make([]providers.Message, 0, len(req.Messages))
 	for _, message := range req.Messages {
 		if message.Role == "system" && system == nil {
 			system = message.Content
 			continue
 		}
-		content, err := toContentBlocks(message.Content)
+		inputMessages = append(inputMessages, message)
+	}
+
+	messages := make([]anthropicMessage, 0, len(inputMessages))
+	for i := 0; i < len(inputMessages); i++ {
+		message := inputMessages[i]
+		content, err := toContentBlocks(message)
 		if err != nil {
 			return nil, fmt.Errorf("anthropic request message content: %w", err)
 		}
-		messages = append(messages, anthropicMessage{Role: message.Role, Content: content})
+		if message.Role == "tool" {
+			for i+1 < len(inputMessages) && inputMessages[i+1].Role == "tool" {
+				nextContent, err := toContentBlocks(inputMessages[i+1])
+				if err != nil {
+					return nil, fmt.Errorf("anthropic request message content: %w", err)
+				}
+				content = append(content, nextContent...)
+				i++
+			}
+		}
+		messages = append(messages, anthropicMessage{Role: anthropicRole(message.Role), Content: content})
 	}
 
 	return &anthropicRequest{
@@ -222,13 +239,155 @@ func toAnthropicRequest(req *providers.ChatRequest) (*anthropicRequest, error) {
 		Temperature:   req.Temperature,
 		TopP:          req.TopP,
 		StopSequences: stopSequences(req.Stop),
+		Tools:         anthropicTools(req.Tools),
+		ToolChoice:    anthropicToolChoice(req.ToolChoice),
 		Thinking:      req.Thinking,
 	}, nil
 }
 
-func toContentBlocks(content any) ([]anthropicContentBlock, error) {
-	switch value := content.(type) {
+func anthropicRole(role string) string {
+	if role == "tool" {
+		return "user"
+	}
+	return role
+}
+
+func anthropicTools(tools []providers.Tool) []anthropicTool {
+	if len(tools) == 0 {
+		return nil
+	}
+	converted := make([]anthropicTool, 0, len(tools))
+	for _, tool := range tools {
+		if tool.Type != "function" {
+			continue
+		}
+		converted = append(converted, anthropicTool{
+			Name:        tool.Function.Name,
+			Description: tool.Function.Description,
+			InputSchema: anthropicInputSchema(tool.Function.Parameters),
+		})
+	}
+	return converted
+}
+
+func anthropicInputSchema(parameters json.RawMessage) json.RawMessage {
+	if len(parameters) == 0 {
+		return json.RawMessage(defaultToolInputSchemaJSON)
+	}
+	return append(json.RawMessage(nil), parameters...)
+}
+
+func anthropicToolChoice(choice any) *anthropicChoice {
+	switch value := choice.(type) {
+	case nil:
+		return nil
 	case string:
+		switch value {
+		case "auto", "":
+			return &anthropicChoice{Type: "auto"}
+		case "none":
+			return &anthropicChoice{Type: "none"}
+		case "required":
+			return &anthropicChoice{Type: "any"}
+		default:
+			return nil
+		}
+	case map[string]any:
+		return anthropicToolChoiceFromMap(value)
+	default:
+		data, err := json.Marshal(value)
+		if err != nil {
+			return nil
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			return nil
+		}
+		return anthropicToolChoiceFromMap(decoded)
+	}
+}
+
+func anthropicToolChoiceFromMap(value map[string]any) *anthropicChoice {
+	choiceType, _ := value["type"].(string)
+	switch choiceType {
+	case "auto", "none":
+		return &anthropicChoice{Type: choiceType}
+	case "required":
+		return &anthropicChoice{Type: "any"}
+	case "function":
+		function, _ := value["function"].(map[string]any)
+		name, _ := function["name"].(string)
+		if name == "" {
+			return nil
+		}
+		return &anthropicChoice{Type: "tool", Name: name}
+	default:
+		return nil
+	}
+}
+
+func toContentBlocks(message providers.Message) ([]anthropicContentBlock, error) {
+	if message.Role == "tool" {
+		return toToolResultBlock(message)
+	}
+
+	blocks, err := contentBlocksFromContent(message.Content)
+	if err != nil {
+		return nil, err
+	}
+	for _, toolCall := range message.ToolCalls {
+		block, err := toToolUseBlock(toolCall)
+		if err != nil {
+			return nil, err
+		}
+		blocks = append(blocks, block)
+	}
+	return blocks, nil
+}
+
+func toToolResultBlock(message providers.Message) ([]anthropicContentBlock, error) {
+	text, err := contentString(message.Content)
+	if err != nil {
+		return nil, err
+	}
+	toolUseID := ""
+	if message.ToolCallID != nil {
+		toolUseID = *message.ToolCallID
+	}
+	if toolUseID == "" {
+		return nil, fmt.Errorf("tool result missing tool_call_id")
+	}
+	return []anthropicContentBlock{{
+		Type:      "tool_result",
+		ToolUseID: toolUseID,
+		Content:   text,
+	}}, nil
+}
+
+func toToolUseBlock(toolCall providers.ToolCall) (anthropicContentBlock, error) {
+	if toolCall.Type != "function" {
+		return anthropicContentBlock{}, fmt.Errorf("unsupported tool call type %q", toolCall.Type)
+	}
+	input, err := rawJSONObject(toolCall.Function.Arguments)
+	if err != nil {
+		return anthropicContentBlock{}, fmt.Errorf("tool call arguments: %w", err)
+	}
+	return anthropicContentBlock{
+		Type:  "tool_use",
+		ID:    toolCall.ID,
+		Name:  toolCall.Function.Name,
+		Input: input,
+	}, nil
+}
+
+func contentBlocksFromContent(content any) ([]anthropicContentBlock, error) {
+	switch value := content.(type) {
+	case nil:
+		return nil, nil
+	case string:
+		if value == "" {
+			return nil, nil
+		}
 		return []anthropicContentBlock{{Type: "text", Text: value}}, nil
 	case []anthropicContentBlock:
 		return value, nil
@@ -243,6 +402,33 @@ func toContentBlocks(content any) ([]anthropicContentBlock, error) {
 		}
 		return blocks, nil
 	}
+}
+
+func contentString(content any) (string, error) {
+	switch value := content.(type) {
+	case nil:
+		return "", nil
+	case string:
+		return value, nil
+	default:
+		blocks, err := contentBlocksFromContent(value)
+		if err != nil {
+			return "", err
+		}
+		return contentText(blocks), nil
+	}
+}
+
+func rawJSONObject(raw string) (json.RawMessage, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return json.RawMessage(`{}`), nil
+	}
+	var value map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &value); err != nil {
+		return nil, err
+	}
+	return compactJSON(json.RawMessage(trimmed))
 }
 
 func stopSequences(stop any) []string {
@@ -270,8 +456,9 @@ func toChatResponse(resp anthropicResponse) *providers.ChatResponse {
 		Choices: []providers.Choice{{
 			Index: 0,
 			Message: providers.Message{
-				Role:    resp.Role,
-				Content: contentText(resp.Content),
+				Role:      resp.Role,
+				Content:   contentText(resp.Content),
+				ToolCalls: toolCallsFromContent(resp.Content),
 			},
 			FinishReason: finishReason,
 		}},
@@ -289,6 +476,47 @@ func contentText(blocks []anthropicContentBlock) string {
 	return strings.Join(parts, "")
 }
 
+func toolCallsFromContent(blocks []anthropicContentBlock) []providers.ToolCall {
+	var toolCalls []providers.ToolCall
+	for _, block := range blocks {
+		if block.Type != "tool_use" {
+			continue
+		}
+		arguments, err := compactJSONString(block.Input)
+		if err != nil {
+			arguments = string(block.Input)
+		}
+		toolCalls = append(toolCalls, providers.ToolCall{
+			ID:   block.ID,
+			Type: "function",
+			Function: providers.ToolCallFunc{
+				Name:      block.Name,
+				Arguments: arguments,
+			},
+		})
+	}
+	return toolCalls
+}
+
+func compactJSONString(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 {
+		return "{}", nil
+	}
+	compact, err := compactJSON(raw)
+	if err != nil {
+		return "", err
+	}
+	return string(compact), nil
+}
+
+func compactJSON(raw json.RawMessage) (json.RawMessage, error) {
+	var buffer bytes.Buffer
+	if err := json.Compact(&buffer, raw); err != nil {
+		return nil, err
+	}
+	return append(json.RawMessage(nil), buffer.Bytes()...), nil
+}
+
 func mapStopReason(reason *string) *string {
 	if reason == nil {
 		return nil
@@ -299,6 +527,8 @@ func mapStopReason(reason *string) *string {
 		mapped = "stop"
 	case "max_tokens":
 		mapped = "length"
+	case "tool_use":
+		mapped = "tool_calls"
 	}
 	return &mapped
 }
@@ -339,6 +569,13 @@ type streamState struct {
 	id          string
 	model       string
 	inputTokens int
+	toolBlocks  map[int]*streamToolBlock
+}
+
+type streamToolBlock struct {
+	id          string
+	name        string
+	partialJSON strings.Builder
 }
 
 func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk, state *streamState) {
@@ -361,12 +598,56 @@ func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk, stat
 		state.inputTokens = event.Message.Usage.InputTokens
 		role := event.Message.Role
 		chunks <- streamChunk(state, providers.StreamDelta{Role: &role}, nil, nil)
-	case "content_block_delta":
-		if event.Delta.Text == "" {
+	case "content_block_start":
+		if event.ContentBlock == nil || event.ContentBlock.Type != "tool_use" {
 			return
 		}
-		text := event.Delta.Text
-		chunks <- streamChunk(state, providers.StreamDelta{Content: &text}, nil, nil)
+		if state.toolBlocks == nil {
+			state.toolBlocks = make(map[int]*streamToolBlock)
+		}
+		block := &streamToolBlock{
+			id:   event.ContentBlock.ID,
+			name: event.ContentBlock.Name,
+		}
+		if len(event.ContentBlock.Input) > 0 && string(event.ContentBlock.Input) != "{}" {
+			block.partialJSON.WriteString(string(event.ContentBlock.Input))
+		}
+		state.toolBlocks[event.Index] = block
+	case "content_block_delta":
+		switch event.Delta.Type {
+		case "input_json_delta":
+			block := state.toolBlocks[event.Index]
+			if block == nil {
+				return
+			}
+			block.partialJSON.WriteString(event.Delta.PartialJSON)
+		default:
+			if event.Delta.Text == "" {
+				return
+			}
+			text := event.Delta.Text
+			chunks <- streamChunk(state, providers.StreamDelta{Content: &text}, nil, nil)
+		}
+	case "content_block_stop":
+		block := state.toolBlocks[event.Index]
+		if block == nil {
+			return
+		}
+		delete(state.toolBlocks, event.Index)
+		arguments, err := compactJSONString(json.RawMessage(block.partialJSON.String()))
+		if err != nil {
+			arguments = block.partialJSON.String()
+		}
+		chunks <- streamChunk(state, providers.StreamDelta{
+			ToolCalls: []providers.ToolCall{{
+				ID:   block.id,
+				Type: "function",
+				Function: providers.ToolCallFunc{
+					Name:      block.name,
+					Arguments: arguments,
+				},
+			}},
+		}, nil, nil)
 	case "message_delta":
 		finishReason := mapStopReason(event.Delta.StopReason)
 		usage := event.Usage

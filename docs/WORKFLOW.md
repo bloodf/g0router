@@ -1201,7 +1201,10 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.E.4"
     name: "Tool-call preservation across provider adapters"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7e-tools"
+    completed_at: "2026-06-03T03:09:08Z"
     files_owned:
       - internal/providers/anthropic/*
       - internal/providers/gemini/*

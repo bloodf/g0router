@@ -126,6 +126,9 @@ func (p *GeminiProvider) ListModels(ctx context.Context, key providers.Key) ([]p
 }
 
 func buildGenerateContentRequest(req *providers.ChatRequest) (*generateContentRequest, error) {
+	if req == nil {
+		return nil, fmt.Errorf("gemini request: nil chat request")
+	}
 	geminiReq := &generateContentRequest{
 		Contents: make([]content, 0, len(req.Messages)),
 		GenerationConfig: &generationConfig{
@@ -140,23 +143,38 @@ func buildGenerateContentRequest(req *providers.ChatRequest) (*generateContentRe
 		geminiReq.GenerationConfig = nil
 	}
 
-	if system, ok := req.System.(string); ok && system != "" {
+	tools, err := geminiTools(req.Tools)
+	if err != nil {
+		return nil, err
+	}
+	geminiReq.Tools = tools
+
+	if system, err := textFromContent(req.System); err != nil {
+		return nil, fmt.Errorf("build gemini system: %w", err)
+	} else if system != "" {
 		geminiReq.SystemInstruction = &content{Parts: []part{{Text: system}}}
 	}
 
+	toolCallNames := make(map[string]string)
 	for _, message := range req.Messages {
-		text, err := textContent(message.Content)
-		if err != nil {
-			return nil, fmt.Errorf("build gemini content: %w", err)
-		}
 		if message.Role == "system" {
+			text, err := textFromContent(message.Content)
+			if err != nil {
+				return nil, fmt.Errorf("build gemini system message: %w", err)
+			}
 			geminiReq.SystemInstruction = &content{Parts: []part{{Text: text}}}
 			continue
 		}
-		geminiReq.Contents = append(geminiReq.Contents, content{
-			Role:  geminiRole(message.Role),
-			Parts: []part{{Text: text}},
-		})
+		converted, err := geminiContent(message, toolCallNames)
+		if err != nil {
+			return nil, fmt.Errorf("build gemini content: %w", err)
+		}
+		for _, toolCall := range message.ToolCalls {
+			if toolCall.ID != "" && toolCall.Function.Name != "" {
+				toolCallNames[toolCall.ID] = toolCall.Function.Name
+			}
+		}
+		geminiReq.Contents = append(geminiReq.Contents, converted)
 	}
 	return geminiReq, nil
 }
@@ -168,12 +186,180 @@ func maxOutputTokens(req *providers.ChatRequest) *int {
 	return req.MaxTokens
 }
 
-func textContent(value any) (string, error) {
-	text, ok := value.(string)
-	if !ok {
-		return "", fmt.Errorf("unsupported content type %T", value)
+func geminiTools(tools []providers.Tool) ([]geminiTool, error) {
+	if len(tools) == 0 {
+		return nil, nil
 	}
-	return text, nil
+
+	declarations := make([]geminiFunctionDeclaration, 0, len(tools))
+	for i, tool := range tools {
+		if tool.Type != "function" {
+			return nil, fmt.Errorf("tool %d: unsupported tool type %q", i, tool.Type)
+		}
+		declarations = append(declarations, geminiFunctionDeclaration{
+			Name:        tool.Function.Name,
+			Description: tool.Function.Description,
+			Parameters:  append(json.RawMessage(nil), tool.Function.Parameters...),
+		})
+	}
+	return []geminiTool{{FunctionDeclarations: declarations}}, nil
+}
+
+func geminiContent(message providers.Message, toolCallNames map[string]string) (content, error) {
+	if message.Role == "tool" {
+		return geminiToolContent(message, toolCallNames)
+	}
+
+	parts, err := geminiParts(message.Content)
+	if err != nil {
+		return content{}, err
+	}
+	for i, toolCall := range message.ToolCalls {
+		part, err := geminiFunctionCallPart(toolCall)
+		if err != nil {
+			return content{}, fmt.Errorf("tool call %d: %w", i, err)
+		}
+		parts = append(parts, part)
+	}
+	if len(parts) == 0 {
+		return content{}, fmt.Errorf("empty content for role %q", message.Role)
+	}
+
+	return content{
+		Role:  geminiRole(message.Role),
+		Parts: parts,
+	}, nil
+}
+
+func geminiToolContent(message providers.Message, toolCallNames map[string]string) (content, error) {
+	name := "tool_result"
+	id := ""
+	if message.ToolCallID != nil && *message.ToolCallID != "" {
+		id = *message.ToolCallID
+		if mappedName, ok := toolCallNames[id]; ok && mappedName != "" {
+			name = mappedName
+		} else {
+			name = id
+		}
+	} else if message.Name != nil && *message.Name != "" {
+		name = *message.Name
+	}
+
+	text, err := textFromContent(message.Content)
+	if err != nil {
+		return content{}, err
+	}
+	return content{
+		Role: "user",
+		Parts: []part{{
+			FunctionResponse: &geminiFunctionResponse{
+				Name:     name,
+				ID:       id,
+				Response: map[string]any{"content": text},
+			},
+		}},
+	}, nil
+}
+
+func geminiFunctionCallPart(toolCall providers.ToolCall) (part, error) {
+	if toolCall.Type != "function" {
+		return part{}, fmt.Errorf("unsupported tool call type %q", toolCall.Type)
+	}
+
+	args, err := parseFunctionArgs(toolCall.Function.Arguments)
+	if err != nil {
+		return part{}, err
+	}
+	return part{
+		FunctionCall: &geminiFunctionCall{
+			ID:   toolCall.ID,
+			Name: toolCall.Function.Name,
+			Args: args,
+		},
+	}, nil
+}
+
+func parseFunctionArgs(raw string) (map[string]any, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	var args map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &args); err == nil {
+		return args, nil
+	}
+
+	var value any
+	if err := json.Unmarshal([]byte(trimmed), &value); err != nil {
+		return map[string]any{"arguments": raw}, nil
+	}
+	return map[string]any{"arguments": value}, nil
+}
+
+func geminiParts(value any) ([]part, error) {
+	switch typed := value.(type) {
+	case nil:
+		return nil, nil
+	case string:
+		if typed == "" {
+			return nil, nil
+		}
+		return []part{{Text: typed}}, nil
+	case []map[string]any:
+		return geminiPartsFromBlocks(typed)
+	case []any:
+		return geminiPartsFromAnyBlocks(typed)
+	default:
+		return nil, fmt.Errorf("unsupported content type %T", value)
+	}
+}
+
+func textFromContent(value any) (string, error) {
+	parts, err := geminiParts(value)
+	if err != nil {
+		return "", err
+	}
+
+	var builder strings.Builder
+	for _, part := range parts {
+		if part.Text == "" {
+			return "", fmt.Errorf("unsupported non-text content in text-only field")
+		}
+		builder.WriteString(part.Text)
+	}
+	return builder.String(), nil
+}
+
+func geminiPartsFromAnyBlocks(blocks []any) ([]part, error) {
+	typed := make([]map[string]any, 0, len(blocks))
+	for i, block := range blocks {
+		value, ok := block.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("content block %d: unsupported content block type %T", i, block)
+		}
+		typed = append(typed, value)
+	}
+	return geminiPartsFromBlocks(typed)
+}
+
+func geminiPartsFromBlocks(blocks []map[string]any) ([]part, error) {
+	parts := make([]part, 0, len(blocks))
+	for i, block := range blocks {
+		blockType, _ := block["type"].(string)
+		if blockType != "text" {
+			return nil, fmt.Errorf("content block %d: unsupported content block type %q", i, blockType)
+		}
+
+		text, ok := block["text"].(string)
+		if !ok {
+			return nil, fmt.Errorf("content block %d: text must be a string", i)
+		}
+		if text != "" {
+			parts = append(parts, part{Text: text})
+		}
+	}
+	return parts, nil
 }
 
 func geminiRole(role string) string {
@@ -257,11 +443,16 @@ func mapGenerateContentResponse(model string, decoded generateContentResponse) *
 	resp.Choices = make([]providers.Choice, 0, len(decoded.Candidates))
 	for i, candidate := range decoded.Candidates {
 		finishReason := mapFinishReason(candidate.FinishReason)
+		toolCalls := toolCallsFromParts(candidate.Content.Parts)
+		if len(toolCalls) > 0 {
+			finishReason = "tool_calls"
+		}
 		resp.Choices = append(resp.Choices, providers.Choice{
 			Index: i,
 			Message: providers.Message{
-				Role:    "assistant",
-				Content: textFromParts(candidate.Content.Parts),
+				Role:      "assistant",
+				Content:   textFromParts(candidate.Content.Parts),
+				ToolCalls: toolCalls,
 			},
 			FinishReason: &finishReason,
 		})
@@ -275,6 +466,38 @@ func textFromParts(parts []part) string {
 		builder.WriteString(part.Text)
 	}
 	return builder.String()
+}
+
+func toolCallsFromParts(parts []part) []providers.ToolCall {
+	var toolCalls []providers.ToolCall
+	for _, part := range parts {
+		if part.FunctionCall == nil {
+			continue
+		}
+		arguments := "{}"
+		if part.FunctionCall.Args != nil {
+			data, err := json.Marshal(part.FunctionCall.Args)
+			if err == nil {
+				arguments = string(data)
+			}
+		}
+		toolCalls = append(toolCalls, providers.ToolCall{
+			ID:   geminiToolCallID(part.FunctionCall, len(toolCalls)),
+			Type: "function",
+			Function: providers.ToolCallFunc{
+				Name:      part.FunctionCall.Name,
+				Arguments: arguments,
+			},
+		})
+	}
+	return toolCalls
+}
+
+func geminiToolCallID(call *geminiFunctionCall, index int) string {
+	if call.ID != "" {
+		return call.ID
+	}
+	return fmt.Sprintf("gemini_call_%d", index)
 }
 
 func mapFinishReason(reason string) string {

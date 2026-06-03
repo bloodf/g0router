@@ -33,12 +33,14 @@ type GeminiPart struct {
 }
 
 type GeminiFunctionCall struct {
+	ID   string         `json:"id,omitempty"`
 	Name string         `json:"name"`
 	Args map[string]any `json:"args,omitempty"`
 }
 
 type GeminiFunctionResponse struct {
 	Name     string         `json:"name"`
+	ID       string         `json:"id,omitempty"`
 	Response map[string]any `json:"response"`
 }
 
@@ -86,6 +88,7 @@ func OpenAIToGemini(req *providers.ChatRequest) (*GeminiGenerateContentRequest, 
 		}
 	}
 
+	toolCallNames := make(map[string]string)
 	for i, message := range req.Messages {
 		if message.Role == "system" {
 			text, err := textFromContent(message.Content)
@@ -98,9 +101,14 @@ func OpenAIToGemini(req *providers.ChatRequest) (*GeminiGenerateContentRequest, 
 			continue
 		}
 
-		content, err := geminiContent(message)
+		content, err := geminiContent(message, toolCallNames)
 		if err != nil {
 			return nil, fmt.Errorf("openai to gemini message %d: %w", i, err)
+		}
+		for _, toolCall := range message.ToolCalls {
+			if toolCall.ID != "" && toolCall.Function.Name != "" {
+				toolCallNames[toolCall.ID] = toolCall.Function.Name
+			}
 		}
 		geminiReq.Contents = append(geminiReq.Contents, content)
 	}
@@ -143,9 +151,9 @@ func geminiTools(tools []providers.Tool) ([]GeminiTool, error) {
 	return []GeminiTool{{FunctionDeclarations: declarations}}, nil
 }
 
-func geminiContent(message providers.Message) (GeminiContent, error) {
+func geminiContent(message providers.Message, toolCallNames map[string]string) (GeminiContent, error) {
 	if message.Role == "tool" {
-		return geminiToolContent(message)
+		return geminiToolContent(message, toolCallNames)
 	}
 
 	parts, err := geminiParts(message.Content)
@@ -169,10 +177,16 @@ func geminiContent(message providers.Message) (GeminiContent, error) {
 	}, nil
 }
 
-func geminiToolContent(message providers.Message) (GeminiContent, error) {
+func geminiToolContent(message providers.Message, toolCallNames map[string]string) (GeminiContent, error) {
 	name := "tool_result"
+	id := ""
 	if message.ToolCallID != nil && *message.ToolCallID != "" {
-		name = *message.ToolCallID
+		id = *message.ToolCallID
+		if mappedName, ok := toolCallNames[id]; ok && mappedName != "" {
+			name = mappedName
+		} else {
+			name = id
+		}
 	}
 
 	text, err := textFromContent(message.Content)
@@ -185,6 +199,7 @@ func geminiToolContent(message providers.Message) (GeminiContent, error) {
 			{
 				FunctionResponse: &GeminiFunctionResponse{
 					Name:     name,
+					ID:       id,
 					Response: map[string]any{"content": text},
 				},
 			},
@@ -203,6 +218,7 @@ func geminiFunctionCallPart(toolCall providers.ToolCall) (GeminiPart, error) {
 	}
 	return GeminiPart{
 		FunctionCall: &GeminiFunctionCall{
+			ID:   toolCall.ID,
 			Name: toolCall.Function.Name,
 			Args: args,
 		},

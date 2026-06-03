@@ -154,6 +154,111 @@ func TestParseGenerateContentResponse(t *testing.T) {
 	}
 }
 
+func TestPreservesToolsAndToolMessages(t *testing.T) {
+	var gotRequest generateContentRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(generateContentToolCallResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	toolCallID := "call-1"
+	provider := New(server.URL)
+	resp, err := provider.ChatCompletion(context.Background(), apiKey(), &providers.ChatRequest{
+		Model: "gemini-2.5-flash",
+		Tools: []providers.Tool{{
+			Type: "function",
+			Function: providers.ToolFunction{
+				Name:        "weather",
+				Description: "Get weather",
+				Parameters:  json.RawMessage(`{"type":"object","properties":{"city":{"type":"string"}}}`),
+			},
+		}},
+		Messages: []providers.Message{
+			{Role: "user", Content: "What is the weather?"},
+			{
+				Role:    "assistant",
+				Content: "Calling weather.",
+				ToolCalls: []providers.ToolCall{{
+					ID:   toolCallID,
+					Type: "function",
+					Function: providers.ToolCallFunc{
+						Name:      "weather",
+						Arguments: `{"city":"Paris"}`,
+					},
+				}},
+			},
+			{Role: "tool", ToolCallID: &toolCallID, Content: `{"temp_c":19}`},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+
+	if len(gotRequest.Tools) != 1 || len(gotRequest.Tools[0].FunctionDeclarations) != 1 {
+		t.Fatalf("tools = %+v", gotRequest.Tools)
+	}
+	declaration := gotRequest.Tools[0].FunctionDeclarations[0]
+	if declaration.Name != "weather" || declaration.Description != "Get weather" {
+		t.Fatalf("declaration = %+v", declaration)
+	}
+	if string(declaration.Parameters) != `{"type":"object","properties":{"city":{"type":"string"}}}` {
+		t.Fatalf("parameters = %s", declaration.Parameters)
+	}
+	if len(gotRequest.Contents) != 3 {
+		t.Fatalf("contents = %+v", gotRequest.Contents)
+	}
+	assistantParts := gotRequest.Contents[1].Parts
+	if gotRequest.Contents[1].Role != "model" || len(assistantParts) != 2 {
+		t.Fatalf("assistant content = %+v", gotRequest.Contents[1])
+	}
+	if assistantParts[0].Text != "Calling weather." {
+		t.Fatalf("assistant text = %+v", assistantParts[0])
+	}
+	if assistantParts[1].FunctionCall == nil {
+		t.Fatalf("function call part = %+v", assistantParts[1])
+	}
+	if assistantParts[1].FunctionCall.ID != toolCallID {
+		t.Fatalf("function call id = %q", assistantParts[1].FunctionCall.ID)
+	}
+	if assistantParts[1].FunctionCall.Name != "weather" || assistantParts[1].FunctionCall.Args["city"] != "Paris" {
+		t.Fatalf("function call = %+v", assistantParts[1].FunctionCall)
+	}
+	toolParts := gotRequest.Contents[2].Parts
+	if gotRequest.Contents[2].Role != "user" || len(toolParts) != 1 || toolParts[0].FunctionResponse == nil {
+		t.Fatalf("tool response content = %+v", gotRequest.Contents[2])
+	}
+	if toolParts[0].FunctionResponse.Name != "weather" {
+		t.Fatalf("function response name = %q", toolParts[0].FunctionResponse.Name)
+	}
+	if toolParts[0].FunctionResponse.ID != toolCallID {
+		t.Fatalf("function response id = %q", toolParts[0].FunctionResponse.ID)
+	}
+	if toolParts[0].FunctionResponse.Response["content"] != `{"temp_c":19}` {
+		t.Fatalf("function response = %+v", toolParts[0].FunctionResponse.Response)
+	}
+
+	if len(resp.Choices) != 1 {
+		t.Fatalf("choices = %+v", resp.Choices)
+	}
+	toolCalls := resp.Choices[0].Message.ToolCalls
+	if len(toolCalls) != 1 {
+		t.Fatalf("tool calls = %+v", toolCalls)
+	}
+	if toolCalls[0].ID != "gemini-call-1" || toolCalls[0].Type != "function" || toolCalls[0].Function.Name != "weather" {
+		t.Fatalf("tool call = %+v", toolCalls[0])
+	}
+	if toolCalls[0].Function.Arguments != `{"city":"Paris"}` {
+		t.Fatalf("tool call args = %q", toolCalls[0].Function.Arguments)
+	}
+	if resp.Choices[0].FinishReason == nil || *resp.Choices[0].FinishReason != "tool_calls" {
+		t.Fatalf("finish reason = %+v", resp.Choices[0].FinishReason)
+	}
+}
+
 func TestParseError401(t *testing.T) {
 	server := jsonServer(t, http.StatusUnauthorized, `{"error":{"message":"invalid api key"}}`)
 	provider := New(server.URL)
@@ -218,6 +323,24 @@ func jsonServer(t *testing.T, status int, body string) *httptest.Server {
 const generateContentResponseJSON = `{
 	"candidates": [{
 		"content": {"role": "model", "parts": [{"text": "hello back"}]},
+		"finishReason": "STOP"
+	}],
+	"usageMetadata": {
+		"promptTokenCount": 5,
+		"candidatesTokenCount": 9,
+		"totalTokenCount": 14
+	}
+}`
+
+const generateContentToolCallResponseJSON = `{
+	"candidates": [{
+		"content": {
+			"role": "model",
+			"parts": [
+				{"text": "I need weather data."},
+				{"functionCall": {"id": "gemini-call-1", "name": "weather", "args": {"city": "Paris"}}}
+			]
+		},
 		"finishReason": "STOP"
 	}],
 	"usageMetadata": {

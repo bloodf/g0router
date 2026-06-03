@@ -126,6 +126,9 @@ func TestOpenAIToGeminiConvertsTextBlocksToolsAndToolCalls(t *testing.T) {
 	if got.Contents[1].Parts[1].FunctionCall == nil {
 		t.Fatalf("function call part = %+v", got.Contents[1].Parts[1])
 	}
+	if got.Contents[1].Parts[1].FunctionCall.ID != "call-1" {
+		t.Fatalf("function call id = %q", got.Contents[1].Parts[1].FunctionCall.ID)
+	}
 	if got.Contents[1].Parts[1].FunctionCall.Name != "weather" {
 		t.Fatalf("function call name = %q", got.Contents[1].Parts[1].FunctionCall.Name)
 	}
@@ -135,8 +138,11 @@ func TestOpenAIToGeminiConvertsTextBlocksToolsAndToolCalls(t *testing.T) {
 	if got.Contents[2].Role != "user" || got.Contents[2].Parts[0].FunctionResponse == nil {
 		t.Fatalf("tool result content = %+v", got.Contents[2])
 	}
-	if got.Contents[2].Parts[0].FunctionResponse.Name != "call-1" {
+	if got.Contents[2].Parts[0].FunctionResponse.Name != "weather" {
 		t.Fatalf("function response name = %q", got.Contents[2].Parts[0].FunctionResponse.Name)
+	}
+	if got.Contents[2].Parts[0].FunctionResponse.ID != "call-1" {
+		t.Fatalf("function response id = %q", got.Contents[2].Parts[0].FunctionResponse.ID)
 	}
 	if got.Contents[2].Parts[0].FunctionResponse.Response["content"] != `{"temp_c":19}` {
 		t.Fatalf("function response = %+v", got.Contents[2].Parts[0].FunctionResponse.Response)
