@@ -129,15 +129,15 @@ func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, runtime MCPInstanceR
 			writeError(ctx, fasthttp.StatusBadRequest, "mcp instance id required")
 			return
 		}
+		if err := s.DeleteMCPInstance(id); err != nil {
+			writeStoreError(ctx, "delete mcp instance", err)
+			return
+		}
 		if runtime != nil {
 			if err := runtime.CloseInstance(id); err != nil && !errors.Is(err, mcp.ErrClientNotFound) {
 				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("close mcp instance: %v", err))
 				return
 			}
-		}
-		if err := s.DeleteMCPInstance(id); err != nil {
-			writeStoreError(ctx, "delete mcp instance", err)
-			return
 		}
 		ctx.SetStatusCode(fasthttp.StatusNoContent)
 	default:

@@ -65,7 +65,7 @@ docker run --rm -p 127.0.0.1:20128:20128 \
 JWT_SECRET="${JWT_SECRET}" API_KEY_SECRET="${API_KEY_SECRET}" docker compose up -d
 ```
 
-Keep both secrets stable across restarts. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, Docker, API key bootstrap, logs, health checks, and upgrade steps.
+Keep both secrets stable across restarts. `API_KEY_SECRET` validates gateway and dashboard control-plane API keys; `JWT_SECRET` is separate session-signing material for dashboard/admin flows. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, Docker, API key bootstrap, logs, health checks, and upgrade steps.
 
 ## Supported Providers
 

@@ -528,6 +528,25 @@ func TestMCPInstancesDeleteRemovesAccountsAndCachedToolsOnlyForOneInstance(t *te
 	}
 }
 
+func TestMCPInstancesDeleteDoesNotCloseRuntimeWhenStoreDeleteFails(t *testing.T) {
+	s := openMCPHandlerStore(t)
+	instance := createHandlerMCPInstance(t, s, "atlassian-a", "account-a")
+	runtime := &fakeMCPInstanceRuntime{}
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close store before delete: %v", err)
+	}
+
+	ctx := newHandlerCtx(fasthttp.MethodDelete, "/api/mcp/instances/"+instance.ID)
+	MCPInstances(ctx, s, runtime, instance.ID)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if len(runtime.closed) != 0 {
+		t.Fatalf("closed = %+v, want runtime untouched when store delete fails", runtime.closed)
+	}
+}
+
 func createHandlerMCPInstance(t *testing.T, s *store.Store, name, accountLabel string) *store.MCPInstance {
 	t.Helper()
 	instance := &store.MCPInstance{

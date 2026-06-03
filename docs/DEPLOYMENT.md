@@ -137,8 +137,10 @@ export JWT_SECRET="$(openssl rand -hex 32)"
 export API_KEY_SECRET="$(openssl rand -hex 32)"
 ```
 
-`JWT_SECRET` signs dashboard/admin sessions. `API_KEY_SECRET` hashes gateway API
-keys and gates `/v1/*` plus `/api/*` routes when `REQUIRE_API_KEY=true`.
+`API_KEY_SECRET` hashes gateway API keys. Those API keys gate `/v1/*` inference
+and `/api/*` dashboard/control-plane routes when `REQUIRE_API_KEY=true`.
+`JWT_SECRET` is separate dashboard/admin session-signing material; do not reuse
+it as an API key secret.
 
 ### Build + Run
 
@@ -159,8 +161,8 @@ docker run -d \
   g0router
 ```
 
-Create the first gateway API key with the same `API_KEY_SECRET` value used by
-the running container:
+Create the first gateway/control-plane API key with the same `API_KEY_SECRET`
+value used by the running container:
 
 ```bash
 docker run --rm \
@@ -169,6 +171,9 @@ docker run --rm \
   -e API_KEY_SECRET="${API_KEY_SECRET}" \
   g0router keys add default
 ```
+
+Use the raw `g0r_...` key printed by that command as `Authorization: Bearer ...`
+for `/v1/*` clients and as the dashboard control-plane key.
 
 ### Docker Compose (docker-compose.yml)
 
