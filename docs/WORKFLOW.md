@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: REMEDIATION_EVALUATED
+project_status: REMEDIATION_HYGIENE_EVALUATION_PENDING
 current_stage: 7
-current_wave: "7.J"
-last_updated: "2026-06-03T17:53:22Z"
+current_wave: "7.K"
+last_updated: "2026-06-03T18:18:36Z"
 last_agent: "orchestrator"
 ```
 
@@ -1738,6 +1738,47 @@ evaluation:
     - "Frontend build output churns tracked ui/dist assets; evaluate deterministic generated output or a cleaner embed build path."
     - "Operator docs should more clearly distinguish dashboard/API-key auth from JWT secret requirements."
     - "MCP instance delete closes runtime before store delete; a store-delete failure can leave a stale row without live tools."
+```
+
+---
+
+### Wave 7.K — Release hygiene remediation
+
+```yaml
+wave: "7.K"
+status: DONE
+max_agents: 1
+depends_on: ["7.J"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build && JWT_SECRET=test-jwt API_KEY_SECRET=test-api docker compose config && docker build -t g0router:wave-7k-hygiene-test ."
+
+tasks:
+  - id: "7.K.1"
+    name: "Resolve Wave 7.J evaluator hygiene findings"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7k-release-hygiene"
+    completed_at: "2026-06-03T18:18:36Z"
+    files_owned:
+      - api/handlers/mcp.go
+      - api/handlers/mcp_test.go
+      - ui/vite.config.ts
+      - ui/dist/**
+      - README.md
+      - docs/DEPLOYMENT.md
+  - id: "7.K.2"
+    name: "Wave 7.K evaluator prompt"
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7k-release-hygiene"
+    completed_at: "2026-06-03T18:18:36Z"
+    depends_on_tasks: ["7.K.1"]
+    files_owned:
+      - docs/evaluations/wave-7K-evaluator-prompt.md
+      - docs/WORKFLOW.md
+
+evaluation:
+  status: PENDING
+  prompt: "docs/evaluations/wave-7K-evaluator-prompt.md"
 ```
 
 ---
