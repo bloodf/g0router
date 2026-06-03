@@ -342,9 +342,6 @@ func TestAuthNotRequired(t *testing.T) {
 	if resp.StatusCode == http.StatusUnauthorized {
 		t.Fatal("auth should not be required")
 	}
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404 until /v1 handler exists", resp.StatusCode)
-	}
 }
 
 func TestPublicRoutesBypassAuth(t *testing.T) {

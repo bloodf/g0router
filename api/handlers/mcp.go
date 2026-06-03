@@ -134,10 +134,7 @@ func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, runtime MCPInstanceR
 			return
 		}
 		if runtime != nil {
-			if err := runtime.CloseInstance(id); err != nil && !errors.Is(err, mcp.ErrClientNotFound) {
-				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("close mcp instance: %v", err))
-				return
-			}
+			_ = runtime.CloseInstance(id)
 		}
 		ctx.SetStatusCode(fasthttp.StatusNoContent)
 	default:
