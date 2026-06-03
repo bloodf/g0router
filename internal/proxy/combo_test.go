@@ -98,6 +98,127 @@ func TestComboDispatchFallsBackSequentially(t *testing.T) {
 	}
 }
 
+func TestComboDispatchResolvesCatalogProviderForStepModel(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key")
+	createProxyConnection(t, s, "anthropic", "anthropic-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "catalog-step",
+		Steps: []store.ComboStep{
+			{Provider: "openai", Model: "claude-sonnet-4"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "wrong-provider"}}
+	anthropic := &fakeProvider{name: providers.ProviderAnthropic, response: &providers.ChatResponse{ID: "chatcmpl-anthropic"}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.Register(anthropic)
+
+	resp, err := NewComboResolver(s).Dispatch(context.Background(), engine, "catalog-step", &providers.ChatRequest{Model: "combo/catalog-step"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-anthropic" {
+		t.Fatalf("response ID = %q, want anthropic response", resp.ID)
+	}
+	if openAI.called {
+		t.Fatal("stored openai provider should not be called for catalog-owned Anthropic model")
+	}
+	if !anthropic.called || anthropic.received.Model != "claude-sonnet-4" {
+		t.Fatalf("anthropic request = %+v", anthropic.received)
+	}
+}
+
+func TestComboDispatchResolvesAliasStepAndRewritesModel(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key")
+	createProxyConnection(t, s, "groq", "groq-key")
+	if err := s.SetModelAlias(store.ModelAlias{
+		Alias:    "fast-step",
+		Provider: "groq",
+		Model:    "llama-3.3-70b-versatile",
+	}); err != nil {
+		t.Fatalf("SetModelAlias: %v", err)
+	}
+	if err := s.CreateCombo(&store.Combo{
+		Name: "alias-step",
+		Steps: []store.ComboStep{
+			{Provider: "openai", Model: "fast-step"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "wrong-provider"}}
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "chatcmpl-groq"}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.Register(groq)
+
+	resp, err := NewComboResolver(s).Dispatch(context.Background(), engine, "alias-step", &providers.ChatRequest{Model: "combo/alias-step"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-groq" {
+		t.Fatalf("response ID = %q, want groq response", resp.ID)
+	}
+	if openAI.called {
+		t.Fatal("stored openai provider should not be called for alias-owned Groq model")
+	}
+	if !groq.called || groq.received.Model != "llama-3.3-70b-versatile" {
+		t.Fatalf("groq request = %+v", groq.received)
+	}
+}
+
+func TestComboDispatchRetriesNextAccountBeforeNextStep(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key-1")
+	createProxyConnection(t, s, "groq", "groq-key-2")
+	createProxyConnection(t, s, "openai", "openai-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "account-fallback",
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{
+		name:      providers.ProviderGroq,
+		errs:      []error{errors.New("rate limited"), nil},
+		responses: []*providers.ChatResponse{nil, &providers.ChatResponse{ID: "chatcmpl-groq-second-account"}},
+	}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-openai"}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+
+	resp, err := NewComboResolver(s).Dispatch(context.Background(), engine, "account-fallback", &providers.ChatRequest{Model: "combo/account-fallback"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-groq-second-account" {
+		t.Fatalf("response ID = %q, want second Groq account", resp.ID)
+	}
+	if groq.calls != 2 {
+		t.Fatalf("groq calls = %d, want 2", groq.calls)
+	}
+	if len(groq.keys) != 2 || groq.keys[0].Value == groq.keys[1].Value {
+		t.Fatalf("groq keys = %+v; want two different accounts", groq.keys)
+	}
+	if openAI.called {
+		t.Fatal("second combo step should not run before retrying next Groq account")
+	}
+}
+
 func TestComboDispatchRefreshesOAuthConnectionBeforeProviderCall(t *testing.T) {
 	s := openProxyTestStore(t)
 	now := time.Unix(1700000000, 0)

@@ -171,6 +171,18 @@ func TestInferenceUnknownModel(t *testing.T) {
 	}
 }
 
+func TestInferenceQuotaExhausted(t *testing.T) {
+	engine := &fakeEngine{err: proxy.ErrQuotaExhausted}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429; body=%s", resp.StatusCode, body)
+	}
+}
+
 func TestInferenceNoAuth(t *testing.T) {
 	engine := &fakeEngine{response: chatResponse()}
 	_, baseURL := startInferenceServer(t, api.ServerConfig{

@@ -1212,7 +1212,10 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.E.5"
     name: "Combo dispatch hardening, fallback/backoff, and quota gates"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    branch: "codex/wave-7e-combo"
+    completed_at: "2026-06-03T03:20:34Z"
     files_owned:
       - internal/proxy/combo.go
       - internal/proxy/combo_test.go

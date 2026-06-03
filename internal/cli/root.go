@@ -190,6 +190,10 @@ func runServer(ctx context.Context, config serveConfig) error {
 func newServerConfig(config serveConfig, s *store.Store) api.ServerConfig {
 	engine := newDefaultInferenceEngine(s)
 	mcpClients, mcpTools := newDefaultMCPRuntime()
+	quotaFetchers := defaultQuotaFetchers()
+	for provider, fetcher := range quotaFetchers {
+		engine.RegisterQuotaFetcher(provider, fetcher)
+	}
 
 	return api.ServerConfig{
 		Port:             config.Port,
@@ -202,7 +206,7 @@ func newServerConfig(config serveConfig, s *store.Store) api.ServerConfig {
 		ModelSource:      engine,
 		OAuthFlows:       defaultOAuthFlows(),
 		UsageStore:       s,
-		QuotaFetchers:    defaultQuotaFetchers(),
+		QuotaFetchers:    quotaFetchers,
 		MCPClientManager: mcpClients,
 		MCPToolManager:   mcpTools,
 	}

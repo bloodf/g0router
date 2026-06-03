@@ -125,6 +125,8 @@ func writeDispatchError(ctx *fasthttp.RequestCtx, err error) {
 		writeError(ctx, fasthttp.StatusNotFound, err.Error())
 	case errors.Is(err, proxy.ErrNoConnections):
 		writeError(ctx, fasthttp.StatusServiceUnavailable, err.Error())
+	case errors.Is(err, proxy.ErrQuotaExhausted):
+		writeError(ctx, fasthttp.StatusTooManyRequests, err.Error())
 	default:
 		writeError(ctx, fasthttp.StatusInternalServerError, err.Error())
 	}

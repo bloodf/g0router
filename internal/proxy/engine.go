@@ -13,11 +13,13 @@ import (
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/usage"
 )
 
 var (
 	ErrProviderNotFound = errors.New("provider not found")
 	ErrNoConnections    = errors.New("no active connections")
+	ErrQuotaExhausted   = errors.New("quota exhausted")
 )
 
 const defaultRefreshWindow = 5 * time.Minute
@@ -31,24 +33,37 @@ type modelRoute struct {
 	Model    string
 }
 
+type engineClock struct {
+	engine *Engine
+}
+
+func (c engineClock) Now() time.Time {
+	return c.engine.now()
+}
+
 type Engine struct {
 	store          *store.Store
 	pool           providerPool
 	refreshers     map[oauth.ProviderID]oauthRefresher
 	refreshManager *providercore.RefreshManager
+	fallback       *providercore.FallbackManager
+	quotaFetchers  map[providers.ModelProvider]usage.QuotaFetcher
 	refreshWindow  time.Duration
 	now            func() time.Time
 }
 
 func NewEngine(s *store.Store) *Engine {
-	return &Engine{
+	engine := &Engine{
 		store:          s,
 		pool:           newProviderPool(),
 		refreshers:     make(map[oauth.ProviderID]oauthRefresher),
 		refreshManager: providercore.NewRefreshManager(),
+		quotaFetchers:  make(map[providers.ModelProvider]usage.QuotaFetcher),
 		refreshWindow:  defaultRefreshWindow,
 		now:            time.Now,
 	}
+	engine.fallback = providercore.NewFallbackManagerWithClock(s, engineClock{engine: engine})
+	return engine
 }
 
 func (e *Engine) Register(provider providers.Provider) {
@@ -59,34 +74,112 @@ func (e *Engine) RegisterOAuthRefresher(provider oauth.ProviderID, refresher oau
 	e.refreshers[provider] = refresher
 }
 
+func (e *Engine) RegisterQuotaFetcher(provider providers.ModelProvider, fetcher usage.QuotaFetcher) {
+	if fetcher == nil {
+		delete(e.quotaFetchers, provider)
+		return
+	}
+	e.quotaFetchers[provider] = fetcher
+}
+
 func (e *Engine) RegisteredProviders() []providers.ModelProvider {
 	return e.pool.names()
 }
 
 func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
-	provider, key, upstreamModel, err := e.providerFor(ctx, req.Model)
+	if comboName, ok := comboModelName(req.Model); ok {
+		return NewComboResolver(e.store).Dispatch(ctx, e, comboName, req)
+	}
+
+	route, err := e.resolveModelRoute(req.Model)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := provider.ChatCompletion(ctx, key, requestWithModel(req, upstreamModel))
-	if err != nil {
-		return nil, fmt.Errorf("chat completion: %w", err)
-	}
-	return resp, nil
+	return e.dispatchRoute(ctx, route, req)
 }
 
 func (e *Engine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	provider, key, upstreamModel, err := e.providerFor(ctx, req.Model)
+	if comboName, ok := comboModelName(req.Model); ok {
+		return NewComboResolver(e.store).DispatchStream(ctx, e, comboName, req)
+	}
+
+	route, err := e.resolveModelRoute(req.Model)
 	if err != nil {
 		return nil, err
 	}
+	return e.dispatchStreamRoute(ctx, route, req)
+}
 
-	stream, err := provider.ChatCompletionStream(ctx, key, requestWithModel(req, upstreamModel))
-	if err != nil {
-		return nil, fmt.Errorf("chat completion stream: %w", err)
+func (e *Engine) dispatchRoute(ctx context.Context, route modelRoute, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	var lastErr error
+	for attempt := 0; attempt < e.maxConnectionAttempts(route.Provider); attempt++ {
+		provider, key, conn, upstreamModel, err := e.providerForRoute(ctx, route)
+		if err != nil {
+			if lastErr != nil && errors.Is(err, ErrNoConnections) {
+				return nil, lastErr
+			}
+			return nil, err
+		}
+
+		if err := e.checkQuota(ctx, key); err != nil {
+			e.recordProviderFailure(conn, upstreamModel)
+			lastErr = err
+			continue
+		}
+
+		resp, err := provider.ChatCompletion(ctx, key, requestWithModel(req, upstreamModel))
+		if err != nil {
+			wrapped := fmt.Errorf("chat completion: %w", err)
+			if fallbackWorthyError(err) {
+				e.recordProviderFailure(conn, upstreamModel)
+				lastErr = wrapped
+				continue
+			}
+			return nil, wrapped
+		}
+		e.recordProviderSuccess(conn, upstreamModel)
+		return resp, nil
 	}
-	return stream, nil
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, ErrNoConnections
+}
+
+func (e *Engine) dispatchStreamRoute(ctx context.Context, route modelRoute, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	var lastErr error
+	for attempt := 0; attempt < e.maxConnectionAttempts(route.Provider); attempt++ {
+		provider, key, conn, upstreamModel, err := e.providerForRoute(ctx, route)
+		if err != nil {
+			if lastErr != nil && errors.Is(err, ErrNoConnections) {
+				return nil, lastErr
+			}
+			return nil, err
+		}
+
+		if err := e.checkQuota(ctx, key); err != nil {
+			e.recordProviderFailure(conn, upstreamModel)
+			lastErr = err
+			continue
+		}
+
+		stream, err := provider.ChatCompletionStream(ctx, key, requestWithModel(req, upstreamModel))
+		if err != nil {
+			wrapped := fmt.Errorf("chat completion stream: %w", err)
+			if fallbackWorthyError(err) {
+				e.recordProviderFailure(conn, upstreamModel)
+				lastErr = wrapped
+				continue
+			}
+			return nil, wrapped
+		}
+		e.recordProviderSuccess(conn, upstreamModel)
+		return stream, nil
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, ErrNoConnections
 }
 
 func (e *Engine) ListModels(ctx context.Context) ([]providers.Model, error) {
@@ -142,22 +235,25 @@ func catalogModels(providerName providers.ModelProvider) []providers.Model {
 	return models
 }
 
-func (e *Engine) providerFor(ctx context.Context, model string) (providers.Provider, providers.Key, string, error) {
+func (e *Engine) providerFor(ctx context.Context, model string) (providers.Provider, providers.Key, *store.Connection, string, error) {
 	route, err := e.resolveModelRoute(model)
 	if err != nil {
-		return nil, providers.Key{}, "", err
+		return nil, providers.Key{}, nil, "", err
 	}
+	return e.providerForRoute(ctx, route)
+}
 
+func (e *Engine) providerForRoute(ctx context.Context, route modelRoute) (providers.Provider, providers.Key, *store.Connection, string, error) {
 	provider, ok := e.pool.get(route.Provider)
 	if !ok {
-		return nil, providers.Key{}, "", ErrProviderNotFound
+		return nil, providers.Key{}, nil, "", ErrProviderNotFound
 	}
 
-	key, err := e.keyFor(ctx, route.Provider)
+	key, conn, err := e.keyForModel(ctx, route.Provider, route.Model)
 	if err != nil {
-		return nil, providers.Key{}, "", err
+		return nil, providers.Key{}, nil, "", err
 	}
-	return provider, key, route.Model, nil
+	return provider, key, conn, route.Model, nil
 }
 
 func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
@@ -183,6 +279,17 @@ func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
 	return modelRoute{}, ErrProviderNotFound
 }
 
+func (e *Engine) resolveComboStepRoute(step ComboStep) (modelRoute, error) {
+	route, err := e.resolveModelRoute(step.Model)
+	if err == nil {
+		return route, nil
+	}
+	if err != nil && !errors.Is(err, ErrProviderNotFound) {
+		return modelRoute{}, err
+	}
+	return modelRoute{Provider: step.Provider, Model: step.Model}, nil
+}
+
 func requestWithModel(req *providers.ChatRequest, model string) *providers.ChatRequest {
 	if req.Model == model {
 		return req
@@ -193,18 +300,18 @@ func requestWithModel(req *providers.ChatRequest, model string) *providers.ChatR
 }
 
 func (e *Engine) keyFor(ctx context.Context, provider providers.ModelProvider) (providers.Key, error) {
-	conns, err := e.activeConnectionsForProvider(provider)
-	if err != nil {
-		return providers.Key{}, fmt.Errorf("get active connections: %w", err)
-	}
-	if len(conns) == 0 {
-		return providers.Key{}, ErrNoConnections
-	}
+	key, _, err := e.keyForModel(ctx, provider, "")
+	return key, err
+}
 
-	conn := conns[0]
+func (e *Engine) keyForModel(ctx context.Context, provider providers.ModelProvider, model string) (providers.Key, *store.Connection, error) {
+	conn, err := e.connectionForModel(provider, model)
+	if err != nil {
+		return providers.Key{}, nil, err
+	}
 	conn, err = e.refreshConnectionIfNeeded(ctx, provider, conn)
 	if err != nil {
-		return providers.Key{}, err
+		return providers.Key{}, nil, err
 	}
 
 	key := providers.Key{
@@ -218,19 +325,65 @@ func (e *Engine) keyFor(ctx context.Context, provider providers.ModelProvider) (
 		key.Value = *conn.AccessToken
 	}
 
-	return key, nil
+	return key, conn, nil
 }
 
-func (e *Engine) activeConnectionsForProvider(provider providers.ModelProvider) ([]*store.Connection, error) {
-	var connections []*store.Connection
+func (e *Engine) connectionForModel(provider providers.ModelProvider, model string) (*store.Connection, error) {
+	var lastErr error
 	for _, providerID := range providercore.ProviderAliases(provider.String()) {
-		providerConnections, err := e.store.GetActiveConnections(providerID)
-		if err != nil {
-			return nil, err
+		conn, err := e.fallback.Next(providerID, model)
+		if err == nil {
+			return conn, nil
 		}
-		connections = append(connections, providerConnections...)
+		if errors.Is(err, providercore.ErrNoActiveConnections) {
+			lastErr = err
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("get active connections: %w", err)
+		}
 	}
-	return connections, nil
+	if lastErr != nil {
+		return nil, ErrNoConnections
+	}
+	return nil, ErrNoConnections
+}
+
+func (e *Engine) maxConnectionAttempts(provider providers.ModelProvider) int {
+	total := 0
+	for _, providerID := range providercore.ProviderAliases(provider.String()) {
+		connections, err := e.store.GetActiveConnections(providerID)
+		if err != nil {
+			continue
+		}
+		total += len(connections)
+	}
+	if total == 0 {
+		return 1
+	}
+	return total
+}
+
+func (e *Engine) checkQuota(ctx context.Context, key providers.Key) error {
+	fetcher := e.quotaFetchers[key.Provider]
+	if fetcher == nil {
+		return nil
+	}
+	quota, err := fetcher.FetchQuota(ctx, key)
+	if err != nil {
+		if errors.Is(err, usage.ErrQuotaUnsupported) {
+			return nil
+		}
+		return nil
+	}
+	if quotaExhausted(quota) {
+		return fmt.Errorf("%s quota exhausted: %w", key.Provider, ErrQuotaExhausted)
+	}
+	return nil
+}
+
+func quotaExhausted(quota usage.Quota) bool {
+	return quota.Remaining <= 0 && (quota.Limit > 0 || quota.Used > 0)
 }
 
 func (e *Engine) refreshConnectionIfNeeded(ctx context.Context, provider providers.ModelProvider, conn *store.Connection) (*store.Connection, error) {
@@ -312,4 +465,52 @@ func resolveProvider(model string) (providers.ModelProvider, bool) {
 	default:
 		return "", false
 	}
+}
+
+func comboModelName(model string) (string, bool) {
+	name := strings.TrimPrefix(model, "combo/")
+	if name == model || name == "" {
+		return "", false
+	}
+	return name, true
+}
+
+func (e *Engine) recordProviderFailure(conn *store.Connection, model string) {
+	if conn == nil {
+		return
+	}
+	_ = e.fallback.RecordFailure(conn, model)
+}
+
+func (e *Engine) recordProviderSuccess(conn *store.Connection, model string) {
+	if conn == nil {
+		return
+	}
+	_ = e.fallback.RecordSuccess(conn, model)
+}
+
+func fallbackWorthyError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, ErrQuotaExhausted) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	text := strings.ToLower(err.Error())
+	for _, marker := range []string{
+		"rate limit",
+		"rate limited",
+		"quota",
+		"server error",
+		"temporarily unavailable",
+		"service unavailable",
+		"bad gateway",
+		"gateway timeout",
+		"timeout",
+	} {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
 }

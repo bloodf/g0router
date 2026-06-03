@@ -10,18 +10,24 @@ import (
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/usage"
 )
 
 type fakeProvider struct {
 	name        providers.ModelProvider
 	response    *providers.ChatResponse
+	responses   []*providers.ChatResponse
 	stream      <-chan providers.StreamChunk
 	models      []providers.Model
 	err         error
+	errs        []error
 	called      bool
 	streamed    bool
+	calls       int
 	received    *providers.ChatRequest
 	receivedKey providers.Key
+	requests    []*providers.ChatRequest
+	keys        []providers.Key
 }
 
 func (f *fakeProvider) Name() providers.ModelProvider {
@@ -30,15 +36,31 @@ func (f *fakeProvider) Name() providers.ModelProvider {
 
 func (f *fakeProvider) ChatCompletion(ctx context.Context, key providers.Key, req *providers.ChatRequest) (*providers.ChatResponse, error) {
 	f.called = true
+	f.calls++
 	f.receivedKey = key
 	f.received = req
-	return f.response, f.err
+	f.keys = append(f.keys, key)
+	f.requests = append(f.requests, req)
+	index := f.calls - 1
+	err := f.err
+	if index < len(f.errs) {
+		err = f.errs[index]
+	}
+	if err != nil {
+		return nil, err
+	}
+	if index < len(f.responses) {
+		return f.responses[index], nil
+	}
+	return f.response, nil
 }
 
 func (f *fakeProvider) ChatCompletionStream(ctx context.Context, key providers.Key, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
 	f.streamed = true
 	f.receivedKey = key
 	f.received = req
+	f.keys = append(f.keys, key)
+	f.requests = append(f.requests, req)
 	return f.stream, f.err
 }
 
@@ -51,6 +73,22 @@ type fakeOAuthRefresher struct {
 	err                  error
 	calls                int
 	receivedRefreshToken string
+}
+
+type fakeQuotaFetcher struct {
+	quota  usage.Quota
+	err    error
+	calls  int
+	gotKey providers.Key
+}
+
+func (f *fakeQuotaFetcher) FetchQuota(ctx context.Context, key providers.Key) (usage.Quota, error) {
+	f.calls++
+	f.gotKey = key
+	if f.err != nil {
+		return usage.Quota{}, f.err
+	}
+	return f.quota, nil
 }
 
 func (f *fakeOAuthRefresher) Refresh(ctx context.Context, refreshToken string) (oauth.TokenResult, error) {
@@ -177,6 +215,210 @@ func TestDispatchUsesModelAliasProviderAndRewritesUpstreamModel(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesComboModelThroughEngine(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "fast-fallback",
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, err: errors.New("rate limited")}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-combo"}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "combo/fast-fallback"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-combo" {
+		t.Fatalf("response ID = %q, want chatcmpl-combo", resp.ID)
+	}
+	if !groq.called || !openAI.called {
+		t.Fatalf("combo providers called groq=%v openai=%v", groq.called, openAI.called)
+	}
+	if groq.received.Model != "llama-3.3-70b-versatile" {
+		t.Fatalf("groq model = %q, want combo step model", groq.received.Model)
+	}
+	if openAI.received.Model != "gpt-4o-mini" {
+		t.Fatalf("openai model = %q, want combo step model", openAI.received.Model)
+	}
+}
+
+func TestDispatchRoundRobinsActiveConnections(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key-1")
+	createProxyConnection(t, s, "openai", "openai-key-2")
+	openAI := &fakeProvider{
+		name: providers.ProviderOpenAI,
+		responses: []*providers.ChatResponse{
+			{ID: "chatcmpl-1"},
+			{ID: "chatcmpl-2"},
+		},
+	}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+
+	if _, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"}); err != nil {
+		t.Fatalf("Dispatch first: %v", err)
+	}
+	if _, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"}); err != nil {
+		t.Fatalf("Dispatch second: %v", err)
+	}
+	if len(openAI.keys) != 2 {
+		t.Fatalf("keys = %+v", openAI.keys)
+	}
+	if openAI.keys[0].Value == openAI.keys[1].Value {
+		t.Fatalf("selected keys = %q, %q; want different round-robin keys", openAI.keys[0].Value, openAI.keys[1].Value)
+	}
+	selected := map[string]bool{openAI.keys[0].Value: true, openAI.keys[1].Value: true}
+	if !selected["openai-key-1"] || !selected["openai-key-2"] {
+		t.Fatalf("selected keys = %+v; want both configured keys", openAI.keys)
+	}
+}
+
+func TestDispatchRecordsFailureAndSkipsBackedOffConnection(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key-1")
+	createProxyConnection(t, s, "openai", "openai-key-2")
+	now := time.Unix(1_700_000_000, 0)
+	upstreamErr := errors.New("rate limited")
+	openAI := &fakeProvider{
+		name:      providers.ProviderOpenAI,
+		errs:      []error{upstreamErr, nil},
+		responses: []*providers.ChatResponse{nil, &providers.ChatResponse{ID: "chatcmpl-recovered"}},
+	}
+	engine := NewEngine(s)
+	engine.now = func() time.Time { return now }
+	engine.Register(openAI)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-recovered" {
+		t.Fatalf("response ID = %q", resp.ID)
+	}
+	if len(openAI.keys) != 2 {
+		t.Fatalf("selected keys = %+v", openAI.keys)
+	}
+	if openAI.keys[0].Value == openAI.keys[1].Value {
+		t.Fatalf("selected keys = %+v; want retry on a different connection", openAI.keys)
+	}
+
+	firstConn, err := s.GetConnection(openAI.keys[0].ConnID)
+	if err != nil {
+		t.Fatalf("GetConnection first: %v", err)
+	}
+	if firstConn.BackoffLevel != 1 {
+		t.Fatalf("backoff level = %d, want 1", firstConn.BackoffLevel)
+	}
+	if firstConn.ModelLocks["gpt-4o"] != now.Add(time.Second).Unix() {
+		t.Fatalf("model locks = %+v", firstConn.ModelLocks)
+	}
+}
+
+func TestDispatchSuccessClearsExpiredModelBackoff(t *testing.T) {
+	s := openProxyTestStore(t)
+	now := time.Unix(1_700_000_000, 0)
+	lockedUntil := now.Add(-time.Minute).Unix()
+	key := "openai-key"
+	conn := &store.Connection{
+		Provider:     "openai",
+		Name:         "primary",
+		AuthType:     store.AuthTypeAPIKey,
+		APIKey:       &key,
+		IsActive:     true,
+		BackoffLevel: 3,
+		ModelLocks:   map[string]int64{"gpt-4o": lockedUntil},
+	}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-ok"}}
+	engine := NewEngine(s)
+	engine.now = func() time.Time { return now }
+	engine.Register(openAI)
+
+	if _, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"}); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	updated, err := s.GetConnection(conn.ID)
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if updated.BackoffLevel != 0 {
+		t.Fatalf("backoff level = %d, want 0", updated.BackoffLevel)
+	}
+	if _, ok := updated.ModelLocks["gpt-4o"]; ok {
+		t.Fatalf("model lock was not cleared: %+v", updated.ModelLocks)
+	}
+}
+
+func TestDispatchDoesNotBackoffNonFallbackError(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key-1")
+	createProxyConnection(t, s, "openai", "openai-key-2")
+	badRequestErr := errors.New("invalid request body")
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, err: badRequestErr}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if !errors.Is(err, badRequestErr) {
+		t.Fatalf("Dispatch error = %v, want bad request error", err)
+	}
+	if len(openAI.keys) != 1 {
+		t.Fatalf("selected keys = %+v", openAI.keys)
+	}
+	conn, err := s.GetConnection(openAI.keys[0].ConnID)
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if conn.BackoffLevel != 0 || len(conn.ModelLocks) != 0 {
+		t.Fatalf("connection was backed off for non-fallback error: %+v", conn)
+	}
+}
+
+func TestDispatchQuotaExhaustionBlocksProviderCall(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "openai-key")
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-should-not-run"}}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{
+		Provider:  providers.ProviderOpenAI,
+		Limit:     100,
+		Used:      100,
+		Remaining: 0,
+	}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.RegisterQuotaFetcher(providers.ProviderOpenAI, quota)
+
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+	if !errors.Is(err, ErrQuotaExhausted) {
+		t.Fatalf("Dispatch error = %v, want ErrQuotaExhausted", err)
+	}
+	if openAI.called {
+		t.Fatal("provider should not be called when quota is exhausted")
+	}
+	if quota.calls != 1 {
+		t.Fatalf("quota calls = %d, want 1", quota.calls)
+	}
+	if quota.gotKey.Value != "openai-key" || quota.gotKey.Provider != providers.ProviderOpenAI {
+		t.Fatalf("quota key = %+v", quota.gotKey)
+	}
+}
+
 func TestDispatchStreamUsesModelAliasProviderAndRewritesUpstreamModel(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "groq", "groq-key")
@@ -229,6 +471,53 @@ func TestDispatchStreamUsesModelAliasProviderAndRewritesUpstreamModel(t *testing
 	}
 	if groq.receivedKey.Value != "groq-key" {
 		t.Fatalf("key value = %q, want groq-key", groq.receivedKey.Value)
+	}
+}
+
+func TestDispatchStreamUsesComboModelThroughEngine(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "anthropic", "anthropic-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name: "streaming",
+		Steps: []store.ComboStep{
+			{Provider: "anthropic", Model: "claude-sonnet-4"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	content := "hello"
+	chunks := make(chan providers.StreamChunk, 1)
+	chunks <- providers.StreamChunk{
+		ID:    "chunk-combo",
+		Model: "claude-sonnet-4",
+		Choices: []providers.StreamChoice{
+			{Delta: providers.StreamDelta{Content: &content}},
+		},
+	}
+	close(chunks)
+
+	anthropic := &fakeProvider{name: providers.ProviderAnthropic, stream: chunks}
+	engine := NewEngine(s)
+	engine.Register(anthropic)
+
+	stream, err := engine.DispatchStream(context.Background(), &providers.ChatRequest{Model: "combo/streaming"})
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	got, ok := <-stream
+	if !ok {
+		t.Fatal("stream closed before first chunk")
+	}
+	if got.ID != "chunk-combo" {
+		t.Fatalf("chunk ID = %q, want chunk-combo", got.ID)
+	}
+	if !anthropic.streamed {
+		t.Fatal("anthropic stream provider was not called")
+	}
+	if anthropic.received.Model != "claude-sonnet-4" {
+		t.Fatalf("combo stream model = %q", anthropic.received.Model)
 	}
 }
 
