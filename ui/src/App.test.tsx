@@ -59,6 +59,26 @@ describe("App", () => {
     expect(fetch).toHaveBeenCalledWith("/api/providers", expect.objectContaining({ credentials: "same-origin" }));
     expect(fetch).toHaveBeenCalledWith("/api/connections", expect.objectContaining({ credentials: "same-origin" }));
   });
+
+  it("saves a control-plane key and retries API calls with bearer auth", async () => {
+    const storage = stubLocalStorage();
+    const fetch = stubDashboardFetch();
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Control-plane API key"), {
+      target: { value: "g0r_dashboard_secret" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save key" }));
+
+    await screen.findByText("No overview data yet");
+
+    expect(storage.getItem("g0router.controlPlaneKey")).toBe("g0r_dashboard_secret");
+    expect(fetch.mock.calls.some(([, options]) => {
+      const headers = (options as RequestInit).headers as Record<string, string> | undefined;
+      return headers?.Authorization === "Bearer g0r_dashboard_secret";
+    })).toBe(true);
+  });
 });
 
 describe("api helpers", () => {
@@ -74,7 +94,7 @@ describe("api helpers", () => {
 });
 
 function stubDashboardFetch() {
-  const fetch = vi.fn(async (input: RequestInfo | URL) => {
+  const fetch = vi.fn(async (input: RequestInfo | URL, _options?: RequestInit) => {
     const path = String(input);
     switch (path) {
       case "/api/connections":
@@ -120,4 +140,19 @@ function jsonResponse(body: unknown, init: ResponseInit = {}) {
     headers: { "Content-Type": "application/json" },
     ...init
   });
+}
+
+function stubLocalStorage() {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: vi.fn((key: string) => values.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      values.set(key, value);
+    }),
+    removeItem: vi.fn((key: string) => {
+      values.delete(key);
+    })
+  };
+  vi.stubGlobal("localStorage", storage);
+  return storage;
 }

@@ -94,6 +94,44 @@ describe("apiFetch", () => {
     expect(fetch).toHaveBeenCalledWith("/api/providers", expect.any(Object));
   });
 
+  it("sends the saved control-plane key as a bearer token", async () => {
+    const storage = stubLocalStorage();
+    storage.setItem("g0router.controlPlaneKey", "g0r_test_secret");
+    const fetch = vi.fn(async () => jsonResponse({ RequireAPIKey: true }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiFetch(getSettingsPath());
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/settings",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer g0r_test_secret"
+        })
+      })
+    );
+  });
+
+  it("does not override explicit auth headers", async () => {
+    const storage = stubLocalStorage();
+    storage.setItem("g0router.controlPlaneKey", "g0r_saved");
+    const fetch = vi.fn(async () => jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetch);
+
+    await apiFetch("/api/settings", {
+      headers: { Authorization: "Bearer explicit" }
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/settings",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: "Bearer explicit"
+        })
+      })
+    );
+  });
+
   it("returns undefined for empty 204 responses", async () => {
     const fetch = vi.fn(async () => new Response(null, { status: 204 }));
     vi.stubGlobal("fetch", fetch);
@@ -119,3 +157,18 @@ describe("apiFetch", () => {
     }
   });
 });
+
+function stubLocalStorage() {
+  const values = new Map<string, string>();
+  const storage = {
+    getItem: vi.fn((key: string) => values.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => {
+      values.set(key, value);
+    }),
+    removeItem: vi.fn((key: string) => {
+      values.delete(key);
+    })
+  };
+  vi.stubGlobal("localStorage", storage);
+  return storage;
+}
