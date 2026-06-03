@@ -30,8 +30,8 @@
 ```yaml
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
-current_wave: "7.D"
-last_updated: "2026-06-03T02:22:07Z"
+current_wave: "7.E"
+last_updated: "2026-06-03T02:39:45Z"
 last_agent: "orchestrator"
 ```
 
@@ -1107,13 +1107,54 @@ tasks:
       - docs/WORKFLOW.md
 ```
 
-### Waves 7.D-7.I — Remaining Remediation Backlog
+### Wave 7.D — Provider and model parity matrix
+
+```yaml
+wave: "7.D"
+status: DONE
+max_agents: 3
+depends_on: ["7.C"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.D.1"
+    name: "Provider matrix source of truth and public surface wiring"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T02:39:45Z"
+    files_owned:
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - api/handlers/providers.go
+      - api/handlers/providers_test.go
+      - internal/cli/root.go
+      - internal/cli/root_test.go
+      - internal/cli/providers_test.go
+  - id: "7.D.2"
+    name: "Provider parity documentation cleanup"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T02:39:45Z"
+    files_owned:
+      - README.md
+      - docs/README.md
+      - docs/PROVIDERS.md
+      - docs/SCHEMA.md
+      - docs/WORKFLOW.md
+  - id: "7.D.3"
+    name: "Wave 7.D evaluator prompt"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T02:39:45Z"
+    files_owned:
+      - docs/evaluations/wave-7D-evaluator-prompt.md
+      - docs/WORKFLOW.md
+```
+
+### Waves 7.E-7.I — Remaining Remediation Backlog
 
 ```yaml
 waves:
-  - wave: "7.D"
-    name: "Provider and model parity matrix"
-    status: PENDING
   - wave: "7.E"
     name: "Real 9Router-style dispatch pipeline"
     status: PENDING

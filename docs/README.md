@@ -8,7 +8,7 @@ Start here to understand the project, then dive into specific areas.
 2. **[PLAN.md](PLAN.md)** — Master implementation plan with links to all 13 phase documents
 3. **[SCHEMA.md](SCHEMA.md)** — SQLite tables and API endpoint contracts
 4. **[CONFIG.md](CONFIG.md)** — Environment variables and settings
-5. **[PROVIDERS.md](PROVIDERS.md)** — Provider catalog with auth details and wire formats
+5. **[PROVIDERS.md](PROVIDERS.md)** — Provider parity/status matrix with auth and capability flags
 
 ## Reference
 

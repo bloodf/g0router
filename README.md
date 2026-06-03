@@ -4,9 +4,9 @@ Single-binary Go LLM gateway that unifies multiple AI provider APIs behind one e
 
 ## What It Does
 
-- **Unified API**: Send OpenAI-format requests → g0router routes to any provider (Anthropic, Gemini, Groq, etc.)
+- **Unified API**: Send OpenAI-format requests → g0router routes today to OpenAI and Anthropic, with additional adapters tracked in the provider matrix
 - **OAuth Login**: `g0router login anthropic` → browser OAuth → credentials stored
-- **Format Translation**: Client sends OpenAI format → g0router translates to Anthropic/Gemini/etc. and back
+- **Format Translation**: Client sends OpenAI format → g0router translates supported provider formats and tracks adapter-only providers separately
 - **Account Fallback**: Rate limited on one connection? Automatically tries the next
 - **RTK Compression**: Tool outputs (git diffs, build logs) compressed 40–80% before sending to LLM
 - **Cost Tracking**: Token usage + cost per request, per provider, per model
@@ -66,7 +66,7 @@ See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for systemd, Docker, logs, health c
 
 ## Supported Providers
 
-OpenAI, Anthropic, Gemini, Groq, Cerebras, DeepSeek, Mistral, Ollama, Perplexity, Fireworks, Together, NVIDIA, OpenRouter, HuggingFace, AWS Bedrock, Azure OpenAI, Vertex AI, Cohere, Replicate, xAI, GitHub Copilot, Cursor, and more. See [docs/PROVIDERS.md](docs/PROVIDERS.md).
+Public direct-dispatch support is currently OpenAI and Anthropic. Registered adapters, auth-only providers, and unsupported parity targets are listed explicitly in [docs/PROVIDERS.md](docs/PROVIDERS.md); do not treat a provider name there as usable unless its status is `supported`.
 
 ## Documentation
 

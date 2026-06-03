@@ -18,9 +18,14 @@ func TestProvidersListShowsKnownProviders(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"anthropic", "gemini", "openai"} {
-		if !strings.Contains(output, want) {
+	for _, want := range []string{"anthropic", "openai"} {
+		if !strings.Contains(output, want+"\n") {
 			t.Fatalf("output = %q, want provider %q", output, want)
+		}
+	}
+	for _, wantAbsent := range []string{"gemini", "groq"} {
+		if strings.Contains(output, wantAbsent+"\n") {
+			t.Fatalf("output = %q, should not list adapter-only provider %q", output, wantAbsent)
 		}
 	}
 }

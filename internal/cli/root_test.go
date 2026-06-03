@@ -329,6 +329,30 @@ func TestDefaultServerConfigWiresWave4ADependencies(t *testing.T) {
 	}
 }
 
+func TestProvidersListShowsSupportedInferenceProvidersOnly(t *testing.T) {
+	cmd := NewRootCommand("test")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"providers", "list"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	output := out.String()
+	for _, want := range []string{"openai", "anthropic"} {
+		if !strings.Contains(output, want+"\n") {
+			t.Fatalf("output = %q, want supported provider %q", output, want)
+		}
+	}
+	for _, unsupported := range []string{"gemini", "groq", "github-copilot", "cursor", "qwen", "minimax"} {
+		if strings.Contains(output, unsupported+"\n") {
+			t.Fatalf("output = %q, should not advertise %q as inference provider", output, unsupported)
+		}
+	}
+}
+
 func TestDefaultServerConfigWiresWave7BRuntime(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()

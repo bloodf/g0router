@@ -31,15 +31,51 @@ func TestProvidersListKnownProviders(t *testing.T) {
 
 	var decoded struct {
 		Data []struct {
-			ID string `json:"id"`
+			ID                string `json:"id"`
+			PublicStatus      string `json:"public_status"`
+			RegisteredAdapter bool   `json:"registered_adapter"`
+			PublicInference   bool   `json:"public_inference"`
+			DirectDispatch    bool   `json:"direct_dispatch"`
+			Inference         bool   `json:"inference"`
 		} `json:"data"`
 	}
 	decodeJSON(t, body, &decoded)
 	if len(decoded.Data) == 0 {
 		t.Fatal("providers list should not be empty")
 	}
-	if decoded.Data[0].ID != "anthropic" {
-		t.Fatalf("first provider = %q, want anthropic", decoded.Data[0].ID)
+	byID := make(map[string]struct {
+		PublicStatus      string
+		RegisteredAdapter bool
+		PublicInference   bool
+		DirectDispatch    bool
+		Inference         bool
+	}, len(decoded.Data))
+	for _, provider := range decoded.Data {
+		byID[provider.ID] = struct {
+			PublicStatus      string
+			RegisteredAdapter bool
+			PublicInference   bool
+			DirectDispatch    bool
+			Inference         bool
+		}{
+			PublicStatus:      provider.PublicStatus,
+			RegisteredAdapter: provider.RegisteredAdapter,
+			PublicInference:   provider.PublicInference,
+			DirectDispatch:    provider.DirectDispatch,
+			Inference:         provider.Inference,
+		}
+	}
+	if byID["openai"].PublicStatus != "supported" || !byID["openai"].PublicInference || !byID["openai"].DirectDispatch || !byID["openai"].Inference {
+		t.Fatalf("openai provider = %+v, want supported inference provider", byID["openai"])
+	}
+	if byID["groq"].PublicStatus != "adapter_only" || !byID["groq"].RegisteredAdapter || byID["groq"].PublicInference || byID["groq"].DirectDispatch || byID["groq"].Inference {
+		t.Fatalf("groq provider = %+v, want registered adapter without public inference", byID["groq"])
+	}
+	if byID["github-copilot"].PublicStatus != "auth_only" || byID["github-copilot"].Inference {
+		t.Fatalf("github-copilot provider = %+v, want auth_only without inference", byID["github-copilot"])
+	}
+	if byID["qwen"].PublicStatus != "unsupported" || byID["qwen"].Inference {
+		t.Fatalf("qwen provider = %+v, want unsupported without inference", byID["qwen"])
 	}
 }
 

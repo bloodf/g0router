@@ -218,7 +218,7 @@ GET  /v1/models               — List available models
 
 ### Management
 ```
-GET    /api/providers                — List all known providers
+GET    /api/providers                — List provider matrix entries with public_status/capability fields
 GET    /api/providers/:id/models     — List models for provider
 POST   /api/connections              — Create connection (OAuth or API key)
 GET    /api/connections              — List connections
@@ -272,7 +272,7 @@ g0router logout <provider>
 g0router keys add <name>
 g0router keys list
 g0router keys rm <name>
-g0router providers list
+g0router providers list              # Public direct-dispatch providers only
 g0router providers test <provider>
 g0router mcp add <name> --server-key KEY --launch-type http --transport streamable-http --url URL [--account-label LABEL]
 g0router mcp list

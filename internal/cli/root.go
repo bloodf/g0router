@@ -14,6 +14,7 @@ import (
 	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/api/handlers"
 	appconfig "github.com/bloodf/g0router/internal/config"
+	providerinfo "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
@@ -440,31 +441,12 @@ func newVersionCommand(version string) *cobra.Command {
 }
 
 func knownProviderNames() []string {
-	return []string{
-		string(providers.ProviderAnthropic),
-		string(providers.ProviderAzure),
-		string(providers.ProviderBedrock),
-		string(providers.ProviderCerebras),
-		string(providers.ProviderCohere),
-		string(providers.ProviderCursor),
-		string(providers.ProviderDeepSeek),
-		string(providers.ProviderFireworks),
-		string(providers.ProviderGemini),
-		string(providers.ProviderGitHubCopilot),
-		string(providers.ProviderGroq),
-		string(providers.ProviderHuggingFace),
-		string(providers.ProviderMistral),
-		string(providers.ProviderNebius),
-		string(providers.ProviderNVIDIA),
-		string(providers.ProviderOllama),
-		string(providers.ProviderOpenAI),
-		string(providers.ProviderOpenRouter),
-		string(providers.ProviderPerplexity),
-		string(providers.ProviderReplicate),
-		string(providers.ProviderTogether),
-		string(providers.ProviderVertex),
-		string(providers.ProviderXAI),
+	entries := providerinfo.PublicInferenceProviders()
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		names = append(names, entry.G0RouterID)
 	}
+	return names
 }
 
 func defaultOAuthFlows() handlers.OAuthFlows {

@@ -1,151 +1,71 @@
-# Provider Catalog
+# Provider Matrix
 
-Complete reference for all upstream LLM providers supported by g0router.
+`internal/provider/matrix.go` is the source of truth for provider status. Public APIs and CLI provider lists must derive from that matrix instead of maintaining separate handwritten lists.
 
-## Wire Format Groups
+Status meanings:
 
-g0router translates between these wire formats transparently:
+- `supported`: public inference works through normal `g0router serve` routing today.
+- `adapter_only`: an adapter is registered in startup, but ordinary `/v1/chat/completions` model selection cannot route to it until Wave 7.E catalog routing lands.
+- `auth_only`: credential capture exists, but no inference adapter is wired.
+- `unsupported`: explicitly not implemented; do not advertise as usable.
 
-| Format | Endpoint Pattern | Content-Type | Streaming |
-|--------|-----------------|--------------|-----------|
-| **OpenAI Chat** | `POST /v1/chat/completions` | `application/json` | SSE: `data: {chunk}\n\ndata: [DONE]\n\n` |
-| **OpenAI Responses** | `POST /v1/responses` | `application/json` | SSE with typed events |
-| **Anthropic Messages** | `POST /v1/messages` | `application/json` | SSE: `event: type\ndata: {chunk}\n\n` |
-| **Gemini** | `POST /v1beta/models/{model}:generateContent` | `application/json` | SSE via `?alt=sse` |
-| **Bedrock** | `POST /model/{id}/converse` | `application/json` | Chunk-based streaming |
+Current public direct-dispatch providers are only `openai` and `anthropic`. Everything else below is either adapter-only, auth-only, or unsupported.
 
-## Provider Details
+## Public Surfaces
 
-### Tier 1: Primary Providers (custom implementations)
+- `GET /api/providers` returns the full matrix with status and capability fields.
+- `g0router providers list` prints only public direct-dispatch providers.
+- `g0router auth list` prints providers with an auth flow, including `auth_only` providers.
+- `/api/connections` lists stored credentials for every provider, including auth-only rows, but that does not imply inference support.
 
-#### OpenAI
-- **Base URL**: `https://api.openai.com`
-- **Auth**: `Authorization: Bearer sk-...` (API key) or OAuth token (Codex)
-- **Wire format**: OpenAI Chat + Responses API
-- **Models**: gpt-4o, gpt-4o-mini, gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, o3, o3-mini, o4-mini
-- **OAuth**: Device-code flow (Codex CLI)
-  - Client ID: `DQ1Ij3iIOC1S0aQCBk5KFj9m4gQZLrIf`
-  - Token URL: `https://auth.openai.com/oauth/token`
-- **Special**: Supports `stream_options.include_usage` for streaming usage
+## Matrix
 
-#### Anthropic
-- **Base URL**: `https://api.anthropic.com`
-- **Auth**: `x-api-key: sk-ant-...` (API key) or `Authorization: Bearer ...` (OAuth)
-- **Wire format**: Anthropic Messages API
-- **Models**: claude-sonnet-4-20250514, claude-3-5-haiku-20241022, claude-3-5-sonnet-20241022, claude-3-opus-20240229
-- **OAuth**: PKCE + callback
-  - Client ID: `9d6bc642-e7b0-4445-8dab-bd2d0804e37c`
-  - Auth URL: `https://console.anthropic.com/oauth/authorize`
-  - Token URL: `https://api.anthropic.com/v1/oauth/token`
-  - Callback: `http://localhost:54545/oauth/callback`
-  - Scope: `org:create_api_key`
-- **Special**: System as top-level field, thinking blocks, cache tokens, content blocks
+| g0router ID | OMP ID | 9Router ID | Bifrost ID | Status | Auth | Refresh | Adapter | Public inference | Streaming | Catalog | List models | Notes |
+|-------------|--------|------------|------------|--------|------|---------|---------|------------------|-----------|---------|-------------|-------|
+| `alibaba` | `alibaba` | `alibaba` | `alibaba` | `auth_only` | API key | no | no | no | no | no | no | Direct key capture exists; no Alibaba inference adapter. |
+| `anthropic` | `anthropic` | `anthropic` | `anthropic` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Claude adapter is public-routable. |
+| `antigravity` | `antigravity` | `antigravity` | `antigravity` | `auth_only` | OAuth | yes | no | no | no | no | no | Google OAuth credential flow exists; dispatch is not a separate Antigravity provider. |
+| `azure` | `azure` | `azure` | `azure` | `adapter_only` | API key | no | yes | no | yes | no | yes | Registered adapter, but no ordinary model-name routing yet. |
+| `bedrock` | `bedrock` | `bedrock` | `bedrock` | `adapter_only` | API key/AWS material | no | yes | no | no | no | no | Registered adapter still uses an incomplete invoke path; Wave 7.F must fix or downgrade it. |
+| `cerebras` | `cerebras` | `cerebras` | `cerebras` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `unsupported` | none | no | no | no | no | no | no | No gateway adapter. |
+| `cohere` | `cohere` | `cohere` | `cohere` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible wrapper exists; not public-routable yet. |
+| `cursor` | `cursor` | `cursor` | `cursor` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Cursor inference adapter. |
+| `deepseek` | `deepseek` | `deepseek` | `deepseek` | `adapter_only` | API key, OAuth | yes | yes | no | yes | no | yes | OpenAI-compatible adapter plus auth flow, but no public routing yet. |
+| `fireworks` | `fireworks` | `fireworks` | `fireworks` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `gemini` | `gemini` | `gemini` | `gemini` | `adapter_only` | API key, OAuth | yes | yes | no | no | no | yes | Gemini adapter exists; no streaming or public routing yet. |
+| `github-copilot` | `github-copilot` | `github-copilot` | `github-copilot` | `auth_only` | OAuth | yes | no | no | no | no | no | Device-code OAuth exists; no Copilot inference adapter. |
+| `gitlab` | `gitlab` | `gitlab` | `gitlab` | `auth_only` | OAuth | yes | no | no | no | no | no | GitLab-style OAuth exists; no inference adapter. |
+| `groq` | `groq` | `groq` | `groq` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `huggingface` | `huggingface` | `huggingface` | `huggingface` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `kagi` | `kagi` | `kagi` | `kagi` | `unsupported` | none | no | no | no | no | no | no | No Kagi tool/search integration. |
+| `kilo` | `kilo` | `kilo` | `kilo` | `unsupported` | none | no | no | no | no | no | no | No Kilo provider integration. |
+| `kimi` | `kimi` | `kimi` | `kimi` | `auth_only` | OAuth | yes | no | no | no | no | no | Device-code OAuth exists; no Moonshot/Kimi inference adapter. |
+| `kiro` | `kiro` | `kiro` | `kiro` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Kiro inference adapter. |
+| `litellm` | `litellm` | `litellm` | `litellm` | `unsupported` | none | no | no | no | no | no | no | No LiteLLM gateway adapter. |
+| `lm-studio` | `lm-studio` | `lm-studio` | `lm-studio` | `unsupported` | none | no | no | no | no | no | no | No LM Studio adapter. |
+| `minimax` | `minimax` | `minimax` | `minimax` | `auth_only` | API key | no | no | no | no | no | no | API-key capture exists; no MiniMax inference adapter. |
+| `mistral` | `mistral` | `mistral` | `mistral` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `nebius` | `nebius` | `nebius` | `nebius` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `nvidia` | `nvidia` | `nvidia` | `nvidia` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `ollama` | `ollama` | `ollama` | `ollama` | `adapter_only` | none | no | yes | no | yes | no | yes | Local adapter exists; no public routing yet. |
+| `ollama-cloud` | `ollama-cloud` | `ollama-cloud` | `ollama-cloud` | `unsupported` | none | no | no | no | no | no | no | Only local Ollama adapter exists. |
+| `opencode` | `opencode` | `opencode` | `opencode` | `unsupported` | none | no | no | no | no | no | no | No OpenCode provider integration. |
+| `openai` | `openai/codex` | `openai` | `openai` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Codex OAuth stores as runtime provider `openai`; OpenAI is public-routable for `gpt-*` models. |
+| `openrouter` | `openrouter` | `openrouter` | `openrouter` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `perplexity` | `perplexity` | `perplexity` | `perplexity` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `qianfan` | `qianfan` | `qianfan` | `qianfan` | `unsupported` | none | no | no | no | no | no | no | No Baidu Qianfan auth or inference adapter. |
+| `qwen` | `qwen` | `qwen` | `qwen` | `unsupported` | none | no | no | no | no | no | no | No Qwen auth or inference adapter. |
+| `replicate` | `replicate` | `replicate` | `replicate` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible wrapper exists; not public-routable yet. |
+| `tavily` | `tavily` | `tavily` | `tavily` | `unsupported` | none | no | no | no | no | no | no | No Tavily tool/search integration. |
+| `together` | `together` | `together` | `together` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `vercel-ai-gateway` | `vercel-ai-gateway` | `vercel-ai-gateway` | `vercel-ai-gateway` | `unsupported` | none | no | no | no | no | no | no | No Vercel AI Gateway adapter. |
+| `vertex` | `vertex` | `vertex` | `vertex` | `adapter_only` | OAuth/service account | yes | yes | no | no | no | yes | Vertex adapter exists; no streaming or public routing yet. |
+| `vllm` | `vllm` | `vllm` | `vllm` | `unsupported` | none | no | no | no | no | no | no | No configurable self-hosted vLLM adapter. |
+| `xai` | `xai` | `xai` | `xai` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no xAI inference adapter. |
+| `xiaomi` | `xiaomi` | `xiaomi` | `xiaomi` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Xiaomi inference adapter. |
+| `zhipu` | `zhipu` | `zhipu` | `zhipu` | `auth_only` | API key | no | no | no | no | no | no | API-key capture exists; no ZAI/Zhipu inference adapter. |
 
-#### Gemini
-- **Base URL**: `https://generativelanguage.googleapis.com`
-- **Auth**: `?key=AIza...` (API key) or OAuth token
-- **Wire format**: Gemini generateContent
-- **Models**: gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash, gemini-1.5-pro
-- **OAuth**: OAuth2 + callback (Gemini CLI)
-  - Auth URL: `https://accounts.google.com/o/oauth2/v2/auth`
-  - Token URL: `https://oauth2.googleapis.com/token`
-- **Special**: `system_instruction` field, `parts[]` content model
+## Model Routing Caveat
 
-### Tier 2: OpenAI-Compatible Providers
-
-All use identical OpenAI wire format. Only base URL, auth, and available models differ.
-
-| Provider | ID | Base URL | Auth | Notable Models |
-|----------|-----|----------|------|----------------|
-| Groq | `groq` | `https://api.groq.com/openai` | Bearer | llama-3.3-70b-versatile, mixtral-8x7b |
-| Cerebras | `cerebras` | `https://api.cerebras.ai` | Bearer | llama3.1-70b, llama3.1-8b |
-| Perplexity | `perplexity` | `https://api.perplexity.ai` | Bearer | sonar-pro, sonar |
-| Fireworks | `fireworks` | `https://api.fireworks.ai/inference` | Bearer | llama-v3p3-70b-instruct |
-| Together | `together` | `https://api.together.xyz` | Bearer | meta-llama/Llama-3.3-70B |
-| NVIDIA | `nvidia` | `https://integrate.api.nvidia.com` | Bearer | nvidia/llama-3.1-nemotron-70b |
-| DeepSeek | `deepseek` | `https://api.deepseek.com` | Bearer | deepseek-chat, deepseek-reasoner |
-| OpenRouter | `openrouter` | `https://openrouter.ai/api` | Bearer | Any (aggregator) |
-| HuggingFace | `huggingface` | `https://api-inference.huggingface.co` | Bearer | Model-specific URL |
-| Nebius | `nebius` | `https://api.studio.nebius.ai` | Bearer | Various |
-| vLLM | `vllm` | User-configured | Bearer/none | Self-hosted |
-| SGL | `sgl` | User-configured | Bearer/none | Self-hosted |
-| Parasail | `parasail` | `https://api.parasail.io` | Bearer | Various |
-
-### Tier 3: Cloud Platform Providers
-
-| Provider | ID | Auth | Notes |
-|----------|-----|------|-------|
-| Vertex AI | `vertex` | GCP OAuth/service account | Same wire format as Gemini, different URL |
-| AWS Bedrock | `bedrock` | SigV4 (AWS credentials) | `converse` API, model-specific routing |
-| Azure OpenAI | `azure` | `api-key` header | Deployment-based URL, API version parameter |
-
-### Tier 4: Additional Providers
-
-| Provider | ID | Auth | Notes |
-|----------|-----|------|-------|
-| Mistral | `mistral` | Bearer | OpenAI-compatible, `api.mistral.ai` |
-| Ollama | `ollama` | None | OpenAI-compatible, `localhost:11434` |
-| Cohere | `cohere` | Bearer | Dedicated `/v2/chat` format |
-| Replicate | `replicate` | Bearer | Predictions API with polling |
-| xAI | `xai` | Bearer / OAuth | `api.x.ai`, OAuth2 flow |
-
-### Tier 5: Chinese / Regional Providers
-
-| Provider | ID | Auth | OAuth Flow |
-|----------|-----|------|------------|
-| Qwen | `qwen` | OAuth | Provider-specific |
-| Kimi (Moonshot) | `kimi` | OAuth | Device-code, custom polling |
-| MiniMax | `minimax` | API key / OAuth | API key or OAuth |
-| Alibaba | `alibaba` | API key | Direct key |
-| Zhipu (GLM) | `zhipu` | API key | Direct key |
-| Xiaomi | `xiaomi` | OAuth | Standard OAuth2 |
-
-### Tier 6: IDE Proxy Providers
-
-| Provider | ID | Auth | Notes |
-|----------|-----|------|-------|
-| GitHub Copilot | `github-copilot` | OAuth | Device-code, session token refresh every 30min |
-| Cursor | `cursor` | OAuth | PKCE + polling, dual token (accessToken + authToken) |
-| GitLab Duo | `gitlab` | OAuth | Standard OAuth2 |
-| Kiro | `kiro` | OAuth | AWS-backed |
-
-## OAuth Flow Summary
-
-| Flow Type | Providers | User Experience |
-|-----------|-----------|-----------------|
-| **PKCE + Callback** | Anthropic, Cursor, Perplexity | Browser opens → authorize → redirect to localhost |
-| **Device Code** | OpenAI/Codex, GitHub Copilot, Kimi | Terminal shows code → user enters at URL → polls |
-| **OAuth2 + Callback** | Gemini, Antigravity, xAI, GitLab, Xiaomi | Browser opens → authorize → redirect to localhost |
-| **Password** | DeepSeek | Terminal prompts email + password |
-| **API Key** | Most providers | User pastes key from provider dashboard |
-
-## Combo Models
-
-User-defined fallback chains (stored in SQLite `combos` table):
-
-```json
-{
-    "name": "fast-fallback",
-    "steps": [
-        {"provider": "groq", "model": "llama-3.3-70b-versatile"},
-        {"provider": "cerebras", "model": "llama3.1-70b"},
-        {"provider": "openai", "model": "gpt-4o-mini"}
-    ]
-}
-```
-
-Request to `model: "combo/fast-fallback"`:
-1. Try Groq → if 429/error → try Cerebras → if error → try OpenAI
-2. First success wins. Last error returned if all fail.
-
-## Model Aliases
-
-SQLite `model_aliases` table maps shorthand names:
-
-```sql
-INSERT INTO model_aliases VALUES ('fast', 'groq', 'llama-3.3-70b-versatile');
-INSERT INTO model_aliases VALUES ('smart', 'anthropic', 'claude-sonnet-4-20250514');
-INSERT INTO model_aliases VALUES ('cheap', 'openai', 'gpt-4o-mini');
-```
-
-Client sends `model: "fast"` → resolves to `groq/llama-3.3-70b-versatile`.
+Current dispatch is still prefix-based (`gpt-*` and `claude-*`) plus combo dispatch. Catalog-driven routing, aliases, provider capabilities, `combo/*` hardening, and quota/cost integration remain Wave 7.E and Wave 7.I work.
