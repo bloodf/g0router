@@ -30,8 +30,8 @@
 ```yaml
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
-current_wave: "7.G"
-last_updated: "2026-06-03T05:14:58Z"
+current_wave: "7.H"
+last_updated: "2026-06-03T05:21:34Z"
 last_agent: "orchestrator"
 ```
 
@@ -1449,15 +1449,100 @@ tasks:
       - docs/WORKFLOW.md
 ```
 
-### Waves 7.H-7.I — Remaining Remediation Backlog
+### Wave 7.H — Real dashboard
 
 ```yaml
-waves:
-  - wave: "7.H"
-    name: "Real dashboard"
+wave: "7.H"
+status: IN_PROGRESS
+max_agents: 4
+depends_on: ["7.G"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.H.0"
+    name: "Plan dashboard work slices and ownership"
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T05:21:34Z"
+    files_owned:
+      - docs/WORKFLOW.md
+  - id: "7.H.1"
+    name: "Dashboard API client contracts and shared async states"
     status: PENDING
-  - wave: "7.I"
-    name: "Usage, cost, logs, and quotas"
+    files_owned:
+      - ui/src/api.ts
+      - ui/src/api.test.ts
+      - ui/src/components/Primitives.tsx
+      - ui/src/setupTests.ts
+      - ui/src/App.test.tsx
+  - id: "7.H.2"
+    name: "Providers and endpoint pages use real API contracts"
+    status: PENDING
+    depends_on_tasks: ["7.H.1"]
+    files_owned:
+      - ui/src/pages/ProvidersPage.tsx
+      - ui/src/pages/ProvidersPage.test.tsx
+      - ui/src/pages/EndpointPage.tsx
+      - ui/src/pages/EndpointPage.test.tsx
+  - id: "7.H.3"
+    name: "Usage, quota, logs, and overview pages use real API contracts"
+    status: PENDING
+    depends_on_tasks: ["7.H.1"]
+    files_owned:
+      - ui/src/pages/UsagePage.tsx
+      - ui/src/pages/UsagePage.test.tsx
+      - ui/src/pages/QuotaPage.tsx
+      - ui/src/pages/QuotaPage.test.tsx
+      - ui/src/pages/DashboardPage.tsx
+      - ui/src/pages/DashboardPage.test.tsx
+  - id: "7.H.4"
+    name: "Combos and settings pages use real API contracts"
+    status: PENDING
+    depends_on_tasks: ["7.H.1"]
+    files_owned:
+      - ui/src/pages/CombosPage.tsx
+      - ui/src/pages/CombosPage.test.tsx
+      - ui/src/pages/SettingsPage.tsx
+      - ui/src/pages/SettingsPage.test.tsx
+  - id: "7.H.5"
+    name: "MCP dashboard page uses real API contracts without exposing credentials"
+    status: PENDING
+    depends_on_tasks: ["7.H.1"]
+    files_owned:
+      - ui/src/pages/McpPage.tsx
+      - ui/src/pages/McpPage.test.tsx
+  - id: "7.H.6"
+    name: "Dashboard integration, workflow completion, and evaluator prompt"
+    status: PENDING
+    depends_on_tasks: ["7.H.2", "7.H.3", "7.H.4", "7.H.5"]
+    files_owned:
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - docs/evaluations/wave-7H-evaluator-prompt.md
+      - docs/WORKFLOW.md
+```
+
+### Wave 7.I — Usage, cost, logs, and quotas
+
+```yaml
+wave: "7.I"
+status: PENDING
+max_agents: 3
+depends_on: ["7.H"]
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && make build"
+
+tasks:
+  - id: "7.I.1"
+    name: "Honor ENABLE_REQUEST_LOGS and log complete request metadata"
+    status: PENDING
+  - id: "7.I.2"
+    name: "Expand pricing and model catalog coverage"
+    status: PENDING
+  - id: "7.I.3"
+    name: "Enforce quotas across direct models, aliases, fallback, and combos"
+    status: PENDING
+  - id: "7.I.4"
+    name: "Wave 7.I evaluator prompt"
     status: PENDING
 ```
 
