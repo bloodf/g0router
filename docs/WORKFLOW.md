@@ -31,7 +31,7 @@
 project_status: REMEDIATION_IN_PROGRESS
 current_stage: 7
 current_wave: "7.H"
-last_updated: "2026-06-03T05:38:42Z"
+last_updated: "2026-06-03T05:39:39Z"
 last_agent: "orchestrator"
 ```
 
@@ -1496,10 +1496,12 @@ tasks:
       - ui/src/pages/EndpointPage.test.tsx
   - id: "7.H.3"
     name: "Usage, quota, logs, and overview pages use real API contracts"
-    status: IN_PROGRESS
+    status: DONE
     agent: "Mencius the 2nd"
     branch: "codex/wave-7h-usage-quota-logs"
     started_at: "2026-06-03T05:29:55Z"
+    commit: "9c375b1"
+    completed_at: "2026-06-03T05:39:39Z"
     depends_on_tasks: ["7.H.1"]
     files_owned:
       - ui/src/pages/UsagePage.tsx
