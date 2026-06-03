@@ -1076,7 +1076,27 @@ tasks:
       - docs/WORKFLOW.md
   - id: "7.C.4"
     name: "Normalize provider IDs across auth, routing, docs, and store rows"
-    status: PENDING
+    status: DONE
+    agent: "orchestrator"
+    completed_at: "2026-06-03T02:14:06Z"
+    files_owned:
+      - api/handlers/connections.go
+      - api/handlers/connections_test.go
+      - api/handlers/oauth.go
+      - api/handlers/oauth_test.go
+      - internal/cli/auth.go
+      - internal/cli/auth_test.go
+      - internal/provider/credentials.go
+      - internal/provider/ids.go
+      - internal/provider/ids_test.go
+      - internal/provider/oauth/types.go
+      - internal/provider/oauth/types_test.go
+      - internal/proxy/combo.go
+      - internal/proxy/combo_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/store/connections.go
+      - docs/WORKFLOW.md
   - id: "7.C.5"
     name: "Wave 7.C evaluator prompt"
     status: PENDING

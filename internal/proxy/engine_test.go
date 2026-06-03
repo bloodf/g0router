@@ -281,6 +281,34 @@ func TestDispatchDoesNotRefreshFreshOAuthConnection(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesLegacyCodexConnectionForOpenAI(t *testing.T) {
+	s := openProxyTestStore(t)
+	key := "legacy-codex-key"
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "codex",
+		Name:     "legacy",
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   &key,
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-1"}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+
+	if _, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"}); err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if openAI.receivedKey.Value != "legacy-codex-key" {
+		t.Fatalf("provider key = %q, want legacy codex key", openAI.receivedKey.Value)
+	}
+	if openAI.receivedKey.Provider != providers.ProviderOpenAI {
+		t.Fatalf("key provider = %q, want openai", openAI.receivedKey.Provider)
+	}
+}
+
 func TestDispatchUnknownModel(t *testing.T) {
 	engine := NewEngine(openProxyTestStore(t))
 	engine.Register(&fakeProvider{name: providers.ProviderOpenAI})

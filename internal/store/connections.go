@@ -85,6 +85,10 @@ func (s *Store) GetConnections(provider string) ([]*Connection, error) {
 	return s.queryConnections(connectionSelectSQL()+" WHERE provider = ? ORDER BY created_at, id", provider)
 }
 
+func (s *Store) ListConnections() ([]*Connection, error) {
+	return s.queryConnections(connectionSelectSQL() + " ORDER BY provider, created_at, id")
+}
+
 func (s *Store) GetActiveConnections(provider string) ([]*Connection, error) {
 	return s.queryConnections(connectionSelectSQL()+" WHERE provider = ? AND is_active = 1 ORDER BY created_at, id", provider)
 }

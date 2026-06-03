@@ -144,7 +144,7 @@ func OAuthExchange(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 		writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("oauth session: %v", err))
 		return
 	}
-	if oauth.ProviderID(session.Provider) != flow.ProviderID() {
+	if oauth.CanonicalFlowProviderID(oauth.ProviderID(session.Provider)) != flow.ProviderID() {
 		writeError(ctx, fasthttp.StatusBadRequest, "oauth session provider mismatch")
 		return
 	}
@@ -166,7 +166,7 @@ func exchangeStoredOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFl
 
 func exchangeOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flow oauth.Flow, session *store.OAuthSession, code string) {
 	authSession := oauth.AuthSession{
-		Provider:  oauth.ProviderID(session.Provider),
+		Provider:  flow.ProviderID(),
 		SessionID: session.State,
 	}
 	if session.CodeVerifier != "" {
@@ -198,7 +198,8 @@ func oauthFlowForPath(ctx *fasthttp.RequestCtx, flows OAuthFlows) (oauth.Flow, b
 }
 
 func oauthFlow(ctx *fasthttp.RequestCtx, flows OAuthFlows, provider oauth.ProviderID) (oauth.Flow, bool) {
-	flow, ok := flows[provider]
+	canonical := oauth.CanonicalFlowProviderID(provider)
+	flow, ok := flows[canonical]
 	if !ok || flow == nil {
 		writeError(ctx, fasthttp.StatusNotFound, "oauth provider not found")
 		return nil, false
@@ -212,7 +213,7 @@ func oauthProviderFromPath(ctx *fasthttp.RequestCtx) oauth.ProviderID {
 	if len(parts) < 3 || parts[0] != "api" || parts[1] != "oauth" {
 		return ""
 	}
-	return oauth.ProviderID(parts[2])
+	return oauth.CanonicalFlowProviderID(oauth.ProviderID(parts[2]))
 }
 
 func decodeOAuthStartRequest(ctx *fasthttp.RequestCtx) (oauthStartRequest, bool) {

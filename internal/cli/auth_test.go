@@ -58,10 +58,18 @@ func TestAuthListShowsSupportedProviders(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"anthropic", "codex", "github", "gemini", "minimax"} {
-		if !strings.Contains(output, want) {
+	providers := strings.Fields(output)
+	providerSet := make(map[string]bool, len(providers))
+	for _, provider := range providers {
+		providerSet[provider] = true
+	}
+	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "minimax"} {
+		if !providerSet[want] {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}
+	}
+	if providerSet["github"] {
+		t.Fatalf("output = %q, should list github-copilot instead of github", output)
 	}
 }
 
@@ -96,6 +104,28 @@ func TestAuthLoginRejectsUnknownProvider(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "unknown oauth provider") {
 		t.Fatalf("error = %q, want unknown provider", err.Error())
+	}
+}
+
+func TestOAuthFlowAcceptsCanonicalProviderAliases(t *testing.T) {
+	tests := []struct {
+		provider string
+		want     oauth.ProviderID
+	}{
+		{provider: "openai", want: oauth.ProviderID("codex")},
+		{provider: "codex", want: oauth.ProviderID("codex")},
+		{provider: "github", want: oauth.ProviderID("github-copilot")},
+		{provider: "github-copilot", want: oauth.ProviderID("github-copilot")},
+	}
+
+	for _, tt := range tests {
+		flow, err := newOAuthFlow(tt.provider)
+		if err != nil {
+			t.Fatalf("newOAuthFlow(%q): %v", tt.provider, err)
+		}
+		if flow.ProviderID() != tt.want {
+			t.Fatalf("newOAuthFlow(%q) provider = %q, want %q", tt.provider, flow.ProviderID(), tt.want)
+		}
 	}
 }
 
@@ -297,6 +327,74 @@ func TestAuthLogoutRemovesProviderConnections(t *testing.T) {
 	}
 	if len(conns) != 0 {
 		t.Fatalf("connections = %d, want 0", len(conns))
+	}
+}
+
+func TestAuthLogoutRemovesCanonicalAliasConnections(t *testing.T) {
+	dataDir := t.TempDir()
+	s := openCLIStoreForTest(t, dataDir)
+	for _, provider := range []string{"openai", "codex", "github-copilot", "github"} {
+		conn := &store.Connection{
+			Provider: provider,
+			Name:     provider + "-test",
+			AuthType: store.AuthTypeOAuth,
+			IsActive: true,
+		}
+		if err := s.CreateConnection(conn); err != nil {
+			t.Fatalf("CreateConnection %s: %v", provider, err)
+		}
+	}
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	runLogoutCommandForTest(t, dataDir, "codex")
+	s = openCLIStoreForTest(t, dataDir)
+	if conns, err := s.GetConnections("openai"); err != nil || len(conns) != 0 {
+		t.Fatalf("openai connections after logout codex = %d, err=%v", len(conns), err)
+	}
+	if conns, err := s.GetConnections("codex"); err != nil || len(conns) != 0 {
+		t.Fatalf("codex connections after logout codex = %d, err=%v", len(conns), err)
+	}
+	s.Close()
+
+	runLogoutCommandForTest(t, dataDir, "github")
+	s = openCLIStoreForTest(t, dataDir)
+	if conns, err := s.GetConnections("github-copilot"); err != nil || len(conns) != 0 {
+		t.Fatalf("github-copilot connections after logout github = %d, err=%v", len(conns), err)
+	}
+	if conns, err := s.GetConnections("github"); err != nil || len(conns) != 0 {
+		t.Fatalf("github connections after logout github = %d, err=%v", len(conns), err)
+	}
+	s.Close()
+
+	s = openCLIStoreForTest(t, dataDir)
+	conn := &store.Connection{Provider: "github-copilot", Name: "github-test", AuthType: store.AuthTypeOAuth, IsActive: true}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection github-copilot: %v", err)
+	}
+	s.Close()
+
+	runLogoutCommandForTest(t, dataDir, "github-copilot")
+	s = openCLIStoreForTest(t, dataDir)
+	defer s.Close()
+	if conns, err := s.GetConnections("github-copilot"); err != nil || len(conns) != 0 {
+		t.Fatalf("github-copilot connections after logout github-copilot = %d, err=%v", len(conns), err)
+	}
+}
+
+func runLogoutCommandForTest(t *testing.T, dataDir string, provider string) {
+	t.Helper()
+
+	cmd := newRootCommand(rootConfig{
+		Version: "test",
+		Serve:   func(ctx context.Context, config serveConfig) error { return nil },
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--data-dir", dataDir, "logout", provider})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("logout %s: %v", provider, err)
 	}
 }
 

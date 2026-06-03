@@ -113,6 +113,73 @@ func TestConnectionsResponsesRedactCredentialsWithoutMutatingStore(t *testing.T)
 	assertStoredCredentials(t, s, created.ID, "access-new", "refresh-new", "api-new")
 }
 
+func TestConnectionsCanonicalizesProviderAliases(t *testing.T) {
+	s := newHandlerStore(t)
+
+	ctx, body := runHandler(t, fasthttp.MethodPost, `{"provider":"codex","name":"codex","auth_type":"api_key","api_key":"sk-test","is_active":true}`, func(ctx *fasthttp.RequestCtx) {
+		Connections(ctx, s, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+		t.Fatalf("create status = %d, want 201; body=%s", ctx.Response.StatusCode(), body)
+	}
+	var created store.Connection
+	decodeJSON(t, body, &created)
+	if created.Provider != "openai" {
+		t.Fatalf("created provider = %q, want openai", created.Provider)
+	}
+	if conns, err := s.GetConnections("codex"); err != nil || len(conns) != 0 {
+		t.Fatalf("codex connections = %d, err=%v; want 0", len(conns), err)
+	}
+	openAIConnections, err := s.GetConnections("openai")
+	if err != nil {
+		t.Fatalf("GetConnections openai: %v", err)
+	}
+	if len(openAIConnections) != 1 {
+		t.Fatalf("openai connections = %d, want 1", len(openAIConnections))
+	}
+
+	ctx, body = runHandler(t, fasthttp.MethodPut, `{"provider":"github","name":"copilot","auth_type":"oauth","access_token":"access","is_active":true}`, func(ctx *fasthttp.RequestCtx) {
+		Connections(ctx, s, created.ID)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("update status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+	var updated store.Connection
+	decodeJSON(t, body, &updated)
+	if updated.Provider != "github-copilot" {
+		t.Fatalf("updated provider = %q, want github-copilot", updated.Provider)
+	}
+}
+
+func TestConnectionsListIncludesAuthOnlyProviders(t *testing.T) {
+	s := newHandlerStore(t)
+	apiKey := "minimax-key"
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "minimax",
+		Name:     "minimax",
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   &apiKey,
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	ctx, body := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		Connections(ctx, s, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("list status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+	assertNoCredentialFields(t, body)
+	var listed struct {
+		Data []store.Connection `json:"data"`
+	}
+	decodeJSON(t, body, &listed)
+	if len(listed.Data) != 1 || listed.Data[0].Provider != "minimax" {
+		t.Fatalf("listed = %+v, want minimax connection", listed.Data)
+	}
+}
+
 func TestConnectionsMissingReturnsNotFound(t *testing.T) {
 	s := newHandlerStore(t)
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	providerids "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -33,7 +34,7 @@ func (r *ComboResolver) Resolve(name string) ([]ComboStep, error) {
 	steps := make([]ComboStep, len(combo.Steps))
 	for i, step := range combo.Steps {
 		steps[i] = ComboStep{
-			Provider: providers.ModelProvider(step.Provider),
+			Provider: providers.ModelProvider(providerids.CanonicalProviderID(step.Provider)),
 			Model:    step.Model,
 		}
 	}

@@ -144,6 +144,20 @@ func TestOAuthPollUsesSessionFromQuery(t *testing.T) {
 	}
 }
 
+func TestOAuthPollAcceptsGitHubAlias(t *testing.T) {
+	flow := &fakeOAuthFlow{provider: oauth.ProviderID("github-copilot")}
+	ctx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/github/poll?session_id=device-123", nil)
+
+	OAuthPoll(ctx, openHandlerTestStore(t), OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if flow.polledSession.Provider != oauth.ProviderID("github-copilot") {
+		t.Fatalf("polled provider = %q, want github-copilot", flow.polledSession.Provider)
+	}
+}
+
 func TestOAuthStartStoresCallbackSessionWithoutVerifierLeak(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("anthropic")}
 	flowSessionID := "state-123.verifier-secret"
@@ -302,6 +316,40 @@ func TestOAuthExchangeStoresCodexTokenAsOpenAIConnection(t *testing.T) {
 	}
 	if openAIConnections[0].ProviderSpecificData["oauth_provider"] != "codex" {
 		t.Fatalf("provider data = %+v, want oauth_provider codex", openAIConnections[0].ProviderSpecificData)
+	}
+}
+
+func TestOAuthExchangeAcceptsOpenAIAliasForCodexFlow(t *testing.T) {
+	flow := &fakeOAuthFlow{
+		provider: oauth.ProviderID("codex"),
+		token: oauth.TokenResult{
+			Provider:    oauth.ProviderID("codex"),
+			AccessToken: "codex-access",
+			TokenType:   "bearer",
+		},
+	}
+	s := openHandlerTestStore(t)
+	if err := s.CreateOAuthSession(&store.OAuthSession{
+		State:        "codex-state",
+		Provider:     "codex",
+		CodeVerifier: "verifier",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/openai/exchange", []byte(`{"state":"codex-state","code":"manual-code"}`))
+
+	OAuthExchange(ctx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	openAIConnections, err := s.GetConnections("openai")
+	if err != nil {
+		t.Fatalf("GetConnections openai: %v", err)
+	}
+	if len(openAIConnections) != 1 {
+		t.Fatalf("openai connections = %d, want 1", len(openAIConnections))
 	}
 }
 

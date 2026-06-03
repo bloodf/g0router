@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"context"
+	"strings"
 	"time"
 )
 
@@ -14,13 +15,26 @@ func (p ProviderID) String() string {
 
 // CanonicalProviderID maps auth-flow IDs onto runtime provider IDs.
 func CanonicalProviderID(provider ProviderID) string {
-	switch provider {
+	canonical := CanonicalFlowProviderID(provider)
+	switch canonical {
 	case "codex":
 		return "openai"
+	case "github-copilot":
+		return "github-copilot"
+	default:
+		return string(canonical)
+	}
+}
+
+// CanonicalFlowProviderID maps user-facing aliases onto OAuth flow IDs.
+func CanonicalFlowProviderID(provider ProviderID) ProviderID {
+	switch ProviderID(strings.ToLower(strings.TrimSpace(string(provider)))) {
+	case "openai":
+		return "codex"
 	case "github":
 		return "github-copilot"
 	default:
-		return string(provider)
+		return ProviderID(strings.ToLower(strings.TrimSpace(string(provider))))
 	}
 }
 

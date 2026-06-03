@@ -158,6 +158,49 @@ func TestComboDispatchRefreshesOAuthConnectionBeforeProviderCall(t *testing.T) {
 	}
 }
 
+func TestComboDispatchCanonicalizesLegacyProviderStep(t *testing.T) {
+	s := openProxyTestStore(t)
+	key := "legacy-codex-key"
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "codex",
+		Name:     "legacy",
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   &key,
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	if err := s.CreateCombo(&store.Combo{
+		Name: "legacy-openai",
+		Steps: []store.ComboStep{
+			{Provider: "codex", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-combo"}}
+	engine := NewEngine(s)
+	engine.Register(openAI)
+
+	_, err := NewComboResolver(s).Dispatch(
+		context.Background(),
+		engine,
+		"legacy-openai",
+		&providers.ChatRequest{Model: "combo/legacy-openai"},
+	)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if openAI.receivedKey.Value != "legacy-codex-key" {
+		t.Fatalf("combo key = %q, want legacy codex key", openAI.receivedKey.Value)
+	}
+	if openAI.received.Model != "gpt-4o-mini" {
+		t.Fatalf("combo model = %q, want gpt-4o-mini", openAI.received.Model)
+	}
+}
+
 func TestComboDispatchReturnsLastStepError(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "groq", "groq-key")

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
 	providercred "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/provider/oauth"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -137,9 +137,13 @@ func newAuthLogoutCommand(dataDir *string) *cobra.Command {
 			}
 			defer s.Close()
 
-			connections, err := s.GetConnections(args[0])
-			if err != nil {
-				return fmt.Errorf("list provider connections: %w", err)
+			var connections []*store.Connection
+			for _, provider := range providercred.ProviderAliases(args[0]) {
+				providerConnections, err := s.GetConnections(provider)
+				if err != nil {
+					return fmt.Errorf("list provider connections: %w", err)
+				}
+				connections = append(connections, providerConnections...)
 			}
 			for _, conn := range connections {
 				if err := s.DeleteConnection(conn.ID); err != nil {
@@ -171,8 +175,12 @@ func printAuthSession(cmd *cobra.Command, session oauth.AuthSession) {
 }
 
 func supportedProviderNames() []string {
-	names := make([]string, 0, len(oauthFlowFactories()))
-	for name := range oauthFlowFactories() {
+	seen := make(map[string]bool, len(oauthFlowFactories()))
+	for _, factory := range oauthFlowFactories() {
+		seen[factory().ProviderID().String()] = true
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -180,7 +188,8 @@ func supportedProviderNames() []string {
 }
 
 func newOAuthFlow(provider string) (oauth.Flow, error) {
-	factory, ok := oauthFlowFactories()[strings.ToLower(provider)]
+	canonical := oauth.CanonicalFlowProviderID(oauth.ProviderID(provider))
+	factory, ok := oauthFlowFactories()[canonical.String()]
 	if !ok {
 		return nil, fmt.Errorf("unknown oauth provider: %s", provider)
 	}
@@ -196,13 +205,15 @@ func oauthFlowFactories() map[string]func() oauth.Flow {
 		"cursor":      func() oauth.Flow { return oauth.NewCursorFlow() },
 		"deepseek":    func() oauth.Flow { return oauth.NewDeepSeekFlow(oauth.DeepSeekConfig{}) },
 		"gemini":      func() oauth.Flow { return oauth.NewGeminiFlow(oauth.GeminiConfig{}) },
-		"github":      func() oauth.Flow { return oauth.NewGitHubCopilotFlow(oauth.GitHubCopilotFlowConfig{}) },
-		"gitlab":      func() oauth.Flow { return oauth.NewGitLabFlow(oauth.GitLabConfig{}) },
-		"kimi":        func() oauth.Flow { return oauth.NewKimiFlow(oauth.KimiFlowConfig{}) },
-		"kiro":        func() oauth.Flow { return oauth.NewKiroFlow(oauth.KiroConfig{}) },
-		"minimax":     func() oauth.Flow { return oauth.NewMiniMaxFlow() },
-		"xai":         func() oauth.Flow { return oauth.NewXAIFlow(oauth.XAIConfig{}) },
-		"xiaomi":      func() oauth.Flow { return oauth.NewXiaomiFlow(oauth.XiaomiConfig{}) },
-		"zhipu":       func() oauth.Flow { return oauth.NewZhipuFlow() },
+		"github-copilot": func() oauth.Flow {
+			return oauth.NewGitHubCopilotFlow(oauth.GitHubCopilotFlowConfig{})
+		},
+		"gitlab":  func() oauth.Flow { return oauth.NewGitLabFlow(oauth.GitLabConfig{}) },
+		"kimi":    func() oauth.Flow { return oauth.NewKimiFlow(oauth.KimiFlowConfig{}) },
+		"kiro":    func() oauth.Flow { return oauth.NewKiroFlow(oauth.KiroConfig{}) },
+		"minimax": func() oauth.Flow { return oauth.NewMiniMaxFlow() },
+		"xai":     func() oauth.Flow { return oauth.NewXAIFlow(oauth.XAIConfig{}) },
+		"xiaomi":  func() oauth.Flow { return oauth.NewXiaomiFlow(oauth.XiaomiConfig{}) },
+		"zhipu":   func() oauth.Flow { return oauth.NewZhipuFlow() },
 	}
 }

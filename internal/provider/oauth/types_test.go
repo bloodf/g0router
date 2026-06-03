@@ -50,6 +50,26 @@ func TestProviderIDString(t *testing.T) {
 	}
 }
 
+func TestCanonicalFlowProviderIDNormalizesAuthAliases(t *testing.T) {
+	tests := []struct {
+		provider ProviderID
+		want     ProviderID
+	}{
+		{provider: ProviderID("openai"), want: ProviderID("codex")},
+		{provider: ProviderID("codex"), want: ProviderID("codex")},
+		{provider: ProviderID("github"), want: ProviderID("github-copilot")},
+		{provider: ProviderID("github-copilot"), want: ProviderID("github-copilot")},
+		{provider: ProviderID("  GitHub  "), want: ProviderID("github-copilot")},
+		{provider: ProviderID("minimax"), want: ProviderID("minimax")},
+	}
+
+	for _, tt := range tests {
+		if got := CanonicalFlowProviderID(tt.provider); got != tt.want {
+			t.Fatalf("CanonicalFlowProviderID(%q) = %q, want %q", tt.provider, got, tt.want)
+		}
+	}
+}
+
 func TestAuthSessionJSONRoundTrip(t *testing.T) {
 	session := AuthSession{
 		Provider:     ProviderID("codex"),

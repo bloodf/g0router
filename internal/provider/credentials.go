@@ -9,7 +9,7 @@ import (
 )
 
 func ConnectionFromOAuthToken(token oauth.TokenResult, accountLabel string) *store.Connection {
-	provider := oauth.CanonicalProviderID(token.Provider)
+	provider := CanonicalProviderID(token.Provider.String())
 	name := strings.TrimSpace(accountLabel)
 	if name == "" {
 		name = provider

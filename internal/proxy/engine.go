@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/modelcatalog"
-	providerrefresh "github.com/bloodf/g0router/internal/provider"
+	providercore "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
@@ -30,7 +30,7 @@ type Engine struct {
 	store          *store.Store
 	pool           providerPool
 	refreshers     map[oauth.ProviderID]oauthRefresher
-	refreshManager *providerrefresh.RefreshManager
+	refreshManager *providercore.RefreshManager
 	refreshWindow  time.Duration
 	now            func() time.Time
 }
@@ -40,7 +40,7 @@ func NewEngine(s *store.Store) *Engine {
 		store:          s,
 		pool:           newProviderPool(),
 		refreshers:     make(map[oauth.ProviderID]oauthRefresher),
-		refreshManager: providerrefresh.NewRefreshManager(),
+		refreshManager: providercore.NewRefreshManager(),
 		refreshWindow:  defaultRefreshWindow,
 		now:            time.Now,
 	}
@@ -156,7 +156,7 @@ func (e *Engine) providerFor(ctx context.Context, model string) (providers.Provi
 }
 
 func (e *Engine) keyFor(ctx context.Context, provider providers.ModelProvider) (providers.Key, error) {
-	conns, err := e.store.GetActiveConnections(provider.String())
+	conns, err := e.activeConnectionsForProvider(provider)
 	if err != nil {
 		return providers.Key{}, fmt.Errorf("get active connections: %w", err)
 	}
@@ -182,6 +182,18 @@ func (e *Engine) keyFor(ctx context.Context, provider providers.ModelProvider) (
 	}
 
 	return key, nil
+}
+
+func (e *Engine) activeConnectionsForProvider(provider providers.ModelProvider) ([]*store.Connection, error) {
+	var connections []*store.Connection
+	for _, providerID := range providercore.ProviderAliases(provider.String()) {
+		providerConnections, err := e.store.GetActiveConnections(providerID)
+		if err != nil {
+			return nil, err
+		}
+		connections = append(connections, providerConnections...)
+	}
+	return connections, nil
 }
 
 func (e *Engine) refreshConnectionIfNeeded(ctx context.Context, provider providers.ModelProvider, conn *store.Connection) (*store.Connection, error) {

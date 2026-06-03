@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	providerids "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
@@ -113,7 +114,7 @@ func decodeConnectionRequest(ctx *fasthttp.RequestCtx) (*store.Connection, bool)
 		return nil, false
 	}
 	return &store.Connection{
-		Provider:             req.Provider,
+		Provider:             providerids.CanonicalProviderID(req.Provider),
 		Name:                 req.Name,
 		AuthType:             req.AuthType,
 		AccessToken:          req.AccessToken,
@@ -158,13 +159,9 @@ func redactConnection(conn *store.Connection) connectionResponse {
 }
 
 func listConnections(s *store.Store) ([]*store.Connection, error) {
-	var connections []*store.Connection
-	for _, provider := range knownProviders() {
-		providerConnections, err := s.GetConnections(provider.ID)
-		if err != nil {
-			return nil, fmt.Errorf("get %s connections: %w", provider.ID, err)
-		}
-		connections = append(connections, providerConnections...)
+	connections, err := s.ListConnections()
+	if err != nil {
+		return nil, err
 	}
 	return connections, nil
 }
