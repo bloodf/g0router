@@ -69,7 +69,7 @@ describe("split MCP dashboard pages", () => {
     render(<McpInstancesPage />);
 
     expect(await screen.findByRole("heading", { level: 3, name: "MCP instances" })).toBeInTheDocument();
-    expect(screen.getByRole("table", { name: "MCP instances" })).toHaveTextContent("linear-tools");
+    expect(await screen.findByRole("table", { name: "MCP instances" })).toHaveTextContent("linear-tools");
     expect(screen.queryByRole("heading", { name: "Start OAuth" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Execute tool" })).not.toBeInTheDocument();
   });
@@ -90,7 +90,7 @@ describe("split MCP dashboard pages", () => {
     render(<McpToolsPage />);
 
     expect(await screen.findByRole("heading", { level: 3, name: "MCP tools" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Execute tool" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Execute tool" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Tools" }).closest("section")).toHaveTextContent("inst-1__search");
     expect(screen.queryByRole("table", { name: "MCP instances" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Start OAuth" })).not.toBeInTheDocument();
