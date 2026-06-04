@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AN"
-last_updated: "2026-06-04T12:39:47Z"
+current_wave: "8.AO"
+last_updated: "2026-06-04T13:03:52Z"
 last_agent: "orchestrator"
 ```
 
@@ -1236,7 +1236,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e"
 completed_at: "2026-06-04T12:39:47Z"
 evaluator_prompt: "docs/evaluations/wave-8AN-evaluator-prompt.md"
-evaluation: "FAIL external evaluator at c4c4dac for intermittent go test ./api -count=20 -shuffle=on; API test listener stabilization green on codex/wave-8an-api-shuffle-stabilization at 2026-06-04T12:53:59Z"
+evaluation: "PASS external evaluator thread 019e92b6-2143-7f42-94f4-4662ceb729a9 after API listener stabilization; prompt gate-name cleanup committed in 875d894"
 gate_results:
   - "npm --prefix ui test -- --run McpSplitPages --reporter=dot: PASS in worker before merge"
   - "npm --prefix ui run e2e -- --grep 'MCP': PASS in worker before merge"
@@ -1270,6 +1270,43 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AN lets the dashboard start MCP OAuth from a Resource URI alone, matching the backend protected-resource discovery flow added in Wave 8.AG. The UI now performs explicit alternate-field validation instead of blocking on required browser fields, and unit plus mocked Playwright coverage prove the blank `authorization_url` request body.
+
+---
+
+### Wave 8.AO — Dashboard Provider OAuth Connect Flow
+
+```yaml
+wave: "8.AO"
+status: DONE
+max_agents: 1
+gate: "npm --prefix ui test -- --run ProvidersPage ConnectionsAuthPage && npm --prefix ui run e2e -- --grep 'OAuth' && npm --prefix ui test -- --run && npm --prefix ui run build"
+completed_at: "2026-06-04T13:03:52Z"
+evaluator_prompt: "docs/evaluations/wave-8AO-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "npm --prefix ui test -- --run ProvidersPage ConnectionsAuthPage: PASS on main, 13 tests"
+  - "npm --prefix ui run e2e -- --grep 'OAuth': PASS on main, 4 tests"
+  - "npm --prefix ui test -- --run: PASS on main, 83 tests"
+  - "npm --prefix ui run build: PASS on main"
+  - "generated ui/test-results removed and tracked ui/dist rewrites restored after build verification"
+
+tasks:
+  - id: "8.AO.1"
+    name: "Dashboard provider OAuth connect flow"
+    status: DONE
+    agent: "subagent 019e92a8-50fc-7511-ad86-bdd0f528e991"
+    branch: "codex/wave-8ao-dashboard-provider-oauth-connect"
+    commit: "95a6f22"
+    merge_commit: "d2a2972"
+    files_owned:
+      - ui/src/api.ts
+      - ui/src/pages/ProvidersPage.tsx
+      - ui/src/pages/ProvidersPage.test.tsx
+      - ui/src/pages/ConnectionsAuthPage.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+```
+
+**Checkpoint**: Wave 8.AO adds a dashboard provider OAuth start/exchange flow to the shared Providers and Connections/Auth control plane. OAuth controls render only for providers advertising `oauth`, start requests send the account label to `/api/oauth/{provider}/authorize`, exchange requests complete through `/api/oauth/{provider}/exchange`, and tests prove redacted connection display without rendering access tokens, refresh tokens, or API keys.
 
 ---
 
