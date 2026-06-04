@@ -1826,7 +1826,7 @@ max_agents: 1
 gate: "go test ./internal/providers/openaicompat ./internal/proxy ./internal/provider ./api/handlers ./internal/cli -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T19:34:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BA-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e93cf-c0d7-7942-b5af-ee590191ff16 at commit acd3249; no blocking findings"
 gate_results:
   - "go test ./internal/providers/openaicompat -run 'TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestGitHubCopilotDefaultProviderSendsOMPHeaders|TestDefaultConfigsAreRegistered' -count=1: RED before implementation, Config.Headers and GitHub Copilot default config were missing"
   - "go test ./internal/proxy -run TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders -count=1: RED before implementation, github-copilot/gpt-4o returned provider not found"
@@ -1843,6 +1843,7 @@ gate_results:
   - "make build: PASS"
   - "git diff --check: PASS"
   - "secret scan excluding the historical evaluator prompt that contains the scan expression itself: PASS"
+  - "external evaluator thread 019e93cf-c0d7-7942-b5af-ee590191ff16 at commit acd3249: PASS with no blocking findings; only protected local dirt noted"
 
 tasks:
   - id: "8.BA.1"
