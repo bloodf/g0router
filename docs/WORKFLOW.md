@@ -261,6 +261,49 @@ tasks:
 
 **Checkpoint**: Wave 8.N deterministic gates passed from `main` at `2026-06-04T08:35:02Z` after MCP OAuth sanitization commit `36c2463`; external evaluator thread `019e91bf-e9d8-7ca1-a054-b4b674de04ad` returned PASS at commit `66818e8` with no blocking findings.
 
+### Wave 8.O — Gateway Provider Parity
+
+```yaml
+wave: "8.O"
+status: DONE
+max_agents: 4
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T08:51:20Z"
+evaluator_prompt: "docs/evaluations/wave-8O-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.O.1"
+    name: "OpenAI-compatible gateway adapter coverage"
+    status: DONE
+    agent: "orchestrator"
+    commit: "d14b736"
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/openaicompat/registry.go
+      - internal/providers/openaicompat/provider_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/modelcatalog/catalog.go
+      - internal/modelcatalog/pricing_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/evaluations/wave-8O-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.O adds real OpenAI-compatible adapter coverage for Vercel AI Gateway, LiteLLM, vLLM, and LM Studio without advertising instance-defined local gateway providers as public direct-dispatch surfaces; external evaluation remains pending.
+
 ---
 
 ## STAGE 0 — Bootstrap
