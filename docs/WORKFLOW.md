@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AS"
-last_updated: "2026-06-04T13:43:50Z"
+current_wave: "8.AT"
+last_updated: "2026-06-04T13:44:19Z"
 last_agent: "orchestrator"
 ```
 
@@ -1458,6 +1458,45 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AS removes the last future-facing Phase 12 data model heading and wording so the completed phase document no longer describes the instance-oriented MCP schema as future work.
+
+---
+
+### Wave 8.AT — Release Lock Verification
+
+```yaml
+wave: "8.AT"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T13:44:19Z"
+evaluator_prompt: "docs/evaluations/wave-8AT-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 84 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 20 tests"
+  - "make build: PASS"
+  - "artifact cleanup after release gates: PASS, generated binary, UI dist rewrites, and Playwright test-results removed/restored"
+  - "secret scan for leaked MiniMax/API token patterns: PASS"
+  - "unmerged branch audit: PASS with known stale conflicting branch codex/wave-8an-dashboard-mcp-oauth-resource-discovery intentionally unmerged"
+
+tasks:
+  - id: "8.AT.1"
+    name: "Run final release-lock verification"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AT-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AT records a full release-lock gate pass from the main checkout. Generated artifacts from the gate were cleaned afterward; only protected local dirt remains in the worktree.
 
 ---
 
