@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AO"
-last_updated: "2026-06-04T13:09:36Z"
+current_wave: "8.AP"
+last_updated: "2026-06-04T13:19:03Z"
 last_agent: "orchestrator"
 ```
 
@@ -1307,6 +1307,44 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AO adds a dashboard provider OAuth start/exchange flow to the shared Providers and Connections/Auth control plane. OAuth controls render only for providers advertising `oauth`, start requests send the account label to `/api/oauth/{provider}/authorize`, exchange requests complete through `/api/oauth/{provider}/exchange`, and tests prove redacted connection display without rendering access tokens, refresh tokens, or API keys.
+
+---
+
+### Wave 8.AP — Dashboard Quotas Naming Reconciliation
+
+```yaml
+wave: "8.AP"
+status: DONE
+max_agents: 1
+gate: "npm --prefix ui test -- --run App QuotaPage && npm --prefix ui run e2e -- --grep 'Quotas' && npm --prefix ui run e2e && npm --prefix ui test -- --run && npm --prefix ui run build"
+completed_at: "2026-06-04T13:19:03Z"
+evaluator_prompt: "docs/evaluations/wave-8AP-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "npm --prefix ui test -- --run App QuotaPage: PASS on main, 11 tests"
+  - "npm --prefix ui run e2e -- --grep 'Quotas': PASS on main, 2 tests"
+  - "npm --prefix ui run e2e: PASS on main, 20 tests"
+  - "npm --prefix ui test -- --run: PASS on main, 84 tests"
+  - "npm --prefix ui run build: PASS on main"
+  - "generated ui/test-results removed and tracked ui/dist rewrites restored after build verification"
+
+tasks:
+  - id: "8.AP.1"
+    name: "Dashboard Quotas naming reconciliation"
+    status: DONE
+    agent: "subagent 019e92c2-44b4-7362-b59f-bb1964134aba"
+    branch: "codex/wave-8ap-dashboard-quotas-label"
+    commit: "7e0830b"
+    merge_commit: "15da585"
+    files_owned:
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - ui/src/pages/QuotaPage.tsx
+      - ui/src/pages/QuotaPage.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+```
+
+**Checkpoint**: Wave 8.AP reconciles the dashboard user-facing quota page label with the Stage 8 dashboard scope by rendering navigation, route title, page heading, and E2E navigation as `Quotas` while preserving the stable `quota` route id and `/api/usage/quota/{provider}` backend contract.
 
 ---
 
