@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.AT"
-last_updated: "2026-06-04T13:44:19Z"
+last_updated: "2026-06-04T13:45:23Z"
 last_agent: "orchestrator"
 ```
 
@@ -1488,7 +1488,7 @@ tasks:
     name: "Run final release-lock verification"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "e966841"
     files_owned:
       - docs/WORKFLOW.md
       - docs/PLAN.md
