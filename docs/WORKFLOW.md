@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.S"
-last_updated: "2026-06-04T09:31:33Z"
+current_wave: "8.T"
+last_updated: "2026-06-04T09:43:15Z"
 last_agent: "orchestrator"
 ```
 
@@ -435,7 +435,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T09:31:33Z"
 evaluator_prompt: "docs/evaluations/wave-8S-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e91fb-fb7a-7af3-b6f1-d0ae7eeef3d5 at commit ac08662"
 gate_results:
   - "go test ./internal/provider/oauth ./internal/provider ./internal/cli ./api/handlers -run 'TestCanonical|TestOAuthFlowAccepts|TestLoginDevicePersistsVertex|TestOAuthExchangeStoresVertex|TestOAuthStartStores|TestOAuthCallbackUses|TestOAuthPoll' -count=1: PASS"
   - "go test ./... -count=1: PASS"
@@ -465,7 +465,42 @@ tasks:
       - internal/provider/oauth/types_test.go
 ```
 
-**Checkpoint**: Wave 8.S fixes the auth/runtime split for Vertex. `vertex` now resolves to the Gemini OAuth flow while persisted CLI and HTTP OAuth connections keep runtime provider `vertex` with `oauth_provider=gemini`, so provider-qualified Vertex dispatch can find usable credentials. External evaluation remains pending.
+**Checkpoint**: Wave 8.S fixes the auth/runtime split for Vertex. `vertex` now resolves to the Gemini OAuth flow while persisted CLI and HTTP OAuth connections keep runtime provider `vertex` with `oauth_provider=gemini`, so provider-qualified Vertex dispatch can find usable credentials. External evaluator thread `019e91fb-fb7a-7af3-b6f1-d0ae7eeef3d5` returned PASS at commit `ac08662` with no source blockers.
+
+### Wave 8.T — RTK And Caveman Dispatch Wiring
+
+```yaml
+wave: "8.T"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T09:39:34Z"
+evaluator_prompt: "docs/evaluations/wave-8T-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./api -run TestInferenceAppliesRTKAndCavemanSettingsBeforeDispatch -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.T.1"
+    name: "Apply RTK and caveman settings before dispatch"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - api/server.go
+      - api/server_test.go
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8T-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.T wires runtime settings into normal `/v1/*` dispatch. Requests pass through RTK compression and caveman prompt injection before the inference engine, and request logs now record source/target format plus RTK/caveman enabled flags. External evaluation remains pending.
 
 ---
 

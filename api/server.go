@@ -19,6 +19,7 @@ import (
 	"github.com/bloodf/g0router/internal/modelcatalog"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
+	"github.com/bloodf/g0router/internal/rtk"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
 	"github.com/valyala/fasthttp"
@@ -139,6 +140,10 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, handle func(*fa
 	engine := s.config.InferenceEngine
 	var captured *capturingInferenceEngine
 	if engine != nil {
+		engine = preprocessingInferenceEngine{
+			base:     engine,
+			settings: s.runtimeSettings,
+		}
 		captured = &capturingInferenceEngine{
 			base: engine,
 			onStreamComplete: func(req *providers.ChatRequest, model string, providerUsage *providers.Usage) {
@@ -173,6 +178,7 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, 
 	}
 
 	metadata := inferenceLogMetadata(ctx, request, response, streamModel)
+	settings := s.runtimeSettings()
 	var extractedUsage *usage.Usage
 	if response != nil {
 		if value, ok := usage.FromChatResponse(*response); ok {
@@ -189,20 +195,56 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, 
 		costUSD = costForUsage(s.config.Store, metadata.provider, metadata.model, extractedUsage)
 	}
 	entry := logging.RequestLog{
-		RequestID:    string(ctx.Response.Header.Peek(requestIDHeader)),
-		Timestamp:    started.UTC(),
-		Provider:     metadata.provider,
-		Model:        metadata.model,
-		ConnectionID: metadata.connectionID,
-		AuthType:     metadata.authType,
-		Usage:        extractedUsage,
-		CostUSD:      costUSD,
-		Latency:      time.Since(started),
-		StatusCode:   statusCode,
-		Error:        sanitizedLogError(ctx, dispatchErr, statusCode),
-		APIKeyID:     metadata.apiKeyID,
+		RequestID:      string(ctx.Response.Header.Peek(requestIDHeader)),
+		Timestamp:      started.UTC(),
+		Provider:       metadata.provider,
+		Model:          metadata.model,
+		ConnectionID:   metadata.connectionID,
+		AuthType:       metadata.authType,
+		Usage:          extractedUsage,
+		CostUSD:        costUSD,
+		Latency:        time.Since(started),
+		StatusCode:     statusCode,
+		Error:          sanitizedLogError(ctx, dispatchErr, statusCode),
+		APIKeyID:       metadata.apiKeyID,
+		SourceFormat:   stringPtrIfNotEmpty("openai"),
+		TargetFormat:   stringPtrIfNotEmpty(metadata.provider),
+		RTKEnabled:     boolPtr(settings.RTKEnabled),
+		CavemanEnabled: boolPtr(settings.CavemanEnabled),
 	}
 	_ = logging.NewLogger(usageStore).Log(entry)
+}
+
+type preprocessingInferenceEngine struct {
+	base     handlers.InferenceEngine
+	settings func() store.Settings
+}
+
+func (e preprocessingInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	return e.base.Dispatch(ctx, e.preprocess(req))
+}
+
+func (e preprocessingInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	return e.base.DispatchStream(ctx, e.preprocess(req))
+}
+
+func (e preprocessingInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
+	return e.base.ListModels(ctx)
+}
+
+func (e preprocessingInferenceEngine) preprocess(req *providers.ChatRequest) *providers.ChatRequest {
+	if req == nil {
+		return nil
+	}
+	settings := e.settings()
+	processed := *req
+	if settings.RTKEnabled {
+		processed = rtk.CompressRequest(processed)
+	}
+	if settings.CavemanEnabled {
+		processed = rtk.InjectCaveman(processed, rtk.CavemanLevel(settings.CavemanLevel))
+	}
+	return &processed
 }
 
 type capturingInferenceEngine struct {
@@ -274,6 +316,20 @@ func (s *Server) requestLogsEnabled() bool {
 		return false
 	}
 	return settings.EnableRequestLogs
+}
+
+func (s *Server) runtimeSettings() store.Settings {
+	if s.config.Store != nil {
+		settings, err := s.config.Store.GetSettings()
+		if err == nil {
+			return settings
+		}
+	}
+	return store.Settings{
+		RTKEnabled:     true,
+		CavemanEnabled: false,
+		CavemanLevel:   "full",
+	}
 }
 
 type requestLogMetadata struct {
@@ -413,6 +469,10 @@ func stringPtrIfNotEmpty(value string) *string {
 	if value == "" {
 		return nil
 	}
+	return &value
+}
+
+func boolPtr(value bool) *bool {
 	return &value
 }
 

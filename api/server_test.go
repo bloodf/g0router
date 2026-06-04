@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net"
@@ -800,6 +801,76 @@ func TestInferenceLoggingRecordsAPIKeyIdentityWhenValidatorProvidesIt(t *testing
 	}
 	if entry.APIKeyID != nil && *entry.APIKeyID == rawKey {
 		t.Fatal("api key id must not contain the raw API key")
+	}
+}
+
+func TestInferenceAppliesRTKAndCavemanSettingsBeforeDispatch(t *testing.T) {
+	s := newAPITestStore(t)
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.RTKEnabled = true
+	settings.CavemanEnabled = true
+	settings.CavemanLevel = "lite"
+	settings.EnableRequestLogs = true
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	var received []providers.ChatRequest
+	engine := routeInferenceEngine{response: routeChatResponseWithUsage(), received: &received}
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: engine,
+	})
+
+	body := `{"model":"gpt-4o","messages":[{"role":"tool","content":"On branch codex/test\nChanges not staged for commit:\n  modified:   internal/rtk/rtk.go\nUntracked files:\n  api/server_test.go\n"},{"role":"user","content":"summarize"}]}`
+	resp, respBody := postAPITestJSON(t, baseURL+"/v1/chat/completions", body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, respBody)
+	}
+	if len(received) != 1 {
+		t.Fatalf("engine requests = %d, want 1", len(received))
+	}
+	req := received[0]
+	if len(req.Messages) != 3 {
+		t.Fatalf("messages len = %d, want caveman system plus original messages: %+v", len(req.Messages), req.Messages)
+	}
+	if req.Messages[0].Role != "system" || !strings.Contains(fmt.Sprint(req.Messages[0].Content), "Respond tersely") {
+		t.Fatalf("first message = %+v, want caveman system prompt", req.Messages[0])
+	}
+	toolContent, ok := req.Messages[1].Content.(string)
+	if !ok {
+		t.Fatalf("tool content type = %T, want string", req.Messages[1].Content)
+	}
+	if strings.Contains(toolContent, "Changes not staged for commit") || !strings.Contains(toolContent, "M internal/rtk/rtk.go") {
+		t.Fatalf("tool content was not RTK-compressed: %q", toolContent)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1", len(entries))
+	}
+	entry := entries[0]
+	if entry.RTKEnabled == nil || !*entry.RTKEnabled {
+		t.Fatalf("rtk enabled = %v, want true", entry.RTKEnabled)
+	}
+	if entry.CavemanEnabled == nil || !*entry.CavemanEnabled {
+		t.Fatalf("caveman enabled = %v, want true", entry.CavemanEnabled)
+	}
+	if entry.SourceFormat == nil || *entry.SourceFormat != "openai" {
+		t.Fatalf("source format = %v, want openai", entry.SourceFormat)
+	}
+	if entry.TargetFormat == nil || *entry.TargetFormat != "openai" {
+		t.Fatalf("target format = %v, want openai", entry.TargetFormat)
 	}
 }
 
