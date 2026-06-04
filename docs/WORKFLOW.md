@@ -394,7 +394,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T09:23:41Z"
 evaluator_prompt: "docs/evaluations/wave-8R-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e91f5-46ee-7bd2-bb34-2589de0e3107 at commit e729177"
 gate_results:
   - "go test ./api ./internal/modelcatalog ./internal/proxy -count=1: PASS"
   - "go test ./... -count=1: PASS"
@@ -424,7 +424,7 @@ tasks:
       - internal/proxy/engine_test.go
 ```
 
-**Checkpoint**: Wave 8.R fixes the post-8.Q routing gap where unqualified Gemini catalog IDs made Vertex direct dispatch unreachable. Vertex public routes now use provider-qualified `vertex/gemini-*` IDs, dispatch rewrites them to upstream Gemini model IDs, and request logging preserves the public model for cost lookup. External evaluation remains pending.
+**Checkpoint**: Wave 8.R fixes the post-8.Q routing gap where unqualified Gemini catalog IDs made Vertex direct dispatch unreachable. Vertex public routes now use provider-qualified `vertex/gemini-*` IDs, dispatch rewrites them to upstream Gemini model IDs, and request logging preserves the public model for cost lookup. External evaluator thread `019e91f5-46ee-7bd2-bb34-2589de0e3107` returned PASS at commit `e729177` with no blocking findings.
 
 ### Wave 8.S — Vertex OAuth Binding
 
