@@ -249,6 +249,38 @@ func TestParseSSEStream(t *testing.T) {
 	}
 }
 
+func TestParseSSEStreamReportsMalformedEvent(t *testing.T) {
+	server := streamServer(t, strings.Join([]string{
+		`data: {"error":"sk-live-secret leaked upstream body"`,
+		"",
+		"data: " + streamChunkContentJSON,
+		"",
+	}, "\n"))
+	provider, err := New(Config{Provider: providers.ProviderGroq, BaseURL: server.URL})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	chunks, err := provider.ChatCompletionStream(context.Background(), testKey(providers.ProviderGroq), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+
+	got := collectChunks(chunks)
+	if len(got) != 1 {
+		t.Fatalf("chunks len = %d, want 1; chunks=%+v", len(got), got)
+	}
+	if got[0].Error == nil {
+		t.Fatalf("chunk error = nil, want malformed stream error")
+	}
+	if strings.Contains(got[0].Error.Message, "sk-live-secret") || strings.Contains(got[0].Error.Message, "leaked upstream body") {
+		t.Fatalf("chunk error leaked upstream body: %+v", got[0].Error)
+	}
+	if got[0].Error.Code != "upstream_stream_malformed" {
+		t.Fatalf("chunk error code = %q, want upstream_stream_malformed", got[0].Error.Code)
+	}
+}
+
 func TestChatCompletionStreamReturnsBeforeUpstreamCompletes(t *testing.T) {
 	release := make(chan struct{})
 	server := liveStreamServer(t, release, streamChunkContentJSON, streamChunkRoleJSON)

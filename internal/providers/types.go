@@ -149,12 +149,19 @@ type StreamChunk struct {
 	Choices           []StreamChoice `json:"choices"`
 	Usage             *Usage         `json:"usage,omitempty"`
 	SystemFingerprint *string        `json:"system_fingerprint,omitempty"`
+	Error             *StreamError   `json:"error,omitempty"`
 }
 
 type StreamChoice struct {
 	Index        int         `json:"index"`
 	Delta        StreamDelta `json:"delta"`
 	FinishReason *string     `json:"finish_reason"`
+}
+
+type StreamError struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+	Code    string `json:"code"`
 }
 
 type StreamDelta struct {

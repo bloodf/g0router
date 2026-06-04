@@ -150,6 +150,37 @@ func TestStreamInference(t *testing.T) {
 	}
 }
 
+func TestStreamInferenceWritesSanitizedStreamError(t *testing.T) {
+	chunks := make(chan providers.StreamChunk, 1)
+	chunks <- providers.StreamChunk{
+		Error: &providers.StreamError{
+			Message: "upstream stream failed with sk-live-secret",
+			Type:    "server_error",
+			Code:    "upstream_stream_malformed",
+		},
+	}
+	close(chunks)
+	engine := &fakeEngine{stream: chunks}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}],"stream":true}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	bodyText := string(body)
+	if !strings.Contains(bodyText, `"code":"upstream_stream_malformed"`) {
+		t.Fatalf("stream body missing stream error code: %s", bodyText)
+	}
+	if strings.Contains(bodyText, "sk-live-secret") {
+		t.Fatalf("stream body leaked provider detail: %s", bodyText)
+	}
+	if strings.Contains(bodyText, "data: [DONE]") {
+		t.Fatalf("stream body should stop after error without [DONE]: %s", bodyText)
+	}
+}
+
 func TestInferenceInvalidJSON(t *testing.T) {
 	engine := &fakeEngine{response: chatResponse()}
 	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})

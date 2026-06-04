@@ -64,6 +64,10 @@ func streamInference(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *prov
 	ctx.SetStatusCode(fasthttp.StatusOK)
 	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
 		for chunk := range stream {
+			if chunk.Error != nil {
+				writeStreamError(w, chunk.Error)
+				return
+			}
 			data, err := json.Marshal(chunk)
 			if err != nil {
 				continue
@@ -74,6 +78,29 @@ func streamInference(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *prov
 		_, _ = w.WriteString("data: [DONE]\n\n")
 		_ = w.Flush()
 	})
+}
+
+func writeStreamError(w *bufio.Writer, err *providers.StreamError) {
+	message := "upstream provider stream error"
+	errorType := "server_error"
+	code := "upstream_stream_error"
+	if err != nil {
+		if err.Type != "" {
+			errorType = err.Type
+		}
+		if err.Code != "" {
+			code = err.Code
+		}
+	}
+	data, marshalErr := json.Marshal(openAIErrorResponse{Error: openAIErrorBody{
+		Message: message,
+		Type:    errorType,
+		Code:    code,
+	}})
+	if marshalErr == nil {
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+	}
+	_ = w.Flush()
 }
 
 func Messages(ctx *fasthttp.RequestCtx, engine InferenceEngine) {

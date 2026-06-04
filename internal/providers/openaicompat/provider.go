@@ -245,7 +245,8 @@ func parseSSE(body io.Reader, chunks chan<- providers.StreamChunk) {
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r")
 		if line == "" {
-			if handleSSEData(dataLines, chunks) {
+			done, failed := handleSSEData(dataLines, chunks)
+			if done || failed {
 				return
 			}
 			dataLines = nil
@@ -256,26 +257,43 @@ func parseSSE(body io.Reader, chunks chan<- providers.StreamChunk) {
 		}
 	}
 	if len(dataLines) > 0 {
-		handleSSEData(dataLines, chunks)
+		_, failed := handleSSEData(dataLines, chunks)
+		if failed {
+			return
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		chunks <- streamErrorChunk("upstream_stream_error")
 	}
 }
 
-func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk) bool {
+func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk) (bool, bool) {
 	if len(dataLines) == 0 {
-		return false
+		return false, false
 	}
 
 	data := strings.Join(dataLines, "\n")
 	if data == "[DONE]" {
-		return true
+		return true, false
 	}
 
 	var chunk providers.StreamChunk
 	if err := json.Unmarshal([]byte(data), &chunk); err != nil {
-		return false
+		chunks <- streamErrorChunk("upstream_stream_malformed")
+		return false, true
 	}
 	chunks <- chunk
-	return false
+	return false, false
+}
+
+func streamErrorChunk(code string) providers.StreamChunk {
+	return providers.StreamChunk{
+		Error: &providers.StreamError{
+			Message: "upstream provider stream error",
+			Type:    "server_error",
+			Code:    code,
+		},
+	}
 }
 
 func mapError(provider providers.ModelProvider, resp *fasthttp.Response) error {
