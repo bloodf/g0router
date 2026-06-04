@@ -73,6 +73,7 @@ func registerOpenAICompatible(engine *proxy.Engine) {
 		providers.ProviderQwen,
 		providers.ProviderXAI,
 		providers.ProviderVercelGateway,
+		providers.ProviderGitHubCopilot,
 		providers.ProviderLiteLLM,
 		providers.ProviderVLLM,
 		providers.ProviderLMStudio,

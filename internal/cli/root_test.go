@@ -386,12 +386,12 @@ func TestProvidersListShowsSupportedInferenceProvidersOnly(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"openai", "anthropic", "azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai"} {
+	for _, want := range []string{"openai", "anthropic", "azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai"} {
 		if !strings.Contains(output, want+"\n") {
 			t.Fatalf("output = %q, want supported provider %q", output, want)
 		}
 	}
-	for _, unsupported := range []string{"github-copilot", "cursor", "replicate"} {
+	for _, unsupported := range []string{"cursor", "replicate"} {
 		if strings.Contains(output, unsupported+"\n") {
 			t.Fatalf("output = %q, should not advertise %q as inference provider", output, unsupported)
 		}

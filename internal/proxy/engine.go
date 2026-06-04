@@ -570,6 +570,7 @@ func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
 	provider := providers.ModelProvider(providercore.CanonicalProviderID(providerID))
 	switch provider {
 	case providers.ProviderAzure,
+		providers.ProviderGitHubCopilot,
 		providers.ProviderLiteLLM,
 		providers.ProviderLMStudio,
 		providers.ProviderVLLM:

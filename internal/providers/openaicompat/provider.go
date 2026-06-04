@@ -26,11 +26,13 @@ var (
 type Config struct {
 	Provider providers.ModelProvider
 	BaseURL  string
+	Headers  map[string]string
 }
 
 type Provider struct {
 	provider     providers.ModelProvider
 	baseURL      string
+	headers      map[string]string
 	client       *fasthttp.Client
 	streamClient *http.Client
 }
@@ -61,9 +63,17 @@ func New(config Config) (*Provider, error) {
 	if strings.TrimSpace(config.BaseURL) == "" {
 		return nil, fmt.Errorf("%s base URL: empty", config.Provider)
 	}
+	headers := make(map[string]string, len(config.Headers))
+	for key, value := range config.Headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		headers[key] = value
+	}
 	return &Provider{
 		provider:     config.Provider,
 		baseURL:      strings.TrimRight(config.BaseURL, "/"),
+		headers:      headers,
 		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
 		streamClient: &http.Client{},
 	}, nil
@@ -168,6 +178,9 @@ func (p *Provider) newJSONRequest(method, path string, key providers.Key, body a
 	req := fasthttp.AcquireRequest()
 	req.Header.SetMethod(method)
 	req.SetRequestURI(p.endpoint(path))
+	for key, value := range p.headers {
+		req.Header.Set(key, value)
+	}
 	req.Header.Set("Authorization", "Bearer "+key.Value)
 
 	if body != nil {
@@ -194,6 +207,9 @@ func (p *Provider) newHTTPJSONRequest(ctx context.Context, method, path string, 
 	req, err := http.NewRequestWithContext(ctx, method, p.endpoint(path), reader)
 	if err != nil {
 		return nil, fmt.Errorf("create %s request: %w", p.provider, err)
+	}
+	for key, value := range p.headers {
+		req.Header.Set(key, value)
 	}
 	req.Header.Set("Authorization", "Bearer "+key.Value)
 	if body != nil {

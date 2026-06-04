@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.AZ"
-last_updated: "2026-06-04T19:00:48Z"
+current_wave: "8.BA"
+last_updated: "2026-06-04T19:34:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1814,6 +1814,61 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AZ adds provider-qualified dynamic public routing for deployment-defined registered adapters: `azure/<deployment>`, `litellm/<model>`, `lm-studio/<loaded-model>`, and `vllm/<served-model>`. Exact catalog matches still win before dynamic prefix routing, so catalog-owned slash models such as OpenRouter models are not hijacked. These providers remain without static catalog pricing or quota fetchers. Replicate stays adapter-only until its public API semantics are proven.
+
+---
+
+### Wave 8.BA — GitHub Copilot OMP Runtime Routing
+
+```yaml
+wave: "8.BA"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/openaicompat ./internal/proxy ./internal/provider ./api/handlers ./internal/cli -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T19:34:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BA-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./internal/providers/openaicompat -run 'TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestGitHubCopilotDefaultProviderSendsOMPHeaders|TestDefaultConfigsAreRegistered' -count=1: RED before implementation, Config.Headers and GitHub Copilot default config were missing"
+  - "go test ./internal/proxy -run TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders -count=1: RED before implementation, github-copilot/gpt-4o returned provider not found"
+  - "go test ./internal/providers/openaicompat -run 'TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestGitHubCopilotDefaultProviderSendsOMPHeaders|TestDefaultConfigsAreRegistered' -count=1: PASS"
+  - "go test ./internal/proxy -run 'TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestDispatchStreamUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders' -count=1: PASS"
+  - "go test ./internal/provider -run 'TestProviderMatrixMarksAuthOnlyProvidersExplicitly|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestProviderMatrixSupportedEntriesHaveUsableSurface' -count=1: PASS"
+  - "go test ./api/handlers -run TestProvidersListKnownProviders -count=1 && go test ./internal/cli -run 'TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly|TestProvidersTestReportsAuthOnlyProvider' -count=1: PASS"
+  - "go test ./... -count=1: PASS after updating stale auth-only provider-list negative test from github to cursor"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 84 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 20 tests"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+  - "secret scan excluding the historical evaluator prompt that contains the scan expression itself: PASS"
+
+tasks:
+  - id: "8.BA.1"
+    name: "Promote GitHub Copilot through OMP-style OpenAI-compatible runtime routing"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/providers/openaicompat/provider.go
+      - internal/providers/openaicompat/registry.go
+      - internal/providers/openaicompat/provider_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - api/handlers/providers_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8BA-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BA promotes GitHub Copilot from auth-only to public provider-qualified runtime routing through the existing OpenAI-compatible adapter. The adapter sends the OMP Copilot `User-Agent: opencode/1.3.15`, strips `github-copilot/` before upstream dispatch, and keeps Copilot without a fake static model catalog or quota fetcher.
 
 ---
 

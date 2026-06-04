@@ -623,6 +623,7 @@ func TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(
 		upstream    string
 	}{
 		{name: "azure", provider: providers.ProviderAzure, publicModel: "azure/gpt-4o-prod", upstream: "gpt-4o-prod"},
+		{name: "github-copilot", provider: providers.ProviderGitHubCopilot, publicModel: "github-copilot/gpt-4o", upstream: "gpt-4o"},
 		{name: "litellm", provider: providers.ProviderLiteLLM, publicModel: "litellm/team/gpt-4o", upstream: "team/gpt-4o"},
 		{name: "lm-studio", provider: providers.ProviderLMStudio, publicModel: "lm-studio/local-model", upstream: "local-model"},
 		{name: "vllm", provider: providers.ProviderVLLM, publicModel: "vllm/meta-llama/Llama-3.1-8B-Instruct", upstream: "meta-llama/Llama-3.1-8B-Instruct"},

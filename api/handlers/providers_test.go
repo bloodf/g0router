@@ -88,16 +88,13 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["anthropic"].Quota {
 		t.Fatalf("anthropic provider = %+v, should not claim quota support until a real fetcher exists", byID["anthropic"])
 	}
-	for _, id := range []string{"azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai"} {
+	for _, id := range []string{"azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported inference provider", id, byID[id])
 		}
 		if byID[id].Quota {
 			t.Fatalf("%s provider = %+v, should not claim quota support", id, byID[id])
 		}
-	}
-	if byID["github-copilot"].PublicStatus != "auth_only" || byID["github-copilot"].Inference {
-		t.Fatalf("github-copilot provider = %+v, want auth_only without inference", byID["github-copilot"])
 	}
 	if byID["replicate"].PublicStatus != "adapter_only" || !byID["replicate"].RegisteredAdapter || !byID["replicate"].Inference || byID["replicate"].PublicInference || byID["replicate"].DirectDispatch {
 		t.Fatalf("replicate provider = %+v, want registered adapter-only provider until public semantics are proven", byID["replicate"])
@@ -208,7 +205,7 @@ func TestProvidersListModelsCanonicalizesProviderAlias(t *testing.T) {
 
 func TestProvidersListModelsRejectsAuthOnlyProvider(t *testing.T) {
 	ctx, body := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
-		Providers(ctx, handlerModelSource{}, "github")
+		Providers(ctx, handlerModelSource{}, "cursor")
 	})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {

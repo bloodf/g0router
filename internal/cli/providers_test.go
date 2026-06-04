@@ -21,12 +21,12 @@ func TestProvidersListShowsKnownProviders(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"anthropic", "azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai"} {
+	for _, want := range []string{"anthropic", "azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai"} {
 		if !strings.Contains(output, want+"\n") {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}
 	}
-	for _, wantAbsent := range []string{"github-copilot", "cursor", "replicate"} {
+	for _, wantAbsent := range []string{"cursor", "replicate"} {
 		if strings.Contains(output, wantAbsent+"\n") {
 			t.Fatalf("output = %q, should not list non-public provider %q", output, wantAbsent)
 		}
@@ -100,13 +100,13 @@ func TestProvidersTestReportsAuthOnlyProvider(t *testing.T) {
 	cmd := NewRootCommand("test")
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs([]string{"providers", "test", "github"})
+	cmd.SetArgs([]string{"providers", "test", "cursor"})
 
 	err := cmd.Execute()
 	if err == nil {
 		t.Fatal("execute error is nil")
 	}
-	if !strings.Contains(err.Error(), "github-copilot is auth_only") {
+	if !strings.Contains(err.Error(), "cursor is auth_only") {
 		t.Fatalf("error = %q, want auth-only provider status", err.Error())
 	}
 }

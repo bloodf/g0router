@@ -33,6 +33,7 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 		{"qwen", providers.ProviderQwen},
 		{"xai", providers.ProviderXAI},
 		{"vercel-ai-gateway", providers.ProviderVercelGateway},
+		{"github-copilot", providers.ProviderGitHubCopilot},
 		{"litellm", providers.ProviderLiteLLM},
 		{"vllm", providers.ProviderVLLM},
 		{"lm-studio", providers.ProviderLMStudio},
@@ -123,6 +124,53 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 	}
 }
 
+func TestGitHubCopilotDefaultProviderSendsOMPHeaders(t *testing.T) {
+	var gotUserAgent string
+	var gotAuth string
+	var gotRequest providers.ChatRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Fatalf("path = %q, want /v1/chat/completions", r.URL.Path)
+		}
+		gotUserAgent = r.Header.Get("User-Agent")
+		gotAuth = r.Header.Get("Authorization")
+		if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(chatResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	provider, err := New(Config{
+		Provider: providers.ProviderGitHubCopilot,
+		BaseURL:  server.URL,
+		Headers:  DefaultConfigs()[providers.ProviderGitHubCopilot].Headers,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	_, err = provider.ChatCompletion(context.Background(), testKey(providers.ProviderGitHubCopilot), &providers.ChatRequest{
+		Model: "gpt-4o",
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+	if gotUserAgent != "opencode/1.3.15" {
+		t.Fatalf("User-Agent = %q, want OMP Copilot header", gotUserAgent)
+	}
+	if gotAuth != "Bearer sk-test" {
+		t.Fatalf("Authorization = %q, want bearer key", gotAuth)
+	}
+	if gotRequest.Model != "gpt-4o" {
+		t.Fatalf("model = %q, want gpt-4o", gotRequest.Model)
+	}
+}
+
 func TestProviderDoesNotDuplicateVersionSegmentWhenBaseURLIncludesV1(t *testing.T) {
 	var gotPath string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -183,6 +231,7 @@ func TestDefaultConfigsAreRegistered(t *testing.T) {
 		providers.ProviderQwen:          "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
 		providers.ProviderXAI:           "https://api.x.ai/v1",
 		providers.ProviderVercelGateway: "https://ai-gateway.vercel.sh/v1",
+		providers.ProviderGitHubCopilot: "https://api.githubcopilot.com",
 		providers.ProviderLiteLLM:       "http://localhost:4000",
 		providers.ProviderVLLM:          "http://localhost:8000/v1",
 		providers.ProviderLMStudio:      "http://localhost:1234/v1",
