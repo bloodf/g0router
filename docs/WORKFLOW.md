@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.BK"
-last_updated: "2026-06-05T00:08:00Z"
+last_updated: "2026-06-05T00:31:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2287,7 +2287,7 @@ max_agents: 1
 gate: "go test ./internal/provider ./internal/providers/openaicompat ./internal/proxy ./internal/cli ./api/handlers -run 'TestProviderMatrixMarksAuthOnlyProvidersExplicitly|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestDefaultConfigsAreRegistered|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListKnownProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T00:05:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BK-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e94cd-fa4e-7422-b488-d74336a913ac at commit c33a578; implementation and gates passed, workflow pending metadata remediated by follow-up record commit"
 gate_results:
   - "focused provider/API/CLI tests: RED before implementation, ProviderKimi was undefined and Kimi remained auth_only"
   - "focused provider/API/CLI tests: PASS"
@@ -2299,6 +2299,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e94cd-fa4e-7422-b488-d74336a913ac: implementation and gates PASS; no code blockers"
 
 tasks:
   - id: "8.BK.1"
