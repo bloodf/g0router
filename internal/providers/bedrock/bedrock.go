@@ -155,7 +155,11 @@ func (p *BedrockProvider) ListModels(ctx context.Context, key providers.Key) ([]
 }
 
 func (p *BedrockProvider) newInvokeRequest(ctx context.Context, creds credentials, chatReq *providers.ChatRequest) (*http.Request, error) {
-	body, err := json.Marshal(toConverseRequest(chatReq))
+	converseReq, err := toConverseRequest(chatReq)
+	if err != nil {
+		return nil, err
+	}
+	body, err := json.Marshal(converseReq)
 	if err != nil {
 		return nil, fmt.Errorf("marshal bedrock request: %w", err)
 	}
@@ -196,7 +200,7 @@ func modelEndpointFor(runtimeBaseURL string) string {
 	return strings.Replace(runtimeBaseURL, "://bedrock-runtime.", "://bedrock.", 1)
 }
 
-func toConverseRequest(req *providers.ChatRequest) converseRequest {
+func toConverseRequest(req *providers.ChatRequest) (converseRequest, error) {
 	maxTokens := 1024
 	if req.MaxTokens != nil {
 		maxTokens = *req.MaxTokens
@@ -209,15 +213,58 @@ func toConverseRequest(req *providers.ChatRequest) converseRequest {
 		messages = append(messages, bedrockMessage{Role: message.Role, Content: toContentBlocks(message.Content)})
 	}
 
+	stop, err := stopSequences(req.Stop)
+	if err != nil {
+		return converseRequest{}, err
+	}
+
 	return converseRequest{
 		Messages: messages,
 		InferenceConfig: &bedrockInferenceConfig{
 			MaxTokens:     maxTokens,
 			Temperature:   req.Temperature,
 			TopP:          req.TopP,
-			StopSequences: req.Stop,
+			StopSequences: stop,
 		},
+	}, nil
+}
+
+func stopSequences(stop any) ([]string, error) {
+	switch value := stop.(type) {
+	case nil:
+		return nil, nil
+	case string:
+		if value == "" {
+			return nil, nil
+		}
+		return []string{value}, nil
+	case []string:
+		return nonEmptyStrings(value), nil
+	case []any:
+		sequences := make([]string, 0, len(value))
+		for i, item := range value {
+			sequence, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("bedrock request stop sequence %d: unsupported stop value %T", i, item)
+			}
+			if sequence != "" {
+				sequences = append(sequences, sequence)
+			}
+		}
+		return sequences, nil
+	default:
+		return nil, fmt.Errorf("bedrock request: unsupported stop type %T", stop)
 	}
+}
+
+func nonEmptyStrings(values []string) []string {
+	sequences := make([]string, 0, len(values))
+	for _, value := range values {
+		if value != "" {
+			sequences = append(sequences, value)
+		}
+	}
+	return sequences
 }
 
 func toContentBlocks(content any) []bedrockContentBlock {

@@ -14,7 +14,7 @@ type bedrockInferenceConfig struct {
 	MaxTokens     int      `json:"maxTokens,omitempty"`
 	Temperature   *float64 `json:"temperature,omitempty"`
 	TopP          *float64 `json:"topP,omitempty"`
-	StopSequences any      `json:"stopSequences,omitempty"`
+	StopSequences []string `json:"stopSequences,omitempty"`
 }
 
 type converseResponse struct {

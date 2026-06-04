@@ -63,6 +63,7 @@ func TestChatCompletionSignsConverseRequest(t *testing.T) {
 		Model:       "anthropic.claude-3-haiku-20240307-v1:0",
 		Temperature: &temp,
 		MaxTokens:   &maxTokens,
+		Stop:        "END",
 		Messages: []providers.Message{
 			{Role: "user", Content: "hello"},
 		},
@@ -84,6 +85,9 @@ func TestChatCompletionSignsConverseRequest(t *testing.T) {
 	if gotRequest.InferenceConfig.Temperature == nil || *gotRequest.InferenceConfig.Temperature != 0.3 {
 		t.Errorf("temperature = %+v", gotRequest.InferenceConfig.Temperature)
 	}
+	if len(gotRequest.InferenceConfig.StopSequences) != 1 || gotRequest.InferenceConfig.StopSequences[0] != "END" {
+		t.Errorf("stopSequences = %+v, want [END]", gotRequest.InferenceConfig.StopSequences)
+	}
 	if len(gotRequest.Messages) != 1 || gotRequest.Messages[0].Role != "user" || len(gotRequest.Messages[0].Content) != 1 || gotRequest.Messages[0].Content[0].Text != "hello" {
 		t.Errorf("messages = %+v", gotRequest.Messages)
 	}
@@ -102,6 +106,49 @@ func TestChatCompletionSignsConverseRequest(t *testing.T) {
 
 	if resp.Model != "anthropic.claude-3-haiku-20240307-v1:0" {
 		t.Errorf("model = %q", resp.Model)
+	}
+}
+
+func TestChatCompletionNormalizesStopArray(t *testing.T) {
+	var gotRequest converseRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(bedrockConverseResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL)
+	_, err := provider.ChatCompletion(context.Background(), testKey(), &providers.ChatRequest{
+		Model:    "anthropic.claude-3-haiku-20240307-v1:0",
+		Stop:     []any{"END", "STOP"},
+		Messages: []providers.Message{{Role: "user", Content: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+
+	got := gotRequest.InferenceConfig.StopSequences
+	if len(got) != 2 || got[0] != "END" || got[1] != "STOP" {
+		t.Fatalf("stopSequences = %+v, want [END STOP]", got)
+	}
+}
+
+func TestChatCompletionRejectsUnsupportedStopShape(t *testing.T) {
+	provider := New("http://127.0.0.1:1")
+
+	_, err := provider.ChatCompletion(context.Background(), testKey(), &providers.ChatRequest{
+		Model:    "anthropic.claude-3-haiku-20240307-v1:0",
+		Stop:     123,
+		Messages: []providers.Message{{Role: "user", Content: "hello"}},
+	})
+	if err == nil {
+		t.Fatal("expected unsupported stop error")
+	}
+	if !strings.Contains(err.Error(), "unsupported stop") {
+		t.Fatalf("error = %v, want unsupported stop", err)
 	}
 }
 
