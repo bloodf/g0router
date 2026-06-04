@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.U"
-last_updated: "2026-06-04T09:49:40Z"
+last_updated: "2026-06-04T09:49:53Z"
 last_agent: "orchestrator"
 ```
 
@@ -476,7 +476,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T09:39:34Z"
 evaluator_prompt: "docs/evaluations/wave-8T-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e9204-c4d4-74a0-a5e4-3a62c22a5533 at commit c985c16"
 gate_results:
   - "go test ./api -run TestInferenceAppliesRTKAndCavemanSettingsBeforeDispatch -count=1: PASS"
   - "go test ./... -count=1: PASS"
@@ -500,7 +500,7 @@ tasks:
       - docs/evaluations/wave-8T-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.T wires runtime settings into normal `/v1/*` dispatch. Requests pass through RTK compression and caveman prompt injection before the inference engine, and request logs now record source/target format plus RTK/caveman enabled flags. External evaluation remains pending.
+**Checkpoint**: Wave 8.T wires runtime settings into normal `/v1/*` dispatch. Requests pass through RTK compression and caveman prompt injection before the inference engine, and request logs now record source/target format plus RTK/caveman enabled flags. External evaluator thread `019e9204-c4d4-74a0-a5e4-3a62c22a5533` returned PASS at commit `c985c16`; its non-blocking note about coarse source-format values was addressed in Wave 8.U.
 
 ### Wave 8.U — MCP Tool Injection And Route Format Logging
 
