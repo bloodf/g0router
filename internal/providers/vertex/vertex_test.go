@@ -26,6 +26,18 @@ func TestProviderSatisfiesInterface(t *testing.T) {
 	var _ providers.Provider = New("", Config{ProjectID: "test-project", Location: "us-central1"})
 }
 
+func TestChatCompletionRequiresProjectAndLocation(t *testing.T) {
+	provider := New("http://127.0.0.1:1", Config{})
+
+	_, err := provider.ChatCompletion(context.Background(), oauthKey(), testChatRequest())
+	if !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("expected ErrUnsupported for missing config, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "project") || !strings.Contains(err.Error(), "location") {
+		t.Fatalf("error = %q, want project and location context", err.Error())
+	}
+}
+
 func TestChatCompletionBuildsVertexRequest(t *testing.T) {
 	var gotPath string
 	var gotQuery string

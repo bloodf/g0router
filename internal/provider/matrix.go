@@ -59,7 +59,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		catalogRoutableProvider("perplexity", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("replicate", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("together", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("vertex", "gemini", true, false, true, false, "oauth"),
+		catalogRoutableProvider("vertex", "gemini", true, false, true, false, "oauth"),
 		authOnlyProvider("antigravity", "antigravity", true, "Google OAuth credential flow; runtime dispatch is through Gemini/Vertex adapters."),
 		authOnlyProvider("github-copilot", "github-copilot", true, "OAuth is implemented, but no GitHub Copilot inference adapter is wired."),
 		authOnlyProvider("cursor", "cursor", true, "OAuth is implemented, but no Cursor inference adapter is wired."),

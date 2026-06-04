@@ -26,7 +26,10 @@ func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
 	engine.Register(gemini.New(""))
 	engine.Register(azure.New("", ""))
 	engine.Register(bedrock.New(""))
-	engine.Register(vertex.New("", vertex.Config{}))
+	engine.Register(vertex.New("", vertex.Config{
+		ProjectID: envString("VERTEX_PROJECT_ID", ""),
+		Location:  envString("VERTEX_LOCATION", "us-central1"),
+	}))
 	registerOpenAICompatible(engine)
 	registerProvider(engine, func() (providers.Provider, error) {
 		return mistral.NewDefault()

@@ -59,6 +59,9 @@ func (p *VertexProvider) Name() providers.ModelProvider {
 }
 
 func (p *VertexProvider) ChatCompletion(ctx context.Context, key providers.Key, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	if err := p.validateConfig(); err != nil {
+		return nil, err
+	}
 	vertexReq, err := buildGenerateContentRequest(req)
 	if err != nil {
 		return nil, err
@@ -93,6 +96,9 @@ func (p *VertexProvider) ChatCompletionStream(context.Context, providers.Key, *p
 }
 
 func (p *VertexProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
+	if err := p.validateConfig(); err != nil {
+		return nil, err
+	}
 	req, err := p.newJSONRequest(fasthttp.MethodGet, p.publisherModelsPath(), key, nil)
 	if err != nil {
 		return nil, err
@@ -128,6 +134,13 @@ func (p *VertexProvider) ListModels(ctx context.Context, key providers.Key) ([]p
 		})
 	}
 	return models, nil
+}
+
+func (p *VertexProvider) validateConfig() error {
+	if strings.TrimSpace(p.config.ProjectID) == "" || strings.TrimSpace(p.config.Location) == "" {
+		return fmt.Errorf("%w: vertex project and location are required", ErrUnsupported)
+	}
+	return nil
 }
 
 func buildGenerateContentRequest(req *providers.ChatRequest) (*generateContentRequest, error) {

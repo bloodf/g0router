@@ -17,6 +17,8 @@ All configuration via environment variables. Runtime overrides via the `settings
 | `CAVEMAN_ENABLED` | bool | No | `false` | Inject caveman-mode system prompt to compress LLM output. See [Phase 7](phases/phase-07-rtk-caveman.md). |
 | `CAVEMAN_LEVEL` | string | No | `full` | Caveman compression level. Values: `lite` (gentle), `full` (standard), `ultra` (maximum compression). |
 | `HTTPS_PROXY` | string | No | — | HTTP proxy URL for all upstream provider requests. Example: `http://proxy.corp:8080`. |
+| `VERTEX_PROJECT_ID` | string | For Vertex dispatch | — | Google Cloud project ID used by the Vertex adapter for catalog-routed Gemini models. |
+| `VERTEX_LOCATION` | string | No | `us-central1` | Google Cloud location used by the Vertex adapter. |
 
 ## Optional Live Provider Smoke Tests
 
@@ -159,6 +161,10 @@ CAVEMAN_LEVEL=full   # lite | full | ultra
 
 # ─── Network ───
 # HTTPS_PROXY=http://proxy:8080
+
+# ─── Vertex AI (optional) ───
+# VERTEX_PROJECT_ID=
+# VERTEX_LOCATION=us-central1
 ```
 
 ## Docker Binding

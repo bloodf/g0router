@@ -78,7 +78,7 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 
 func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"azure", "vertex", "bedrock", "replicate"} {
+	for _, id := range []string{"azure", "bedrock", "replicate"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -161,6 +161,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"qwen":              true,
 		"together":          true,
 		"vercel-ai-gateway": true,
+		"vertex":            true,
 		"xai":               true,
 	}
 	if len(ids) != len(want) {
@@ -235,24 +236,26 @@ func TestOpenAICompatibleGatewayProvidersAreRegisteredWithoutFakeCatalogs(t *tes
 }
 
 func TestPublicNativeProvidersCanBeNonStreaming(t *testing.T) {
-	entry, ok := ProviderMatrix().Provider("gemini")
-	if !ok {
-		t.Fatal("provider matrix missing gemini")
-	}
-	if entry.PublicStatus != ProviderStatusSupported {
-		t.Fatalf("gemini status = %q, want supported", entry.PublicStatus)
-	}
-	if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
-		t.Fatalf("gemini supported surface is incomplete: %+v", entry)
-	}
-	if entry.Streaming {
-		t.Fatalf("gemini streaming = true, want false until streaming is implemented")
-	}
-	if !entry.ModelCatalog || !entry.ListModels {
-		t.Fatalf("gemini should expose catalog and ListModels: %+v", entry)
-	}
-	if entry.Quota {
-		t.Fatal("gemini should not claim quota support until a real quota fetcher exists")
+	for _, id := range []string{"gemini", "vertex"} {
+		entry, ok := ProviderMatrix().Provider(id)
+		if !ok {
+			t.Fatalf("provider matrix missing %s", id)
+		}
+		if entry.PublicStatus != ProviderStatusSupported {
+			t.Fatalf("%s status = %q, want supported", id, entry.PublicStatus)
+		}
+		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
+			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
+		}
+		if entry.Streaming {
+			t.Fatalf("%s streaming = true, want false until streaming is implemented", id)
+		}
+		if !entry.ModelCatalog || !entry.ListModels {
+			t.Fatalf("%s should expose catalog and ListModels: %+v", id, entry)
+		}
+		if entry.Quota {
+			t.Fatalf("%s should not claim quota support until a real quota fetcher exists", id)
+		}
 	}
 }
 
