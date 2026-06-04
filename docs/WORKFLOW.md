@@ -794,7 +794,7 @@ tasks:
     name: "Add dedicated dashboard MCP instance, account, and tool pages"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "a68f6c7"
     files_owned:
       - ui/src/App.tsx
       - ui/src/App.test.tsx
