@@ -1367,8 +1367,12 @@ tasks:
     name: "Reconcile stale phase TODO wording"
     status: DONE
     agent: "orchestrator"
-    commit: "SELF"
+    commit: "65eeb01"
     files_owned:
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AQ-evaluator-prompt.md
       - docs/phases/phase-00-project-bootstrap.md
       - docs/phases/phase-01-core-types-sqlite-store.md
       - docs/phases/phase-02-http-server-proxy-engine.md
