@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AK"
-last_updated: "2026-06-04T12:19:00Z"
+current_wave: "8.AL"
+last_updated: "2026-06-04T12:28:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1157,6 +1157,38 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AK lets API and CLI MCP OAuth start flows accept optional client credentials, persist them only in the short-lived OAuth flow, include `client_id` in the authorization URL, and post both credentials during token exchange without returning or printing `client_secret`.
+
+### Wave 8.AL — Dashboard MCP Instance Launch Fields
+
+```yaml
+wave: "8.AL"
+status: DONE
+max_agents: 1
+gate: "npm --prefix ui test -- --run McpSplitPages && npm --prefix ui run e2e -- --grep \"MCP\" && npm --prefix ui test -- --run && npm --prefix ui run build"
+completed_at: "2026-06-04T12:28:00Z"
+evaluator_prompt: "docs/evaluations/wave-8AL-evaluator-prompt.md"
+evaluation: "PENDING"
+gate_results:
+  - "npm --prefix ui test -- --run McpSplitPages: PASS"
+  - "npm --prefix ui run e2e -- --grep \"MCP\": PASS"
+  - "npm --prefix ui test -- --run: PASS after post-merge stabilization commit 566ab53"
+  - "npm --prefix ui run build: PASS"
+
+tasks:
+  - id: "8.AL.1"
+    name: "Dashboard MCP instance advanced launch fields"
+    status: DONE
+    agent: "subagent 019e927c-30e9-71b2-a839-e1a7378b8217"
+    commit: "c1c5b3a"
+    merge_commit: "42762e9"
+    followup_commit: "566ab53"
+    files_owned:
+      - ui/src/pages/McpPage.tsx
+      - ui/src/pages/McpSplitPages.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+```
+
+**Checkpoint**: Wave 8.AL adds dashboard form support for MCP instance `args`, `headers`, `env`, and `cwd`, validates JSON before POST, omits empty values, keeps secret values out of rendered instance rows, and proves the flow in both unit and mocked Playwright E2E coverage.
 
 ---
 
