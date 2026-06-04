@@ -44,6 +44,12 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("heading", { exact: true, name: "Aliases" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Model aliases" })).toContainText("fast");
 
+    await navigateTo(page, "Models");
+    await expect(page.getByRole("heading", { exact: true, name: "Models" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Provider models" })).toContainText("gpt-4o");
+    await page.getByRole("combobox", { name: "Provider" }).selectOption("anthropic");
+    await expect(page.getByRole("table", { name: "Provider models" })).toContainText("claude-sonnet-4");
+
     await navigateTo(page, "Pricing");
     await expect(page.getByRole("heading", { exact: true, name: "Pricing" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Pricing overrides" })).toContainText("gpt-5-mini");
@@ -260,6 +266,9 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Aliases");
     await expect(page.getByText("No model aliases")).toBeVisible();
 
+    await navigateTo(page, "Models");
+    await expect(page.getByText("No model-capable providers")).toBeVisible();
+
     await navigateTo(page, "Pricing");
     await expect(page.getByText("No pricing overrides")).toBeVisible();
 
@@ -298,6 +307,9 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("Authentication expired")).toBeVisible();
 
     await navigateTo(page, "Aliases");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
+    await navigateTo(page, "Models");
     await expect(page.getByText("Session expired")).toBeVisible();
 
     await navigateTo(page, "Combos");
@@ -551,6 +563,10 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
   switch (path) {
     case "/api/providers":
       return { status: 200, body: { data: providers } };
+    case "/api/providers/openai/models":
+      return { status: 200, body: { data: providerModels.openai } };
+    case "/api/providers/anthropic/models":
+      return { status: 200, body: { data: providerModels.anthropic } };
     case "/api/connections":
       return { status: 200, body: { data: state.connections } };
     case "/api/keys":
@@ -601,6 +617,8 @@ async function clickWithConfirm(page: Page, message: string, click: () => Promis
 function emptyAPIResponse(path: string): MockAPIResponse {
   switch (path) {
     case "/api/providers":
+    case "/api/providers/openai/models":
+    case "/api/providers/anthropic/models":
     case "/api/connections":
     case "/api/keys":
     case "/api/aliases":
@@ -658,8 +676,31 @@ const providers = [
     quota: false,
     public_status: "supported",
     notes: "E2E fixture"
+  },
+  {
+    id: "anthropic",
+    omp_id: "anthropic",
+    router9_id: "anthropic",
+    bifrost_id: "anthropic",
+    auth_types: ["api_key"],
+    refresh: false,
+    registered_adapter: true,
+    public_inference: true,
+    direct_dispatch: true,
+    inference: true,
+    streaming: true,
+    model_catalog: true,
+    list_models: true,
+    quota: false,
+    public_status: "supported",
+    notes: "E2E fixture"
   }
 ];
+
+const providerModels = {
+  anthropic: [{ id: "claude-sonnet-4", object: "model", created: 0, owned_by: "anthropic" }],
+  openai: [{ id: "gpt-4o", object: "model", created: 0, owned_by: "openai" }]
+};
 
 const connections = [
   {

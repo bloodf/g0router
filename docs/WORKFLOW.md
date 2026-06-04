@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.V"
-last_updated: "2026-06-04T09:57:21Z"
+current_wave: "8.W"
+last_updated: "2026-06-04T10:02:42Z"
 last_agent: "orchestrator"
 ```
 
@@ -546,7 +546,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T09:54:33Z"
 evaluator_prompt: "docs/evaluations/wave-8V-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e9210-dc8f-75d0-9e09-f0362b35127d at commit 7d6909c"
 gate_results:
   - "go test ./internal/proxy -run TestDispatchRunsMCPAgentToolLoopWhenToolsConfigured -count=1: PASS"
   - "go test ./internal/mcp -run TestAgent -count=1: PASS"
@@ -575,7 +575,46 @@ tasks:
       - docs/evaluations/wave-8V-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.V wires the existing MCP agent loop into non-streaming proxy dispatch when a registered MCP tool manager is present, executes tool calls through `mcp.ToolManager`, feeds tool results back to the provider, and gives normal `g0router serve` startup the same runtime tool manager as the API control plane.
+**Checkpoint**: Wave 8.V wires the existing MCP agent loop into non-streaming proxy dispatch when a registered MCP tool manager is present, executes tool calls through `mcp.ToolManager`, feeds tool results back to the provider, and gives normal `g0router serve` startup the same runtime tool manager as the API control plane. External evaluator thread `019e9210-dc8f-75d0-9e09-f0362b35127d` returned PASS at commit `7d6909c` with no blocking findings.
+
+### Wave 8.W — Dashboard Models Page
+
+```yaml
+wave: "8.W"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:01:03Z"
+evaluator_prompt: "docs/evaluations/wave-8W-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "npm --prefix ui test -- --run ModelsPage App: PASS"
+  - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.W.1"
+    name: "Add dashboard provider models page"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - ui/src/pages/ModelsPage.tsx
+      - ui/src/pages/ModelsPage.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8W-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.W adds a real Models dashboard route backed by `/api/providers` and `/api/providers/{provider}/models`, with unit and E2E coverage for loading, provider switching, empty state, and auth-expired state.
 
 ---
 

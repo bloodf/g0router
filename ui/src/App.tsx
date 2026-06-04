@@ -8,6 +8,7 @@ import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { EndpointPage } from "./pages/EndpointPage";
 import { LogsPage } from "./pages/LogsPage";
 import { McpPage } from "./pages/McpPage";
+import { ModelsPage } from "./pages/ModelsPage";
 import { PricingPage } from "./pages/PricingPage";
 import { ProvidersPage } from "./pages/ProvidersPage";
 import { QuotaPage } from "./pages/QuotaPage";
@@ -42,6 +43,13 @@ const pages = [
     title: "Aliases",
     description: "Stable model names mapped to provider and upstream model targets.",
     Component: AliasesPage
+  },
+  {
+    id: "models",
+    label: "Models",
+    title: "Models",
+    description: "Provider model catalogs and live upstream model lists.",
+    Component: ModelsPage
   },
   {
     id: "pricing",
