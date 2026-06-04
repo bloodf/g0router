@@ -127,6 +127,7 @@ func TestIntegrationManagementMutationsRoundTripThroughAuthenticatedServer(t *te
 	assertAPIKeyManagementRoundTrip(t, baseURL, rawAPIKey)
 	assertAliasManagementRoundTrip(t, baseURL, rawAPIKey)
 	assertComboManagementRoundTrip(t, baseURL, rawAPIKey)
+	assertConnectionManagementRoundTrip(t, baseURL, rawAPIKey, s)
 	assertPricingManagementRoundTrip(t, baseURL, rawAPIKey)
 	assertSettingsManagementRoundTrip(t, baseURL, rawAPIKey)
 }
@@ -549,6 +550,89 @@ func assertComboManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
 	}
 }
 
+func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string, s *store.Store) {
+	t.Helper()
+
+	createBody := `{"provider":"codex","name":"work","auth_type":"oauth","access_token":"access-secret","refresh_token":"refresh-secret","api_key":"api-secret","is_active":true,"provider_specific_data":{"region":"local","Authorization":"Bearer nested-secret","headers":{"X-API-Key":"nested-key","safe":"visible"}},"account_id":"acct-1","email":"work@example.test"}`
+	var created struct {
+		ID                   string         `json:"ID"`
+		Provider             string         `json:"Provider"`
+		Name                 string         `json:"Name"`
+		AuthType             store.AuthType `json:"AuthType"`
+		ProviderSpecificData map[string]any `json:"ProviderSpecificData"`
+		Email                *string        `json:"Email"`
+	}
+	body := doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/connections", rawAPIKey, createBody, http.StatusCreated, &created)
+	assertConnectionResponseRedacted(t, body, created.ProviderSpecificData, "access-secret", "refresh-secret", "api-secret", "nested-secret", "nested-key")
+	if created.ID == "" || created.Provider != "openai" || created.Name != "work" || created.AuthType != store.AuthTypeOAuth || created.Email == nil || *created.Email != "work@example.test" {
+		t.Fatalf("created connection = %+v, want canonical openai oauth work connection", created)
+	}
+	if created.ProviderSpecificData["region"] != "local" {
+		t.Fatalf("created provider data = %+v, want non-secret region retained", created.ProviderSpecificData)
+	}
+	headers, ok := created.ProviderSpecificData["headers"].(map[string]any)
+	if !ok || headers["safe"] != "visible" || headers["X-API-Key"] != nil {
+		t.Fatalf("created nested provider data = %+v, want redacted key and visible safe value", created.ProviderSpecificData)
+	}
+
+	stored, err := s.GetConnection(created.ID)
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if stored.AccessToken == nil || *stored.AccessToken != "access-secret" || stored.RefreshToken == nil || *stored.RefreshToken != "refresh-secret" || stored.APIKey == nil || *stored.APIKey != "api-secret" {
+		t.Fatalf("stored connection secrets = access:%v refresh:%v api:%v, want original secrets persisted", stored.AccessToken, stored.RefreshToken, stored.APIKey)
+	}
+
+	tested := struct {
+		OK       bool   `json:"ok"`
+		Provider string `json:"provider"`
+		Name     string `json:"name"`
+	}{}
+	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/connections/"+created.ID+"/test", rawAPIKey, "", http.StatusOK, &tested)
+	if !tested.OK || tested.Provider != "openai" || tested.Name != "work" {
+		t.Fatalf("connection test response = %+v, want active canonical openai work connection", tested)
+	}
+
+	listBody := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/connections", http.StatusOK)
+	assertConnectionResponseRedacted(t, listBody, nil, "access-secret", "refresh-secret", "api-secret", "nested-secret", "nested-key")
+	var listed struct {
+		Data []struct {
+			ID       string `json:"ID"`
+			Provider string `json:"Provider"`
+			Name     string `json:"Name"`
+		} `json:"data"`
+	}
+	decodeIntegrationJSON(t, listBody, &listed)
+	if !containsConnection(listed.Data, created.ID, "openai", "work") {
+		t.Fatalf("connection list = %+v, want created connection", listed.Data)
+	}
+
+	updateBody := `{"provider":"anthropic","name":"work-updated","auth_type":"api_key","api_key":"updated-secret","is_active":false,"provider_specific_data":{"mode":"updated","token":"updated-nested-secret"}}`
+	var updated struct {
+		ID                   string         `json:"ID"`
+		Provider             string         `json:"Provider"`
+		Name                 string         `json:"Name"`
+		AuthType             store.AuthType `json:"AuthType"`
+		IsActive             bool           `json:"IsActive"`
+		ProviderSpecificData map[string]any `json:"ProviderSpecificData"`
+	}
+	body = doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/connections/"+created.ID, rawAPIKey, updateBody, http.StatusOK, &updated)
+	assertConnectionResponseRedacted(t, body, updated.ProviderSpecificData, "updated-secret", "updated-nested-secret")
+	if updated.ID != created.ID || updated.Provider != "anthropic" || updated.Name != "work-updated" || updated.AuthType != store.AuthTypeAPIKey || updated.IsActive {
+		t.Fatalf("updated connection = %+v, want inactive anthropic api-key connection", updated)
+	}
+	if updated.ProviderSpecificData["mode"] != "updated" || updated.ProviderSpecificData["token"] != nil {
+		t.Fatalf("updated provider data = %+v, want redacted token and visible mode", updated.ProviderSpecificData)
+	}
+
+	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/connections/"+created.ID, rawAPIKey, "", http.StatusNoContent, nil)
+	body = assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/connections", http.StatusOK)
+	decodeIntegrationJSON(t, body, &listed)
+	if containsConnection(listed.Data, created.ID, "anthropic", "work-updated") {
+		t.Fatalf("connection list after delete = %+v, still contains deleted connection", listed.Data)
+	}
+}
+
 func assertPricingManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
 	t.Helper()
 
@@ -578,6 +662,25 @@ func assertPricingManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
 	decodeIntegrationJSON(t, body, &listed)
 	if containsPricingOverride(listed.Data, updated) {
 		t.Fatalf("pricing override list after delete = %+v, still contains %+v", listed.Data, updated)
+	}
+}
+
+func assertConnectionResponseRedacted(t *testing.T, body []byte, providerData map[string]any, secrets ...string) {
+	t.Helper()
+
+	bodyText := string(body)
+	for _, secret := range secrets {
+		if strings.Contains(bodyText, secret) {
+			t.Fatalf("connection response leaked secret %q: %s", secret, bodyText)
+		}
+	}
+	if providerData == nil {
+		return
+	}
+	for _, secretKey := range []string{"Authorization", "api_key", "X-API-Key", "token"} {
+		if _, ok := providerData[secretKey]; ok {
+			t.Fatalf("provider data exposed secret key %q: %+v", secretKey, providerData)
+		}
 	}
 }
 
@@ -824,6 +927,19 @@ func containsAlias(aliases []store.ModelAlias, want store.ModelAlias) bool {
 func containsCombo(combos []store.Combo, id, name string) bool {
 	for _, combo := range combos {
 		if combo.ID == id && combo.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func containsConnection(connections []struct {
+	ID       string `json:"ID"`
+	Provider string `json:"Provider"`
+	Name     string `json:"Name"`
+}, id, provider, name string) bool {
+	for _, connection := range connections {
+		if connection.ID == id && connection.Provider == provider && connection.Name == name {
 			return true
 		}
 	}
