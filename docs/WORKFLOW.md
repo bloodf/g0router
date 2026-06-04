@@ -2089,7 +2089,7 @@ max_agents: 1
 gate: "go test ./internal/providers/openaicompat ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestZhipuDefaultProviderUsesDocumentedPaaSPathWithoutV1Prefix|TestDefaultConfigsAreRegistered|TestProviderMatrixMarksAuthOnlyProvidersExplicitly|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-04T22:32:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BG-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e949d-02e5-7c02-96a1-964ad923ca93 at commit 02a63ae"
 gate_results:
   - "focused provider/API/CLI tests: RED before implementation, ProviderAlibaba/ProviderZhipu and Zhipu chat path override were missing; Alibaba/Zhipu remained auth_only"
   - "focused provider/API/CLI tests: PASS"
@@ -2101,6 +2101,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e949d-02e5-7c02-96a1-964ad923ca93: PASS, no blocking findings"
 
 tasks:
   - id: "8.BG.1"
