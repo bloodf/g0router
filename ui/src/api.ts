@@ -90,6 +90,7 @@ export type CreateConnectionRequest = {
   name: string;
   auth_type: "api_key" | "oauth" | "noauth";
   api_key?: string;
+  account_id?: string;
   is_active: boolean;
 };
 

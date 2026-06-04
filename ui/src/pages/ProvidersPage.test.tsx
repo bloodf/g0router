@@ -168,6 +168,90 @@ describe("ProvidersPage", () => {
     expect(window.confirm).toHaveBeenCalledWith("Delete provider connection created?");
   });
 
+  it("creates Cloudflare AI Gateway connections with account ID metadata", async () => {
+    const cloudflareProvider = {
+      ...providerEntry,
+      id: "cloudflare-ai-gateway",
+      auth_types: ["api_key"],
+      model_catalog: false,
+      list_models: false,
+      quota: false,
+      notes: "requires account_id"
+    };
+    const connections: unknown[] = [];
+    const fetch = vi.fn(async (path: string, options?: RequestInit) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [cloudflareProvider] });
+      }
+      if (path === "/api/connections" && options?.method === "POST") {
+        expect(JSON.parse(String(options.body))).toEqual({
+          provider: "cloudflare-ai-gateway",
+          name: "cf-prod",
+          auth_type: "api_key",
+          api_key: "cf-secret",
+          is_active: true,
+          account_id: "cf-account-123"
+        });
+        connections.push({
+          ...connectionEntry,
+          ID: "conn-cloudflare",
+          Provider: "cloudflare-ai-gateway",
+          Name: "cf-prod",
+          AuthType: "api_key",
+          AccountID: "cf-account-123",
+          Email: ""
+        });
+        return jsonResponse(connections[0], { status: 201 });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: connections });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    await screen.findByRole("combobox", { name: "Provider" });
+    fireEvent.change(screen.getByLabelText("Connection name"), { target: { value: "cf-prod" } });
+    fireEvent.change(screen.getByLabelText("Provider API key"), { target: { value: "cf-secret" } });
+    fireEvent.change(screen.getByLabelText("Cloudflare account ID"), { target: { value: "cf-account-123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
+
+    expect(await screen.findByRole("row", { name: /cf-prod cloudflare-ai-gateway cf-account-123 api_key active/i })).toBeInTheDocument();
+    expect(screen.queryByText("cf-secret")).not.toBeInTheDocument();
+  });
+
+  it("requires Cloudflare account ID before creating the connection", async () => {
+    const cloudflareProvider = {
+      ...providerEntry,
+      id: "cloudflare-ai-gateway",
+      auth_types: ["api_key"],
+      notes: "requires account_id"
+    };
+    const fetch = vi.fn(async (path: string, options?: RequestInit) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [cloudflareProvider] });
+      }
+      if (path === "/api/connections" && !options?.method) {
+        return jsonResponse({ data: [] });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    await screen.findByRole("combobox", { name: "Provider" });
+    fireEvent.change(screen.getByLabelText("Connection name"), { target: { value: "cf-prod" } });
+    fireEvent.change(screen.getByLabelText("Provider API key"), { target: { value: "cf-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
+
+    expect(await screen.findByText("Cloudflare account ID is required.")).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalledWith("/api/connections", expect.objectContaining({ method: "POST" }));
+    expect(screen.queryByText("cf-secret")).not.toBeInTheDocument();
+  });
+
   it("renders OAuth-capable provider controls separately from API-key creation", async () => {
     const fetch = vi.fn(async (path: string) => {
       if (path === "/api/providers") {

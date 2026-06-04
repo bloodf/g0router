@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BI"
-last_updated: "2026-06-04T23:28:00Z"
+current_wave: "8.BJ"
+last_updated: "2026-06-04T23:34:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2229,6 +2229,50 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BI removes one concrete `unsupported` gateway provider gap. Cloudflare AI Gateway now has a native account-scoped adapter that delegates to the shared OpenAI-compatible runtime at `/accounts/{account_id}/ai/v1/chat/completions`, propagates stored connection `account_id` into provider keys, and routes provider-qualified models such as `cloudflare-ai-gateway/openai/gpt-4.1`. Cloudflare remains intentionally non-catalog, non-listing, and non-quota until those public contracts are implemented.
+
+---
+
+### Wave 8.BJ — Dashboard Connection Account Metadata
+
+```yaml
+wave: "8.BJ"
+status: DONE
+max_agents: 1
+gate: "npm --prefix ui test -- --run ProvidersPage.test.tsx -t 'creates Cloudflare AI Gateway connections with account ID metadata' && npm --prefix ui test -- --run ProvidersPage.test.tsx && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && make build && git diff --check"
+completed_at: "2026-06-04T23:34:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BJ-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "npm --prefix ui test -- --run ProvidersPage.test.tsx -t 'creates Cloudflare AI Gateway connections with account ID metadata': RED before implementation, Cloudflare account ID input was missing"
+  - "npm --prefix ui test -- --run ProvidersPage.test.tsx -t 'creates Cloudflare AI Gateway connections with account ID metadata': PASS"
+  - "npm --prefix ui test -- --run ProvidersPage.test.tsx -t 'Cloudflare': PASS, 2 tests"
+  - "npm --prefix ui test -- --run ProvidersPage.test.tsx: PASS, 14 tests"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BJ.1"
+    name: "Expose Cloudflare account ID in dashboard connection creation"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - ui/src/api.ts
+      - ui/src/pages/ProvidersPage.tsx
+      - ui/src/pages/ProvidersPage.test.tsx
+      - ui/dist/assets/index.css
+      - ui/dist/assets/index.js
+      - docs/PLAN.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BJ-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BJ closes the dashboard management gap introduced by account-scoped Cloudflare routing. The provider connection form now shows a Cloudflare account ID field only for `cloudflare-ai-gateway`, requires it before submission, sends it as `account_id`, clears it after creation/provider changes, and continues to avoid rendering provider credentials.
 
 ---
 

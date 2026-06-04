@@ -106,6 +106,7 @@ function ProviderTables({
   const [oauthSession, setOAuthSession] = useState<ProviderOAuthStartResponse | null>(null);
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [accountID, setAccountID] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [isStartingOAuth, setIsStartingOAuth] = useState(false);
   const [isExchangingOAuth, setIsExchangingOAuth] = useState(false);
@@ -116,11 +117,17 @@ function ProviderTables({
 
   const selectedProvider = provider || apiKeyProviders[0]?.id || "";
   const selectedOAuthProvider = oauthProvider || oauthProviders[0]?.id || "";
+  const accountIDRequired = providerRequiresAccountID(selectedProvider);
 
   async function handleCreateConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProvider || !name.trim() || !apiKey.trim()) {
       setMutationError("Provider, connection name, and API key are required.");
+      setMutationMessage("");
+      return;
+    }
+    if (accountIDRequired && !accountID.trim()) {
+      setMutationError("Cloudflare account ID is required.");
       setMutationMessage("");
       return;
     }
@@ -133,10 +140,12 @@ function ProviderTables({
         name: name.trim(),
         auth_type: "api_key",
         api_key: apiKey.trim(),
+        ...(accountIDRequired ? { account_id: accountID.trim() } : {}),
         is_active: true
       });
       setName("");
       setApiKey("");
+      setAccountID("");
       setMutationMessage(`${name.trim()} was added`);
       await onReload();
     } catch (error) {
@@ -267,7 +276,10 @@ function ProviderTables({
             Provider
             <select
               value={selectedProvider}
-              onChange={(event) => setProvider(event.target.value)}
+              onChange={(event) => {
+                setProvider(event.target.value);
+                setAccountID("");
+              }}
               className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
             >
               {apiKeyProviders.map((entry) => (
@@ -295,6 +307,17 @@ function ProviderTables({
               type="password"
             />
           </label>
+          {accountIDRequired ? (
+            <label className="grid gap-1 text-sm font-medium text-zinc-700 md:col-span-3">
+              Cloudflare account ID
+              <input
+                value={accountID}
+                onChange={(event) => setAccountID(event.target.value)}
+                className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
+                type="text"
+              />
+            </label>
+          ) : null}
           <button
             type="submit"
             disabled={isCreating}
@@ -525,6 +548,10 @@ function formatCapabilities(provider: ProviderMatrixEntry) {
 
 function formatList(values?: string[] | null) {
   return values == null || values.length === 0 ? "none" : values.join(", ");
+}
+
+function providerRequiresAccountID(provider: string) {
+  return provider === "cloudflare-ai-gateway";
 }
 
 function parseOAuthCallback(value: string, fallbackState: string) {
