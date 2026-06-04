@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.AW"
-last_updated: "2026-06-04T17:36:53Z"
+last_updated: "2026-06-04T17:40:24Z"
 last_agent: "orchestrator"
 ```
 
@@ -1602,7 +1602,7 @@ max_agents: 1
 gate: "go test ./internal/providers/bedrock ./internal/provider ./api/handlers -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
 completed_at: "2026-06-04T17:26:04Z"
 evaluator_prompt: "docs/evaluations/wave-8AW-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after Bedrock signed model listing parity"
+evaluation: "PASS external evaluator thread 019e93ae-f9e1-74c1-8adb-41ffb0550d39 after endpoint remediation; no blocking findings"
 gate_results:
   - "go test ./internal/providers/bedrock -run TestListModelsSignsAndParsesFoundationModels -count=1: RED before implementation, ListModels returned bedrock list models: unsupported"
   - "go test ./internal/providers/bedrock -run TestListModelsSignsAndParsesFoundationModels -count=1: PASS"
