@@ -98,6 +98,35 @@ func TestIntegrationAuthenticatedAPIServerWithFakeUpstream(t *testing.T) {
 	}
 }
 
+func TestIntegrationManagementMutationsRoundTripThroughAuthenticatedServer(t *testing.T) {
+	const (
+		apiKeySecret = "test-secret"
+		adminKeyName = "admin"
+	)
+
+	s := newAPITestStore(t)
+	_, rawAPIKey, err := s.CreateAPIKey(adminKeyName, apiKeySecret)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "integration-test",
+		Store:           s,
+		UsageStore:      s,
+		RequireAPIKey:   true,
+		APIKeySecret:    apiKeySecret,
+		APIKeyValidator: integrationStoreAPIKeyValidator{s: s},
+	})
+
+	assertAPIKeyManagementRoundTrip(t, baseURL, rawAPIKey)
+	assertAliasManagementRoundTrip(t, baseURL, rawAPIKey)
+	assertComboManagementRoundTrip(t, baseURL, rawAPIKey)
+	assertPricingManagementRoundTrip(t, baseURL, rawAPIKey)
+	assertSettingsManagementRoundTrip(t, baseURL, rawAPIKey)
+}
+
 type integrationStoreAPIKeyValidator struct {
 	s *store.Store
 }
@@ -249,6 +278,167 @@ func assertAuthenticatedConnectionsRedactSecrets(t *testing.T, baseURL, rawAPIKe
 	}
 }
 
+func assertAPIKeyManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
+	t.Helper()
+
+	var created struct {
+		Key store.APIKey `json:"key"`
+		Raw string       `json:"raw"`
+	}
+	createdBody := doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/keys", rawAPIKey, `{"name":"dashboard"}`, http.StatusCreated, &created)
+	if created.Key.ID == "" || created.Key.Name != "dashboard" {
+		t.Fatalf("created api key = %+v, want dashboard key with id", created.Key)
+	}
+	if !strings.HasPrefix(created.Raw, "g0r_") || created.Key.Prefix != created.Raw[:8] {
+		t.Fatalf("created api key raw/prefix mismatch: raw=%q key=%+v", created.Raw, created.Key)
+	}
+	if strings.Count(string(createdBody), created.Raw) != 1 {
+		t.Fatalf("created api key response should expose raw once; body=%s", createdBody)
+	}
+
+	listBody := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/keys", http.StatusOK)
+	if strings.Contains(string(listBody), created.Raw) {
+		t.Fatalf("api key list exposed raw key; body=%s", listBody)
+	}
+	var listed struct {
+		Data []store.APIKey `json:"data"`
+	}
+	decodeIntegrationJSON(t, listBody, &listed)
+	if !containsAPIKey(listed.Data, created.Key.ID, "dashboard", created.Key.Prefix, true) {
+		t.Fatalf("api key list = %+v, want active dashboard key", listed.Data)
+	}
+
+	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/keys/"+created.Key.ID, rawAPIKey, "", http.StatusNoContent, nil)
+
+	listBody = assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/keys", http.StatusOK)
+	decodeIntegrationJSON(t, listBody, &listed)
+	if !containsAPIKey(listed.Data, created.Key.ID, "dashboard", created.Key.Prefix, false) {
+		t.Fatalf("api key list after delete = %+v, want inactive dashboard key", listed.Data)
+	}
+}
+
+func assertAliasManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
+	t.Helper()
+
+	var created store.ModelAlias
+	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/aliases", rawAPIKey, `{"alias":"fast","provider":"openai","model":"gpt-4o-mini"}`, http.StatusCreated, &created)
+	if created.Alias != "fast" || created.Provider != "openai" || created.Model != "gpt-4o-mini" {
+		t.Fatalf("created alias = %+v", created)
+	}
+
+	var updated store.ModelAlias
+	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/aliases/fast", rawAPIKey, `{"provider":"anthropic","model":"claude-sonnet-4-20250514"}`, http.StatusOK, &updated)
+	if updated.Alias != "fast" || updated.Provider != "anthropic" || updated.Model != "claude-sonnet-4-20250514" {
+		t.Fatalf("updated alias = %+v", updated)
+	}
+
+	var listed struct {
+		Data []store.ModelAlias `json:"data"`
+	}
+	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/aliases", http.StatusOK)
+	decodeIntegrationJSON(t, body, &listed)
+	if !containsAlias(listed.Data, updated) {
+		t.Fatalf("alias list = %+v, want %+v", listed.Data, updated)
+	}
+
+	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/aliases/fast", rawAPIKey, "", http.StatusNoContent, nil)
+	body = assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/aliases", http.StatusOK)
+	decodeIntegrationJSON(t, body, &listed)
+	if containsAlias(listed.Data, updated) {
+		t.Fatalf("alias list after delete = %+v, still contains %+v", listed.Data, updated)
+	}
+}
+
+func assertComboManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
+	t.Helper()
+
+	var created store.Combo
+	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/combos", rawAPIKey, `{"name":"primary","is_active":true,"steps":[{"provider":"openai","model":"gpt-4o-mini"}]}`, http.StatusCreated, &created)
+	if created.ID == "" || created.Name != "primary" || !created.IsActive || !sameComboSteps(created.Steps, []store.ComboStep{{Provider: "openai", Model: "gpt-4o-mini"}}) {
+		t.Fatalf("created combo = %+v", created)
+	}
+
+	var updated store.Combo
+	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/combos/"+created.ID, rawAPIKey, `{"name":"primary","is_active":true,"steps":[{"provider":"anthropic","model":"claude-sonnet-4-20250514"}]}`, http.StatusOK, &updated)
+	if updated.ID != created.ID || !sameComboSteps(updated.Steps, []store.ComboStep{{Provider: "anthropic", Model: "claude-sonnet-4-20250514"}}) {
+		t.Fatalf("updated combo = %+v", updated)
+	}
+
+	var listed struct {
+		Data []store.Combo `json:"data"`
+	}
+	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/combos", http.StatusOK)
+	decodeIntegrationJSON(t, body, &listed)
+	if !containsCombo(listed.Data, updated.ID, "primary") {
+		t.Fatalf("combo list = %+v, want %s", listed.Data, updated.ID)
+	}
+
+	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/combos/"+created.ID, rawAPIKey, "", http.StatusNoContent, nil)
+	body = assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/combos", http.StatusOK)
+	decodeIntegrationJSON(t, body, &listed)
+	if containsCombo(listed.Data, updated.ID, "primary") {
+		t.Fatalf("combo list after delete = %+v, still contains %s", listed.Data, updated.ID)
+	}
+}
+
+func assertPricingManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
+	t.Helper()
+
+	var created store.PricingOverride
+	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/pricing", rawAPIKey, `{"provider":"openai","model":"unit-test-model","input_cost_per_token":0.000001,"output_cost_per_token":0.000002}`, http.StatusCreated, &created)
+	if created.Provider != "openai" || created.Model != "unit-test-model" || created.InputCostPerToken != 0.000001 || created.OutputCostPerToken != 0.000002 {
+		t.Fatalf("created pricing override = %+v", created)
+	}
+
+	var updated store.PricingOverride
+	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/pricing/openai/unit-test-model", rawAPIKey, `{"input_cost_per_token":0.000003,"output_cost_per_token":0.000004}`, http.StatusOK, &updated)
+	if updated.Provider != "openai" || updated.Model != "unit-test-model" || updated.InputCostPerToken != 0.000003 || updated.OutputCostPerToken != 0.000004 {
+		t.Fatalf("updated pricing override = %+v", updated)
+	}
+
+	var listed struct {
+		Data []store.PricingOverride `json:"data"`
+	}
+	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/pricing", http.StatusOK)
+	decodeIntegrationJSON(t, body, &listed)
+	if !containsPricingOverride(listed.Data, updated) {
+		t.Fatalf("pricing override list = %+v, want %+v", listed.Data, updated)
+	}
+
+	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/pricing/openai/unit-test-model", rawAPIKey, "", http.StatusNoContent, nil)
+	body = assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/pricing", http.StatusOK)
+	decodeIntegrationJSON(t, body, &listed)
+	if containsPricingOverride(listed.Data, updated) {
+		t.Fatalf("pricing override list after delete = %+v, still contains %+v", listed.Data, updated)
+	}
+}
+
+func assertSettingsManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
+	t.Helper()
+
+	want := store.Settings{
+		RequireAPIKey:     true,
+		RTKEnabled:        false,
+		CavemanEnabled:    true,
+		CavemanLevel:      "minimal",
+		EnableRequestLogs: true,
+		ProxyURL:          "http://127.0.0.1:9000",
+		DataDir:           "/tmp/g0router-integration",
+	}
+	var updated store.Settings
+	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/settings", rawAPIKey, `{"RequireAPIKey":true,"RTKEnabled":false,"CavemanEnabled":true,"CavemanLevel":"minimal","EnableRequestLogs":true,"ProxyURL":"http://127.0.0.1:9000","DataDir":"/tmp/g0router-integration"}`, http.StatusOK, &updated)
+	if updated != want {
+		t.Fatalf("updated settings = %+v, want %+v", updated, want)
+	}
+
+	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/settings", http.StatusOK)
+	var got store.Settings
+	decodeIntegrationJSON(t, body, &got)
+	if got != want {
+		t.Fatalf("settings round trip = %+v, want %+v", got, want)
+	}
+}
+
 func createMCPClient(t *testing.T, baseURL, rawAPIKey string) {
 	t.Helper()
 
@@ -322,6 +512,88 @@ func newAuthenticatedRequest(t *testing.T, method, url, rawAPIKey string, body i
 		req.Header.Set("Content-Type", "application/json")
 	}
 	return req
+}
+
+func doAuthenticatedJSON(t *testing.T, method, url, rawAPIKey, body string, want int, decodeInto any) []byte {
+	t.Helper()
+
+	var reader io.Reader
+	if body != "" {
+		reader = strings.NewReader(body)
+	}
+	req := newAuthenticatedRequest(t, method, url, rawAPIKey, reader)
+	resp, err := httpClient().Do(req)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, url, err)
+	}
+	data, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read %s %s response: %v", method, url, err)
+	}
+	if resp.StatusCode != want {
+		t.Fatalf("%s %s status = %d, want %d; body=%s", method, url, resp.StatusCode, want, data)
+	}
+	if decodeInto != nil {
+		decodeIntegrationJSON(t, data, decodeInto)
+	}
+	return data
+}
+
+func decodeIntegrationJSON(t *testing.T, data []byte, into any) {
+	t.Helper()
+
+	if err := json.Unmarshal(data, into); err != nil {
+		t.Fatalf("decode integration JSON: %v; body=%s", err, data)
+	}
+}
+
+func containsAPIKey(keys []store.APIKey, id, name, prefix string, active bool) bool {
+	for _, key := range keys {
+		if key.ID == id && key.Name == name && key.Prefix == prefix && key.IsActive == active {
+			return true
+		}
+	}
+	return false
+}
+
+func containsAlias(aliases []store.ModelAlias, want store.ModelAlias) bool {
+	for _, alias := range aliases {
+		if alias == want {
+			return true
+		}
+	}
+	return false
+}
+
+func containsCombo(combos []store.Combo, id, name string) bool {
+	for _, combo := range combos {
+		if combo.ID == id && combo.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func containsPricingOverride(overrides []store.PricingOverride, want store.PricingOverride) bool {
+	for _, override := range overrides {
+		if override == want {
+			return true
+		}
+	}
+	return false
+}
+
+func sameComboSteps(got, want []store.ComboStep) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func stringPtr(value string) *string {
