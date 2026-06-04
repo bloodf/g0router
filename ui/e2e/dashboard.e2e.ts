@@ -59,7 +59,7 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Models");
     await expect(page.getByRole("heading", { exact: true, name: "Models" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Provider models" })).toContainText("gpt-4o");
-    await page.getByRole("combobox", { name: "Provider" }).selectOption("anthropic");
+    await page.getByRole("combobox", { exact: true, name: "Provider" }).selectOption("anthropic");
     await expect(page.getByRole("table", { name: "Provider models" })).toContainText("claude-sonnet-4");
 
     await navigateTo(page, "Pricing");
@@ -136,7 +136,7 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("table", { name: "API keys" })).not.toContainText("automation-client");
 
     await navigateTo(page, "Connections/Auth");
-    await page.getByRole("combobox", { name: "Provider" }).selectOption("openai");
+    await page.getByRole("combobox", { exact: true, name: "Provider" }).selectOption("openai");
     await page.getByLabel("Connection name").fill("OpenAI e2e");
     await page.getByLabel("Provider API key").fill("e2e-provider-secret");
     await page.getByRole("button", { name: "Add connection" }).click();
