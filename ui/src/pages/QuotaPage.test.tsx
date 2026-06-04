@@ -23,6 +23,17 @@ describe("QuotaPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("renders pluralized quotas panel copy", async () => {
+    stubFetch({
+      "/api/providers": jsonResponse({ data: [] })
+    });
+
+    render(<QuotaPage />);
+
+    expect(screen.getByRole("heading", { name: "Quotas monitor" })).toBeInTheDocument();
+    expect(await screen.findByText("No quota-capable providers")).toBeInTheDocument();
+  });
+
   it("fetches quota-capable providers through /api/usage/quota/:provider", async () => {
     const fetch = stubFetch({
       "/api/providers": jsonResponse({

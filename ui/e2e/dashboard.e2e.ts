@@ -75,8 +75,8 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("heading", { exact: true, name: "Logs" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Request logs" })).toContainText("req_001");
 
-    await navigateTo(page, "Quota");
-    await expect(page.getByRole("heading", { exact: true, name: "Quota" })).toBeVisible();
+    await navigateTo(page, "Quotas");
+    await expect(page.getByRole("heading", { exact: true, name: "Quotas" })).toBeVisible();
     await expect(page.getByText("No quota-capable providers")).toBeVisible();
 
     await navigateTo(page, "Combos/Routing");
@@ -117,6 +117,16 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Diagnostics");
     await expect(page.getByRole("heading", { exact: true, level: 2, name: "Diagnostics" })).toBeVisible();
     await expect(page.getByText("Control plane protected")).toBeVisible();
+  });
+
+  test("navigates to Quotas and renders quota state", async ({ page }) => {
+    await mockAPI(page, { mode: "empty" });
+
+    await page.goto("/");
+    await navigateTo(page, "Quotas");
+
+    await expect(page.getByRole("heading", { exact: true, name: "Quotas" })).toBeVisible();
+    await expect(page.getByText("No quota-capable providers")).toBeVisible();
   });
 
   test("executes existing dashboard mutations with mocked API data", async ({ page }) => {
@@ -431,7 +441,7 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Logs");
     await expect(page.getByText("No request logs")).toBeVisible();
 
-    await navigateTo(page, "Quota");
+    await navigateTo(page, "Quotas");
     await expect(page.getByText("No quota-capable providers")).toBeVisible();
 
     await navigateTo(page, "Combos/Routing");

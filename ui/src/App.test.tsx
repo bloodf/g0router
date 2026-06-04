@@ -38,7 +38,7 @@ describe("App", () => {
       "Pricing",
       "Usage",
       "Logs",
-      "Quota",
+      "Quotas",
       "Combos/Routing",
       "MCP",
       "MCP Instances",
@@ -50,6 +50,7 @@ describe("App", () => {
     ]) {
       expect(within(primaryNav).getByRole("button", { name: label })).toBeInTheDocument();
     }
+    expect(within(primaryNav).queryByRole("button", { name: /^Quota$/ })).not.toBeInTheDocument();
   });
 
   it("does not mount every management page on the dashboard view", async () => {
@@ -64,7 +65,7 @@ describe("App", () => {
     expect(screen.queryByText("Connections and auth")).not.toBeInTheDocument();
     expect(screen.queryByText("Usage analytics")).not.toBeInTheDocument();
     expect(screen.queryByText("Request logs")).not.toBeInTheDocument();
-    expect(screen.queryByText("Quota monitor")).not.toBeInTheDocument();
+    expect(screen.queryByText("Quotas monitor")).not.toBeInTheDocument();
     expect(screen.queryByText("Combo routing")).not.toBeInTheDocument();
     expect(screen.queryByText("MCP gateway")).not.toBeInTheDocument();
     expect(screen.queryByText("Runtime settings")).not.toBeInTheDocument();
