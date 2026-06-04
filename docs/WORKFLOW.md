@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.X"
-last_updated: "2026-06-04T10:05:54Z"
+last_updated: "2026-06-04T10:06:21Z"
 last_agent: "orchestrator"
 ```
 
@@ -640,7 +640,7 @@ tasks:
     name: "Refresh README Stage 8 status"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "2b486b3"
     files_owned:
       - docs/README.md
       - docs/WORKFLOW.md
