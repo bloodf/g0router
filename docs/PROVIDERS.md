@@ -9,7 +9,7 @@ Status meanings:
 - `auth_only`: credential capture exists, but no inference adapter is wired.
 - `unsupported`: explicitly not implemented; do not advertise as usable.
 
-Current public direct-dispatch providers are `openai`, `anthropic`, `deepseek`, `groq`, `mistral`, `openrouter`, and `perplexity`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
+Current public direct-dispatch providers are `openai`, `anthropic`, `deepseek`, `groq`, `mistral`, `minimax`, `openrouter`, and `perplexity`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
 
 ## Public Surfaces
 
@@ -44,7 +44,7 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `deepseek`, 
 | `kiro` | `kiro` | `kiro` | `kiro` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Kiro inference adapter. |
 | `litellm` | `litellm` | `litellm` | `litellm` | `unsupported` | none | no | no | no | no | no | no | No LiteLLM gateway adapter. |
 | `lm-studio` | `lm-studio` | `lm-studio` | `lm-studio` | `unsupported` | none | no | no | no | no | no | no | No LM Studio adapter. |
-| `minimax` | `minimax` | `minimax` | `minimax` | `auth_only` | API key | no | no | no | no | no | no | API-key capture exists; no MiniMax inference adapter. |
+| `minimax` | `minimax` | `minimax` | `minimax` | `supported` | API key | no | yes | yes | yes | yes | yes | `MiniMax-M3` routes through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `mistral` | `mistral` | `mistral` | `mistral` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `nebius` | `nebius` | `nebius` | `nebius` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
 | `nvidia` | `nvidia` | `nvidia` | `nvidia` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
@@ -68,4 +68,4 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `deepseek`, 
 
 ## Model Routing Caveat
 
-Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, DeepSeek, Groq, Mistral, OpenRouter, and Perplexity model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.
+Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, DeepSeek, Groq, Mistral, MiniMax, OpenRouter, and Perplexity model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.

@@ -69,7 +69,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		authOnlyProvider("xai", "xai", true, "OAuth is implemented, but no xAI inference adapter is wired."),
 		authOnlyProvider("xiaomi", "xiaomi", true, "OAuth is implemented, but no Xiaomi inference adapter is wired."),
 		apiKeyAuthOnlyProvider("alibaba", "Direct API-key capture is implemented, but no Alibaba inference adapter is wired."),
-		apiKeyAuthOnlyProvider("minimax", "API-key capture is implemented, but no MiniMax inference adapter is wired."),
+		catalogRoutableProvider("minimax", "", false, true, true, false, "api_key"),
 		apiKeyAuthOnlyProvider("zhipu", "Direct API-key capture is implemented, but no ZAI/Zhipu inference adapter is wired."),
 		unsupportedProvider("cloudflare-ai-gateway", "No gateway adapter is implemented."),
 		unsupportedProvider("kagi", "No Kagi tool/search provider integration is implemented."),

@@ -29,6 +29,7 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 		{"openrouter", providers.ProviderOpenRouter},
 		{"huggingface", providers.ProviderHuggingFace},
 		{"nebius", providers.ProviderNebius},
+		{"minimax", providers.ProviderMiniMax},
 	}
 
 	for _, tc := range cases {
@@ -144,6 +145,7 @@ func TestDefaultConfigsAreRegistered(t *testing.T) {
 		providers.ProviderOpenRouter:  "https://openrouter.ai/api",
 		providers.ProviderHuggingFace: "https://api-inference.huggingface.co",
 		providers.ProviderNebius:      "https://api.studio.nebius.ai",
+		providers.ProviderMiniMax:     "https://api.minimax.io/v1",
 	}
 
 	if len(configs) != len(want) {

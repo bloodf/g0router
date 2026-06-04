@@ -18,6 +18,7 @@ func DefaultConfigs() map[providers.ModelProvider]Config {
 		providers.ProviderOpenRouter:  {Provider: providers.ProviderOpenRouter, BaseURL: "https://openrouter.ai/api"},
 		providers.ProviderHuggingFace: {Provider: providers.ProviderHuggingFace, BaseURL: "https://api-inference.huggingface.co"},
 		providers.ProviderNebius:      {Provider: providers.ProviderNebius, BaseURL: "https://api.studio.nebius.ai"},
+		providers.ProviderMiniMax:     {Provider: providers.ProviderMiniMax, BaseURL: "https://api.minimax.io/v1"},
 	}
 }
 

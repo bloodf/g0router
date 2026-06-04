@@ -62,6 +62,9 @@ func NewCatalog() Catalog {
 				"sonar-pro":           noHostedCacheDiscount(3.00, 15.00),
 				"sonar-reasoning-pro": noHostedCacheDiscount(2.00, 8.00),
 			},
+			providers.ProviderMiniMax: {
+				"MiniMax-M3": paid(0.30, 0.06, 1.20),
+			},
 			providers.ProviderCerebras: {
 				"llama3.1-8b": noHostedCacheDiscount(0.10, 0.10),
 			},

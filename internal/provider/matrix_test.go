@@ -62,7 +62,7 @@ func TestProviderMatrixCoversRemediationParityTiers(t *testing.T) {
 
 func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"github-copilot", "cursor", "gitlab", "kiro", "kimi", "minimax", "alibaba", "zhipu"} {
+	for _, id := range []string{"github-copilot", "cursor", "gitlab", "kiro", "kimi", "alibaba", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -147,6 +147,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"deepseek":   true,
 		"groq":       true,
 		"mistral":    true,
+		"minimax":    true,
 		"openrouter": true,
 		"perplexity": true,
 	}
@@ -185,7 +186,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"deepseek", "groq", "mistral", "openrouter", "perplexity"} {
+	for _, id := range []string{"deepseek", "groq", "mistral", "minimax", "openrouter", "perplexity"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)

@@ -253,6 +253,7 @@ func TestDispatchUsesCatalogForPublicOpenAICompatibleProviders(t *testing.T) {
 	}{
 		{name: "groq", provider: providers.ProviderGroq, model: "llama-3.3-70b-versatile", key: "groq-key"},
 		{name: "mistral", provider: providers.ProviderMistral, model: "mistral-small-latest", key: "mistral-key"},
+		{name: "minimax", provider: providers.ProviderMiniMax, model: "MiniMax-M3", key: "minimax-key"},
 		{name: "deepseek", provider: providers.ProviderDeepSeek, model: "deepseek-chat", key: "deepseek-key"},
 		{name: "openrouter", provider: providers.ProviderOpenRouter, model: "openai/gpt-4o-mini", key: "openrouter-key"},
 		{name: "perplexity", provider: providers.ProviderPerplexity, model: "sonar-pro", key: "perplexity-key"},

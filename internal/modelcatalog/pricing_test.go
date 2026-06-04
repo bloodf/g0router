@@ -104,6 +104,7 @@ func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 		{providers.ProviderOpenRouter, "openai/gpt-4o-mini", Pricing{InputPerMillionUSD: 0.15, CachedInputPerMillionUSD: 0.15, OutputPerMillionUSD: 0.60}},
 		{providers.ProviderDeepSeek, "deepseek-reasoner", Pricing{InputPerMillionUSD: 0.55, CachedInputPerMillionUSD: 0.14, OutputPerMillionUSD: 2.19}},
 		{providers.ProviderPerplexity, "sonar-pro", Pricing{InputPerMillionUSD: 3.00, CachedInputPerMillionUSD: 3.00, OutputPerMillionUSD: 15.00}},
+		{providers.ProviderMiniMax, "MiniMax-M3", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.06, OutputPerMillionUSD: 1.20}},
 		{providers.ProviderCerebras, "llama3.1-8b", Pricing{InputPerMillionUSD: 0.10, CachedInputPerMillionUSD: 0.10, OutputPerMillionUSD: 0.10}},
 		{providers.ProviderFireworks, "accounts/fireworks/models/llama-v3p1-70b-instruct", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.15, OutputPerMillionUSD: 1.20}},
 		{providers.ProviderTogether, "meta-llama/Llama-3.3-70B-Instruct-Turbo", Pricing{InputPerMillionUSD: 1.04, CachedInputPerMillionUSD: 1.04, OutputPerMillionUSD: 1.04}},
