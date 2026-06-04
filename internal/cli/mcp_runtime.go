@@ -34,8 +34,13 @@ func newDefaultMCPRuntime() *defaultMCPRuntime {
 
 type mcpLauncherConnector struct {
 	mu              sync.RWMutex
-	launcher        *mcp.Launcher
+	launcher        mcpRuntimeLauncher
 	instanceConfigs map[string]mcp.InstanceConfig
+}
+
+type mcpRuntimeLauncher interface {
+	Launch(ctx context.Context, cfg mcp.InstanceConfig) (mcp.LaunchResult, error)
+	HTTPClient() mcp.HTTPDoer
 }
 
 func (c *mcpLauncherConnector) RememberInstanceConfig(cfg mcp.InstanceConfig) {
@@ -73,7 +78,10 @@ func (c *mcpLauncherConnector) Connect(ctx context.Context, cfg mcp.ClientConfig
 	if result.Transport == mcp.TransportSSE {
 		return mcp.NewSSEClient(c.launcher.HTTPClient(), instanceCfg.URL, instanceCfg.Headers), nil
 	}
-	return &launchedMCPClient{process: result.Process}, nil
+	if result.Process != nil {
+		_ = result.Process.Close()
+	}
+	return nil, fmt.Errorf("mcp launcher returned unsupported transport %q: %w", result.Transport, mcp.ErrInvalidClientConfig)
 }
 
 func (c *mcpLauncherConnector) instanceConfig(cfg mcp.ClientConfig) (mcp.InstanceConfig, error) {
@@ -176,25 +184,6 @@ func clientInstanceConfig(cfg mcp.ClientConfig) (mcp.InstanceConfig, error) {
 	default:
 		return mcp.InstanceConfig{}, mcp.ErrInvalidClientConfig
 	}
-}
-
-type launchedMCPClient struct {
-	process mcp.Process
-}
-
-func (c *launchedMCPClient) ListTools(context.Context) ([]mcp.Tool, error) {
-	return nil, nil
-}
-
-func (c *launchedMCPClient) CallTool(context.Context, mcp.CallRequest) (mcp.CallResult, error) {
-	return mcp.CallResult{}, mcp.ErrToolNotFound
-}
-
-func (c *launchedMCPClient) Close() error {
-	if c.process == nil {
-		return nil
-	}
-	return c.process.Close()
 }
 
 type commandProcessRunner struct{}

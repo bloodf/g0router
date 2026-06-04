@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"sync"
 	"testing"
@@ -50,6 +51,34 @@ func TestMCPLauncherConnectorReturnsWorkingStdioClient(t *testing.T) {
 	}
 }
 
+func TestMCPLauncherConnectorRejectsUnsupportedLaunchTransport(t *testing.T) {
+	process := &closableRuntimeProcess{stderr: &bytes.Buffer{}}
+	connector := mcpLauncherConnector{
+		launcher: fakeRuntimeLauncher{
+			result: mcp.LaunchResult{
+				Transport: "bogus",
+				Process:   process,
+			},
+		},
+	}
+
+	_, err := connector.Connect(context.Background(), mcp.ClientConfig{
+		ID:        "bogus-1",
+		Name:      "bogus",
+		Transport: mcp.TransportStdio,
+		Command:   "fake-mcp",
+	})
+	if err == nil {
+		t.Fatal("Connect error is nil")
+	}
+	if !errors.Is(err, mcp.ErrInvalidClientConfig) {
+		t.Fatalf("Connect error = %v, want ErrInvalidClientConfig", err)
+	}
+	if !process.closed {
+		t.Fatal("unsupported launch transport did not close process")
+	}
+}
+
 type runtimeProcessRunner struct {
 	process mcp.Process
 }
@@ -71,6 +100,49 @@ type runtimeMCPProcess struct {
 	stdin  io.WriteCloser
 	stdout io.ReadCloser
 	stderr *bytes.Buffer
+}
+
+type closableRuntimeProcess struct {
+	closed bool
+	stderr *bytes.Buffer
+}
+
+func (p *closableRuntimeProcess) Stdin() io.WriteCloser {
+	return nopWriteCloser{Writer: io.Discard}
+}
+
+func (p *closableRuntimeProcess) Stdout() io.ReadCloser {
+	return io.NopCloser(bytes.NewReader(nil))
+}
+
+func (p *closableRuntimeProcess) Stderr() *bytes.Buffer {
+	return p.stderr
+}
+
+func (p *closableRuntimeProcess) Close() error {
+	p.closed = true
+	return nil
+}
+
+type fakeRuntimeLauncher struct {
+	result mcp.LaunchResult
+	err    error
+}
+
+func (l fakeRuntimeLauncher) Launch(context.Context, mcp.InstanceConfig) (mcp.LaunchResult, error) {
+	return l.result, l.err
+}
+
+func (l fakeRuntimeLauncher) HTTPClient() mcp.HTTPDoer {
+	return nil
+}
+
+type nopWriteCloser struct {
+	io.Writer
+}
+
+func (nopWriteCloser) Close() error {
+	return nil
 }
 
 func newRuntimeMCPServer(t *testing.T) (*runtimeMCPServer, *runtimeMCPProcess) {
