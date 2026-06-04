@@ -268,8 +268,8 @@ func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
 		})
 	}
 
-	if provider, ok := modelcatalog.NewCatalog().ProviderForModel(model); ok {
-		return routableModelRoute(modelRoute{Provider: provider, Model: model})
+	if route, ok := modelcatalog.NewCatalog().RouteForModel(model); ok {
+		return routableModelRoute(modelRoute{Provider: route.Provider, Model: route.UpstreamModel})
 	}
 
 	if provider, ok := resolveProvider(model); ok {

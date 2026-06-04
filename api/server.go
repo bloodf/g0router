@@ -286,12 +286,16 @@ type requestLogMetadata struct {
 
 func inferenceLogMetadata(ctx *fasthttp.RequestCtx, request *providers.ChatRequest, response *providers.ChatResponse, streamModel string) requestLogMetadata {
 	model := streamModel
+	requestModel := ""
 	provider := ""
 	var connectionID *string
 	authType := authTypeForRequest(false)
 
-	if request != nil && model == "" {
-		model = request.Model
+	if request != nil {
+		requestModel = request.Model
+		if model == "" {
+			model = request.Model
+		}
 	}
 	if response != nil {
 		if response.Model != "" {
@@ -307,6 +311,11 @@ func inferenceLogMetadata(ctx *fasthttp.RequestCtx, request *providers.ChatReque
 	}
 	if provider == "" {
 		provider = providerFromModel(model)
+	}
+	if requestModel != "" && provider != "" {
+		if route, ok := modelcatalog.NewCatalog().RouteForModel(requestModel); ok && route.Provider.String() == provider {
+			model = requestModel
+		}
 	}
 	if value, ok := ctx.UserValue(requestAuthTypeKey).(string); ok && value != "" {
 		authType = value

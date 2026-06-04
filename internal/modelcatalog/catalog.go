@@ -2,9 +2,15 @@ package modelcatalog
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/bloodf/g0router/internal/providers"
 )
+
+type ModelRoute struct {
+	Provider      providers.ModelProvider
+	UpstreamModel string
+}
 
 type Catalog struct {
 	prices map[providers.ModelProvider]map[string]Pricing
@@ -101,8 +107,8 @@ func NewCatalog() Catalog {
 				"llama3.3:70b": {},
 			},
 			providers.ProviderVertex: {
-				"gemini-2.5-flash":      paid(0.30, 0.03, 2.50),
-				"gemini-2.5-flash-lite": paid(0.10, 0.01, 0.40),
+				"vertex/gemini-2.5-flash":      paid(0.30, 0.03, 2.50),
+				"vertex/gemini-2.5-flash-lite": paid(0.10, 0.01, 0.40),
 			},
 			providers.ProviderVercelGateway: {
 				"anthropic/claude-sonnet-4.5": paid(3.00, 0.30, 15.00),
@@ -122,12 +128,17 @@ func (c Catalog) Lookup(provider providers.ModelProvider, model string) (Pricing
 }
 
 func (c Catalog) ProviderForModel(model string) (providers.ModelProvider, bool) {
+	route, ok := c.RouteForModel(model)
+	return route.Provider, ok
+}
+
+func (c Catalog) RouteForModel(model string) (ModelRoute, bool) {
 	for _, provider := range c.providerNames() {
 		if _, ok := c.prices[provider][model]; ok {
-			return provider, true
+			return ModelRoute{Provider: provider, UpstreamModel: upstreamModel(provider, model)}, true
 		}
 	}
-	return "", false
+	return ModelRoute{}, false
 }
 
 func (c Catalog) Models(provider providers.ModelProvider) map[string]Pricing {
@@ -138,6 +149,13 @@ func (c Catalog) Models(provider providers.ModelProvider) map[string]Pricing {
 	}
 
 	return result
+}
+
+func upstreamModel(provider providers.ModelProvider, model string) string {
+	if provider == providers.ProviderVertex {
+		return strings.TrimPrefix(model, provider.String()+"/")
+	}
+	return model
 }
 
 func (c Catalog) providerNames() []providers.ModelProvider {

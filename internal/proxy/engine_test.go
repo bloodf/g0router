@@ -383,6 +383,45 @@ func TestDispatchUsesCatalogForGeminiProvider(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesProviderQualifiedCatalogRouteForVertex(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "vertex", "vertex-token")
+
+	vertex := &fakeProvider{
+		name: providers.ProviderVertex,
+		response: &providers.ChatResponse{
+			ID:    "chatcmpl-vertex",
+			Model: "gemini-2.5-flash",
+		},
+	}
+	engine := NewEngine(s)
+	engine.Register(vertex)
+
+	req := &providers.ChatRequest{Model: "vertex/gemini-2.5-flash"}
+	resp, err := engine.Dispatch(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if !vertex.called {
+		t.Fatal("vertex provider was not called")
+	}
+	if vertex.received == req {
+		t.Fatal("provider-qualified catalog route should rewrite upstream model")
+	}
+	if vertex.received.Model != "gemini-2.5-flash" {
+		t.Fatalf("provider request model = %q, want gemini-2.5-flash", vertex.received.Model)
+	}
+	if req.Model != "vertex/gemini-2.5-flash" {
+		t.Fatalf("original request model = %q, want public model unchanged", req.Model)
+	}
+	if vertex.receivedKey.Provider != providers.ProviderVertex {
+		t.Fatalf("key provider = %q, want vertex", vertex.receivedKey.Provider)
+	}
+	if resp.Provider != providers.ProviderVertex {
+		t.Fatalf("response provider = %q, want vertex", resp.Provider)
+	}
+}
+
 func TestDispatchBlocksAliasToProviderWithoutInference(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "bedrock", "bedrock-key")

@@ -88,6 +88,21 @@ func TestCatalogProviderForModelUsesDeterministicLookupForSharedModelIDs(t *test
 	}
 }
 
+func TestCatalogRouteForProviderQualifiedVertexModel(t *testing.T) {
+	catalog := NewCatalog()
+
+	route, ok := catalog.RouteForModel("vertex/gemini-2.5-flash")
+	if !ok {
+		t.Fatal("expected vertex/gemini-2.5-flash route")
+	}
+	if route.Provider != providers.ProviderVertex {
+		t.Fatalf("provider = %q, want vertex", route.Provider)
+	}
+	if route.UpstreamModel != "gemini-2.5-flash" {
+		t.Fatalf("upstream model = %q, want gemini-2.5-flash", route.UpstreamModel)
+	}
+}
+
 func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 	catalog := NewCatalog()
 
@@ -115,7 +130,7 @@ func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 		{providers.ProviderFireworks, "accounts/fireworks/models/llama-v3p1-70b-instruct", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.15, OutputPerMillionUSD: 1.20}},
 		{providers.ProviderTogether, "meta-llama/Llama-3.3-70B-Instruct-Turbo", Pricing{InputPerMillionUSD: 1.04, CachedInputPerMillionUSD: 1.04, OutputPerMillionUSD: 1.04}},
 		{providers.ProviderOllama, "llama3.1:8b", Pricing{}},
-		{providers.ProviderVertex, "gemini-2.5-flash", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.03, OutputPerMillionUSD: 2.50}},
+		{providers.ProviderVertex, "vertex/gemini-2.5-flash", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.03, OutputPerMillionUSD: 2.50}},
 		{providers.ProviderVercelGateway, "anthropic/claude-sonnet-4.5", Pricing{InputPerMillionUSD: 3.00, CachedInputPerMillionUSD: 0.30, OutputPerMillionUSD: 15.00}},
 	}
 

@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.Q"
-last_updated: "2026-06-04T09:06:30Z"
+current_wave: "8.R"
+last_updated: "2026-06-04T09:23:41Z"
 last_agent: "orchestrator"
 ```
 
@@ -384,6 +384,47 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.Q promotes the native Vertex adapter to public direct dispatch for cataloged Gemini models when `VERTEX_PROJECT_ID` and `VERTEX_LOCATION` are configured; streaming and quota remain explicitly unsupported, and external evaluator thread `019e91e3-4405-7a60-a649-e10c70492a79` returned PASS at commit `f36c0da` with no blocking findings.
+
+### Wave 8.R — Provider-Qualified Vertex Routing
+
+```yaml
+wave: "8.R"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T09:23:41Z"
+evaluator_prompt: "docs/evaluations/wave-8R-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./api ./internal/modelcatalog ./internal/proxy -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.R.1"
+    name: "Provider-qualified Vertex catalog routing"
+    status: DONE
+    agent: "orchestrator"
+    commit: "3480362"
+    files_owned:
+      - api/server.go
+      - api/server_test.go
+      - docs/CONFIG.md
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8R-evaluator-prompt.md
+      - internal/modelcatalog/catalog.go
+      - internal/modelcatalog/pricing_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+```
+
+**Checkpoint**: Wave 8.R fixes the post-8.Q routing gap where unqualified Gemini catalog IDs made Vertex direct dispatch unreachable. Vertex public routes now use provider-qualified `vertex/gemini-*` IDs, dispatch rewrites them to upstream Gemini model IDs, and request logging preserves the public model for cost lookup. External evaluation remains pending.
 
 ---
 

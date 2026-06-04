@@ -427,6 +427,41 @@ func TestInferenceLoggingUsesPricingOverrideForCost(t *testing.T) {
 	}
 }
 
+func TestInferenceLoggingUsesPublicCatalogModelForProviderQualifiedRoute(t *testing.T) {
+	s := newAPITestStore(t)
+	enableRequestLogs(t, s)
+	response := routeChatResponseWithModel("gemini-2.5-flash", 1000, 500)
+	response.Provider = providers.ProviderVertex
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "test",
+		Store:           s,
+		UsageStore:      s,
+		InferenceEngine: routeInferenceEngine{response: response},
+	})
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/chat/completions", `{"model":"vertex/gemini-2.5-flash","messages":[{"role":"user","content":"hello"}]}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+
+	entries, err := s.GetUsage(store.UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("usage entries = %d, want 1: %+v", len(entries), entries)
+	}
+	if entries[0].Provider != "vertex" || entries[0].Model != "vertex/gemini-2.5-flash" {
+		t.Fatalf("provider/model = %s/%s, want vertex/vertex/gemini-2.5-flash", entries[0].Provider, entries[0].Model)
+	}
+	if entries[0].CostUSD == nil || math.Abs(*entries[0].CostUSD-0.001496) > 0.000000001 {
+		t.Fatalf("cost USD = %v, want 0.001496", entries[0].CostUSD)
+	}
+}
+
 func TestInferenceLoggingUsesConfigEnableRequestLogs(t *testing.T) {
 	s := newAPITestStore(t)
 	config := ServerConfig{
