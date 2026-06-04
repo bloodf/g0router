@@ -485,6 +485,65 @@ func TestDispatchUsesCatalogForOllamaNoAuthProvider(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesNoAuthProviderWithoutStoredConnection(t *testing.T) {
+	s := openProxyTestStore(t)
+	ollama := &fakeProvider{
+		name: providers.ProviderOllama,
+		response: &providers.ChatResponse{
+			ID:    "chatcmpl-ollama",
+			Model: "llama3.1:8b",
+		},
+	}
+	engine := NewEngine(s)
+	engine.Register(ollama)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "llama3.1:8b"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if !ollama.called {
+		t.Fatal("ollama provider was not called")
+	}
+	if ollama.receivedKey.Provider != providers.ProviderOllama || ollama.receivedKey.ConnID != "" || ollama.receivedKey.Value != "" || ollama.receivedKey.AuthType != string(store.AuthTypeNoAuth) {
+		t.Fatalf("received key = %+v, want synthetic noauth ollama key", ollama.receivedKey)
+	}
+	if resp.Provider != providers.ProviderOllama || resp.ConnectionID != "" || resp.AuthType != string(store.AuthTypeNoAuth) {
+		t.Fatalf("response metadata = provider:%q connection:%q auth:%q, want synthetic noauth ollama", resp.Provider, resp.ConnectionID, resp.AuthType)
+	}
+}
+
+func TestDispatchStreamUsesNoAuthProviderWithoutStoredConnection(t *testing.T) {
+	s := openProxyTestStore(t)
+	content := "hello local"
+	chunks := make(chan providers.StreamChunk, 1)
+	chunks <- providers.StreamChunk{
+		ID:    "chunk-ollama",
+		Model: "llama3.1:8b",
+		Choices: []providers.StreamChoice{
+			{Delta: providers.StreamDelta{Content: &content}},
+		},
+	}
+	close(chunks)
+	ollama := &fakeProvider{name: providers.ProviderOllama, stream: chunks}
+	engine := NewEngine(s)
+	engine.Register(ollama)
+
+	stream, err := engine.DispatchStream(context.Background(), &providers.ChatRequest{Model: "llama3.1:8b"})
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	if !ollama.streamed {
+		t.Fatal("ollama provider was not streamed")
+	}
+	if ollama.receivedKey.Provider != providers.ProviderOllama || ollama.receivedKey.ConnID != "" || ollama.receivedKey.Value != "" || ollama.receivedKey.AuthType != string(store.AuthTypeNoAuth) {
+		t.Fatalf("received key = %+v, want synthetic noauth ollama key", ollama.receivedKey)
+	}
+	got := <-stream
+	if got.ID != "chunk-ollama" || got.Choices[0].Delta.Content == nil || *got.Choices[0].Delta.Content != content {
+		t.Fatalf("stream chunk = %+v, want ollama content", got)
+	}
+}
+
 func TestDispatchUsesCatalogForGeminiProvider(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "gemini", "gemini-key")

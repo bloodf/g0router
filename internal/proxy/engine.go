@@ -375,6 +375,12 @@ func (e *Engine) keyFor(ctx context.Context, provider providers.ModelProvider) (
 func (e *Engine) keyForModel(ctx context.Context, provider providers.ModelProvider, model string) (providers.Key, *store.Connection, error) {
 	conn, err := e.connectionForModel(provider, model)
 	if err != nil {
+		if errors.Is(err, ErrNoConnections) && providerSupportsNoAuth(provider) {
+			return providers.Key{
+				Provider: provider,
+				AuthType: string(store.AuthTypeNoAuth),
+			}, nil, nil
+		}
 		return providers.Key{}, nil, err
 	}
 	conn, err = e.refreshConnectionIfNeeded(ctx, provider, conn)
@@ -394,6 +400,19 @@ func (e *Engine) keyForModel(ctx context.Context, provider providers.ModelProvid
 	}
 
 	return key, conn, nil
+}
+
+func providerSupportsNoAuth(provider providers.ModelProvider) bool {
+	entry, ok := providercore.ProviderMatrix().Provider(provider.String())
+	if !ok {
+		return false
+	}
+	for _, authType := range entry.AuthTypes {
+		if authType == string(store.AuthTypeNoAuth) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Engine) connectionForModel(provider providers.ModelProvider, model string) (*store.Connection, error) {
