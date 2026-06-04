@@ -167,7 +167,7 @@ func (p *Provider) ListModels(ctx context.Context, key providers.Key) ([]provide
 func (p *Provider) newJSONRequest(method, path string, key providers.Key, body any) (*fasthttp.Request, error) {
 	req := fasthttp.AcquireRequest()
 	req.Header.SetMethod(method)
-	req.SetRequestURI(p.baseURL + path)
+	req.SetRequestURI(p.endpoint(path))
 	req.Header.Set("Authorization", "Bearer "+key.Value)
 
 	if body != nil {
@@ -191,7 +191,7 @@ func (p *Provider) newHTTPJSONRequest(ctx context.Context, method, path string, 
 		}
 		reader = strings.NewReader(string(data))
 	}
-	req, err := http.NewRequestWithContext(ctx, method, p.baseURL+path, reader)
+	req, err := http.NewRequestWithContext(ctx, method, p.endpoint(path), reader)
 	if err != nil {
 		return nil, fmt.Errorf("create %s request: %w", p.provider, err)
 	}
@@ -200,6 +200,13 @@ func (p *Provider) newHTTPJSONRequest(ctx context.Context, method, path string, 
 		req.Header.Set("Content-Type", "application/json")
 	}
 	return req, nil
+}
+
+func (p *Provider) endpoint(path string) string {
+	if strings.HasSuffix(p.baseURL, "/v1") && strings.HasPrefix(path, "/v1/") {
+		return p.baseURL + strings.TrimPrefix(path, "/v1")
+	}
+	return p.baseURL + path
 }
 
 func (p *Provider) do(ctx context.Context, req *fasthttp.Request) (*fasthttp.Response, error) {

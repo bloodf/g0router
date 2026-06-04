@@ -119,6 +119,34 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 	}
 }
 
+func TestProviderDoesNotDuplicateVersionSegmentWhenBaseURLIncludesV1(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(chatResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	provider, err := New(Config{Provider: providers.ProviderMiniMax, BaseURL: server.URL + "/v1"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	_, err = provider.ChatCompletion(context.Background(), testKey(providers.ProviderMiniMax), &providers.ChatRequest{
+		Model: "MiniMax-M3",
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+	if gotPath != "/v1/chat/completions" {
+		t.Fatalf("path = %q, want /v1/chat/completions", gotPath)
+	}
+}
+
 func TestNewDefaultProvider(t *testing.T) {
 	provider, err := NewDefault(providers.ProviderGroq)
 	if err != nil {

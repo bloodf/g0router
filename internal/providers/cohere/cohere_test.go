@@ -52,6 +52,28 @@ func TestNewBuildsCohereOpenAICompatibleProvider(t *testing.T) {
 	}
 }
 
+func TestNewDoesNotDuplicateCohereCompatibilityVersionPath(t *testing.T) {
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(chatResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	provider, err := New(server.URL + "/compatibility/v1")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	_, err = provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+	if gotPath != "/compatibility/v1/chat/completions" {
+		t.Fatalf("path = %q, want /compatibility/v1/chat/completions", gotPath)
+	}
+}
+
 func TestNewDefault(t *testing.T) {
 	provider, err := NewDefault()
 	if err != nil {
