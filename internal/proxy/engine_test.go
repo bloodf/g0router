@@ -303,6 +303,51 @@ func TestDispatchUsesCatalogForPublicOpenAICompatibleProviders(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesCatalogForOllamaNoAuthProvider(t *testing.T) {
+	s := openProxyTestStore(t)
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "ollama",
+		Name:     "local-ollama",
+		AuthType: store.AuthTypeNoAuth,
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection ollama: %v", err)
+	}
+
+	ollama := &fakeProvider{
+		name: providers.ProviderOllama,
+		response: &providers.ChatResponse{
+			ID:    "chatcmpl-ollama",
+			Model: "llama3.1:8b",
+		},
+	}
+	engine := NewEngine(s)
+	engine.Register(ollama)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "llama3.1:8b"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if !ollama.called {
+		t.Fatal("ollama provider was not called")
+	}
+	if ollama.receivedKey.Provider != providers.ProviderOllama {
+		t.Fatalf("key provider = %q, want ollama", ollama.receivedKey.Provider)
+	}
+	if ollama.receivedKey.AuthType != string(store.AuthTypeNoAuth) {
+		t.Fatalf("auth type = %q, want noauth", ollama.receivedKey.AuthType)
+	}
+	if ollama.receivedKey.Value != "" {
+		t.Fatalf("key value = %q, want empty noauth key", ollama.receivedKey.Value)
+	}
+	if resp.Provider != providers.ProviderOllama {
+		t.Fatalf("response provider = %q, want ollama", resp.Provider)
+	}
+	if resp.AuthType != string(store.AuthTypeNoAuth) {
+		t.Fatalf("response auth type = %q, want noauth", resp.AuthType)
+	}
+}
+
 func TestDispatchBlocksAliasToProviderWithoutInference(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "bedrock", "bedrock-key")
