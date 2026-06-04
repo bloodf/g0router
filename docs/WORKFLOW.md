@@ -28,12 +28,55 @@
 ## Current State
 
 ```yaml
-project_status: COMPLETE_EVALUATED
-current_stage: 7
-current_wave: "7.M"
-last_updated: "2026-06-03T19:58:00Z"
+project_status: ACTIVE_REMEDIATION
+current_stage: 8
+current_wave: "8.L"
+last_updated: "2026-06-04T07:19:56Z"
 last_agent: "orchestrator"
 ```
+
+---
+
+## STAGE 8 — Completion Hardening
+
+### Wave 8.L — API/Auth Integration Hardening
+
+```yaml
+wave: "8.L"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T07:19:56Z"
+evaluator_prompt: "docs/evaluations/wave-8L-evaluator-prompt.md"
+
+tasks:
+  - id: "8.L.1"
+    name: "Real-server management mutation integration coverage"
+    status: DONE
+    agent: "orchestrator"
+    commit: "7022836"
+    files_owned:
+      - api/server_integration_test.go
+
+  - id: "8.L.2"
+    name: "Real-server MCP instance OAuth integration coverage"
+    status: DONE
+    agent: "orchestrator"
+    commit: "7633953"
+    files_owned:
+      - api/server_integration_test.go
+
+  - id: "8.L.3"
+    name: "CLI API-key login persistence"
+    status: DONE
+    agent: "orchestrator"
+    commit: "009117f"
+    files_owned:
+      - internal/cli/auth.go
+      - internal/cli/auth_test.go
+```
+
+**Checkpoint**: Stage 8 remains active; continue auditing docs-defined gaps and run evaluator before release lock.
 
 ---
 

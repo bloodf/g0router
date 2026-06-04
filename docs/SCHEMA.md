@@ -277,7 +277,7 @@ GET    /healthz                      — Health check
 ### CLI Commands
 ```
 g0router serve [--port PORT] [--data-dir DIR]
-g0router login <provider> [--device] [--key]
+g0router login <provider> [--device] [--key [--api-key KEY] [--name NAME]]
 g0router logout <provider>
 g0router keys add <name>
 g0router keys list

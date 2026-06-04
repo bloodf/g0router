@@ -13,9 +13,11 @@ Start here to understand the project, then dive into specific areas.
 ## Current Status
 
 Implementation and remediation waves through **7.M** are complete and merged.
-Use [WORKFLOW.md](WORKFLOW.md) as the source of truth for gate results,
-evaluator prompts, and remaining non-blocking caveats. Phase documents are
-retained as completed implementation guides.
+Stage 8 completion hardening is active for provider parity, dashboard E2E, API
+integration coverage, and release-gate reconciliation. Use
+[WORKFLOW.md](WORKFLOW.md) as the source of truth for gate results, evaluator
+prompts, and remaining caveats. Phase documents are retained as completed
+implementation guides.
 
 ## Reference
 
