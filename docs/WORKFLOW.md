@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.AX"
-last_updated: "2026-06-04T18:01:48Z"
+last_updated: "2026-06-04T18:06:11Z"
 last_agent: "orchestrator"
 ```
 
@@ -1650,7 +1650,7 @@ max_agents: 1
 gate: "go test ./internal/providers/bedrock ./internal/provider ./api/handlers ./internal/proxy -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
 completed_at: "2026-06-04T17:45:48Z"
 evaluator_prompt: "docs/evaluations/wave-8AX-evaluator-prompt.md"
-evaluation: "FAIL external evaluator thread 019e93c1-50db-7ae1-8fb3-ee9d6fdeea12; Bedrock stopSequences accepted invalid OpenAI stop shapes. Remediated by commit 3c0ef3e; re-evaluation pending."
+evaluation: "PASS external evaluator thread 019e93c1-50db-7ae1-8fb3-ee9d6fdeea12 after stopSequences remediation commit 3c0ef3e; no blocking findings"
 gate_results:
   - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse' -count=1: RED before implementation, missing Converse request contract"
   - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse' -count=1: PASS"
