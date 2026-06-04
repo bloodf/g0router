@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.U"
-last_updated: "2026-06-04T09:48:54Z"
+last_updated: "2026-06-04T09:49:40Z"
 last_agent: "orchestrator"
 ```
 
@@ -527,7 +527,7 @@ tasks:
     name: "Attach registered MCP tools and log route source formats"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "694caae"
     files_owned:
       - api/server.go
       - api/server_test.go
