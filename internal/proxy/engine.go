@@ -569,11 +569,13 @@ func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
 
 	provider := providers.ModelProvider(providercore.CanonicalProviderID(providerID))
 	switch provider {
-	case providers.ProviderAzure,
+	case providers.ProviderAlibaba,
+		providers.ProviderAzure,
 		providers.ProviderGitHubCopilot,
 		providers.ProviderLiteLLM,
 		providers.ProviderLMStudio,
-		providers.ProviderVLLM:
+		providers.ProviderVLLM,
+		providers.ProviderZhipu:
 		return modelRoute{Provider: provider, Model: upstreamModel}, true
 	default:
 		return modelRoute{}, false

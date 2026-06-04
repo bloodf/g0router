@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BF"
-last_updated: "2026-06-04T22:05:00Z"
+current_wave: "8.BG"
+last_updated: "2026-06-04T22:32:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2077,6 +2077,56 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BF adds a Playwright smoke path that creates a temp data dir, mints a real gateway API key through the CLI, starts `g0router serve` on a random loopback port, loads the embedded dashboard from that server, saves the control-plane key, reads real settings, creates a real API key through the dashboard, and verifies it appears in the live API key table. Mocked dashboard E2E remains the broad deterministic page/action suite.
+
+---
+
+### Wave 8.BG — Alibaba and Zhipu Dynamic Runtime Routing
+
+```yaml
+wave: "8.BG"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/openaicompat ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestZhipuDefaultProviderUsesDocumentedPaaSPathWithoutV1Prefix|TestDefaultConfigsAreRegistered|TestProviderMatrixMarksAuthOnlyProvidersExplicitly|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-04T22:32:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BG-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused provider/API/CLI tests: RED before implementation, ProviderAlibaba/ProviderZhipu and Zhipu chat path override were missing; Alibaba/Zhipu remained auth_only"
+  - "focused provider/API/CLI tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 85 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BG.1"
+    name: "Promote Alibaba and Zhipu to dynamic OpenAI-compatible runtime routing"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/openaicompat/provider.go
+      - internal/providers/openaicompat/registry.go
+      - internal/providers/openaicompat/provider_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/evaluations/wave-8BG-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BG removes two concrete `auth_only` provider gaps. Alibaba now registers the OpenAI-compatible DashScope adapter and routes provider-qualified models such as `alibaba/qwen3-max-2026-01-23`. Zhipu now registers the OpenAI-compatible Z.AI adapter with the documented `/api/paas/v4/chat/completions` path and routes provider-qualified models such as `zhipu/glm-5.1`. Both providers remain intentionally non-catalog and non-quota to avoid fake pricing or unsupported quota claims.
 
 ---
 

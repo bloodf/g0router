@@ -23,6 +23,8 @@ func DefaultConfigs() map[providers.ModelProvider]Config {
 		providers.ProviderXAI:           {Provider: providers.ProviderXAI, BaseURL: "https://api.x.ai/v1"},
 		providers.ProviderVercelGateway: {Provider: providers.ProviderVercelGateway, BaseURL: "https://ai-gateway.vercel.sh/v1"},
 		providers.ProviderGitHubCopilot: {Provider: providers.ProviderGitHubCopilot, BaseURL: "https://api.githubcopilot.com", Headers: map[string]string{"User-Agent": "opencode/1.3.15"}},
+		providers.ProviderAlibaba:       {Provider: providers.ProviderAlibaba, BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"},
+		providers.ProviderZhipu:         {Provider: providers.ProviderZhipu, BaseURL: "https://api.z.ai/api/paas/v4", ChatCompletionsPath: "/chat/completions"},
 		providers.ProviderLiteLLM:       {Provider: providers.ProviderLiteLLM, BaseURL: "http://localhost:4000"},
 		providers.ProviderVLLM:          {Provider: providers.ProviderVLLM, BaseURL: "http://localhost:8000/v1"},
 		providers.ProviderLMStudio:      {Provider: providers.ProviderLMStudio, BaseURL: "http://localhost:1234/v1"},

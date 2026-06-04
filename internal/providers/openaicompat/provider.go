@@ -24,17 +24,19 @@ var (
 )
 
 type Config struct {
-	Provider providers.ModelProvider
-	BaseURL  string
-	Headers  map[string]string
+	Provider            providers.ModelProvider
+	BaseURL             string
+	Headers             map[string]string
+	ChatCompletionsPath string
 }
 
 type Provider struct {
-	provider     providers.ModelProvider
-	baseURL      string
-	headers      map[string]string
-	client       *fasthttp.Client
-	streamClient *http.Client
+	provider            providers.ModelProvider
+	baseURL             string
+	headers             map[string]string
+	chatCompletionsPath string
+	client              *fasthttp.Client
+	streamClient        *http.Client
 }
 
 type RateLimitError struct {
@@ -63,6 +65,13 @@ func New(config Config) (*Provider, error) {
 	if strings.TrimSpace(config.BaseURL) == "" {
 		return nil, fmt.Errorf("%s base URL: empty", config.Provider)
 	}
+	chatCompletionsPath := strings.TrimSpace(config.ChatCompletionsPath)
+	if chatCompletionsPath == "" {
+		chatCompletionsPath = "/v1/chat/completions"
+	}
+	if !strings.HasPrefix(chatCompletionsPath, "/") {
+		return nil, fmt.Errorf("%s chat completions path: must start with /", config.Provider)
+	}
 	headers := make(map[string]string, len(config.Headers))
 	for key, value := range config.Headers {
 		if strings.TrimSpace(key) == "" {
@@ -71,11 +80,12 @@ func New(config Config) (*Provider, error) {
 		headers[key] = value
 	}
 	return &Provider{
-		provider:     config.Provider,
-		baseURL:      strings.TrimRight(config.BaseURL, "/"),
-		headers:      headers,
-		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient: &http.Client{},
+		provider:            config.Provider,
+		baseURL:             strings.TrimRight(config.BaseURL, "/"),
+		headers:             headers,
+		chatCompletionsPath: chatCompletionsPath,
+		client:              &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		streamClient:        &http.Client{},
 	}, nil
 }
 
@@ -84,7 +94,7 @@ func (p *Provider) Name() providers.ModelProvider {
 }
 
 func (p *Provider) ChatCompletion(ctx context.Context, key providers.Key, req *providers.ChatRequest) (*providers.ChatResponse, error) {
-	httpReq, err := p.newJSONRequest(fasthttp.MethodPost, "/v1/chat/completions", key, req)
+	httpReq, err := p.newJSONRequest(fasthttp.MethodPost, p.chatCompletionsPath, key, req)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +122,7 @@ func (p *Provider) ChatCompletionStream(ctx context.Context, key providers.Key, 
 	streamReq := *req
 	streamReq.Stream = &stream
 
-	httpReq, err := p.newHTTPJSONRequest(ctx, http.MethodPost, "/v1/chat/completions", key, &streamReq)
+	httpReq, err := p.newHTTPJSONRequest(ctx, http.MethodPost, p.chatCompletionsPath, key, &streamReq)
 	if err != nil {
 		return nil, err
 	}

@@ -62,7 +62,7 @@ func TestProviderMatrixCoversRemediationParityTiers(t *testing.T) {
 
 func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"cursor", "gitlab", "kiro", "kimi", "alibaba", "zhipu"} {
+	for _, id := range []string{"cursor", "gitlab", "kiro", "kimi"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -78,7 +78,7 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 
 func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"azure", "github-copilot", "litellm", "lm-studio", "vllm"} {
+	for _, id := range []string{"alibaba", "azure", "github-copilot", "litellm", "lm-studio", "vllm", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -159,6 +159,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	want := map[string]bool{
 		"openai":            true,
 		"anthropic":         true,
+		"alibaba":           true,
 		"azure":             true,
 		"bedrock":           true,
 		"cerebras":          true,
@@ -184,6 +185,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"vertex":            true,
 		"vllm":              true,
 		"xai":               true,
+		"zhipu":             true,
 	}
 	if len(ids) != len(want) {
 		t.Fatalf("public inference providers = %+v, want %+v", ids, want)
@@ -209,7 +211,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"anthropic", "azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vllm", "xai"} {
+	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -220,7 +222,7 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
 			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
 		}
-		if id == "azure" || id == "github-copilot" || id == "litellm" || id == "lm-studio" || id == "vllm" {
+		if id == "alibaba" || id == "azure" || id == "github-copilot" || id == "litellm" || id == "lm-studio" || id == "vllm" || id == "zhipu" {
 			if entry.ModelCatalog {
 				t.Fatalf("%s should not claim static model catalog for deployment-defined routing: %+v", id, entry)
 			}
@@ -245,7 +247,7 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 
 func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"github-copilot", "litellm", "lm-studio", "vllm"} {
+	for _, id := range []string{"alibaba", "github-copilot", "litellm", "lm-studio", "vllm", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)

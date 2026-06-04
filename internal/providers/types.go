@@ -35,6 +35,8 @@ const (
 	ProviderLMStudio      ModelProvider = "lm-studio"
 	ProviderGitHubCopilot ModelProvider = "github-copilot"
 	ProviderCursor        ModelProvider = "cursor"
+	ProviderAlibaba       ModelProvider = "alibaba"
+	ProviderZhipu         ModelProvider = "zhipu"
 )
 
 func (p ModelProvider) String() string {
