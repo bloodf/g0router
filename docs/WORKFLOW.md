@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AG"
-last_updated: "2026-06-04T11:18:02Z"
+current_wave: "8.AH"
+last_updated: "2026-06-04T11:20:39Z"
 last_agent: "orchestrator"
 ```
 
@@ -1010,6 +1010,42 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AG lets HTTP API and CLI MCP OAuth start flows omit `authorization_url` when `resource_uri` exposes OAuth protected-resource metadata. Discovery follows the resource `WWW-Authenticate` `resource_metadata` URL, reads `authorization_servers`, reads authorization-server metadata, then stores the normal PKCE flow without test-only handlers or external network.
+
+### Wave 8.AH — Connection Mutation Integration Coverage
+
+```yaml
+wave: "8.AH"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T11:20:39Z"
+evaluator_prompt: "docs/evaluations/wave-8AH-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./api -run TestIntegrationManagementMutationsRoundTripThroughAuthenticatedServer -count=1: PASS after adding missing local test helper"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AH.1"
+    name: "Cover connection mutation redaction through authenticated real server"
+    status: DONE
+    agent: "orchestrator"
+    commit: "1623081"
+    files_owned:
+      - api/server_integration_test.go
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AH-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AH extends the authenticated real-server management integration suite to create, test, list, update, and delete provider connections through `/api/connections`, while asserting access tokens, refresh tokens, API keys, and nested provider secrets are persisted but never serialized back to management API responses.
 
 ---
 
