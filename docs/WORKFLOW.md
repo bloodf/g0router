@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.AE"
-last_updated: "2026-06-04T10:51:03Z"
+last_updated: "2026-06-04T10:58:50Z"
 last_agent: "orchestrator"
 ```
 
@@ -904,7 +904,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:51:03Z"
 evaluator_prompt: "docs/evaluations/wave-8AE-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e9242-efbd-7211-bb7e-b32ea56ea2ef at commit 32c2131"
 gate_results:
   - "go test ./internal/mcp -run 'TestOAuthEngine(DiscoversTokenEndpointFromAuthorizationServerMetadata|RequiresRealTokenEndpoint)' -count=1: FAIL before implementation, metadata token endpoint unavailable"
   - "go test ./internal/mcp -run 'TestOAuthEngine(DiscoversTokenEndpointFromAuthorizationServerMetadata|RequiresRealTokenEndpoint|CompletesCallbackForMatchingInstance|RejectsRedirectingTokenEndpointWithoutFollowing)' -count=1: PASS"
