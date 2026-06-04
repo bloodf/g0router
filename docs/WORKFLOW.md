@@ -735,7 +735,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:21:41Z"
 evaluator_prompt: "docs/evaluations/wave-8AA-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "FAIL external evaluator thread 019e9229-d19f-7e50-9339-a72aa72658b2; Playwright navigation matched MCP split labels ambiguously, remediated in Wave 8.AB"
 gate_results:
   - "npm --prefix ui test -- --run ConnectionsAuthPage ProvidersPage App: PASS"
   - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
