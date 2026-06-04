@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AF"
-last_updated: "2026-06-04T11:06:15Z"
+current_wave: "8.AG"
+last_updated: "2026-06-04T11:08:31Z"
 last_agent: "orchestrator"
 ```
 
@@ -968,6 +968,48 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AF extends the authenticated real-server integration test to prove `/v1/messages` and `/v1/responses` dispatch through the same configured gateway and fake OpenAI-compatible upstream as `/v1/chat/completions`, including response-shape and usage mapping assertions.
+
+### Wave 8.AG — MCP OAuth Protected Resource Discovery
+
+```yaml
+wave: "8.AG"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T11:08:31Z"
+evaluator_prompt: "docs/evaluations/wave-8AG-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./internal/mcp ./api/handlers ./internal/cli -run 'TestDiscoverOAuthAuthorizationURLFromProtectedResourceMetadata|TestMCPOAuthStartDiscoversAuthorizationURLFromResourceMetadata|TestMCPOAuthStartCommandDiscoversAuthorizationURL' -count=1: FAIL before implementation for missing discovery/helper wiring, then PASS"
+  - "go test ./internal/mcp ./api/handlers ./internal/cli -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AG.1"
+    name: "Discover MCP OAuth authorization endpoint from protected resource metadata"
+    status: DONE
+    agent: "orchestrator"
+    commit: "168feb5"
+    files_owned:
+      - internal/mcp/oauth.go
+      - internal/mcp/oauth_test.go
+      - api/handlers/mcp.go
+      - api/handlers/mcp_test.go
+      - internal/cli/mcp_auth.go
+      - internal/cli/mcp_auth_test.go
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AG-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AG lets HTTP API and CLI MCP OAuth start flows omit `authorization_url` when `resource_uri` exposes OAuth protected-resource metadata. Discovery follows the resource `WWW-Authenticate` `resource_metadata` URL, reads `authorization_servers`, reads authorization-server metadata, then stores the normal PKCE flow without test-only handlers or external network.
 
 ---
 
