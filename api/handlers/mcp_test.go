@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -400,6 +402,73 @@ func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	}
 }
 
+func TestMCPOAuthStartDiscoversAuthorizationURLFromResourceMetadata(t *testing.T) {
+	s := openMCPHandlerStore(t)
+	defer s.Close()
+	instance := &store.MCPInstance{
+		Name:       "linear",
+		ServerKey:  "linear",
+		LaunchType: "http",
+		Transport:  "streamable-http",
+		URL:        stringPtr("https://mcp.example/mcp"),
+		IsActive:   true,
+	}
+	if err := s.CreateMCPInstance(instance); err != nil {
+		t.Fatalf("CreateMCPInstance: %v", err)
+	}
+
+	var authorizationEndpoint string
+	resourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/mcp":
+			w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+handlerTestServerURL(r)+`/.well-known/oauth-protected-resource"`)
+			w.WriteHeader(http.StatusUnauthorized)
+		case "/.well-known/oauth-protected-resource":
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]any{"authorization_servers": []string{handlerTestServerURL(r)}}); err != nil {
+				t.Fatalf("Encode protected resource metadata: %v", err)
+			}
+		case "/.well-known/oauth-authorization-server":
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]string{"authorization_endpoint": authorizationEndpoint}); err != nil {
+				t.Fatalf("Encode authorization metadata: %v", err)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer resourceServer.Close()
+	authorizationEndpoint = resourceServer.URL + "/oauth/authorize"
+
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances/"+instance.ID+"/auth/start")
+	ctx.Request.SetBodyString(`{"resource_uri":"` + resourceServer.URL + `/mcp","redirect_uri":"http://localhost:3000/api/mcp/oauth/callback"}`)
+	MCPOAuthStart(ctx, s, instance.ID)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var started struct {
+		AuthorizationURL string `json:"authorization_url"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &started); err != nil {
+		t.Fatalf("unmarshal auth start: %v", err)
+	}
+	authURL, err := url.Parse(started.AuthorizationURL)
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+	if authURL.Scheme+"://"+authURL.Host+authURL.Path != authorizationEndpoint {
+		t.Fatalf("authorization URL = %q, want discovered %q", started.AuthorizationURL, authorizationEndpoint)
+	}
+	query := authURL.Query()
+	if query.Get("resource") != resourceServer.URL+"/mcp" || query.Get("code_challenge_method") != "S256" || query.Get("code_challenge") == "" {
+		t.Fatalf("auth query = %s, want resource and S256 PKCE challenge", authURL.RawQuery)
+	}
+	if _, err := s.ConsumeMCPOAuthFlow(instance.ID, query.Get("state")); err != nil {
+		t.Fatalf("ConsumeMCPOAuthFlow: %v", err)
+	}
+}
+
 func TestMCPInstancesCreateRollsBackStoreWhenRuntimeRegistrationFails(t *testing.T) {
 	s := openMCPHandlerStore(t)
 	runtime := &fakeMCPInstanceRuntime{err: errors.New("offline")}
@@ -603,6 +672,14 @@ func decodedInstanceIDForHandlerTest(t *testing.T, value string) string {
 		return string(decoded)
 	}
 	return value
+}
+
+func handlerTestServerURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
 }
 
 func openMCPHandlerStore(t *testing.T) *store.Store {

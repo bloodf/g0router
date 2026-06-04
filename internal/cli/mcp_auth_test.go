@@ -165,6 +165,78 @@ func TestMCPOAuthStartCommandStoresPKCEVerifier(t *testing.T) {
 	}
 }
 
+func TestMCPOAuthStartCommandDiscoversAuthorizationURL(t *testing.T) {
+	dataDir := t.TempDir()
+	s, err := store.NewStore(filepath.Join(dataDir, "g0router.db"))
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	instance := createCLIMCPInstance(t, s, "linear")
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	var authorizationEndpoint string
+	resourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/mcp":
+			w.Header().Set("WWW-Authenticate", `Bearer resource_metadata="`+cliTestServerURL(r)+`/.well-known/oauth-protected-resource"`)
+			w.WriteHeader(http.StatusUnauthorized)
+		case "/.well-known/oauth-protected-resource":
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]any{"authorization_servers": []string{cliTestServerURL(r)}}); err != nil {
+				t.Fatalf("Encode protected resource metadata: %v", err)
+			}
+		case "/.well-known/oauth-authorization-server":
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]string{"authorization_endpoint": authorizationEndpoint}); err != nil {
+				t.Fatalf("Encode authorization metadata: %v", err)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer resourceServer.Close()
+	authorizationEndpoint = resourceServer.URL + "/oauth/authorize"
+
+	cmd := NewRootCommand("test")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{
+		"--data-dir", dataDir,
+		"mcp", "auth", "start", "linear",
+		"--resource", resourceServer.URL + "/mcp",
+		"--redirect-url", "http://localhost:3000/api/mcp/oauth/callback",
+	})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	authURL, err := url.Parse(strings.TrimSpace(out.String()))
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+	if authURL.Scheme+"://"+authURL.Host+authURL.Path != authorizationEndpoint {
+		t.Fatalf("authorization URL = %q, want discovered %q", out.String(), authorizationEndpoint)
+	}
+	s, err = store.NewStore(filepath.Join(dataDir, "g0router.db"))
+	if err != nil {
+		t.Fatalf("reopen store: %v", err)
+	}
+	defer s.Close()
+	query := authURL.Query()
+	if query.Get("resource") != resourceServer.URL+"/mcp" || query.Get("code_challenge_method") != "S256" {
+		t.Fatalf("auth query = %s, want resource and S256 PKCE challenge", authURL.RawQuery)
+	}
+	if decodedInstanceIDForCLITest(t, mustParseURLForCLITest(t, query.Get("redirect_uri")).Query().Get("instance_id")) != instance.ID {
+		t.Fatalf("redirect_uri = %q, want instance id", query.Get("redirect_uri"))
+	}
+	if _, err := s.ConsumeMCPOAuthFlow(instance.ID, query.Get("state")); err != nil {
+		t.Fatalf("ConsumeMCPOAuthFlow: %v", err)
+	}
+}
+
 func createCLIMCPInstance(t *testing.T, s *store.Store, name string) *store.MCPInstance {
 	t.Helper()
 	instance := &store.MCPInstance{
@@ -200,4 +272,21 @@ func decodedInstanceIDForCLITest(t *testing.T, value string) string {
 		return string(decoded)
 	}
 	return value
+}
+
+func cliTestServerURL(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
+}
+
+func mustParseURLForCLITest(t *testing.T, raw string) *url.URL {
+	t.Helper()
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		t.Fatalf("parse url: %v", err)
+	}
+	return parsed
 }

@@ -252,6 +252,40 @@ func TestOAuthEngineDiscoversTokenEndpointFromAuthorizationServerMetadata(t *tes
 	}
 }
 
+func TestDiscoverOAuthAuthorizationURLFromProtectedResourceMetadata(t *testing.T) {
+	var authorizationEndpoint string
+	resourceServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/mcp":
+			w.Header().Set("WWW-Authenticate", `Bearer realm="mcp", resource_metadata="`+resourceServerURLForOAuthTest(r)+`/oauth-resource"`)
+			w.WriteHeader(http.StatusUnauthorized)
+		case "/oauth-resource":
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]any{"authorization_servers": []string{resourceServerURLForOAuthTest(r)}}); err != nil {
+				t.Fatalf("Encode protected resource metadata: %v", err)
+			}
+		case "/.well-known/oauth-authorization-server":
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]string{"authorization_endpoint": authorizationEndpoint}); err != nil {
+				t.Fatalf("Encode authorization metadata: %v", err)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer resourceServer.Close()
+	authorizationEndpoint = resourceServer.URL + "/oauth/authorize"
+
+	got, err := DiscoverOAuthAuthorizationURL(context.Background(), resourceServer.Client(), resourceServer.URL+"/mcp")
+
+	if err != nil {
+		t.Fatalf("DiscoverOAuthAuthorizationURL: %v", err)
+	}
+	if got != authorizationEndpoint {
+		t.Fatalf("authorization URL = %q, want %q", got, authorizationEndpoint)
+	}
+}
+
 func TestOAuthEngineRejectsRedirectingTokenEndpointWithoutFollowing(t *testing.T) {
 	store := newFakeOAuthStore()
 	var redirectHit bool
@@ -490,4 +524,12 @@ func decodedInstanceIDForOAuthTest(t *testing.T, value string) string {
 		return string(decoded)
 	}
 	return value
+}
+
+func resourceServerURLForOAuthTest(r *http.Request) string {
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	return scheme + "://" + r.Host
 }

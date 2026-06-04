@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -211,6 +212,12 @@ func newMCPAuthStartCommand(dataDir *string) *cobra.Command {
 			instance, err := findMCPInstanceByName(s, args[0])
 			if err != nil {
 				return err
+			}
+			if strings.TrimSpace(authorizationURL) == "" {
+				authorizationURL, err = mcp.DiscoverOAuthAuthorizationURL(cmd.Context(), http.DefaultClient, resourceURI)
+				if err != nil {
+					return fmt.Errorf("discover mcp oauth authorization url: %w", err)
+				}
 			}
 			flow, err := mcp.BuildOAuthStartFlow(mcp.OAuthStartConfig{
 				InstanceID:        instance.ID,

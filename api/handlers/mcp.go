@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -157,15 +158,25 @@ func MCPOAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) 
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 		return
 	}
-	if strings.TrimSpace(req.AuthorizationURL) == "" || strings.TrimSpace(req.ResourceURI) == "" {
-		writeError(ctx, fasthttp.StatusBadRequest, "authorization_url and resource_uri are required")
+	resourceURI := strings.TrimSpace(req.ResourceURI)
+	if resourceURI == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "resource_uri is required")
 		return
+	}
+	authorizationURL := strings.TrimSpace(req.AuthorizationURL)
+	if authorizationURL == "" {
+		var err error
+		authorizationURL, err = mcp.DiscoverOAuthAuthorizationURL(requestContext(ctx), http.DefaultClient, resourceURI)
+		if err != nil {
+			writeError(ctx, fasthttp.StatusBadGateway, "discover mcp oauth authorization url failed")
+			return
+		}
 	}
 	flow, err := mcp.BuildOAuthStartFlow(mcp.OAuthStartConfig{
 		InstanceID:        instanceID,
-		AuthorizationURL:  req.AuthorizationURL,
+		AuthorizationURL:  authorizationURL,
 		RedirectURI:       req.RedirectURI,
-		ResourceURI:       req.ResourceURI,
+		ResourceURI:       resourceURI,
 		ExpirationSeconds: int((10 * time.Minute).Seconds()),
 	})
 	if err != nil {

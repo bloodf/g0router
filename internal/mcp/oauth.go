@@ -91,11 +91,52 @@ type tokenResponse struct {
 }
 
 type authorizationServerMetadata struct {
-	TokenEndpoint string `json:"token_endpoint"`
+	AuthorizationEndpoint string `json:"authorization_endpoint"`
+	TokenEndpoint         string `json:"token_endpoint"`
+}
+
+type protectedResourceMetadata struct {
+	AuthorizationServers []string `json:"authorization_servers"`
 }
 
 func NewOAuthEngine(store OAuthStore, client OAuthHTTPClient) *OAuthEngine {
 	return &OAuthEngine{store: store, http: noRedirectOAuthClient(client)}
+}
+
+func DiscoverOAuthAuthorizationURL(ctx context.Context, client OAuthHTTPClient, resourceURI string) (string, error) {
+	resourceURI = strings.TrimSpace(resourceURI)
+	parsedResource, err := url.Parse(resourceURI)
+	if err != nil {
+		return "", fmt.Errorf("parse resource uri: %w", err)
+	}
+	if parsedResource.Scheme != "http" && parsedResource.Scheme != "https" {
+		return "", errOAuthTokenEndpointUnavailable
+	}
+
+	httpClient := noRedirectOAuthClient(client)
+	resourceMetadataURL, err := protectedResourceMetadataURL(ctx, httpClient, resourceURI)
+	if err != nil {
+		return "", err
+	}
+	protectedMetadata, err := fetchProtectedResourceMetadata(ctx, httpClient, resourceMetadataURL)
+	if err != nil {
+		return "", err
+	}
+	if len(protectedMetadata.AuthorizationServers) == 0 {
+		return "", errOAuthTokenEndpointUnavailable
+	}
+	authMetadata, err := fetchAuthorizationServerMetadata(ctx, httpClient, protectedMetadata.AuthorizationServers[0])
+	if err != nil {
+		return "", err
+	}
+	authorizationEndpoint := strings.TrimSpace(authMetadata.AuthorizationEndpoint)
+	if authorizationEndpoint == "" {
+		return "", errOAuthTokenEndpointUnavailable
+	}
+	if _, err := url.ParseRequestURI(authorizationEndpoint); err != nil {
+		return "", errOAuthTokenEndpointUnavailable
+	}
+	return authorizationEndpoint, nil
 }
 
 func BuildOAuthStartFlow(config OAuthStartConfig) (OAuthFlow, error) {
@@ -355,7 +396,7 @@ func (e *OAuthEngine) discoverTokenEndpoint(ctx context.Context, authorizationUR
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return "", errOAuthTokenEndpointUnavailable
 	}
-	metadataURL := url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: "/.well-known/oauth-authorization-server"}
+	metadataURL := authorizationServerMetadataURL(parsed.String())
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("create authorization metadata request: %w", err)
@@ -382,6 +423,104 @@ func (e *OAuthEngine) discoverTokenEndpoint(ctx context.Context, authorizationUR
 		return "", errOAuthTokenEndpointUnavailable
 	}
 	return tokenEndpoint, nil
+}
+
+func protectedResourceMetadataURL(ctx context.Context, client OAuthHTTPClient, resourceURI string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, resourceURI, nil)
+	if err != nil {
+		return "", fmt.Errorf("create resource metadata probe request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("probe protected resource metadata: %w", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+
+	if metadataURL := bearerResourceMetadataURL(resp.Header.Values("WWW-Authenticate")); metadataURL != "" {
+		return metadataURL, nil
+	}
+	parsed, err := url.Parse(resourceURI)
+	if err != nil {
+		return "", fmt.Errorf("parse resource uri: %w", err)
+	}
+	fallback := url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: "/.well-known/oauth-protected-resource"}
+	return fallback.String(), nil
+}
+
+func fetchProtectedResourceMetadata(ctx context.Context, client OAuthHTTPClient, metadataURL string) (protectedResourceMetadata, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL, nil)
+	if err != nil {
+		return protectedResourceMetadata{}, fmt.Errorf("create protected resource metadata request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return protectedResourceMetadata{}, fmt.Errorf("get protected resource metadata: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+		return protectedResourceMetadata{}, errOAuthTokenEndpointUnavailable
+	}
+	var metadata protectedResourceMetadata
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8192)).Decode(&metadata); err != nil {
+		return protectedResourceMetadata{}, fmt.Errorf("decode protected resource metadata: %w", err)
+	}
+	return metadata, nil
+}
+
+func fetchAuthorizationServerMetadata(ctx context.Context, client OAuthHTTPClient, authServer string) (authorizationServerMetadata, error) {
+	metadataURL := authorizationServerMetadataURL(authServer)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL.String(), nil)
+	if err != nil {
+		return authorizationServerMetadata{}, fmt.Errorf("create authorization metadata request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		return authorizationServerMetadata{}, fmt.Errorf("get authorization metadata: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+		return authorizationServerMetadata{}, errOAuthTokenEndpointUnavailable
+	}
+	var metadata authorizationServerMetadata
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8192)).Decode(&metadata); err != nil {
+		return authorizationServerMetadata{}, fmt.Errorf("decode authorization metadata: %w", err)
+	}
+	return metadata, nil
+}
+
+func authorizationServerMetadataURL(rawURL string) url.URL {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return url.URL{}
+	}
+	return url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: "/.well-known/oauth-authorization-server"}
+}
+
+func bearerResourceMetadataURL(headers []string) string {
+	for _, header := range headers {
+		header = strings.TrimSpace(header)
+		if !strings.HasPrefix(strings.ToLower(header), "bearer") {
+			continue
+		}
+		params := strings.TrimSpace(header[len("Bearer"):])
+		for _, param := range strings.Split(params, ",") {
+			key, value, ok := strings.Cut(strings.TrimSpace(param), "=")
+			if !ok || !strings.EqualFold(strings.TrimSpace(key), "resource_metadata") {
+				continue
+			}
+			value = strings.Trim(strings.TrimSpace(value), `"`)
+			if _, err := url.ParseRequestURI(value); err == nil {
+				return value
+			}
+		}
+	}
+	return ""
 }
 
 func redirectWithInstanceID(rawURL, instanceID string) (string, error) {
