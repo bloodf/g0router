@@ -11,12 +11,15 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/openai"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/usage"
 )
 
 func TestIntegrationAuthenticatedAPIServerWithFakeUpstream(t *testing.T) {
@@ -225,6 +228,60 @@ func TestIntegrationMCPInstanceOAuthRoundTripThroughAuthenticatedServer(t *testi
 	if len(runtime.closed) != 1 || runtime.closed[0] != created.ID {
 		t.Fatalf("closed mcp instances = %+v, want %s", runtime.closed, created.ID)
 	}
+}
+
+func TestIntegrationUsageQuotaLogsAndProviderOAuthThroughAuthenticatedServer(t *testing.T) {
+	const apiKeySecret = "test-secret"
+
+	s := newAPITestStore(t)
+	_, rawAPIKey, err := s.CreateAPIKey("admin", apiKeySecret)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "openai",
+		Name:     "quota-openai",
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   stringPtr("quota-secret"),
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	inputTokens := 11
+	outputTokens := 7
+	totalTokens := 18
+	costUSD := 0.00012
+	statusOK := http.StatusOK
+	if err := s.LogRequest(&store.RequestLogEntry{
+		RequestID:    "req-integration-usage",
+		Timestamp:    time.Date(2026, 6, 4, 20, 0, 0, 0, time.UTC),
+		Provider:     "openai",
+		Model:        "gpt-4o",
+		AuthType:     "api_key",
+		InputTokens:  &inputTokens,
+		OutputTokens: &outputTokens,
+		TotalTokens:  &totalTokens,
+		CostUSD:      &costUSD,
+		StatusCode:   &statusOK,
+	}); err != nil {
+		t.Fatalf("LogRequest: %v", err)
+	}
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "integration-test",
+		Store:           s,
+		UsageStore:      s,
+		RequireAPIKey:   true,
+		APIKeySecret:    apiKeySecret,
+		APIKeyValidator: integrationStoreAPIKeyValidator{s: s},
+		OAuthFlows:      handlers.OAuthFlows{"minimax": routeOAuthFlow{}},
+		QuotaFetchers:   map[providers.ModelProvider]usage.QuotaFetcher{providers.ProviderOpenAI: routeQuotaFetcher{}},
+	})
+
+	assertAuthenticatedUsageAndLogs(t, baseURL, rawAPIKey)
+	assertAuthenticatedQuota(t, baseURL, rawAPIKey)
+	assertAuthenticatedProviderOAuthRoutes(t, baseURL, rawAPIKey, s)
 }
 
 type integrationStoreAPIKeyValidator struct {
@@ -727,6 +784,117 @@ func assertSettingsManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) 
 	decodeIntegrationJSON(t, body, &got)
 	if got != want {
 		t.Fatalf("settings round trip = %+v, want %+v", got, want)
+	}
+}
+
+func assertAuthenticatedUsageAndLogs(t *testing.T, baseURL, rawAPIKey string) {
+	t.Helper()
+
+	for _, path := range []string{"/api/usage?provider=openai&limit=5", "/api/logs?model=gpt-4o&limit=5"} {
+		body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, path, http.StatusOK)
+		var listed struct {
+			Object string `json:"object"`
+			Data   []struct {
+				RequestID   string   `json:"request_id"`
+				Provider    string   `json:"provider"`
+				Model       string   `json:"model"`
+				TotalTokens *int     `json:"total_tokens"`
+				CostUSD     *float64 `json:"cost_usd"`
+				StatusCode  *int     `json:"status_code"`
+			} `json:"data"`
+			Limit int `json:"limit"`
+		}
+		decodeIntegrationJSON(t, body, &listed)
+		if listed.Object != "list" || listed.Limit != 5 || len(listed.Data) != 1 {
+			t.Fatalf("%s response = %+v, want one usage/log row", path, listed)
+		}
+		row := listed.Data[0]
+		if row.RequestID != "req-integration-usage" || row.Provider != "openai" || row.Model != "gpt-4o" || row.TotalTokens == nil || *row.TotalTokens != 18 || row.CostUSD == nil || *row.CostUSD != 0.00012 || row.StatusCode == nil || *row.StatusCode != http.StatusOK {
+			t.Fatalf("%s row = %+v, want seeded usage/log row", path, row)
+		}
+	}
+
+	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/usage/summary?provider=openai", http.StatusOK)
+	var summary struct {
+		RequestCount int64   `json:"request_count"`
+		TotalTokens  int64   `json:"total_tokens"`
+		TotalCostUSD float64 `json:"total_cost_usd"`
+	}
+	decodeIntegrationJSON(t, body, &summary)
+	if summary.RequestCount != 1 || summary.TotalTokens != 18 || summary.TotalCostUSD != 0.00012 {
+		t.Fatalf("usage summary = %+v, want seeded aggregate", summary)
+	}
+}
+
+func assertAuthenticatedQuota(t *testing.T, baseURL, rawAPIKey string) {
+	t.Helper()
+
+	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/usage/quota/openai", http.StatusOK)
+	var quota usage.Quota
+	decodeIntegrationJSON(t, body, &quota)
+	if quota.Provider != providers.ProviderOpenAI || quota.Limit != 100 || quota.Used != 1 || quota.Remaining != 99 {
+		t.Fatalf("quota = %+v, want fake openai quota", quota)
+	}
+}
+
+func assertAuthenticatedProviderOAuthRoutes(t *testing.T, baseURL, rawAPIKey string, s *store.Store) {
+	t.Helper()
+
+	var started struct {
+		Provider  string `json:"provider"`
+		SessionID string `json:"session_id"`
+	}
+	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/oauth/minimax/authorize", rawAPIKey, `{"account_label":"integration-account"}`, http.StatusOK, &started)
+	if started.Provider != "minimax" || started.SessionID != "session-1" {
+		t.Fatalf("oauth start = %+v, want minimax session-1", started)
+	}
+
+	var poll struct {
+		Status string `json:"status"`
+	}
+	doAuthenticatedJSON(t, http.MethodGet, baseURL+"/api/oauth/minimax/poll?session_id=session-1", rawAPIKey, "", http.StatusOK, &poll)
+	if poll.Status != "pending" {
+		t.Fatalf("oauth poll = %+v, want pending", poll)
+	}
+
+	callbackBody := doAuthenticatedJSON(t, http.MethodGet, baseURL+"/api/oauth/callback?state=session-1&code=callback-code", rawAPIKey, "", http.StatusOK, nil)
+	assertOAuthConnectionResponseRedacted(t, callbackBody, "token", "callback-code")
+
+	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/oauth/minimax/authorize", rawAPIKey, `{"account_label":"integration-exchange"}`, http.StatusOK, &started)
+	exchangeBody := doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/oauth/minimax/exchange", rawAPIKey, `{"state":"`+started.SessionID+`","code":"manual-code"}`, http.StatusOK, nil)
+	assertOAuthConnectionResponseRedacted(t, exchangeBody, "token", "manual-code")
+
+	connections, err := s.GetConnections("minimax")
+	if err != nil {
+		t.Fatalf("GetConnections minimax: %v", err)
+	}
+	if len(connections) != 2 {
+		t.Fatalf("minimax connections = %d, want callback and exchange connections", len(connections))
+	}
+	for _, connection := range connections {
+		if connection.AuthType != store.AuthTypeOAuth || connection.AccessToken == nil || *connection.AccessToken != "token" {
+			t.Fatalf("stored oauth connection = %+v, want persisted token", connection)
+		}
+	}
+}
+
+func assertOAuthConnectionResponseRedacted(t *testing.T, body []byte, secrets ...string) {
+	t.Helper()
+
+	bodyText := string(body)
+	for _, secret := range secrets {
+		if strings.Contains(bodyText, secret) {
+			t.Fatalf("oauth response leaked %q: %s", secret, bodyText)
+		}
+	}
+	var decoded struct {
+		ID       string `json:"id"`
+		Provider string `json:"provider"`
+		AuthType string `json:"auth_type"`
+	}
+	decodeIntegrationJSON(t, body, &decoded)
+	if decoded.ID == "" || decoded.Provider != "minimax" || decoded.AuthType != string(store.AuthTypeOAuth) {
+		t.Fatalf("oauth connection response = %+v, want redacted minimax oauth connection", decoded)
 	}
 }
 

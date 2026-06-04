@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BD"
-last_updated: "2026-06-04T21:18:00Z"
+current_wave: "8.BE"
+last_updated: "2026-06-04T21:45:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1976,7 +1976,7 @@ max_agents: 1
 gate: "go test ./api/handlers -run 'TestOAuthPoll|TestOAuthHandlers' -count=1 && go test ./internal/store -run TestOAuthSessionCanBeReadBeforeSingleUseConsume -count=1 && go test ./api/handlers -run 'TestOAuthPollUsesStoredVerifierAndAccountLabel|TestOAuthPollUsesSessionFromQuery|TestOAuthPollAcceptsGitHubAlias' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && git diff --check"
 completed_at: "2026-06-04T21:18:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BD-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator agent 019e9478-42c3-7d83-9610-c99c6e09ef77 at commit df1308f after metadata fix; no remaining blockers"
 gate_results:
   - "go test ./api/handlers -run TestOAuthHandlersSanitizePollFlowErrors -count=1: RED before implementation, response serialized raw poll error containing access-token, refresh-token, callback-code, and cursor-verifier"
   - "go test ./api/handlers -run 'TestOAuthPoll|TestOAuthHandlers' -count=1: PASS"
@@ -2002,6 +2002,42 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BD fixes the Wave 8.BC evaluator-found leak by returning a stable `oauth poll failed` response when provider polling fails. Regression coverage proves access tokens, refresh tokens, callback codes, and Cursor PKCE verifier material from raw poll errors are not serialized to API/UI clients.
+
+---
+
+### Wave 8.BE — Real-Server Control Plane Integration Expansion
+
+```yaml
+wave: "8.BE"
+status: DONE
+max_agents: 1
+gate: "go test ./api -run TestIntegrationUsageQuotaLogsAndProviderOAuthThroughAuthenticatedServer -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && git diff --check"
+completed_at: "2026-06-04T21:45:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BE-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./api -run TestIntegrationUsageQuotaLogsAndProviderOAuthThroughAuthenticatedServer -count=1: RED before assertions were complete, provider OAuth exchange rejected an unstored manual session"
+  - "go test ./api -run TestIntegrationUsageQuotaLogsAndProviderOAuthThroughAuthenticatedServer -count=1: PASS"
+  - "go test ./api -run TestIntegration -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BE.1"
+    name: "Expand real-server control-plane integration coverage"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - api/server_integration_test.go
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8BE-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BE extends authenticated real-server integration coverage beyond route smoke tests for usage, logs, quota, and provider OAuth authorize/poll/callback/exchange. The test seeds real SQLite request logs, exercises quota with active stored provider credentials, verifies usage/log/summary responses through server middleware, and proves provider OAuth completion persists redacted connections without bypassing stored session state.
 
 ---
 
