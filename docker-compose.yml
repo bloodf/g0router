@@ -12,7 +12,7 @@ services:
       PORT: "20128"
       BIND_ADDRESS: "0.0.0.0"
       DATA_DIR: "/data"
-      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required for docker-compose dashboard auth}"
+      JWT_SECRET: "${JWT_SECRET:-}"
       API_KEY_SECRET: "${API_KEY_SECRET:?API_KEY_SECRET is required for docker-compose API keys}"
       REQUIRE_API_KEY: "true"
       RTK_ENABLED: "true"
