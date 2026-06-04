@@ -15,14 +15,20 @@ func (p ProviderID) String() string {
 
 // CanonicalProviderID maps auth-flow IDs onto runtime provider IDs.
 func CanonicalProviderID(provider ProviderID) string {
-	canonical := CanonicalFlowProviderID(provider)
-	switch canonical {
+	normalized := ProviderID(strings.ToLower(strings.TrimSpace(string(provider))))
+	switch normalized {
 	case "codex":
 		return "openai"
+	case "openai":
+		return "openai"
+	case "vertex":
+		return "vertex"
+	case "github":
+		return "github-copilot"
 	case "github-copilot":
 		return "github-copilot"
 	default:
-		return string(canonical)
+		return string(CanonicalFlowProviderID(normalized))
 	}
 }
 
@@ -33,6 +39,8 @@ func CanonicalFlowProviderID(provider ProviderID) ProviderID {
 		return "codex"
 	case "github":
 		return "github-copilot"
+	case "vertex":
+		return "gemini"
 	default:
 		return ProviderID(strings.ToLower(strings.TrimSpace(string(provider))))
 	}

@@ -60,12 +60,34 @@ func TestCanonicalFlowProviderIDNormalizesAuthAliases(t *testing.T) {
 		{provider: ProviderID("github"), want: ProviderID("github-copilot")},
 		{provider: ProviderID("github-copilot"), want: ProviderID("github-copilot")},
 		{provider: ProviderID("  GitHub  "), want: ProviderID("github-copilot")},
+		{provider: ProviderID("vertex"), want: ProviderID("gemini")},
+		{provider: ProviderID("gemini"), want: ProviderID("gemini")},
 		{provider: ProviderID("minimax"), want: ProviderID("minimax")},
 	}
 
 	for _, tt := range tests {
 		if got := CanonicalFlowProviderID(tt.provider); got != tt.want {
 			t.Fatalf("CanonicalFlowProviderID(%q) = %q, want %q", tt.provider, got, tt.want)
+		}
+	}
+}
+
+func TestCanonicalProviderIDKeepsVertexRuntimeProvider(t *testing.T) {
+	tests := []struct {
+		provider ProviderID
+		want     string
+	}{
+		{provider: ProviderID("openai"), want: "openai"},
+		{provider: ProviderID("codex"), want: "openai"},
+		{provider: ProviderID("github"), want: "github-copilot"},
+		{provider: ProviderID("github-copilot"), want: "github-copilot"},
+		{provider: ProviderID("vertex"), want: "vertex"},
+		{provider: ProviderID("gemini"), want: "gemini"},
+	}
+
+	for _, tt := range tests {
+		if got := CanonicalProviderID(tt.provider); got != tt.want {
+			t.Fatalf("CanonicalProviderID(%q) = %q, want %q", tt.provider, got, tt.want)
 		}
 	}
 }

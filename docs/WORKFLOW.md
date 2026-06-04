@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.R"
-last_updated: "2026-06-04T09:23:41Z"
+current_wave: "8.S"
+last_updated: "2026-06-04T09:31:33Z"
 last_agent: "orchestrator"
 ```
 
@@ -425,6 +425,47 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.R fixes the post-8.Q routing gap where unqualified Gemini catalog IDs made Vertex direct dispatch unreachable. Vertex public routes now use provider-qualified `vertex/gemini-*` IDs, dispatch rewrites them to upstream Gemini model IDs, and request logging preserves the public model for cost lookup. External evaluation remains pending.
+
+### Wave 8.S — Vertex OAuth Binding
+
+```yaml
+wave: "8.S"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T09:31:33Z"
+evaluator_prompt: "docs/evaluations/wave-8S-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./internal/provider/oauth ./internal/provider ./internal/cli ./api/handlers -run 'TestCanonical|TestOAuthFlowAccepts|TestLoginDevicePersistsVertex|TestOAuthExchangeStoresVertex|TestOAuthStartStores|TestOAuthCallbackUses|TestOAuthPoll' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.S.1"
+    name: "Bind Vertex auth to Gemini OAuth flow"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - api/handlers/oauth.go
+      - api/handlers/oauth_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8S-evaluator-prompt.md
+      - internal/cli/auth.go
+      - internal/cli/auth_test.go
+      - internal/provider/credentials.go
+      - internal/provider/oauth/types.go
+      - internal/provider/oauth/types_test.go
+```
+
+**Checkpoint**: Wave 8.S fixes the auth/runtime split for Vertex. `vertex` now resolves to the Gemini OAuth flow while persisted CLI and HTTP OAuth connections keep runtime provider `vertex` with `oauth_provider=gemini`, so provider-qualified Vertex dispatch can find usable credentials. External evaluation remains pending.
 
 ---
 

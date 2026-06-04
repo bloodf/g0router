@@ -243,7 +243,7 @@ func TestOAuthCallbackUsesStoredVerifierAndPersistsConnection(t *testing.T) {
 func TestOAuthCallbackDoesNotLeakExchangeErrorSecrets(t *testing.T) {
 	flow := &fakeOAuthFlow{
 		provider: oauth.ProviderID("anthropic"),
-		exErr: errors.New(`token endpoint returned 400 {"access_token":"leaked-access","refresh_token":"leaked-refresh","Authorization":"Bearer leaked-auth","code":"callback-code"}`),
+		exErr:    errors.New(`token endpoint returned 400 {"access_token":"leaked-access","refresh_token":"leaked-refresh","Authorization":"Bearer leaked-auth","code":"callback-code"}`),
 	}
 	s := openHandlerTestStore(t)
 	if err := s.CreateOAuthSession(&store.OAuthSession{
@@ -382,6 +382,58 @@ func TestOAuthExchangeAcceptsOpenAIAliasForCodexFlow(t *testing.T) {
 	}
 	if len(openAIConnections) != 1 {
 		t.Fatalf("openai connections = %d, want 1", len(openAIConnections))
+	}
+}
+
+func TestOAuthExchangeStoresVertexTokenAsVertexConnection(t *testing.T) {
+	flow := &fakeOAuthFlow{
+		provider: oauth.ProviderID("gemini"),
+		token: oauth.TokenResult{
+			Provider:     oauth.ProviderID("gemini"),
+			AccessToken:  "vertex-access",
+			RefreshToken: "vertex-refresh",
+			TokenType:    "bearer",
+		},
+	}
+	s := openHandlerTestStore(t)
+	if err := s.CreateOAuthSession(&store.OAuthSession{
+		State:        "vertex-state",
+		Provider:     "vertex",
+		CodeVerifier: "verifier",
+		AccountLabel: "gcp-work",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/vertex/exchange", []byte(`{"state":"vertex-state","code":"manual-code"}`))
+
+	OAuthExchange(ctx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if flow.exSession.Provider != flow.ProviderID() {
+		t.Fatalf("exchange provider = %q, want gemini", flow.exSession.Provider)
+	}
+	vertexConnections, err := s.GetConnections("vertex")
+	if err != nil {
+		t.Fatalf("GetConnections vertex: %v", err)
+	}
+	if len(vertexConnections) != 1 {
+		t.Fatalf("vertex connections = %d, want 1", len(vertexConnections))
+	}
+	if vertexConnections[0].Name != "gcp-work" {
+		t.Fatalf("connection name = %q, want account label", vertexConnections[0].Name)
+	}
+	if vertexConnections[0].ProviderSpecificData["oauth_provider"] != "gemini" {
+		t.Fatalf("provider data = %+v, want oauth_provider gemini", vertexConnections[0].ProviderSpecificData)
+	}
+	geminiConnections, err := s.GetConnections("gemini")
+	if err != nil {
+		t.Fatalf("GetConnections gemini: %v", err)
+	}
+	if len(geminiConnections) != 0 {
+		t.Fatalf("gemini connections = %d, want 0", len(geminiConnections))
 	}
 }
 

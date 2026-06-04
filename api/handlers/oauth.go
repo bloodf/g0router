@@ -40,7 +40,7 @@ type oauthConnectionResponse struct {
 }
 
 func OAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
-	flow, ok := oauthFlowForPath(ctx, flows)
+	flow, runtimeProvider, ok := oauthFlowForPath(ctx, flows)
 	if !ok {
 		return
 	}
@@ -54,6 +54,7 @@ func OAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("start oauth: %v", err))
 		return
 	}
+	session.Provider = runtimeProvider
 	if err := createOAuthSession(s, &session, req.AccountLabel); err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("store oauth session: %v", err))
 		return
@@ -63,7 +64,7 @@ func OAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 }
 
 func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
-	flow, ok := oauthFlowForPath(ctx, flows)
+	flow, runtimeProvider, ok := oauthFlowForPath(ctx, flows)
 	if !ok {
 		return
 	}
@@ -85,7 +86,7 @@ func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 
 	response := oauthPollResponse{Status: result.Status}
 	if result.Token != nil {
-		connection, err := persistOAuthConnection(s, *result.Token, "")
+		connection, err := persistOAuthConnection(s, *result.Token, "", runtimeProvider.String())
 		if err != nil {
 			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("persist oauth connection: %v", err))
 			return
@@ -116,7 +117,7 @@ func OAuthCallback(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 }
 
 func OAuthExchange(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
-	flow, ok := oauthFlowForPath(ctx, flows)
+	flow, _, ok := oauthFlowForPath(ctx, flows)
 	if !ok {
 		return
 	}
@@ -179,7 +180,7 @@ func exchangeOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flow oauth.Flow, se
 		return
 	}
 
-	connection, err := persistOAuthConnection(s, token, session.AccountLabel)
+	connection, err := persistOAuthConnection(s, token, session.AccountLabel, session.Provider)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("persist oauth connection: %v", err))
 		return
@@ -187,14 +188,15 @@ func exchangeOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flow oauth.Flow, se
 	writeJSON(ctx, fasthttp.StatusOK, connection)
 }
 
-func oauthFlowForPath(ctx *fasthttp.RequestCtx, flows OAuthFlows) (oauth.Flow, bool) {
+func oauthFlowForPath(ctx *fasthttp.RequestCtx, flows OAuthFlows) (oauth.Flow, oauth.ProviderID, bool) {
 	provider := oauthProviderFromPath(ctx)
 	if provider == "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "provider is required")
-		return nil, false
+		return nil, "", false
 	}
 
-	return oauthFlow(ctx, flows, provider)
+	flow, ok := oauthFlow(ctx, flows, provider)
+	return flow, provider, ok
 }
 
 func oauthFlow(ctx *fasthttp.RequestCtx, flows OAuthFlows, provider oauth.ProviderID) (oauth.Flow, bool) {
@@ -213,7 +215,7 @@ func oauthProviderFromPath(ctx *fasthttp.RequestCtx) oauth.ProviderID {
 	if len(parts) < 3 || parts[0] != "api" || parts[1] != "oauth" {
 		return ""
 	}
-	return oauth.CanonicalFlowProviderID(oauth.ProviderID(parts[2]))
+	return oauth.ProviderID(strings.ToLower(strings.TrimSpace(parts[2])))
 }
 
 func decodeOAuthStartRequest(ctx *fasthttp.RequestCtx) (oauthStartRequest, bool) {
@@ -277,11 +279,11 @@ func redirectURIFromAuthURL(rawURL string) string {
 	return parsed.Query().Get("redirect_uri")
 }
 
-func persistOAuthConnection(s *store.Store, token oauth.TokenResult, accountLabel string) (*oauthConnectionResponse, error) {
+func persistOAuthConnection(s *store.Store, token oauth.TokenResult, accountLabel, runtimeProvider string) (*oauthConnectionResponse, error) {
 	if s == nil {
 		return nil, fmt.Errorf("store unavailable")
 	}
-	conn := provider.ConnectionFromOAuthToken(token, accountLabel)
+	conn := provider.ConnectionFromOAuthTokenForProvider(token, accountLabel, runtimeProvider)
 	if err := s.CreateConnection(conn); err != nil {
 		return nil, err
 	}

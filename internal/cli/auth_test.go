@@ -312,6 +312,51 @@ func TestLoginDevicePersistsGitHubAliasAsCopilot(t *testing.T) {
 	}
 }
 
+func TestLoginDevicePersistsVertexOAuthAsVertexConnection(t *testing.T) {
+	dataDir := t.TempDir()
+	cmd := newAuthLoginCommand("login", &dataDir, func(provider string) (oauth.Flow, error) {
+		if provider != "vertex" {
+			t.Fatalf("provider = %q, want vertex", provider)
+		}
+		return fakeCLILoginFlow{
+			provider: oauth.ProviderID("gemini"),
+			token: &oauth.TokenResult{
+				Provider:     oauth.ProviderID("gemini"),
+				AccessToken:  "vertex-access",
+				RefreshToken: "vertex-refresh",
+				TokenType:    "bearer",
+			},
+		}, nil
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"vertex", "--device"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	s := openCLIStoreForTest(t, dataDir)
+	defer s.Close()
+	vertexConnections, err := s.GetConnections("vertex")
+	if err != nil {
+		t.Fatalf("GetConnections vertex: %v", err)
+	}
+	if len(vertexConnections) != 1 {
+		t.Fatalf("vertex connections = %d, want 1", len(vertexConnections))
+	}
+	if vertexConnections[0].ProviderSpecificData["oauth_provider"] != "gemini" {
+		t.Fatalf("provider data = %+v, want oauth_provider gemini", vertexConnections[0].ProviderSpecificData)
+	}
+	geminiConnections, err := s.GetConnections("gemini")
+	if err != nil {
+		t.Fatalf("GetConnections gemini: %v", err)
+	}
+	if len(geminiConnections) != 0 {
+		t.Fatalf("gemini connections = %d, want 0", len(geminiConnections))
+	}
+}
+
 func TestLoginDeviceDoesNotPersistPendingPoll(t *testing.T) {
 	dataDir := t.TempDir()
 	cmd := newAuthLoginCommand("login", &dataDir, func(provider string) (oauth.Flow, error) {

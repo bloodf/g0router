@@ -94,7 +94,7 @@ func newAuthLoginCommand(use string, dataDir *string, flowFactory oauthFlowFacto
 
 			printAuthSession(cmd, session)
 			if device {
-				status, err := completeDeviceLogin(cmd.Context(), *dataDir, flow, session)
+				status, err := completeDeviceLogin(cmd.Context(), *dataDir, args[0], flow, session)
 				if err != nil {
 					return err
 				}
@@ -153,7 +153,7 @@ func authTypesInclude(authTypes []string, want string) bool {
 	return false
 }
 
-func completeDeviceLogin(ctx context.Context, dataDir string, flow oauth.Flow, session oauth.AuthSession) (oauth.PollStatus, error) {
+func completeDeviceLogin(ctx context.Context, dataDir string, runtimeProvider string, flow oauth.Flow, session oauth.AuthSession) (oauth.PollStatus, error) {
 	if session.UserCode == "" && session.Verification == "" {
 		return "", nil
 	}
@@ -171,7 +171,7 @@ func completeDeviceLogin(ctx context.Context, dataDir string, flow oauth.Flow, s
 	}
 	defer s.Close()
 
-	conn := providercred.ConnectionFromOAuthToken(*result.Token, "")
+	conn := providercred.ConnectionFromOAuthTokenForProvider(*result.Token, "", runtimeProvider)
 	if err := s.CreateConnection(conn); err != nil {
 		return "", fmt.Errorf("create oauth connection: %w", err)
 	}
