@@ -18,6 +18,17 @@ All configuration via environment variables. Runtime overrides via the `settings
 | `CAVEMAN_LEVEL` | string | No | `full` | Caveman compression level. Values: `lite` (gentle), `full` (standard), `ultra` (maximum compression). |
 | `HTTPS_PROXY` | string | No | — | HTTP proxy URL for all upstream provider requests. Example: `http://proxy.corp:8080`. |
 
+## Optional Live Provider Smoke Tests
+
+Normal test gates use local fake upstreams and do not require network provider
+credentials. Live smoke tests are opt-in only:
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `G0ROUTER_LIVE_TESTS=1` | Yes | Enables live provider smoke tests. Tests are skipped unless this exact value is set. |
+| `G0ROUTER_E2E_MINIMAX_API_KEY` | For MiniMax live tests | MiniMax API key read from the environment. Never commit or echo this value. |
+| `G0ROUTER_E2E_MINIMAX_BASE_URL` | No | Override MiniMax OpenAI-compatible base URL for live smoke tests. |
+
 ## MCP Instance Configuration
 
 MCP servers are runtime-managed records, not global environment variables. Configure them with the dashboard, the management API, or CLI commands:
