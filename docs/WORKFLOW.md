@@ -352,7 +352,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T09:06:30Z"
 evaluator_prompt: "docs/evaluations/wave-8Q-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e91e3-4405-7a60-a649-e10c70492a79 at commit f36c0da"
 gate_results:
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
@@ -383,7 +383,7 @@ tasks:
       - docs/evaluations/wave-8Q-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.Q promotes the native Vertex adapter to public direct dispatch for cataloged Gemini models when `VERTEX_PROJECT_ID` and `VERTEX_LOCATION` are configured; streaming and quota remain explicitly unsupported, and external evaluation remains pending.
+**Checkpoint**: Wave 8.Q promotes the native Vertex adapter to public direct dispatch for cataloged Gemini models when `VERTEX_PROJECT_ID` and `VERTEX_LOCATION` are configured; streaming and quota remain explicitly unsupported, and external evaluator thread `019e91e3-4405-7a60-a649-e10c70492a79` returned PASS at commit `f36c0da` with no blocking findings.
 
 ---
 
