@@ -2388,7 +2388,7 @@ max_agents: 1
 gate: "go test ./internal/providers/openaicompat ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestOpenCodeDefaultConfigUsesZenOpenAICompatibleEndpoint|TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestDefaultConfigsAreRegistered|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestDeploymentDefinedPublicProvidersExposeDynamicRouting|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T01:10:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BM-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e94ed-0635-7652-ac17-fb067e107e68 at commit c5f59d0"
 gate_results:
   - "focused OpenCode provider/matrix/proxy/CLI/API tests: RED before implementation, ProviderOpenCode was undefined, matrix remained unsupported, public lists omitted opencode, and dynamic route support was absent"
   - "focused OpenCode provider/matrix/proxy/CLI/API tests: PASS"
@@ -2400,6 +2400,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e94ed-0635-7652-ac17-fb067e107e68: PASS, no blocking or non-blocking findings; workflow pending marker replaced by this record commit"
 
 tasks:
   - id: "8.BM.1"
