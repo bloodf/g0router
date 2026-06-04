@@ -1095,7 +1095,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
 completed_at: "2026-06-04T11:50:04Z"
 evaluator_prompt: "docs/evaluations/wave-8AJ-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e9279-a261-7470-9e41-0c7fba48cd0b at commit 336aba9"
 gate_results:
   - "go test ./internal/mcp -run 'TestOAuthEnginePrefersSelectedInstanceAccountLabelOverTokenAccountLabel|TestOAuthEngineUsesSelectedInstanceAccountLabel' -count=1: FAIL before implementation with account label token-work, want selected-work"
   - "go test ./internal/mcp -run 'TestOAuthEnginePrefersSelectedInstanceAccountLabelOverTokenAccountLabel|TestOAuthEngineUsesSelectedInstanceAccountLabel' -count=1: PASS"
