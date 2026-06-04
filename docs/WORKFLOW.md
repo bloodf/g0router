@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AJ"
-last_updated: "2026-06-04T11:50:04Z"
+current_wave: "8.AK"
+last_updated: "2026-06-04T12:19:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1117,6 +1117,46 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AJ makes an MCP instance-selected account label authoritative during OAuth completion, so token endpoint `account_label` values cannot orphan persisted accounts from runtime account selection. Existing token-derived fallback labels still apply when no selected instance label exists.
+
+### Wave 8.AK — MCP OAuth Client Credentials
+
+```yaml
+wave: "8.AK"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/mcp -run 'TestOAuthStartIncludesClientID|TestOAuthEnginePostsClientCredentialsWhenFlowProvidesThem' -count=1 && go test ./internal/store -run TestMCPOAuthFlow -count=1 && go test ./api/handlers -run TestMCPOAuthStart -count=1 && go test ./internal/cli -run TestMCPOAuthStartCommand -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+completed_at: "2026-06-04T12:19:00Z"
+evaluator_prompt: "docs/evaluations/wave-8AK-evaluator-prompt.md"
+evaluation: "PENDING"
+gate_results:
+  - "go test ./internal/mcp -run 'TestOAuthStartIncludesClientID|TestOAuthEnginePostsClientCredentialsWhenFlowProvidesThem' -count=1: PASS"
+  - "go test ./internal/store -run TestMCPOAuthFlow -count=1: PASS"
+  - "go test ./api/handlers -run TestMCPOAuthStart -count=1: PASS"
+  - "go test ./internal/cli -run TestMCPOAuthStartCommand -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+
+tasks:
+  - id: "8.AK.1"
+    name: "MCP OAuth user-provided client credentials"
+    status: DONE
+    agent: "subagent 019e927a-aba7-7d22-8bc6-a0a342e32172"
+    commit: "e57c6d6"
+    merge_commit: "e751673"
+    files_owned:
+      - internal/mcp/oauth.go
+      - internal/mcp/oauth_test.go
+      - internal/store/mcpoauth.go
+      - internal/store/mcpoauth_test.go
+      - internal/store/sqlite.go
+      - api/handlers/mcp.go
+      - api/handlers/mcp_test.go
+      - internal/cli/mcp_auth.go
+      - internal/cli/mcp_auth_test.go
+```
+
+**Checkpoint**: Wave 8.AK lets API and CLI MCP OAuth start flows accept optional client credentials, persist them only in the short-lived OAuth flow, include `client_id` in the authorization URL, and post both credentials during token exchange without returning or printing `client_secret`.
 
 ---
 
