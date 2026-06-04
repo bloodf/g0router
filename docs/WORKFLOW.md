@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BL"
-last_updated: "2026-06-05T00:49:00Z"
+current_wave: "8.BM"
+last_updated: "2026-06-05T01:10:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2376,6 +2376,55 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BL removes the Xiaomi `auth_only` runtime gap. Xiaomi now registers as an Anthropic-compatible runtime provider, routes provider-qualified models such as `xiaomi/claude-sonnet-4` upstream as `claude-sonnet-4`, and selects the OMP token-plan endpoint for `tp-` keys. Static catalog, model listing, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
+
+---
+
+### Wave 8.BM — OpenCode Zen Dynamic Runtime Routing
+
+```yaml
+wave: "8.BM"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/openaicompat ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestOpenCodeDefaultConfigUsesZenOpenAICompatibleEndpoint|TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestDefaultConfigsAreRegistered|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestDeploymentDefinedPublicProvidersExposeDynamicRouting|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T01:10:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BM-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused OpenCode provider/matrix/proxy/CLI/API tests: RED before implementation, ProviderOpenCode was undefined, matrix remained unsupported, public lists omitted opencode, and dynamic route support was absent"
+  - "focused OpenCode provider/matrix/proxy/CLI/API tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BM.1"
+    name: "Promote OpenCode Zen to OpenAI-compatible dynamic runtime routing"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/openaicompat/registry.go
+      - internal/providers/openaicompat/provider_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BM-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BM removes the OpenCode `unsupported` runtime gap for OpenCode Zen only. OpenCode now registers through the shared OpenAI-compatible adapter at `https://opencode.ai/zen/v1`, appears in public provider/API/CLI surfaces, and routes provider-qualified models such as `opencode/anthropic/claude-sonnet-4` upstream as `anthropic/claude-sonnet-4`. OpenCode Go remains explicitly not wired, and static catalog, model listing, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
 
 ---
 

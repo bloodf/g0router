@@ -36,6 +36,7 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 		{"xai", providers.ProviderXAI},
 		{"vercel-ai-gateway", providers.ProviderVercelGateway},
 		{"github-copilot", providers.ProviderGitHubCopilot},
+		{"opencode", providers.ProviderOpenCode},
 		{"alibaba", providers.ProviderAlibaba},
 		{"litellm", providers.ProviderLiteLLM},
 		{"vllm", providers.ProviderVLLM},
@@ -124,6 +125,19 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 				t.Errorf("model provider = %q", models[0].Provider)
 			}
 		})
+	}
+}
+
+func TestOpenCodeDefaultConfigUsesZenOpenAICompatibleEndpoint(t *testing.T) {
+	config, ok := DefaultConfigs()[providers.ProviderOpenCode]
+	if !ok {
+		t.Fatal("opencode default config missing")
+	}
+	if config.Provider != providers.ProviderOpenCode {
+		t.Fatalf("provider = %q, want opencode", config.Provider)
+	}
+	if config.BaseURL != "https://opencode.ai/zen/v1" {
+		t.Fatalf("base URL = %q, want OpenCode Zen endpoint", config.BaseURL)
 	}
 }
 
@@ -287,6 +301,7 @@ func TestDefaultConfigsAreRegistered(t *testing.T) {
 		providers.ProviderLiteLLM:       "http://localhost:4000",
 		providers.ProviderVLLM:          "http://localhost:8000/v1",
 		providers.ProviderLMStudio:      "http://localhost:1234/v1",
+		providers.ProviderOpenCode:      "https://opencode.ai/zen/v1",
 	}
 
 	if len(configs) != len(want) {

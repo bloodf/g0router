@@ -77,7 +77,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		dynamicRoutableProvider("litellm", "", false, true, true, false, "api_key"),
 		dynamicRoutableProvider("lm-studio", "", false, true, true, false, "api_key"),
 		unsupportedProvider("ollama-cloud", "Only local Ollama is implemented."),
-		unsupportedProvider("opencode", "No OpenCode provider integration is implemented."),
+		opencodeProvider(),
 		dynamicRoutableProvider("qianfan", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("qwen", "", false, true, true, false, "api_key"),
 		unsupportedProvider("tavily", "No Tavily tool/search provider integration is implemented."),
@@ -193,6 +193,12 @@ func cloudflareGatewayProvider() ProviderMatrixEntry {
 func xiaomiProvider() ProviderMatrixEntry {
 	entry := dynamicRoutableProvider("xiaomi", "xiaomi", true, true, false, false, "api_key", "oauth")
 	entry.Notes = "Public direct dispatch works through provider-qualified Xiaomi Anthropic-compatible model IDs; token-plan keys use the OMP token-plan endpoint, and no static model catalog or quota fetcher is implemented."
+	return entry
+}
+
+func opencodeProvider() ProviderMatrixEntry {
+	entry := dynamicRoutableProvider("opencode", "", false, true, false, false, "api_key")
+	entry.Notes = "OpenCode Zen is supported through provider-qualified dynamic model IDs; OpenCode Go is not separately wired yet, and no static model catalog or quota fetcher is implemented."
 	return entry
 }
 

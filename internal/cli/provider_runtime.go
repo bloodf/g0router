@@ -85,6 +85,7 @@ func registerOpenAICompatible(engine *proxy.Engine) {
 		providers.ProviderLiteLLM,
 		providers.ProviderVLLM,
 		providers.ProviderLMStudio,
+		providers.ProviderOpenCode,
 	} {
 		provider := provider
 		registerProvider(engine, func() (providers.Provider, error) {

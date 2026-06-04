@@ -30,6 +30,7 @@ func DefaultConfigs() map[providers.ModelProvider]Config {
 		providers.ProviderLiteLLM:       {Provider: providers.ProviderLiteLLM, BaseURL: "http://localhost:4000"},
 		providers.ProviderVLLM:          {Provider: providers.ProviderVLLM, BaseURL: "http://localhost:8000/v1"},
 		providers.ProviderLMStudio:      {Provider: providers.ProviderLMStudio, BaseURL: "http://localhost:1234/v1"},
+		providers.ProviderOpenCode:      {Provider: providers.ProviderOpenCode, BaseURL: "https://opencode.ai/zen/v1"},
 	}
 }
 

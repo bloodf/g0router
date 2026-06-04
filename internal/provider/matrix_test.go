@@ -78,7 +78,7 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 
 func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kimi", "litellm", "lm-studio", "qianfan", "vllm", "xiaomi", "zhipu"} {
+	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kimi", "litellm", "lm-studio", "opencode", "qianfan", "vllm", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -179,6 +179,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"nebius":                true,
 		"nvidia":                true,
 		"ollama":                true,
+		"opencode":              true,
 		"openrouter":            true,
 		"perplexity":            true,
 		"qianfan":               true,
@@ -215,7 +216,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "xiaomi", "zhipu"} {
+	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "opencode", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -226,11 +227,11 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
 			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
 		}
-		if id == "alibaba" || id == "azure" || id == "cloudflare-ai-gateway" || id == "github-copilot" || id == "kimi" || id == "litellm" || id == "lm-studio" || id == "qianfan" || id == "vllm" || id == "xiaomi" || id == "zhipu" {
+		if id == "alibaba" || id == "azure" || id == "cloudflare-ai-gateway" || id == "github-copilot" || id == "kimi" || id == "litellm" || id == "lm-studio" || id == "opencode" || id == "qianfan" || id == "vllm" || id == "xiaomi" || id == "zhipu" {
 			if entry.ModelCatalog {
 				t.Fatalf("%s should not claim static model catalog for deployment-defined routing: %+v", id, entry)
 			}
-			if id == "cloudflare-ai-gateway" || id == "xiaomi" {
+			if id == "cloudflare-ai-gateway" || id == "opencode" || id == "xiaomi" {
 				if entry.ListModels {
 					t.Fatalf("%s should not claim model listing until provider-specific model-list support is implemented: %+v", id, entry)
 				}
@@ -255,7 +256,7 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 
 func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "cloudflare-ai-gateway", "github-copilot", "kimi", "litellm", "lm-studio", "qianfan", "vllm", "zhipu"} {
+	for _, id := range []string{"alibaba", "cloudflare-ai-gateway", "github-copilot", "kimi", "litellm", "lm-studio", "opencode", "qianfan", "vllm", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -266,7 +267,7 @@ func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalo
 		if !entry.RegisteredAdapter || !entry.Inference || !entry.Streaming {
 			t.Fatalf("%s should expose the OpenAI-compatible adapter surface: %+v", id, entry)
 		}
-		if id != "cloudflare-ai-gateway" && !entry.ListModels {
+		if id != "cloudflare-ai-gateway" && id != "opencode" && !entry.ListModels {
 			t.Fatalf("%s should expose upstream list models/deployments: %+v", id, entry)
 		}
 		if !entry.PublicInference || !entry.DirectDispatch {
