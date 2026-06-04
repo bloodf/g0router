@@ -2438,7 +2438,7 @@ max_agents: 1
 gate: "go test ./internal/providers/openaicompat ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestKiloDefaultConfigUsesGatewayEndpoint|TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestDefaultConfigsAreRegistered|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestDeploymentDefinedPublicProvidersExposeDynamicRouting|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedProvidersOnly|TestProvidersListKnownProviders|TestProvidersLoginListsSupportedProvidersOnly|TestDefaultInferenceEngineRegistersKiloProvider' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-04T23:26:02Z"
 evaluator_prompt: "docs/evaluations/wave-8BN-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e94fa-cb88-7520-8170-8c5bea4dfc86 at commit 9776094"
 gate_results:
   - "focused Kilo provider/matrix/proxy/CLI/API tests: RED before implementation, ProviderKilo was undefined, matrix remained unsupported, public lists omitted kilo, and dynamic route support was absent"
   - "focused Kilo provider/matrix/proxy/CLI/API tests: PASS"
@@ -2450,6 +2450,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e94fa-cb88-7520-8170-8c5bea4dfc86: PASS, no blocking findings; workflow pending marker replaced by this record commit"
 
 tasks:
   - id: "8.BN.1"
