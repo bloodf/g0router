@@ -130,7 +130,7 @@ func TestUsageQuotaFetchesProviderQuota(t *testing.T) {
 	}
 	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/quota/openai")
 
-	UsageQuota(ctx, map[providers.ModelProvider]usage.QuotaFetcher{
+	UsageQuota(ctx, nil, map[providers.ModelProvider]usage.QuotaFetcher{
 		providers.ProviderOpenAI: fetcher,
 	}, providers.Key{Value: "sk-test", AuthType: "api_key"})
 
@@ -152,10 +152,39 @@ func TestUsageQuotaFetchesProviderQuota(t *testing.T) {
 	}
 }
 
+func TestUsageQuotaUsesActiveStoredProviderConnection(t *testing.T) {
+	s := openHandlerTestStore(t)
+	apiKey := "sk-from-store"
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "openai",
+		Name:     "primary",
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   &apiKey,
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	fetcher := &fakeQuotaFetcher{
+		quota: usage.Quota{Provider: providers.ProviderOpenAI, Limit: 10, Used: 2, Remaining: 8},
+	}
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/quota/openai")
+
+	UsageQuota(ctx, s, map[providers.ModelProvider]usage.QuotaFetcher{
+		providers.ProviderOpenAI: fetcher,
+	}, providers.Key{Value: "static-key", AuthType: "api_key"})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	if fetcher.gotKey.Value != apiKey || fetcher.gotKey.ConnID == "" || fetcher.gotKey.AuthType != "api_key" {
+		t.Fatalf("key = %+v, want stored api key connection", fetcher.gotKey)
+	}
+}
+
 func TestUsageQuotaHandlesUnsupportedProvider(t *testing.T) {
 	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/quota/openai")
 
-	UsageQuota(ctx, nil, providers.Key{})
+	UsageQuota(ctx, nil, nil, providers.Key{})
 
 	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
@@ -165,7 +194,7 @@ func TestUsageQuotaHandlesUnsupportedProvider(t *testing.T) {
 func TestUsageQuotaMapsUnsupportedFetcherError(t *testing.T) {
 	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/quota/ollama")
 
-	UsageQuota(ctx, map[providers.ModelProvider]usage.QuotaFetcher{
+	UsageQuota(ctx, nil, map[providers.ModelProvider]usage.QuotaFetcher{
 		providers.ProviderOllama: &fakeQuotaFetcher{err: usage.ErrQuotaUnsupported},
 	}, providers.Key{})
 

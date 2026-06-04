@@ -465,7 +465,7 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 	case path == "/api/usage/summary":
 		handlers.UsageSummary(ctx, s.config.UsageStore)
 	case strings.HasPrefix(path, "/api/usage/quota/"):
-		handlers.UsageQuota(ctx, s.config.QuotaFetchers, s.config.QuotaKey)
+		handlers.UsageQuota(ctx, s.config.Store, s.config.QuotaFetchers, s.config.QuotaKey)
 	case path == "/api/logs":
 		handlers.Logs(ctx, s.config.UsageStore)
 	case path == "/api/mcp/clients":

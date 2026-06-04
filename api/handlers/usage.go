@@ -109,7 +109,7 @@ func UsageSummary(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 	})
 }
 
-func UsageQuota(ctx *fasthttp.RequestCtx, fetchers map[providers.ModelProvider]usage.QuotaFetcher, key providers.Key) {
+func UsageQuota(ctx *fasthttp.RequestCtx, s *store.Store, fetchers map[providers.ModelProvider]usage.QuotaFetcher, key providers.Key) {
 	provider := providers.ModelProvider(strings.TrimPrefix(string(ctx.Path()), "/api/usage/quota/"))
 	if provider == "" || string(provider) == string(ctx.Path()) {
 		writeError(ctx, fasthttp.StatusBadRequest, "missing provider")
@@ -122,7 +122,7 @@ func UsageQuota(ctx *fasthttp.RequestCtx, fetchers map[providers.ModelProvider]u
 		return
 	}
 
-	key.Provider = provider
+	key = quotaKeyForProvider(s, provider, key)
 	quota, err := fetcher.FetchQuota(requestContext(ctx), key)
 	if err != nil {
 		if errors.Is(err, usage.ErrQuotaUnsupported) {
@@ -134,6 +134,41 @@ func UsageQuota(ctx *fasthttp.RequestCtx, fetchers map[providers.ModelProvider]u
 	}
 
 	writeJSON(ctx, fasthttp.StatusOK, quota)
+}
+
+func quotaKeyForProvider(s *store.Store, provider providers.ModelProvider, fallback providers.Key) providers.Key {
+	if s != nil {
+		connections, err := s.GetActiveConnections(string(provider))
+		if err == nil {
+			for _, conn := range connections {
+				if key, ok := quotaKeyFromConnection(provider, conn); ok {
+					return key
+				}
+			}
+		}
+	}
+	fallback.Provider = provider
+	return fallback
+}
+
+func quotaKeyFromConnection(provider providers.ModelProvider, conn *store.Connection) (providers.Key, bool) {
+	if conn == nil {
+		return providers.Key{}, false
+	}
+	key := providers.Key{
+		Provider: provider,
+		ConnID:   conn.ID,
+		AuthType: string(conn.AuthType),
+	}
+	if conn.AuthType == store.AuthTypeAPIKey && conn.APIKey != nil && *conn.APIKey != "" {
+		key.Value = *conn.APIKey
+		return key, true
+	}
+	if conn.AccessToken != nil && *conn.AccessToken != "" {
+		key.Value = *conn.AccessToken
+		return key, true
+	}
+	return providers.Key{}, false
 }
 
 func parseUsageFilter(ctx *fasthttp.RequestCtx) (store.UsageFilter, error) {
