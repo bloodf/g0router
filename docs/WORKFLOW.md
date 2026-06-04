@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AM"
-last_updated: "2026-06-04T12:40:00Z"
+current_wave: "8.AN"
+last_updated: "2026-06-04T12:39:47Z"
 last_agent: "orchestrator"
 ```
 
@@ -1226,6 +1226,45 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AM makes the legacy streamable HTTP launcher send MCP `initialize` params with protocol version, capabilities, and `clientInfo`, matching the runtime streamable HTTP client while preserving protocol headers, session capture, and initialized notification behavior.
+
+### Wave 8.AN — Dashboard MCP OAuth Resource Discovery
+
+```yaml
+wave: "8.AN"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e"
+completed_at: "2026-06-04T12:39:47Z"
+evaluator_prompt: "docs/evaluations/wave-8AN-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "npm --prefix ui test -- --run McpSplitPages --reporter=dot: PASS in worker before merge"
+  - "npm --prefix ui run e2e -- --grep 'MCP': PASS in worker before merge"
+  - "npm --prefix ui test -- --run: PASS on main"
+  - "npm --prefix ui run build: PASS on main"
+  - "npm --prefix ui run e2e: PASS on main"
+  - "go test ./api -run 'TestPublicRoutesBypassAuth|TestInferenceLoggingRecordsFailedRequestWhenEnabled' -count=100: PASS on main"
+  - "go test ./api -count=20 -shuffle=on: PASS on main"
+  - "go test ./... -count=1: PASS on main after rerun without concurrent UI server"
+  - "go vet ./...: PASS on main"
+  - "go build ./cmd/g0router: PASS on main"
+  - "initial concurrent Go/UI gate attempt: go test ./... failed once in api with plain 403 while UI dev server was also active; isolated/repeated API and sequential full Go gates passed"
+
+tasks:
+  - id: "8.AN.1"
+    name: "Dashboard MCP OAuth resource discovery start"
+    status: DONE
+    agent: "subagent 019e9296-f7c7-7443-a9bc-050d23ee55cd with orchestrator finish"
+    branch: "codex/wave-8an-dashboard-mcp-oauth-resource-discovery"
+    commit: "1323d51"
+    merge_commit: "325b248"
+    files_owned:
+      - ui/src/pages/McpPage.tsx
+      - ui/src/pages/McpSplitPages.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+```
+
+**Checkpoint**: Wave 8.AN lets the dashboard start MCP OAuth from a Resource URI alone, matching the backend protected-resource discovery flow added in Wave 8.AG. The UI now performs explicit alternate-field validation instead of blocking on required browser fields, and unit plus mocked Playwright coverage prove the blank `authorization_url` request body.
 
 ---
 
