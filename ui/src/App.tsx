@@ -4,6 +4,7 @@ import { clearControlPlaneKey, getControlPlaneKey, saveControlPlaneKey } from ".
 import { APIKeysPage } from "./pages/APIKeysPage";
 import { AliasesPage } from "./pages/AliasesPage";
 import { CombosPage } from "./pages/CombosPage";
+import { ConnectionsAuthPage } from "./pages/ConnectionsAuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { EndpointPage } from "./pages/EndpointPage";
@@ -44,6 +45,13 @@ const pages = [
     title: "Providers",
     description: "Connection status and provider account management.",
     Component: ProvidersPage
+  },
+  {
+    id: "connections-auth",
+    label: "Connections/Auth",
+    title: "Connections/Auth",
+    description: "Provider account rows, OAuth-backed sessions, API-token rows, and credential-safe actions.",
+    Component: ConnectionsAuthPage
   },
   {
     id: "aliases",

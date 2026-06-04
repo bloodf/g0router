@@ -35,6 +35,10 @@ const connectionStatusTone = {
 } as const;
 
 export function ProvidersPage() {
+  return <ProviderConnectionsControlPlane showProviderContract />;
+}
+
+export function ProviderConnectionsControlPlane({ showProviderContract = false }: { showProviderContract?: boolean }) {
   const [state, setState] = useState<AsyncState<ProviderData>>({ status: "loading" });
 
   const loadProviders = useCallback(async () => {
@@ -53,7 +57,14 @@ export function ProvidersPage() {
   }, [loadProviders]);
 
   return (
-    <Panel title="Provider connections" description="OAuth and API-token provider accounts available to the proxy.">
+    <Panel
+      title={showProviderContract ? "Provider connections" : "Connections and auth"}
+      description={
+        showProviderContract
+          ? "OAuth and API-token provider accounts available to the proxy."
+          : "Provider accounts, OAuth-backed rows, API-token rows, and connection actions available to the proxy."
+      }
+    >
       {state.status === "loading" || state.status === "idle" ? <LoadingState label="Loading providers" /> : null}
       {state.status === "auth-expired" ? (
         <ErrorState title="Authentication expired" message={state.error.message} onRetry={loadProviders} />
@@ -64,12 +75,20 @@ export function ProvidersPage() {
       {state.status === "empty" ? (
         <EmptyState title="No provider records" description="The management API returned no providers or connections." />
       ) : null}
-      {state.status === "success" ? <ProviderTables data={state.data} onReload={loadProviders} /> : null}
+      {state.status === "success" ? <ProviderTables data={state.data} onReload={loadProviders} showProviderContract={showProviderContract} /> : null}
     </Panel>
   );
 }
 
-function ProviderTables({ data, onReload }: { data: ProviderData; onReload: () => Promise<void> }) {
+function ProviderTables({
+  data,
+  onReload,
+  showProviderContract
+}: {
+  data: ProviderData;
+  onReload: () => Promise<void>;
+  showProviderContract: boolean;
+}) {
   const apiKeyProviders = data.providers.filter((provider) => provider.auth_types?.includes("api_key"));
   const [provider, setProvider] = useState(apiKeyProviders[0]?.id ?? "");
   const [name, setName] = useState("");
@@ -191,7 +210,8 @@ function ProviderTables({ data, onReload }: { data: ProviderData; onReload: () =
       ) : null}
       {mutationMessage ? <p className="text-sm font-medium text-emerald-700">{mutationMessage}</p> : null}
       {mutationError ? <p className="text-sm font-medium text-red-700">{mutationError}</p> : null}
-      <div>
+      {showProviderContract ? (
+        <div>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h4 className="text-sm font-semibold text-zinc-700">Provider contract</h4>
           <span className="text-sm text-zinc-500">{data.providers.length} providers</span>
@@ -226,7 +246,8 @@ function ProviderTables({ data, onReload }: { data: ProviderData; onReload: () =
             </table>
           </div>
         )}
-      </div>
+        </div>
+      ) : null}
 
       <div>
         <div className="mb-3 flex items-center justify-between gap-3">

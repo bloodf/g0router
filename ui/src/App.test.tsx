@@ -27,7 +27,23 @@ describe("App", () => {
     const primaryNav = screen.getByRole("navigation", { name: "Primary" });
     expect(primaryNav).toBeInTheDocument();
 
-    for (const label of ["Dashboard", "Endpoint", "API Keys", "Providers", "Aliases", "Models", "Pricing", "Usage", "Logs", "Quota", "Combos", "MCP", "Settings", "Diagnostics"]) {
+    for (const label of [
+      "Dashboard",
+      "Endpoint",
+      "API Keys",
+      "Providers",
+      "Connections/Auth",
+      "Aliases",
+      "Models",
+      "Pricing",
+      "Usage",
+      "Logs",
+      "Quota",
+      "Combos",
+      "MCP",
+      "Settings",
+      "Diagnostics"
+    ]) {
       expect(within(primaryNav).getByRole("button", { name: label })).toBeInTheDocument();
     }
   });
@@ -41,6 +57,7 @@ describe("App", () => {
     expect(await screen.findByText("No overview data yet")).toBeInTheDocument();
     expect(screen.queryByText("Endpoint controls")).not.toBeInTheDocument();
     expect(screen.queryByText("Provider connections")).not.toBeInTheDocument();
+    expect(screen.queryByText("Connections and auth")).not.toBeInTheDocument();
     expect(screen.queryByText("Usage analytics")).not.toBeInTheDocument();
     expect(screen.queryByText("Request logs")).not.toBeInTheDocument();
     expect(screen.queryByText("Quota monitor")).not.toBeInTheDocument();

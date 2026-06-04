@@ -45,6 +45,12 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("OpenAI primary");
     await expect(page.getByText("e2e-provider-secret")).not.toBeVisible();
 
+    await navigateTo(page, "Connections/Auth");
+    await expect(page.getByRole("heading", { exact: true, name: "Connections/Auth" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("OpenAI primary");
+    await expect(page.getByRole("table", { name: "Provider contract" })).not.toBeVisible();
+    await expect(page.getByText("e2e-provider-secret")).not.toBeVisible();
+
     await navigateTo(page, "Aliases");
     await expect(page.getByRole("heading", { exact: true, name: "Aliases" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Model aliases" })).toContainText("fast");
@@ -106,7 +112,7 @@ test.describe("dashboard control plane", () => {
     );
     await expect(page.getByRole("table", { name: "API keys" })).not.toContainText("automation-client");
 
-    await navigateTo(page, "Providers");
+    await navigateTo(page, "Connections/Auth");
     await page.getByRole("combobox", { name: "Provider" }).selectOption("openai");
     await page.getByLabel("Connection name").fill("OpenAI e2e");
     await page.getByLabel("Provider API key").fill("e2e-provider-secret");

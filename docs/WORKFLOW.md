@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.Z"
-last_updated: "2026-06-04T10:16:00Z"
+current_wave: "8.AA"
+last_updated: "2026-06-04T10:21:41Z"
 last_agent: "orchestrator"
 ```
 
@@ -725,6 +725,48 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.Z fixes evaluator-found gaps from Wave 8.W and 8.X by adding focused Models page loading/empty/error coverage and aligning Stage 8 planning/orchestration docs to the current Wave 8.Y scope.
+
+### Wave 8.AA — Dashboard Connections/Auth Page
+
+```yaml
+wave: "8.AA"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:21:41Z"
+evaluator_prompt: "docs/evaluations/wave-8AA-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "npm --prefix ui test -- --run ConnectionsAuthPage ProvidersPage App: PASS"
+  - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AA.1"
+    name: "Add dedicated dashboard Connections/Auth page"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - ui/src/pages/ConnectionsAuthPage.tsx
+      - ui/src/pages/ConnectionsAuthPage.test.tsx
+      - ui/src/pages/ProvidersPage.tsx
+      - ui/e2e/dashboard.e2e.ts
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AA-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AA separates provider account and auth management into a dedicated Connections/Auth dashboard route while keeping provider matrix contract details on the Providers route.
 
 ---
 
