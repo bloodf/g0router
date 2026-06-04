@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.BK"
-last_updated: "2026-06-05T00:05:00Z"
+last_updated: "2026-06-05T00:08:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2192,7 +2192,7 @@ max_agents: 1
 gate: "go test ./internal/providers ./internal/providers/cloudflare ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestKeyCarriesProviderAccountID|TestChatCompletionUsesAccountScopedCloudflareOpenAIEndpoint|TestChatCompletionRequiresAccountID|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-04T23:28:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BI-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "FAIL external evaluator thread 019e94bb-a183-7523-a8cb-8b9176e2d7b3; runtime provider surface passed, dashboard account_id blocker remediated by Wave 8.BJ commit f9fd56b"
 gate_results:
   - "focused provider/API/CLI tests: RED before implementation, providers.Key lacked AccountID, Cloudflare provider package was missing, and Cloudflare remained unsupported"
   - "focused provider/API/CLI tests: PASS"
@@ -2204,6 +2204,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e94bb-a183-7523-a8cb-8b9176e2d7b3: FAIL, UI account_id blocker fixed by Wave 8.BJ"
 
 tasks:
   - id: "8.BI.1"
@@ -2241,7 +2242,7 @@ max_agents: 1
 gate: "npm --prefix ui test -- --run ProvidersPage.test.tsx -t 'creates Cloudflare AI Gateway connections with account ID metadata' && npm --prefix ui test -- --run ProvidersPage.test.tsx && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && make build && git diff --check"
 completed_at: "2026-06-04T23:34:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BJ-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e94c3-e3d8-7ea1-8e66-c7ffcf624620 at commit f9fd56b"
 gate_results:
   - "npm --prefix ui test -- --run ProvidersPage.test.tsx -t 'creates Cloudflare AI Gateway connections with account ID metadata': RED before implementation, Cloudflare account ID input was missing"
   - "npm --prefix ui test -- --run ProvidersPage.test.tsx -t 'creates Cloudflare AI Gateway connections with account ID metadata': PASS"
@@ -2255,6 +2256,7 @@ gate_results:
   - "go build ./cmd/g0router: PASS"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e94c3-e3d8-7ea1-8e66-c7ffcf624620: PASS, no blocking findings"
 
 tasks:
   - id: "8.BJ.1"
