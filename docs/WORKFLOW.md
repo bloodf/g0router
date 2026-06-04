@@ -30,7 +30,7 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BN"
+current_wave: "8.BO"
 last_updated: "2026-06-05T01:10:00Z"
 last_agent: "orchestrator"
 ```
@@ -2477,6 +2477,49 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BN removes the Kilo `unsupported` runtime gap. Kilo now registers through the shared OpenAI-compatible adapter at `https://api.kilo.ai/api/gateway`, appears in public provider/API/CLI surfaces, and routes provider-qualified models such as `kilo/anthropic/claude-sonnet-4.5` upstream as `anthropic/claude-sonnet-4.5`. Kiro remains a distinct auth-only provider, and static catalog, model listing, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
+
+---
+
+### Wave 8.BO — Kagi and Tavily Search Credential Parity
+
+```yaml
+wave: "8.BO"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/provider ./internal/cli ./api/handlers -run 'TestProviderMatrixMarksSearchCredentialsAuthOnly|TestAuthListShowsSupportedProviders|TestLoginCommandPersistsSearchProviderAPIKeyConnection|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-04T23:58:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BO-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused Kagi/Tavily provider/API/CLI tests: RED before implementation, matrix status was unsupported, auth list omitted kagi/tavily, API-key login rejected them, and provider API reported unsupported"
+  - "focused Kagi/Tavily provider/API/CLI tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BO.1"
+    name: "Promote Kagi and Tavily to API-key auth-only search providers"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/cli/auth_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BO-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BO removes the Kagi and Tavily `unsupported` credential gap only. They now appear in auth-capable provider surfaces and accept stored API-key connections for future search tooling. They remain `auth_only`: no inference adapter, public dispatch, web-search runtime endpoint, static catalog, model listing, streaming, pricing, or quota support is advertised.
 
 ---
 

@@ -72,7 +72,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		catalogRoutableProvider("minimax", "", false, true, true, false, "api_key"),
 		dynamicRoutableProvider("zhipu", "", false, true, true, false, "api_key"),
 		cloudflareGatewayProvider(),
-		unsupportedProvider("kagi", "No Kagi tool/search provider integration is implemented."),
+		apiKeyAuthOnlyProvider("kagi", "Kagi API-key credential capture is supported for future search tooling; no g0router search runtime or inference adapter is implemented."),
 		kiloProvider(),
 		dynamicRoutableProvider("litellm", "", false, true, true, false, "api_key"),
 		dynamicRoutableProvider("lm-studio", "", false, true, true, false, "api_key"),
@@ -80,7 +80,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		opencodeProvider(),
 		dynamicRoutableProvider("qianfan", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("qwen", "", false, true, true, false, "api_key"),
-		unsupportedProvider("tavily", "No Tavily tool/search provider integration is implemented."),
+		apiKeyAuthOnlyProvider("tavily", "Tavily API-key credential capture is supported for future search tooling; no g0router search runtime or inference adapter is implemented."),
 		catalogRoutableProvider("vercel-ai-gateway", "", false, true, true, false, "api_key"),
 		dynamicRoutableProvider("vllm", "", false, true, true, false, "api_key"),
 	}

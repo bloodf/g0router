@@ -63,7 +63,7 @@ func TestAuthListShowsSupportedProviders(t *testing.T) {
 	for _, provider := range providers {
 		providerSet[provider] = true
 	}
-	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "minimax", "qwen", "openrouter"} {
+	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "kagi", "minimax", "qwen", "openrouter", "tavily"} {
 		if !providerSet[want] {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}
@@ -190,6 +190,42 @@ func TestLoginCommandPersistsAPIKeyConnection(t *testing.T) {
 	}
 	if connections[0].Name != "work" || connections[0].AuthType != store.AuthTypeAPIKey || connections[0].APIKey == nil || *connections[0].APIKey != "qwen-secret" || !connections[0].IsActive {
 		t.Fatalf("qwen connection = %+v, want active named API-key connection", connections[0])
+	}
+}
+
+func TestLoginCommandPersistsSearchProviderAPIKeyConnection(t *testing.T) {
+	for _, provider := range []string{"kagi", "tavily"} {
+		t.Run(provider, func(t *testing.T) {
+			dataDir := t.TempDir()
+			cmd := newRootCommand(rootConfig{
+				Version: "test",
+				Serve:   func(ctx context.Context, config serveConfig) error { return nil },
+			})
+			var out bytes.Buffer
+			cmd.SetOut(&out)
+			cmd.SetErr(&out)
+			cmd.SetArgs([]string{"--data-dir", dataDir, "login", provider, "--key", "--api-key", provider + "-secret", "--name", "search"})
+
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("execute: %v", err)
+			}
+			if strings.Contains(out.String(), provider+"-secret") {
+				t.Fatalf("login output leaked provider key: %s", out.String())
+			}
+
+			s := openCLIStoreForTest(t, dataDir)
+			defer s.Close()
+			connections, err := s.GetConnections(provider)
+			if err != nil {
+				t.Fatalf("GetConnections: %v", err)
+			}
+			if len(connections) != 1 {
+				t.Fatalf("%s connections = %d, want 1", provider, len(connections))
+			}
+			if connections[0].Name != "search" || connections[0].AuthType != store.AuthTypeAPIKey || connections[0].APIKey == nil || *connections[0].APIKey != provider+"-secret" || !connections[0].IsActive {
+				t.Fatalf("%s connection = %+v, want active search API-key connection", provider, connections[0])
+			}
+		})
 	}
 }
 

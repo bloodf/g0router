@@ -60,7 +60,7 @@ func TestProviderMatrixCoversRemediationParityTiers(t *testing.T) {
 	}
 }
 
-func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
+func TestProviderMatrixMarksOAuthOnlyProvidersExplicitly(t *testing.T) {
 	matrix := ProviderMatrix()
 	for _, id := range []string{"cursor", "gitlab", "kiro"} {
 		entry, ok := matrix.Provider(id)
@@ -72,6 +72,28 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 		}
 		if entry.PublicInference {
 			t.Fatalf("%s marked public-inference capable despite auth-only status", id)
+		}
+	}
+}
+
+func TestProviderMatrixMarksSearchCredentialsAuthOnly(t *testing.T) {
+	matrix := ProviderMatrix()
+	for _, id := range []string{"kagi", "tavily"} {
+		entry, ok := matrix.Provider(id)
+		if !ok {
+			t.Fatalf("provider %q missing", id)
+		}
+		if entry.PublicStatus != ProviderStatusAuthOnly {
+			t.Fatalf("%s status = %q, want auth_only", id, entry.PublicStatus)
+		}
+		if len(entry.AuthTypes) != 1 || entry.AuthTypes[0] != "api_key" {
+			t.Fatalf("%s auth types = %+v, want api_key only", id, entry.AuthTypes)
+		}
+		if entry.RegisteredAdapter || entry.Inference || entry.PublicInference || entry.DirectDispatch || entry.Streaming || entry.ModelCatalog || entry.ListModels || entry.Quota {
+			t.Fatalf("%s should be credential-only until web-search runtime is implemented: %+v", id, entry)
+		}
+		if !strings.Contains(strings.ToLower(entry.Notes), "search") || !strings.Contains(strings.ToLower(entry.Notes), "runtime") {
+			t.Fatalf("%s notes = %q, want search runtime caveat", id, entry.Notes)
 		}
 	}
 }
