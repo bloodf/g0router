@@ -777,7 +777,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:30:05Z"
 evaluator_prompt: "docs/evaluations/wave-8AB-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e9230-f77d-7f63-8d6f-c063799f9e39 at commit 93de90e"
 gate_results:
   - "npm --prefix ui test -- --run McpSplitPages McpPage App: PASS"
   - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
