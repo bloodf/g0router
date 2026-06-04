@@ -74,15 +74,15 @@ func ProviderMatrix() ProviderMatrixTable {
 		unsupportedProvider("cloudflare-ai-gateway", "No gateway adapter is implemented."),
 		unsupportedProvider("kagi", "No Kagi tool/search provider integration is implemented."),
 		unsupportedProvider("kilo", "No Kilo provider integration is implemented."),
-		unsupportedProvider("litellm", "No self-hosted gateway adapter is implemented."),
-		unsupportedProvider("lm-studio", "No local LM Studio adapter is implemented."),
+		adapterOnlyProvider("litellm", "", false, true, true, false, "api_key"),
+		adapterOnlyProvider("lm-studio", "", false, true, true, false, "api_key"),
 		unsupportedProvider("ollama-cloud", "Only local Ollama is implemented."),
 		unsupportedProvider("opencode", "No OpenCode provider integration is implemented."),
 		unsupportedProvider("qianfan", "No Baidu Qianfan auth or inference adapter is implemented."),
 		catalogRoutableProvider("qwen", "", false, true, true, false, "api_key"),
 		unsupportedProvider("tavily", "No Tavily tool/search provider integration is implemented."),
-		unsupportedProvider("vercel-ai-gateway", "No Vercel AI Gateway adapter is implemented."),
-		unsupportedProvider("vllm", "No configurable OpenAI-compatible self-hosted adapter is implemented."),
+		catalogRoutableProvider("vercel-ai-gateway", "", false, true, true, false, "api_key"),
+		adapterOnlyProvider("vllm", "", false, true, true, false, "api_key"),
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].G0RouterID < entries[j].G0RouterID

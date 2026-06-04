@@ -88,7 +88,7 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["anthropic"].Quota {
 		t.Fatalf("anthropic provider = %+v, should not claim quota support until a real fetcher exists", byID["anthropic"])
 	}
-	for _, id := range []string{"cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "mistral", "minimax", "nebius", "ollama", "openrouter", "perplexity", "qwen", "together", "xai"} {
+	for _, id := range []string{"cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "mistral", "minimax", "nebius", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "xai"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported catalog-routable provider", id, byID[id])
 		}
@@ -98,6 +98,11 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	}
 	if byID["github-copilot"].PublicStatus != "auth_only" || byID["github-copilot"].Inference {
 		t.Fatalf("github-copilot provider = %+v, want auth_only without inference", byID["github-copilot"])
+	}
+	for _, id := range []string{"litellm", "lm-studio", "vllm"} {
+		if byID[id].PublicStatus != "adapter_only" || !byID[id].RegisteredAdapter || !byID[id].Inference || byID[id].PublicInference || byID[id].DirectDispatch {
+			t.Fatalf("%s provider = %+v, want registered adapter-only OpenAI-compatible provider", id, byID[id])
+		}
 	}
 
 	matrix := providerinfo.ProviderMatrix()

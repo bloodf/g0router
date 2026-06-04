@@ -29,6 +29,10 @@ const (
 	ProviderNebius        ModelProvider = "nebius"
 	ProviderMiniMax       ModelProvider = "minimax"
 	ProviderQwen          ModelProvider = "qwen"
+	ProviderVercelGateway ModelProvider = "vercel-ai-gateway"
+	ProviderLiteLLM       ModelProvider = "litellm"
+	ProviderVLLM          ModelProvider = "vllm"
+	ProviderLMStudio      ModelProvider = "lm-studio"
 	ProviderGitHubCopilot ModelProvider = "github-copilot"
 	ProviderCursor        ModelProvider = "cursor"
 )

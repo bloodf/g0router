@@ -32,6 +32,10 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 		{"minimax", providers.ProviderMiniMax},
 		{"qwen", providers.ProviderQwen},
 		{"xai", providers.ProviderXAI},
+		{"vercel-ai-gateway", providers.ProviderVercelGateway},
+		{"litellm", providers.ProviderLiteLLM},
+		{"vllm", providers.ProviderVLLM},
+		{"lm-studio", providers.ProviderLMStudio},
 	}
 
 	for _, tc := range cases {
@@ -165,19 +169,23 @@ func TestNewDefaultProvider(t *testing.T) {
 func TestDefaultConfigsAreRegistered(t *testing.T) {
 	configs := DefaultConfigs()
 	want := map[providers.ModelProvider]string{
-		providers.ProviderGroq:        "https://api.groq.com/openai",
-		providers.ProviderCerebras:    "https://api.cerebras.ai",
-		providers.ProviderPerplexity:  "https://api.perplexity.ai",
-		providers.ProviderFireworks:   "https://api.fireworks.ai/inference",
-		providers.ProviderTogether:    "https://api.together.xyz",
-		providers.ProviderNVIDIA:      "https://integrate.api.nvidia.com",
-		providers.ProviderDeepSeek:    "https://api.deepseek.com",
-		providers.ProviderOpenRouter:  "https://openrouter.ai/api",
-		providers.ProviderHuggingFace: "https://router.huggingface.co",
-		providers.ProviderNebius:      "https://api.tokenfactory.nebius.com",
-		providers.ProviderMiniMax:     "https://api.minimax.io/v1",
-		providers.ProviderQwen:        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-		providers.ProviderXAI:         "https://api.x.ai/v1",
+		providers.ProviderGroq:          "https://api.groq.com/openai",
+		providers.ProviderCerebras:      "https://api.cerebras.ai",
+		providers.ProviderPerplexity:    "https://api.perplexity.ai",
+		providers.ProviderFireworks:     "https://api.fireworks.ai/inference",
+		providers.ProviderTogether:      "https://api.together.xyz",
+		providers.ProviderNVIDIA:        "https://integrate.api.nvidia.com",
+		providers.ProviderDeepSeek:      "https://api.deepseek.com",
+		providers.ProviderOpenRouter:    "https://openrouter.ai/api",
+		providers.ProviderHuggingFace:   "https://router.huggingface.co",
+		providers.ProviderNebius:        "https://api.tokenfactory.nebius.com",
+		providers.ProviderMiniMax:       "https://api.minimax.io/v1",
+		providers.ProviderQwen:          "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		providers.ProviderXAI:           "https://api.x.ai/v1",
+		providers.ProviderVercelGateway: "https://ai-gateway.vercel.sh/v1",
+		providers.ProviderLiteLLM:       "http://localhost:4000",
+		providers.ProviderVLLM:          "http://localhost:8000/v1",
+		providers.ProviderLMStudio:      "http://localhost:1234/v1",
 	}
 
 	if len(configs) != len(want) {

@@ -101,6 +101,9 @@ func NewCatalog() Catalog {
 				"gemini-2.5-flash":      paid(0.30, 0.03, 2.50),
 				"gemini-2.5-flash-lite": paid(0.10, 0.01, 0.40),
 			},
+			providers.ProviderVercelGateway: {
+				"anthropic/claude-sonnet-4.5": paid(3.00, 0.30, 15.00),
+			},
 		},
 	}
 }

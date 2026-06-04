@@ -115,6 +115,7 @@ func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 		{providers.ProviderTogether, "meta-llama/Llama-3.3-70B-Instruct-Turbo", Pricing{InputPerMillionUSD: 1.04, CachedInputPerMillionUSD: 1.04, OutputPerMillionUSD: 1.04}},
 		{providers.ProviderOllama, "llama3.1:8b", Pricing{}},
 		{providers.ProviderVertex, "gemini-2.5-flash", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.03, OutputPerMillionUSD: 2.50}},
+		{providers.ProviderVercelGateway, "anthropic/claude-sonnet-4.5", Pricing{InputPerMillionUSD: 3.00, CachedInputPerMillionUSD: 0.30, OutputPerMillionUSD: 15.00}},
 	}
 
 	for _, tt := range tests {
@@ -164,6 +165,9 @@ func TestCatalogOmitsProvidersWithoutDefensibleEmbeddedPricing(t *testing.T) {
 		providers.ProviderNVIDIA,
 		providers.ProviderCursor,
 		providers.ProviderGitHubCopilot,
+		providers.ProviderLiteLLM,
+		providers.ProviderVLLM,
+		providers.ProviderLMStudio,
 	} {
 		if models := catalog.Models(provider); len(models) != 0 {
 			t.Fatalf("%s models len = %d, want 0", provider, len(models))

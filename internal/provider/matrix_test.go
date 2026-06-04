@@ -142,24 +142,25 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	public := PublicInferenceProviders()
 	ids := providerIDs(public)
 	want := map[string]bool{
-		"openai":      true,
-		"anthropic":   true,
-		"cerebras":    true,
-		"cohere":      true,
-		"deepseek":    true,
-		"fireworks":   true,
-		"gemini":      true,
-		"groq":        true,
-		"huggingface": true,
-		"mistral":     true,
-		"minimax":     true,
-		"nebius":      true,
-		"ollama":      true,
-		"openrouter":  true,
-		"perplexity":  true,
-		"qwen":        true,
-		"together":    true,
-		"xai":         true,
+		"openai":            true,
+		"anthropic":         true,
+		"cerebras":          true,
+		"cohere":            true,
+		"deepseek":          true,
+		"fireworks":         true,
+		"gemini":            true,
+		"groq":              true,
+		"huggingface":       true,
+		"mistral":           true,
+		"minimax":           true,
+		"nebius":            true,
+		"ollama":            true,
+		"openrouter":        true,
+		"perplexity":        true,
+		"qwen":              true,
+		"together":          true,
+		"vercel-ai-gateway": true,
+		"xai":               true,
 	}
 	if len(ids) != len(want) {
 		t.Fatalf("public inference providers = %+v, want %+v", ids, want)
@@ -184,7 +185,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	if ids["cursor"] {
 		t.Fatal("cursor is auth-only today and must not be advertised as an inference provider")
 	}
-	for _, id := range []string{"replicate"} {
+	for _, id := range []string{"litellm", "lm-studio", "replicate", "vllm"} {
 		if ids[id] {
 			t.Fatalf("%s remains adapter-only and must not be advertised as a public inference provider", id)
 		}
@@ -193,7 +194,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"anthropic", "cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "mistral", "minimax", "nebius", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "xai"} {
+	for _, id := range []string{"anthropic", "cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "mistral", "minimax", "nebius", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "xai"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -209,6 +210,25 @@ func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		}
 		if entry.Quota {
 			t.Fatalf("%s should not claim quota support until a real quota fetcher exists", id)
+		}
+	}
+}
+
+func TestOpenAICompatibleGatewayProvidersAreRegisteredWithoutFakeCatalogs(t *testing.T) {
+	matrix := ProviderMatrix()
+	for _, id := range []string{"litellm", "lm-studio", "vllm"} {
+		entry, ok := matrix.Provider(id)
+		if !ok {
+			t.Fatalf("provider %q missing", id)
+		}
+		if entry.PublicStatus != ProviderStatusAdapterOnly {
+			t.Fatalf("%s status = %q, want adapter_only", id, entry.PublicStatus)
+		}
+		if !entry.RegisteredAdapter || !entry.Inference || !entry.Streaming || !entry.ListModels {
+			t.Fatalf("%s should expose the OpenAI-compatible adapter surface: %+v", id, entry)
+		}
+		if entry.PublicInference || entry.DirectDispatch || entry.ModelCatalog || entry.Quota {
+			t.Fatalf("%s should not claim public routing, fake catalog, or quota: %+v", id, entry)
 		}
 	}
 }

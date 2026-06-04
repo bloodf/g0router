@@ -9,7 +9,7 @@ Status meanings:
 - `auth_only`: credential capture exists, but no inference adapter is wired.
 - `unsupported`: explicitly not implemented; do not advertise as usable.
 
-Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `cohere`, `deepseek`, `fireworks`, `gemini`, `groq`, `huggingface`, `mistral`, `minimax`, `nebius`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
+Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `cohere`, `deepseek`, `fireworks`, `gemini`, `groq`, `huggingface`, `mistral`, `minimax`, `nebius`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, `vercel-ai-gateway`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
 
 ## Public Surfaces
 
@@ -42,8 +42,8 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 | `kilo` | `kilo` | `kilo` | `kilo` | `unsupported` | none | no | no | no | no | no | no | No Kilo provider integration. |
 | `kimi` | `kimi` | `kimi` | `kimi` | `auth_only` | OAuth | yes | no | no | no | no | no | Device-code OAuth exists; no Moonshot/Kimi inference adapter. |
 | `kiro` | `kiro` | `kiro` | `kiro` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Kiro inference adapter. |
-| `litellm` | `litellm` | `litellm` | `litellm` | `unsupported` | none | no | no | no | no | no | no | No LiteLLM gateway adapter. |
-| `lm-studio` | `lm-studio` | `lm-studio` | `lm-studio` | `unsupported` | none | no | no | no | no | no | no | No LM Studio adapter. |
+| `litellm` | `litellm` | `litellm` | `litellm` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible LiteLLM proxy adapter is registered; use explicit aliases or combos because gateway model IDs are instance-defined. |
+| `lm-studio` | `lm-studio` | `lm-studio` | `lm-studio` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible local LM Studio adapter is registered; use explicit aliases or combos because loaded model IDs are local. |
 | `minimax` | `minimax` | `minimax` | `minimax` | `supported` | API key | no | yes | yes | yes | yes | yes | `MiniMax-M3` routes through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `mistral` | `mistral` | `mistral` | `mistral` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `nebius` | `nebius` | `nebius` | `nebius` | `supported` | API key | no | yes | yes | yes | yes | yes | `meta-llama/Llama-3.3-70B-Instruct` routes through the OpenAI-compatible Token Factory adapter; quota fetcher is not implemented. |
@@ -59,13 +59,13 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 | `replicate` | `replicate` | `replicate` | `replicate` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible wrapper exists; not public-routable yet. |
 | `tavily` | `tavily` | `tavily` | `tavily` | `unsupported` | none | no | no | no | no | no | no | No Tavily tool/search integration. |
 | `together` | `together` | `together` | `together` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
-| `vercel-ai-gateway` | `vercel-ai-gateway` | `vercel-ai-gateway` | `vercel-ai-gateway` | `unsupported` | none | no | no | no | no | no | no | No Vercel AI Gateway adapter. |
+| `vercel-ai-gateway` | `vercel-ai-gateway` | `vercel-ai-gateway` | `vercel-ai-gateway` | `supported` | API key | no | yes | yes | yes | yes | yes | `anthropic/claude-sonnet-4.5` routes through the OpenAI-compatible AI Gateway adapter; quota fetcher is not implemented. |
 | `vertex` | `vertex` | `vertex` | `vertex` | `adapter_only` | OAuth/service account | yes | yes | no | no | no | yes | Vertex adapter exists; no streaming or public routing yet. |
-| `vllm` | `vllm` | `vllm` | `vllm` | `unsupported` | none | no | no | no | no | no | no | No configurable self-hosted vLLM adapter. |
+| `vllm` | `vllm` | `vllm` | `vllm` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible self-hosted vLLM adapter is registered; use explicit aliases or combos because served model IDs are deployment-defined. |
 | `xai` | `xai` | `xai` | `xai` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Cataloged Grok model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `xiaomi` | `xiaomi` | `xiaomi` | `xiaomi` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Xiaomi inference adapter. |
 | `zhipu` | `zhipu` | `zhipu` | `zhipu` | `auth_only` | API key | no | no | no | no | no | no | API-key capture exists; no ZAI/Zhipu inference adapter. |
 
 ## Model Routing Caveat
 
-Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, Cerebras, Cohere, DeepSeek, Fireworks, Gemini, Groq, Hugging Face, Mistral, MiniMax, Nebius, Ollama, OpenRouter, Perplexity, Qwen, Together, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Quota fetchers are intentionally unsupported for providers whose matrix `quota` field is `false`; those routes fail open rather than fabricating provider quota data.
+Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, Cerebras, Cohere, DeepSeek, Fireworks, Gemini, Groq, Hugging Face, Mistral, MiniMax, Nebius, Ollama, OpenRouter, Perplexity, Qwen, Together, Vercel AI Gateway, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Quota fetchers are intentionally unsupported for providers whose matrix `quota` field is `false`; those routes fail open rather than fabricating provider quota data.
