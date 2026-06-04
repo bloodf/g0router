@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BA"
-last_updated: "2026-06-04T19:34:00Z"
+current_wave: "8.BB"
+last_updated: "2026-06-04T20:12:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1870,6 +1870,50 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BA promotes GitHub Copilot from auth-only to public provider-qualified runtime routing through the existing OpenAI-compatible adapter. The adapter sends the OMP Copilot `User-Agent: opencode/1.3.15`, strips `github-copilot/` before upstream dispatch, and keeps Copilot without a fake static model catalog or quota fetcher.
+
+---
+
+### Wave 8.BB — Cursor OMP Auth Parity
+
+```yaml
+wave: "8.BB"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/provider/oauth -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T20:12:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BB-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./internal/provider/oauth -run 'TestCursorFlow(StartBuildsOMPLoginDeepControlURL|PollPendingOn404|PollCompleteStoresAccessRefreshAndExpiry|RefreshUsesOMPExchangeUserAPIKey|ExchangeUnsupported)' -count=1: RED before implementation, CursorConfig lacked LoginURL/PollURL/RefreshURL/NewUUID and Poll was unsupported"
+  - "go test ./internal/provider/oauth -run 'TestCursorFlow(StartBuildsOMPLoginDeepControlURL|PollPendingOn404|PollCompleteStoresAccessRefreshAndExpiry|RefreshUsesOMPExchangeUserAPIKey|ExchangeUnsupported)' -count=1: PASS"
+  - "go test ./internal/provider/oauth -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: initial full-suite run had a transient Connections/Auth loading-state failure; focused rerun of src/pages/ConnectionsAuthPage.test.tsx passed"
+  - "npm --prefix ui test -- --run: PASS on full rerun, 20 files and 84 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 20 tests"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BB.1"
+    name: "Align Cursor OAuth with OMP loginDeepControl polling"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/provider/oauth/cursor.go
+      - internal/provider/oauth/cursor_test.go
+      - internal/provider/matrix.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8BB-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BB replaces the old Cursor callback-PKCE implementation with OMP-style `loginDeepControl` auth: start creates a PKCE challenge plus UUID login URL, poll checks `api2.cursor.sh/auth/poll` with UUID and verifier, 404 remains pending, complete polls persist access/refresh tokens, and refresh uses `api2.cursor.sh/auth/exchange_user_api_key`. Cursor remains `auth_only` until a real Cursor inference adapter is implemented.
 
 ---
 

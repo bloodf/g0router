@@ -30,7 +30,7 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `azure`, `be
 | `cerebras` | `cerebras` | `cerebras` | `cerebras` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `unsupported` | none | no | no | no | no | no | no | No gateway adapter. |
 | `cohere` | `cohere` | `cohere` | `cohere` | `supported` | API key | no | yes | yes | yes | yes | yes | `command-r-08-2024` routes through the OpenAI-compatible adapter; quota fetcher is not implemented. |
-| `cursor` | `cursor` | `cursor` | `cursor` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Cursor inference adapter. |
+| `cursor` | `cursor` | `cursor` | `cursor` | `auth_only` | OAuth | yes | no | no | no | no | no | OMP-style `loginDeepControl` polling OAuth exists; no Cursor inference adapter. |
 | `deepseek` | `deepseek` | `deepseek` | `deepseek` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `fireworks` | `fireworks` | `fireworks` | `fireworks` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `gemini` | `gemini` | `gemini` | `gemini` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Cataloged Gemini model IDs route through the native Gemini adapter, including native SSE streaming. |
