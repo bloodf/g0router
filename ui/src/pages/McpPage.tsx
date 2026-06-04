@@ -4,6 +4,9 @@ import {
   ApiError,
   apiFetch,
   asyncError,
+  completeMCPOAuth,
+  deleteMCPInstance,
+  executeMCPTool,
   getMcpServersPath,
   listMCPAccounts,
   listMCPClients,
@@ -78,8 +81,18 @@ export function McpPage() {
   });
   const [createError, setCreateError] = useState("");
   const [oauthError, setOAuthError] = useState("");
+  const [callbackURL, setCallbackURL] = useState("");
+  const [oauthSuccess, setOAuthSuccess] = useState("");
   const [startedAuthURL, setStartedAuthURL] = useState("");
+  const [toolName, setToolName] = useState("");
+  const [toolArguments, setToolArguments] = useState("{}");
+  const [toolError, setToolError] = useState("");
+  const [toolResult, setToolResult] = useState("");
+  const [deleteError, setDeleteError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isCompletingOAuth, setIsCompletingOAuth] = useState(false);
+  const [isExecutingTool, setIsExecutingTool] = useState(false);
+  const [busyInstanceID, setBusyInstanceID] = useState("");
   const [isStartingOAuth, setIsStartingOAuth] = useState(false);
 
   const loadMCPData = useCallback(async () => {
@@ -174,6 +187,79 @@ export function McpPage() {
     }
   }
 
+  async function handleCompleteOAuth() {
+    setOAuthError("");
+    setOAuthSuccess("");
+    const instanceID = oauthForm.instanceID || data.instances[0]?.ID || "";
+    if (instanceID === "") {
+      setOAuthError("Select an MCP instance before completing OAuth.");
+      return;
+    }
+    if (callbackURL.trim() === "") {
+      setOAuthError("Callback URL is required.");
+      return;
+    }
+
+    setIsCompletingOAuth(true);
+    try {
+      const account = await completeMCPOAuth(instanceID, callbackURL.trim());
+      setCallbackURL("");
+      setOAuthSuccess(`OAuth completed for ${account.account_label || "account"}`);
+      await loadMCPData();
+    } catch (error) {
+      setOAuthError(redactErrorMessage(toApiError(error).message));
+    } finally {
+      setIsCompletingOAuth(false);
+    }
+  }
+
+  async function handleExecuteTool(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setToolError("");
+    setToolResult("");
+    const selectedTool = toolName || data.tools[0]?.function.name || "";
+    if (selectedTool === "") {
+      setToolError("Select a tool before executing.");
+      return;
+    }
+
+    let parsedArguments: unknown;
+    try {
+      parsedArguments = JSON.parse(toolArguments.trim() || "{}");
+    } catch {
+      setToolError("Arguments JSON is invalid.");
+      return;
+    }
+
+    setIsExecutingTool(true);
+    try {
+      const result = await executeMCPTool(selectedTool, parsedArguments);
+      setToolName(selectedTool);
+      setToolResult(JSON.stringify(result.content));
+    } catch (error) {
+      setToolError(redactErrorMessage(toApiError(error).message));
+    } finally {
+      setIsExecutingTool(false);
+    }
+  }
+
+  async function handleDeleteInstance(instance: MCPInstanceResponse) {
+    const label = instance.Name || instance.ID;
+    if (!window.confirm(`Delete MCP instance ${label}?`)) {
+      return;
+    }
+    setDeleteError("");
+    setBusyInstanceID(instance.ID);
+    try {
+      await deleteMCPInstance(instance.ID);
+      await loadMCPData();
+    } catch (error) {
+      setDeleteError(redactErrorMessage(toApiError(error).message));
+    } finally {
+      setBusyInstanceID("");
+    }
+  }
+
   return (
     <Panel title="MCP gateway" description="Configured MCP instances, accounts, health, and compact tool manifests.">
       <div className="space-y-5">
@@ -196,19 +282,41 @@ export function McpPage() {
               />
               <OAuthFormView
                 authURL={startedAuthURL}
+                callbackURL={callbackURL}
+                completeMessage={oauthSuccess}
                 error={oauthError}
                 form={oauthForm}
                 instances={data.instances}
+                isCompleting={isCompletingOAuth}
                 isSubmitting={isStartingOAuth}
+                onCallbackURLChange={setCallbackURL}
                 onChange={setOAuthForm}
+                onComplete={() => void handleCompleteOAuth()}
                 onSubmit={handleStartOAuth}
               />
             </div>
+            <ToolExecutionForm
+              args={toolArguments}
+              error={toolError}
+              isSubmitting={isExecutingTool}
+              onArgsChange={setToolArguments}
+              onSubmit={handleExecuteTool}
+              onToolChange={setToolName}
+              result={toolResult}
+              toolName={toolName}
+              tools={data.tools}
+            />
+            {deleteError ? <p className="text-sm font-medium text-rose-700">{deleteError}</p> : null}
 
             {state.status === "empty" ? (
               <EmptyState title="No MCP data" description="Create an instance or register a client to expose tools." />
             ) : (
-              <MCPDashboard data={data} totalAccounts={totalAccounts} />
+              <MCPDashboard
+                busyInstanceID={busyInstanceID}
+                data={data}
+                onDeleteInstance={handleDeleteInstance}
+                totalAccounts={totalAccounts}
+              />
             )}
           </>
         ) : null}
@@ -299,19 +407,29 @@ function InstanceFormView({
 
 function OAuthFormView({
   authURL,
+  callbackURL,
+  completeMessage,
   error,
   form,
   instances,
+  isCompleting,
   isSubmitting,
+  onCallbackURLChange,
   onChange,
+  onComplete,
   onSubmit
 }: {
   authURL: string;
+  callbackURL: string;
+  completeMessage: string;
   error: string;
   form: OAuthForm;
   instances: MCPInstanceResponse[];
+  isCompleting: boolean;
   isSubmitting: boolean;
+  onCallbackURLChange: (value: string) => void;
   onChange: (form: OAuthForm) => void;
+  onComplete: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   return (
@@ -365,13 +483,95 @@ function OAuthFormView({
             Open authorization URL
           </a>
         ) : null}
+        <TextField label="Callback URL" value={callbackURL} onChange={onCallbackURLChange} />
+        <button
+          className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+          disabled={isCompleting || instances.length === 0}
+          type="button"
+          onClick={onComplete}
+        >
+          {isCompleting ? "Completing" : "Complete OAuth"}
+        </button>
+        {completeMessage ? <p className="text-sm font-medium text-emerald-700">{completeMessage}</p> : null}
         {error ? <p className="text-sm font-medium text-rose-700">{error}</p> : null}
       </div>
     </form>
   );
 }
 
-function MCPDashboard({ data, totalAccounts }: { data: MCPData; totalAccounts: number }) {
+function ToolExecutionForm({
+  args,
+  error,
+  isSubmitting,
+  onArgsChange,
+  onSubmit,
+  onToolChange,
+  result,
+  toolName,
+  tools
+}: {
+  args: string;
+  error: string;
+  isSubmitting: boolean;
+  onArgsChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onToolChange: (value: string) => void;
+  result: string;
+  toolName: string;
+  tools: MCPToolResponse[];
+}) {
+  return (
+    <form className="rounded-md border border-zinc-200 p-4" onSubmit={onSubmit}>
+      <h4 className="mb-3 text-sm font-semibold text-zinc-700">Execute tool</h4>
+      <div className="grid gap-3 lg:grid-cols-[1fr_1.5fr_auto]">
+        <label className="grid gap-1 text-sm font-medium text-zinc-700">
+          Tool
+          <select
+            className="rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+            value={toolName || tools[0]?.function.name || ""}
+            onChange={(event) => onToolChange(event.target.value)}
+          >
+            {tools.length === 0 ? <option value="">No tools</option> : null}
+            {tools.map((tool) => (
+              <option key={tool.function.name} value={tool.function.name}>
+                {tool.function.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="grid gap-1 text-sm font-medium text-zinc-700">
+          Arguments JSON
+          <textarea
+            className="min-h-10 rounded-md border border-zinc-200 px-3 py-2 font-mono text-sm text-zinc-950"
+            value={args}
+            onChange={(event) => onArgsChange(event.target.value)}
+          />
+        </label>
+        <button
+          className="h-10 self-end rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+          disabled={isSubmitting || tools.length === 0}
+          type="submit"
+        >
+          {isSubmitting ? "Executing" : "Execute tool"}
+        </button>
+      </div>
+      {result ? <pre className="mt-3 overflow-x-auto rounded-md bg-zinc-950 p-3 text-xs text-white">{result}</pre> : null}
+      {error ? <p className="mt-3 text-sm font-medium text-rose-700">{error}</p> : null}
+    </form>
+  );
+}
+
+function MCPDashboard({
+  busyInstanceID,
+  data,
+  onDeleteInstance,
+  totalAccounts
+}: {
+  busyInstanceID: string;
+  data: MCPData;
+  onDeleteInstance: (instance: MCPInstanceResponse) => void;
+  totalAccounts: number;
+}) {
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-4">
@@ -392,6 +592,7 @@ function MCPDashboard({ data, totalAccounts }: { data: MCPData; totalAccounts: n
               <th className="px-4 py-3 font-semibold">Tools</th>
               <th className="px-4 py-3 font-semibold">Health</th>
               <th className="px-4 py-3 font-semibold">Credentials</th>
+              <th className="px-4 py-3 font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200">
@@ -410,6 +611,17 @@ function MCPDashboard({ data, totalAccounts }: { data: MCPData; totalAccounts: n
                 </td>
                 <td className="px-4 py-3">
                   <CredentialKeys env={instance.Env} headers={instance.Headers} />
+                </td>
+                <td className="px-4 py-3">
+                  <button
+                    className="rounded-md border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 disabled:cursor-not-allowed disabled:text-rose-300"
+                    disabled={busyInstanceID === instance.ID}
+                    type="button"
+                    aria-label={`Delete ${instance.Name || instance.ID}`}
+                    onClick={() => onDeleteInstance(instance)}
+                  >
+                    Delete
+                  </button>
                 </td>
               </tr>
             ))}

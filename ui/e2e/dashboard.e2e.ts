@@ -155,6 +155,19 @@ test.describe("dashboard control plane", () => {
       "href",
       "https://auth.example.test/authorize?state=e2e"
     );
+    await page.getByLabel("Callback URL").fill(
+      "http://127.0.0.1:5173/api/mcp/oauth/callback?instance_id=mcp-created&code=e2e-code&state=e2e"
+    );
+    await page.getByRole("button", { name: "Complete OAuth" }).click();
+    await expect(page.getByText("OAuth completed for e2e-account")).toBeVisible();
+    await page.getByRole("combobox", { name: "Tool" }).selectOption("mcp-1__linear-search");
+    await page.getByLabel("Arguments JSON").fill("{\"query\":\"release\"}");
+    await page.getByRole("button", { name: "Execute tool" }).click();
+    await expect(page.getByText(/linear issue found/i)).toBeVisible();
+    await clickWithConfirm(page, "Delete MCP instance github-tools?", () =>
+      page.getByRole("button", { name: "Delete github-tools" }).click()
+    );
+    await expect(page.getByRole("table", { name: "MCP instances" })).not.toContainText("github-tools");
 
     await navigateTo(page, "Settings");
     await page.getByLabel("Proxy URL").fill("http://127.0.0.1:9090");
@@ -309,6 +322,7 @@ async function mockAPI(page: Page, options: { mode?: MockMode } = {}) {
     aliases: [...aliases],
     connections: [...connections],
     combos: [...combos],
+    mcpAccountsByInstance: { "mcp-1": [...mcpAccounts], "mcp-created": [] },
     mcpInstances: [...mcpInstances],
     pricing: [...pricing],
     settings: { ...settings }
@@ -502,6 +516,29 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     return { status: 201, body: { authorization_url: "https://auth.example.test/authorize?state=e2e", expires_at: "2026-06-03T12:00:00Z" } };
   }
 
+  if (method === "POST" && path === "/api/mcp/instances/mcp-created/oauth/complete") {
+    const account = {
+      id: "acct-created",
+      instance_id: "mcp-created",
+      account_label: "e2e-account",
+      email: "e2e@example.test",
+      resource_uri: "https://mcp.github.example.test"
+    };
+    state.mcpAccountsByInstance["mcp-created"] = [account];
+    return { status: 200, body: account };
+  }
+
+  if (method === "POST" && path === "/api/mcp/tools/mcp-1__linear-search/execute") {
+    return { status: 200, body: { content: [{ type: "text", text: "linear issue found" }] } };
+  }
+
+  if (method === "DELETE" && path.startsWith("/api/mcp/instances/")) {
+    const id = decodeURIComponent(path.slice("/api/mcp/instances/".length));
+    state.mcpInstances = state.mcpInstances.filter((instance) => instance.ID !== id);
+    delete state.mcpAccountsByInstance[id];
+    return { status: 204, body: undefined };
+  }
+
   if (method === "PUT" && path === "/api/settings") {
     state.settings = body as typeof settings;
     return { status: 200, body: state.settings };
@@ -536,9 +573,9 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     case "/api/mcp/instances":
       return { status: 200, body: { data: state.mcpInstances } };
     case "/api/mcp/instances/mcp-1/accounts":
-      return { status: 200, body: { data: mcpAccounts } };
+      return { status: 200, body: { data: state.mcpAccountsByInstance["mcp-1"] ?? [] } };
     case "/api/mcp/instances/mcp-created/accounts":
-      return { status: 200, body: { data: [] } };
+      return { status: 200, body: { data: state.mcpAccountsByInstance["mcp-created"] ?? [] } };
     case "/api/mcp/tools":
       return { status: 200, body: { data: mcpTools } };
     case "/api/settings":
@@ -592,6 +629,7 @@ type MockAPIState = {
   aliases: typeof aliases;
   connections: typeof connections;
   combos: typeof combos;
+  mcpAccountsByInstance: Record<string, typeof mcpAccounts>;
   mcpInstances: typeof mcpInstances;
   pricing: typeof pricing;
   settings: typeof settings;

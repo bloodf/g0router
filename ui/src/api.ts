@@ -268,6 +268,10 @@ export type MCPToolResponse = {
   };
 };
 
+export type MCPToolExecuteResponse = {
+  content: unknown;
+};
+
 export type LoadStatus = "idle" | "loading" | "success" | "empty" | "error" | "auth-expired";
 
 export type AsyncState<T> =
@@ -557,12 +561,30 @@ export function listMCPInstances() {
   return apiList<MCPInstanceResponse>(getMcpServersPath());
 }
 
+export function deleteMCPInstance(id: string) {
+  return apiFetch<void>(`${getMcpServersPath()}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 export function listMCPAccounts(instanceID: string) {
   return apiList<MCPOAuthAccountResponse>(getMcpAccountsPath(instanceID));
 }
 
 export function listMCPTools() {
   return apiList<MCPToolResponse>(getMcpToolsPath());
+}
+
+export function completeMCPOAuth(instanceID: string, callbackURL: string) {
+  return apiFetch<MCPOAuthAccountResponse>(`${getMcpServersPath()}/${encodeURIComponent(instanceID)}/oauth/complete`, {
+    method: "POST",
+    body: { callback_url: callbackURL }
+  });
+}
+
+export function executeMCPTool(name: string, args: unknown, allowedTools: string[] = []) {
+  return apiFetch<MCPToolExecuteResponse>(`${getMcpToolsPath()}/${encodeURIComponent(name)}/execute`, {
+    method: "POST",
+    body: { arguments: args, allowed_tools: allowedTools }
+  });
 }
 
 async function readResponsePayload(response: Response): Promise<unknown> {

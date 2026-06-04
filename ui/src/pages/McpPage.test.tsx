@@ -105,7 +105,7 @@ describe("McpPage", () => {
     expect(within(instanceRow).getByText("2")).toBeInTheDocument();
     expect(within(instanceRow).getByText("auth required")).toBeInTheDocument();
     expect(screen.getByText("filesystem")).toBeInTheDocument();
-    expect(screen.getByText("inst-1__search")).toBeInTheDocument();
+    expect(within(screen.getByRole("heading", { name: "Tools" }).closest("section")!).getByText("inst-1__search")).toBeInTheDocument();
     expect(screen.getByText("ops@example.com")).toBeInTheDocument();
     expect(screen.getAllByText("redacted").length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { name: "Accounts" }).closest("section")).toHaveClass("overflow-x-auto");
@@ -252,5 +252,92 @@ describe("McpPage", () => {
       "href",
       "https://auth.example/authorize?state=abc"
     );
+  });
+
+  it("completes OAuth, executes tools, and deletes MCP instances through real API paths", async () => {
+    const instances = [
+      {
+        ID: "inst-1",
+        Name: "atlassian-a",
+        ServerKey: "atlassian",
+        LaunchType: "http",
+        Transport: "streamable-http",
+        URL: "https://mcp.atlassian.com/mcp",
+        AccountLabel: "work",
+        IsActive: true,
+        HealthStatus: "healthy",
+        ToolManifest: { tools: [{ name: "search" }] },
+        CreatedAt: "2026-06-03T10:00:00Z",
+        UpdatedAt: "2026-06-03T10:00:00Z"
+      }
+    ];
+    const accounts = {
+      "inst-1": [] as Array<{
+        account_label: string;
+        id: string;
+        instance_id: string;
+        resource_uri: string;
+      }>
+    };
+    const fetch = vi.fn(async (input: RequestInfo | URL, options?: RequestInit) => {
+      const path = String(input);
+      if (path === getMcpClientsPath()) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getMcpToolsPath()) {
+        return jsonResponse({
+          data: [{ type: "function", function: { name: "inst-1__search", description: "Search issues" } }]
+        });
+      }
+      if (path === getMcpAccountsPath("inst-1")) {
+        return jsonResponse({ data: accounts["inst-1"] });
+      }
+      if (path === "/api/mcp/instances/inst-1/oauth/complete") {
+        expect(options?.method).toBe("POST");
+        expect(options?.body).toContain("callback-code");
+        accounts["inst-1"] = [
+          { id: "acct-1", instance_id: "inst-1", account_label: "work", resource_uri: "https://mcp.atlassian.com" }
+        ];
+        return jsonResponse(accounts["inst-1"][0]);
+      }
+      if (path === "/api/mcp/tools/inst-1__search/execute") {
+        expect(options?.method).toBe("POST");
+        expect(options?.body).toContain("\"query\":\"mcp\"");
+        return jsonResponse({ content: [{ type: "text", text: "found issue" }] });
+      }
+      if (path === "/api/mcp/instances/inst-1" && options?.method === "DELETE") {
+        instances.splice(0, 1);
+        return new Response(null, { status: 204 });
+      }
+      if (path === getMcpServersPath()) {
+        return jsonResponse({ data: instances });
+      }
+      return jsonResponse({ error: `unexpected ${path}` }, { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetch);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<McpPage />);
+
+    const instanceRow = await screen.findByRole("row", { name: /atlassian-a/i });
+    expect(instanceRow).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Callback URL"), {
+      target: { value: "http://localhost:20128/api/mcp/oauth/callback?instance_id=inst-1&code=callback-code&state=state-1" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Complete OAuth" }));
+    expect(await screen.findByText("OAuth completed for work")).toBeInTheDocument();
+    expect(await screen.findByText("https://mcp.atlassian.com")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Tool"), { target: { value: "inst-1__search" } });
+    fireEvent.change(screen.getByLabelText("Arguments JSON"), { target: { value: "{\"query\":\"mcp\"}" } });
+    fireEvent.click(screen.getByRole("button", { name: "Execute tool" }));
+    expect(await screen.findByText(/found issue/i)).toBeInTheDocument();
+
+    fireEvent.click(within(instanceRow).getByRole("button", { name: "Delete atlassian-a" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("row", { name: /atlassian-a/i })).not.toBeInTheDocument();
+    });
+    expect(window.confirm).toHaveBeenCalledWith("Delete MCP instance atlassian-a?");
   });
 });
