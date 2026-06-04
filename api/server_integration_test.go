@@ -194,8 +194,8 @@ func TestIntegrationMCPInstanceOAuthRoundTripThroughAuthenticatedServer(t *testi
 	}
 	callbackURL := "http://localhost:3000/api/mcp/oauth/callback?code=oauth-code&state=" + url.QueryEscape(state)
 	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/mcp/instances/"+created.ID+"/oauth/complete", rawAPIKey, `{"callback_url":"`+callbackURL+`"}`, http.StatusOK, &completed)
-	if completed.InstanceID != created.ID || completed.AccountLabel != "team-a" {
-		t.Fatalf("mcp oauth completion = %+v, want team-a account for %s", completed, created.ID)
+	if completed.InstanceID != created.ID || completed.AccountLabel != "work" {
+		t.Fatalf("mcp oauth completion = %+v, want work account for %s", completed, created.ID)
 	}
 	if len(runtime.reapplied) != 1 || runtime.reapplied[0] != created.ID {
 		t.Fatalf("reapplied mcp instances = %+v, want %s", runtime.reapplied, created.ID)
@@ -217,8 +217,8 @@ func TestIntegrationMCPInstanceOAuthRoundTripThroughAuthenticatedServer(t *testi
 		} `json:"data"`
 	}
 	decodeIntegrationJSON(t, accountsBody, &accounts)
-	if len(accounts.Data) != 1 || accounts.Data[0].InstanceID != created.ID || accounts.Data[0].AccountLabel != "team-a" || accounts.Data[0].Email != "team@example.test" || accounts.Data[0].ResourceURI != "https://mcp.atlassian.com" {
-		t.Fatalf("mcp accounts = %+v, want redacted team-a account", accounts.Data)
+	if len(accounts.Data) != 1 || accounts.Data[0].InstanceID != created.ID || accounts.Data[0].AccountLabel != "work" || accounts.Data[0].Email != "team@example.test" || accounts.Data[0].ResourceURI != "https://mcp.atlassian.com" {
+		t.Fatalf("mcp accounts = %+v, want redacted work account", accounts.Data)
 	}
 
 	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/mcp/instances/"+created.ID, rawAPIKey, "", http.StatusNoContent, nil)

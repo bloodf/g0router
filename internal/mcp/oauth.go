@@ -556,11 +556,11 @@ func splitScopes(scope string) []string {
 }
 
 func accountLabelFromToken(token tokenResponse, selected string) string {
-	if token.AccountLabel != "" {
-		return token.AccountLabel
-	}
 	if selected != "" {
 		return selected
+	}
+	if token.AccountLabel != "" {
+		return token.AccountLabel
 	}
 	if token.Email != "" {
 		return token.Email

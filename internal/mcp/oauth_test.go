@@ -169,6 +169,46 @@ func TestOAuthEngineUsesSelectedInstanceAccountLabel(t *testing.T) {
 	}
 }
 
+func TestOAuthEnginePrefersSelectedInstanceAccountLabelOverTokenAccountLabel(t *testing.T) {
+	store := newFakeOAuthStore()
+	store.accountLabels["inst-1"] = "selected-work"
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "access-token",
+			"expires_in":    3600,
+			"account_label": "token-work",
+		}); err != nil {
+			t.Fatalf("Encode: %v", err)
+		}
+	}))
+	defer tokenServer.Close()
+
+	engine := NewOAuthEngine(store, tokenServer.Client())
+	if err := store.CreateFlow(OAuthFlow{
+		InstanceID:         "inst-1",
+		State:              "state-1",
+		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost/callback?instance_id=inst-1",
+		AuthorizationURL:   tokenServer.URL + "/authorize",
+		ResourceURI:        "https://mcp.example",
+		ExpiresAt:          time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateFlow: %v", err)
+	}
+
+	account, err := engine.CompleteCallback(context.Background(), "inst-1", "https://callback.example?code=ok&state=state-1")
+	if err != nil {
+		t.Fatalf("CompleteCallback: %v", err)
+	}
+	if account.AccountLabel != "selected-work" {
+		t.Fatalf("account label = %q, want selected-work", account.AccountLabel)
+	}
+	if store.accounts[0].AccountLabel != "selected-work" {
+		t.Fatalf("stored account label = %q, want selected-work", store.accounts[0].AccountLabel)
+	}
+}
+
 func TestOAuthEngineRequiresRealTokenEndpoint(t *testing.T) {
 	store := newFakeOAuthStore()
 	authServer := httptest.NewServer(http.NotFoundHandler())
