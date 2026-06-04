@@ -615,6 +615,42 @@ func TestDispatchUsesProviderQualifiedCatalogRouteForVertex(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesCatalogForBedrockConverseModel(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "bedrock", "bedrock-key")
+
+	bedrock := &fakeProvider{
+		name: providers.ProviderBedrock,
+		response: &providers.ChatResponse{
+			ID:    "chatcmpl-bedrock",
+			Model: "anthropic.claude-3-5-haiku-20241022-v1:0",
+		},
+	}
+	engine := NewEngine(s)
+	engine.Register(bedrock)
+
+	req := &providers.ChatRequest{Model: "anthropic.claude-3-5-haiku-20241022-v1:0"}
+	resp, err := engine.Dispatch(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if !bedrock.called {
+		t.Fatal("bedrock provider was not called")
+	}
+	if bedrock.received != req {
+		t.Fatal("Bedrock catalog dispatch should pass the original request")
+	}
+	if bedrock.receivedKey.Provider != providers.ProviderBedrock {
+		t.Fatalf("key provider = %q, want bedrock", bedrock.receivedKey.Provider)
+	}
+	if bedrock.receivedKey.Value != "bedrock-key" {
+		t.Fatalf("key value = %q, want bedrock-key", bedrock.receivedKey.Value)
+	}
+	if resp.Provider != providers.ProviderBedrock {
+		t.Fatalf("response provider = %q, want bedrock", resp.Provider)
+	}
+}
+
 func TestDispatchUsesBedrockAliasThroughAdapterOnlyInference(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "bedrock", "bedrock-key")

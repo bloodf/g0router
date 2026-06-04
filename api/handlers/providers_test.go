@@ -88,7 +88,7 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["anthropic"].Quota {
 		t.Fatalf("anthropic provider = %+v, should not claim quota support until a real fetcher exists", byID["anthropic"])
 	}
-	for _, id := range []string{"cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "xai"} {
+	for _, id := range []string{"bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "xai"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported catalog-routable provider", id, byID[id])
 		}
@@ -155,11 +155,11 @@ func TestProvidersListKnownProviders(t *testing.T) {
 			break
 		}
 	}
-	if bedrock.PublicStatus != "adapter_only" || !bedrock.RegisteredAdapter || bedrock.PublicInference || bedrock.DirectDispatch || !bedrock.Inference || bedrock.Streaming || bedrock.ModelCatalog || !bedrock.ListModels || bedrock.Quota {
-		t.Fatalf("bedrock provider = %+v, want registered adapter with non-public inference/list models but without public dispatch capabilities", bedrock)
+	if bedrock.PublicStatus != "supported" || !bedrock.RegisteredAdapter || !bedrock.PublicInference || !bedrock.DirectDispatch || !bedrock.Inference || bedrock.Streaming || !bedrock.ModelCatalog || !bedrock.ListModels || bedrock.Quota {
+		t.Fatalf("bedrock provider = %+v, want supported non-streaming Converse catalog provider without quota", bedrock)
 	}
-	if !strings.Contains(strings.ToLower(bedrock.Notes), "converse") || !strings.Contains(strings.ToLower(bedrock.Notes), "list") || strings.Contains(strings.ToLower(bedrock.Notes), "wave 7.f") {
-		t.Fatalf("bedrock notes = %q, want explicit non-Converse status without Wave 7.F TODO", bedrock.Notes)
+	if !strings.Contains(strings.ToLower(bedrock.Notes), "converse") || !strings.Contains(strings.ToLower(bedrock.Notes), "catalog") || !strings.Contains(strings.ToLower(bedrock.Notes), "non-streaming") {
+		t.Fatalf("bedrock notes = %q, want explicit Converse catalog status", bedrock.Notes)
 	}
 }
 

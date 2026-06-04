@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.AX"
-last_updated: "2026-06-04T18:06:11Z"
+current_wave: "8.AY"
+last_updated: "2026-06-04T18:14:41Z"
 last_agent: "orchestrator"
 ```
 
@@ -1689,7 +1689,60 @@ tasks:
       - docs/evaluations/wave-8AX-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.AX replaces the Bedrock Anthropic-native invoke request path with the AWS Bedrock Converse API for non-streaming chat completions. Explicit aliases and combo steps can now route to Bedrock adapter-only inference, while public direct dispatch, streaming, catalog routing, and quota remain disabled.
+**Checkpoint**: Wave 8.AX replaces the Bedrock Anthropic-native invoke request path with the AWS Bedrock Converse API for non-streaming chat completions. Explicit aliases and combo steps can route to Bedrock adapter-only inference. Wave 8.AY promotes a cataloged Bedrock Converse model to public direct dispatch; streaming and quota remain disabled.
+
+### Wave 8.AY — Bedrock Catalog Direct Dispatch
+
+```yaml
+wave: "8.AY"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/modelcatalog ./internal/provider ./internal/proxy ./api/handlers ./internal/cli -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T18:14:41Z"
+evaluator_prompt: "docs/evaluations/wave-8AY-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./internal/modelcatalog -run 'TestCatalogRouteForBedrockConverseModel|TestCatalogIncludesRepresentativeWave7IProviderCoverage|TestCatalogHostedModelsHaveExplicitNonZeroRates|TestCatalogOmitsProvidersWithoutDefensibleEmbeddedPricing' -count=1: RED before implementation, Bedrock catalog route and pricing missing"
+  - "go test ./internal/provider -run 'TestProviderMatrix.*Bedrock|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport' -count=1: RED before implementation, Bedrock still adapter_only"
+  - "go test ./internal/proxy -run TestDispatchUsesCatalogForBedrockConverseModel -count=1: RED before implementation, provider not found"
+  - "go test ./api/handlers -run TestProvidersListKnownProviders -count=1: RED before implementation, Bedrock was not supported public inference"
+  - "go test ./internal/cli -run 'TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly' -count=1: RED before implementation, Bedrock absent from providers list"
+  - "focused Bedrock catalog/matrix/proxy/API/CLI tests: PASS after implementation"
+  - "go test ./internal/modelcatalog -run 'TestCatalogRouteForBedrockConverseModel|TestCatalogIncludesRepresentativeWave7IProviderCoverage|TestCatalogHostedModelsHaveExplicitNonZeroRates|TestCatalogOmitsProvidersWithoutDefensibleEmbeddedPricing' -count=1: PASS"
+  - "go test ./internal/provider -run 'TestProviderMatrix.*Bedrock|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport' -count=1: PASS"
+  - "go test ./internal/proxy -run 'TestDispatchUsesCatalogForBedrockConverseModel|TestDispatchUsesBedrockAliasThroughAdapterOnlyInference|TestComboDispatchUsesBedrockAdapterOnlyStep' -count=1: PASS"
+  - "go test ./api/handlers -run TestProvidersListKnownProviders -count=1: PASS"
+  - "go test ./internal/cli -run 'TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 84 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 20 tests"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AY.1"
+    name: "Promote cataloged Bedrock Converse model to public direct dispatch"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/modelcatalog/catalog.go
+      - internal/modelcatalog/pricing_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine_test.go
+      - api/handlers/providers_test.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AY-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AY adds catalog-backed direct dispatch for Bedrock model `anthropic.claude-3-5-haiku-20241022-v1:0` through the existing non-streaming Converse adapter. Bedrock remains non-streaming and quota remains unsupported.
 
 ---
 

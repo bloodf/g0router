@@ -78,7 +78,7 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 
 func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"azure", "bedrock", "replicate"} {
+	for _, id := range []string{"azure", "replicate"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -98,19 +98,22 @@ func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *test
 	}
 }
 
-func TestProviderMatrixKeepsBedrockAdapterOnlyAfterConverseSupport(t *testing.T) {
+func TestProviderMatrixMarksBedrockPublicNonStreamingAfterConverseSupport(t *testing.T) {
 	entry, ok := ProviderMatrix().Provider("bedrock")
 	if !ok {
 		t.Fatal("provider matrix missing bedrock")
 	}
-	if entry.PublicStatus != ProviderStatusAdapterOnly {
-		t.Fatalf("bedrock status = %q, want adapter_only", entry.PublicStatus)
+	if entry.PublicStatus != ProviderStatusSupported {
+		t.Fatalf("bedrock status = %q, want supported", entry.PublicStatus)
 	}
 	if !entry.RegisteredAdapter {
 		t.Fatal("bedrock should mark registered adapter")
 	}
-	if entry.PublicInference || entry.DirectDispatch || entry.Streaming || entry.ModelCatalog || entry.Quota {
-		t.Fatalf("bedrock public/streaming/catalog/quota capabilities should stay false: %+v", entry)
+	if !entry.PublicInference || !entry.DirectDispatch || !entry.ModelCatalog {
+		t.Fatalf("bedrock should expose catalog-backed public direct dispatch: %+v", entry)
+	}
+	if entry.Streaming || entry.Quota {
+		t.Fatalf("bedrock streaming/quota capabilities should stay false: %+v", entry)
 	}
 	if !entry.Inference {
 		t.Fatalf("bedrock should expose adapter-only non-streaming Converse inference: %+v", entry)
@@ -119,8 +122,8 @@ func TestProviderMatrixKeepsBedrockAdapterOnlyAfterConverseSupport(t *testing.T)
 		t.Fatalf("bedrock should expose signed foundation model listing: %+v", entry)
 	}
 	note := strings.ToLower(entry.Notes)
-	if !strings.Contains(note, "converse") || !strings.Contains(note, "list") || strings.Contains(note, "wave 7.f") {
-		t.Fatalf("bedrock notes = %q, want explicit non-Converse status without Wave 7.F TODO", entry.Notes)
+	if !strings.Contains(note, "converse") || !strings.Contains(note, "catalog") || !strings.Contains(note, "non-streaming") {
+		t.Fatalf("bedrock notes = %q, want explicit Converse catalog status", entry.Notes)
 	}
 }
 
@@ -150,6 +153,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	want := map[string]bool{
 		"openai":            true,
 		"anthropic":         true,
+		"bedrock":           true,
 		"cerebras":          true,
 		"cohere":            true,
 		"deepseek":          true,
@@ -200,9 +204,9 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	}
 }
 
-func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
+func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"anthropic", "cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "xai"} {
+	for _, id := range []string{"anthropic", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "xai"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -213,8 +217,15 @@ func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
 			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
 		}
-		if !entry.Streaming || !entry.ModelCatalog || !entry.ListModels {
-			t.Fatalf("%s should expose shared OpenAI-compatible streaming and model APIs: %+v", id, entry)
+		if !entry.ModelCatalog || !entry.ListModels {
+			t.Fatalf("%s should expose catalog and model APIs: %+v", id, entry)
+		}
+		if id == "bedrock" {
+			if entry.Streaming {
+				t.Fatalf("%s should not claim streaming until event-stream support exists: %+v", id, entry)
+			}
+		} else if !entry.Streaming {
+			t.Fatalf("%s should expose streaming: %+v", id, entry)
 		}
 		if entry.Quota {
 			t.Fatalf("%s should not claim quota support until a real quota fetcher exists", id)

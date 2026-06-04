@@ -103,6 +103,21 @@ func TestCatalogRouteForProviderQualifiedVertexModel(t *testing.T) {
 	}
 }
 
+func TestCatalogRouteForBedrockConverseModel(t *testing.T) {
+	catalog := NewCatalog()
+
+	route, ok := catalog.RouteForModel("anthropic.claude-3-5-haiku-20241022-v1:0")
+	if !ok {
+		t.Fatal("expected Bedrock Claude 3.5 Haiku route")
+	}
+	if route.Provider != providers.ProviderBedrock {
+		t.Fatalf("provider = %q, want bedrock", route.Provider)
+	}
+	if route.UpstreamModel != "anthropic.claude-3-5-haiku-20241022-v1:0" {
+		t.Fatalf("upstream model = %q, want original Bedrock model ID", route.UpstreamModel)
+	}
+}
+
 func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 	catalog := NewCatalog()
 
@@ -132,6 +147,7 @@ func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 		{providers.ProviderOllama, "llama3.1:8b", Pricing{}},
 		{providers.ProviderVertex, "vertex/gemini-2.5-flash", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.03, OutputPerMillionUSD: 2.50}},
 		{providers.ProviderVercelGateway, "anthropic/claude-sonnet-4.5", Pricing{InputPerMillionUSD: 3.00, CachedInputPerMillionUSD: 0.30, OutputPerMillionUSD: 15.00}},
+		{providers.ProviderBedrock, "anthropic.claude-3-5-haiku-20241022-v1:0", Pricing{InputPerMillionUSD: 0.80, CachedInputPerMillionUSD: 0.08, OutputPerMillionUSD: 4.00}},
 	}
 
 	for _, tt := range tests {
@@ -177,7 +193,6 @@ func TestCatalogOmitsProvidersWithoutDefensibleEmbeddedPricing(t *testing.T) {
 
 	for _, provider := range []providers.ModelProvider{
 		providers.ProviderAzure,
-		providers.ProviderBedrock,
 		providers.ProviderCursor,
 		providers.ProviderGitHubCopilot,
 		providers.ProviderLiteLLM,

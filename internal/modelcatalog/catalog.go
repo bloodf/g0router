@@ -113,6 +113,9 @@ func NewCatalog() Catalog {
 			providers.ProviderVercelGateway: {
 				"anthropic/claude-sonnet-4.5": paid(3.00, 0.30, 15.00),
 			},
+			providers.ProviderBedrock: {
+				"anthropic.claude-3-5-haiku-20241022-v1:0": paid(0.80, 0.08, 4.00),
+			},
 		},
 	}
 }

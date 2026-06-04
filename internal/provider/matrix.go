@@ -43,7 +43,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		supportedProvider("openai", "codex", true, true, true, "api_key", "oauth"),
 		supportedProvider("anthropic", "anthropic", true, true, true, "api_key", "oauth"),
 		adapterOnlyProvider("azure", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("bedrock", "", false, false, true, false, "api_key"),
+		catalogRoutableProvider("bedrock", "", false, false, true, false, "api_key"),
 		catalogRoutableProvider("cerebras", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("cohere", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("deepseek", "deepseek", true, true, true, false, "api_key", "oauth"),
@@ -154,6 +154,9 @@ func catalogRoutableProvider(id string, oauthProvider string, refresh, streaming
 	if !quota {
 		entry.Notes = "Public direct dispatch works through catalog routing; quota fetcher is not implemented yet."
 	}
+	if id == "bedrock" {
+		entry.Notes = "Public direct dispatch works through catalog-backed non-streaming Bedrock Converse routing; streaming and quota are not implemented yet."
+	}
 	return entry
 }
 
@@ -169,9 +172,6 @@ func adapterOnlyProvider(id string, oauthProvider string, refresh, streaming, li
 	entry.Quota = quota
 	entry.PublicStatus = ProviderStatusAdapterOnly
 	entry.Notes = "Adapter is registered in normal startup, but public routing remains limited by model catalog and capability coverage."
-	if id == "bedrock" {
-		entry.Notes = "Adapter is registered and supports non-streaming Bedrock Converse plus foundation model listing, but it does not implement streaming, model catalog routing, quota, or public direct dispatch."
-	}
 	return entry
 }
 
