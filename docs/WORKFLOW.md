@@ -658,7 +658,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:11:28Z"
 evaluator_prompt: "docs/evaluations/wave-8Y-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e9223-bb90-78d1-bc2e-711e556feff7 at commit c938513"
 gate_results:
   - "npm --prefix ui test -- --run APIKeysPage EndpointPage App: PASS"
   - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
@@ -698,7 +698,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:16:00Z"
 evaluator_prompt: "docs/evaluations/wave-8Z-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e9223-edad-7972-ba44-a4cdf97da9e6 at commit c938513"
 gate_results:
   - "npm --prefix ui test -- --run ModelsPage: PASS"
   - "rg -n \"8\\.A.*8\\.N|14 \\| 8|40 waves|8\\.Y\" docs/PLAN.md docs/ORCHESTRATION.md docs/WORKFLOW.md: PASS"
