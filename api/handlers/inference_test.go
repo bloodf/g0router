@@ -16,6 +16,7 @@ import (
 
 	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/gemini"
 	"github.com/bloodf/g0router/internal/providers/openai"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/valyala/fasthttp"
@@ -217,6 +218,22 @@ func TestStreamInferenceDispatchErrorIsSanitizedOpenAIError(t *testing.T) {
 	}
 	if engine.streamReceived == nil || engine.streamReceived.Stream == nil || !*engine.streamReceived.Stream {
 		t.Fatalf("stream request = %+v", engine.streamReceived)
+	}
+}
+
+func TestStreamInferenceUnsupportedProviderUsesStableError(t *testing.T) {
+	engine := &fakeEngine{streamErr: fmt.Errorf("chat completion stream: %w", gemini.ErrUnsupported)}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"hello"}],"stream":true}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+	}
+	assertOpenAIError(t, body, "streaming unsupported for provider", "invalid_request_error", "streaming_unsupported")
+	if strings.Contains(string(body), "gemini unsupported operation") || strings.Contains(string(body), "chat completion stream") {
+		t.Fatalf("response leaked provider unsupported detail: %s", body)
 	}
 }
 

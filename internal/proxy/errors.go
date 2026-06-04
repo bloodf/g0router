@@ -31,6 +31,8 @@ func ClassifyDispatchError(err error) DispatchErrorClass {
 		return DispatchErrorClass{StatusCode: http.StatusServiceUnavailable, Message: "no active provider connections", Type: "server_error", Code: "no_active_connections"}
 	case errors.Is(err, ErrQuotaExhausted):
 		return DispatchErrorClass{StatusCode: http.StatusTooManyRequests, Message: "quota exhausted", Type: "rate_limit_error", Code: "quota_exhausted"}
+	case isStreamingUnsupportedError(err):
+		return DispatchErrorClass{StatusCode: http.StatusNotImplemented, Message: "streaming unsupported for provider", Type: "invalid_request_error", Code: "streaming_unsupported"}
 	case isUpstreamAuthError(err):
 		return DispatchErrorClass{StatusCode: http.StatusUnauthorized, Message: "upstream provider authentication failed", Type: "invalid_request_error", Code: "upstream_auth_error"}
 	case isUpstreamRateLimitError(err):
@@ -40,6 +42,11 @@ func ClassifyDispatchError(err error) DispatchErrorClass {
 	default:
 		return DispatchErrorClass{StatusCode: http.StatusBadGateway, Message: "upstream provider error", Type: "server_error", Code: "upstream_error"}
 	}
+}
+
+func isStreamingUnsupportedError(err error) bool {
+	return errors.Is(err, gemini.ErrUnsupported) ||
+		errors.Is(err, vertex.ErrUnsupported)
 }
 
 func isUpstreamAuthError(err error) bool {
