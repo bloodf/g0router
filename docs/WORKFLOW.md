@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BB"
-last_updated: "2026-06-04T20:12:00Z"
+current_wave: "8.BC"
+last_updated: "2026-06-04T20:48:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1914,6 +1914,56 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BB replaces the old Cursor callback-PKCE implementation with OMP-style `loginDeepControl` auth: start creates a PKCE challenge plus UUID login URL, poll checks `api2.cursor.sh/auth/poll` with UUID and verifier, 404 remains pending, complete polls persist access/refresh tokens, and refresh uses `api2.cursor.sh/auth/exchange_user_api_key`. Cursor remains `auth_only` until a real Cursor inference adapter is implemented.
+
+---
+
+### Wave 8.BC — Cursor OAuth Poll Completion Remediation
+
+```yaml
+wave: "8.BC"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/store ./api/handlers -run 'TestOAuthSessionCanBeReadBeforeSingleUseConsume|TestOAuthPollUsesStoredVerifierAndAccountLabel|TestOAuthPollUsesSessionFromQuery|TestOAuthPollAcceptsGitHubAlias' -count=1 && npm --prefix ui test -- --run src/api.test.ts src/pages/ProvidersPage.test.tsx && npm --prefix ui run e2e -- --grep 'provider OAuth' && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T20:48:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BC-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "external evaluator thread 019e9425-54b8-7861-9a92-ba1349918371 identified that OAuthStart returned only the public Cursor uuid/session state, while OAuthPoll needed the stored PKCE verifier to call the Cursor flow"
+  - "go test ./internal/store -run TestOAuthSessionCanBeReadBeforeSingleUseConsume -count=1: PASS"
+  - "go test ./api/handlers -run 'TestOAuthPollUsesStoredVerifierAndAccountLabel|TestOAuthPollUsesSessionFromQuery|TestOAuthPollAcceptsGitHubAlias' -count=1: PASS"
+  - "npm --prefix ui test -- --run src/api.test.ts src/pages/ProvidersPage.test.tsx: PASS, 2 files and 19 tests"
+  - "npm --prefix ui run e2e -- --grep 'provider OAuth': PASS, 4 tests"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 85 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 22 tests"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BC.1"
+    name: "Restore stored verifier during provider OAuth polling and expose dashboard poll completion"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - api/handlers/oauth.go
+      - api/handlers/oauth_test.go
+      - internal/store/oauthsessions.go
+      - internal/store/oauthsessions_test.go
+      - ui/src/api.ts
+      - ui/src/api.test.ts
+      - ui/src/pages/ProvidersPage.tsx
+      - ui/src/pages/ProvidersPage.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8BC-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BC fixes the Cursor OAuth completion path exposed by Wave 8.BB. Provider OAuth poll now looks up the stored verifier without consuming pending sessions, restores `state.verifier` before calling the provider flow, consumes the stored session only after a complete poll, and persists the account label into the resulting connection. The dashboard can now complete device/poll provider OAuth sessions with a `Poll OAuth` action while still supporting callback exchange flows.
 
 ---
 

@@ -61,6 +61,18 @@ func (s *Store) ConsumeOAuthSession(state string) (*OAuthSession, error) {
 	return session, nil
 }
 
+func (s *Store) GetOAuthSession(state string) (*OAuthSession, error) {
+	session, err := scanOAuthSession(s.db.QueryRow(oauthSessionSelectSQL()+" WHERE state_hash = ?", hashOAuthState(state)))
+	if err != nil {
+		return nil, err
+	}
+	if !session.ExpiresAt.IsZero() && time.Now().After(session.ExpiresAt) {
+		return nil, ErrNotFound
+	}
+	session.State = state
+	return session, nil
+}
+
 func scanOAuthSession(scanner connectionScanner) (*OAuthSession, error) {
 	var session OAuthSession
 	var codeVerifier, redirectURI, accountLabel sql.NullString

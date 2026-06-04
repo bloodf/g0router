@@ -7,6 +7,7 @@ import {
   exchangeProviderOAuth,
   listConnections,
   listProviders,
+  pollProviderOAuth,
   startProviderOAuth,
   testConnection,
   type AsyncState,
@@ -108,6 +109,7 @@ function ProviderTables({
   const [isCreating, setIsCreating] = useState(false);
   const [isStartingOAuth, setIsStartingOAuth] = useState(false);
   const [isExchangingOAuth, setIsExchangingOAuth] = useState(false);
+  const [isPollingOAuth, setIsPollingOAuth] = useState(false);
   const [busyConnectionID, setBusyConnectionID] = useState("");
   const [mutationError, setMutationError] = useState("");
   const [mutationMessage, setMutationMessage] = useState("");
@@ -194,6 +196,32 @@ function ProviderTables({
       setMutationError(toApiError(error).message);
     } finally {
       setIsExchangingOAuth(false);
+    }
+  }
+
+  async function handlePollOAuth() {
+    if (!selectedOAuthProvider || !oauthSession?.session_id) {
+      setMutationError("OAuth session is required.");
+      setMutationMessage("");
+      return;
+    }
+    setIsPollingOAuth(true);
+    setMutationError("");
+    setMutationMessage("");
+    try {
+      const result = await pollProviderOAuth(selectedOAuthProvider, oauthSession.session_id);
+      if (result.status !== "complete" || !result.connection) {
+        setMutationMessage(`OAuth ${result.status}`);
+        return;
+      }
+      setOAuthCallback("");
+      setOAuthSession(null);
+      setMutationMessage(`OAuth connected ${result.connection.name || result.connection.id}`);
+      await onReload();
+    } catch (error) {
+      setMutationError(toApiError(error).message);
+    } finally {
+      setIsPollingOAuth(false);
     }
   }
 
@@ -324,6 +352,7 @@ function ProviderTables({
             ) : null}
             {oauthSession.session_id ? <p className="text-sm text-zinc-600">Session state: {oauthSession.session_id}</p> : null}
             {oauthSession.user_code ? <p className="text-sm text-zinc-600">Device code: {oauthSession.user_code}</p> : null}
+            {oauthSession.poll_interval ? <p className="text-sm text-zinc-600">Poll interval: {oauthSession.poll_interval}s</p> : null}
             {oauthSession.verification ? (
               <a className="text-sm text-zinc-600 underline" href={oauthSession.verification} target="_blank" rel="noreferrer">
                 Verification URL
@@ -346,6 +375,16 @@ function ProviderTables({
           >
             Complete OAuth
           </button>
+          {oauthSession.user_code || oauthSession.poll_interval ? (
+            <button
+              type="button"
+              disabled={isPollingOAuth}
+              onClick={handlePollOAuth}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-950 disabled:cursor-not-allowed disabled:text-zinc-400 md:col-start-2"
+            >
+              Poll OAuth
+            </button>
+          ) : null}
         </form>
       ) : null}
       {mutationMessage ? <p className="text-sm font-medium text-emerald-700">{mutationMessage}</p> : null}

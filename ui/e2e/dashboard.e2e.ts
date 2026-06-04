@@ -337,6 +337,33 @@ test.describe("dashboard control plane", () => {
       .toMatchObject({ state: "provider-oauth-e2e", code: "provider-e2e-code" });
   });
 
+  test("connects provider OAuth on Connections/Auth with mocked polling", async ({ page }) => {
+    const apiRequests = await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "Connections/Auth");
+    await page.getByRole("combobox", { name: "OAuth provider" }).selectOption("cursor");
+    await page.getByLabel("OAuth account label").fill("Cursor OAuth e2e");
+    await page.getByRole("button", { name: "Start OAuth" }).click();
+    await expect(page.getByRole("link", { name: "Open authorization URL" })).toHaveAttribute(
+      "href",
+      "https://cursor.example.test/loginDeepControl?uuid=cursor-oauth-e2e"
+    );
+    await expect(page.getByText("Device code: cursor-oauth-e2e")).toBeVisible();
+    await expect(page.getByText("Poll interval: 1s")).toBeVisible();
+
+    await page.getByRole("button", { name: "Poll OAuth" }).click();
+
+    await expect(page.getByText("OAuth connected Cursor OAuth e2e")).toBeVisible();
+    await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("Cursor OAuth e2e");
+    await expect(page.getByText("cursor-e2e-access")).not.toBeVisible();
+    await expect(page.getByText("cursor-e2e-refresh")).not.toBeVisible();
+    await expect
+      .poll(() => apiRequests.find((request) => request.method === "POST" && request.path === "/api/oauth/cursor/authorize")?.body)
+      .toMatchObject({ account_label: "Cursor OAuth e2e" });
+    expect(apiRequests.some((request) => request.method === "GET" && request.path === "/api/oauth/cursor/poll")).toBe(true);
+  });
+
   test("handles endpoint copy, destructive cancellation, and mutation failure states", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:5173" });
     await mockAPI(page);
@@ -674,6 +701,50 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     };
   }
 
+  if (method === "POST" && path === "/api/oauth/cursor/authorize") {
+    return {
+      status: 200,
+      body: {
+        provider: "cursor",
+        auth_url: "https://cursor.example.test/loginDeepControl?uuid=cursor-oauth-e2e",
+        session_id: "cursor-oauth-e2e",
+        user_code: "cursor-oauth-e2e",
+        verification: "https://cursor.example.test/loginDeepControl?uuid=cursor-oauth-e2e",
+        poll_interval: 1
+      }
+    };
+  }
+
+  if (method === "GET" && path === "/api/oauth/cursor/poll") {
+    const connection = {
+      ID: "conn-provider-cursor-oauth",
+      Provider: "cursor",
+      Name: "Cursor OAuth e2e",
+      AuthType: "oauth",
+      IsActive: true,
+      AccountID: null,
+      Email: null,
+      BackoffLevel: 0,
+      CreatedAt: "2026-06-04T11:00:00Z",
+      UpdatedAt: "2026-06-04T11:00:00Z",
+      AccessToken: "cursor-e2e-access",
+      RefreshToken: "cursor-e2e-refresh"
+    };
+    state.connections = [...state.connections, connection];
+    return {
+      status: 200,
+      body: {
+        status: "complete",
+        connection: {
+          id: connection.ID,
+          provider: connection.Provider,
+          name: connection.Name,
+          auth_type: connection.AuthType
+        }
+      }
+    };
+  }
+
   if (method === "DELETE" && path.startsWith("/api/connections/")) {
     const id = decodeURIComponent(path.slice("/api/connections/".length));
     state.connections = state.connections.filter((connection) => connection.ID !== id);
@@ -925,6 +996,24 @@ const providers = [
     list_models: true,
     quota: false,
     public_status: "supported",
+    notes: "E2E fixture"
+  },
+  {
+    id: "cursor",
+    omp_id: "cursor",
+    router9_id: "cursor",
+    bifrost_id: "cursor",
+    auth_types: ["oauth"],
+    refresh: true,
+    registered_adapter: false,
+    public_inference: false,
+    direct_dispatch: false,
+    inference: false,
+    streaming: false,
+    model_catalog: false,
+    list_models: false,
+    quota: false,
+    public_status: "auth_only",
     notes: "E2E fixture"
   },
   {

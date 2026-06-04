@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -74,11 +75,27 @@ func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 		writeError(ctx, fasthttp.StatusBadRequest, "session_id is required")
 		return
 	}
-
-	result, err := flow.Poll(requestContext(ctx), oauth.AuthSession{
+	authSession := oauth.AuthSession{
 		Provider:  flow.ProviderID(),
 		SessionID: sessionID,
-	})
+	}
+	storedSession, err := getOAuthSession(s, sessionID)
+	if err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("oauth session: %v", err))
+		return
+	}
+	if storedSession != nil {
+		if oauth.CanonicalFlowProviderID(oauth.ProviderID(storedSession.Provider)) != flow.ProviderID() {
+			writeError(ctx, fasthttp.StatusBadRequest, "oauth session provider mismatch")
+			return
+		}
+		authSession.SessionID = storedSession.State
+		if storedSession.CodeVerifier != "" {
+			authSession.SessionID = storedSession.State + "." + storedSession.CodeVerifier
+		}
+	}
+
+	result, err := flow.Poll(requestContext(ctx), authSession)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("poll oauth: %v", err))
 		return
@@ -86,7 +103,16 @@ func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 
 	response := oauthPollResponse{Status: result.Status}
 	if result.Token != nil {
-		connection, err := persistOAuthConnection(s, *result.Token, "", runtimeProvider.String())
+		accountLabel := ""
+		if storedSession != nil {
+			consumed, err := consumeOAuthSession(s, sessionID)
+			if err != nil {
+				writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("oauth session: %v", err))
+				return
+			}
+			accountLabel = consumed.AccountLabel
+		}
+		connection, err := persistOAuthConnection(s, *result.Token, accountLabel, runtimeProvider.String())
 		if err != nil {
 			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("persist oauth connection: %v", err))
 			return
@@ -258,6 +284,20 @@ func consumeOAuthSession(s *store.Store, state string) (*store.OAuthSession, err
 		return nil, fmt.Errorf("store unavailable")
 	}
 	return s.ConsumeOAuthSession(state)
+}
+
+func getOAuthSession(s *store.Store, state string) (*store.OAuthSession, error) {
+	if s == nil {
+		return nil, nil
+	}
+	session, err := s.GetOAuthSession(state)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return session, nil
 }
 
 func splitStoredOAuthSession(sessionID string) (string, string) {

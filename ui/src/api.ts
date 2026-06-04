@@ -118,6 +118,11 @@ export type ProviderOAuthConnectionResponse = {
   scopes?: string[];
 };
 
+export type ProviderOAuthPollResponse = {
+  status: "pending" | "complete" | "slow_down" | "expired" | "denied";
+  connection?: ProviderOAuthConnectionResponse;
+};
+
 export type APIKeyResponse = {
   ID: string;
   Name: string;
@@ -381,6 +386,10 @@ export function getProviderOAuthExchangePath(provider: string) {
   return `/api/oauth/${encodeURIComponent(provider)}/exchange`;
 }
 
+export function getProviderOAuthPollPath(provider: string, sessionID: string) {
+  return `/api/oauth/${encodeURIComponent(provider)}/poll?session_id=${encodeURIComponent(sessionID)}`;
+}
+
 export function getApiKeysPath() {
   return apiPaths.apiKeys;
 }
@@ -515,6 +524,10 @@ export function exchangeProviderOAuth(provider: string, state: string, code: str
     method: "POST",
     body: { state, code }
   });
+}
+
+export function pollProviderOAuth(provider: string, sessionID: string) {
+  return apiFetch<ProviderOAuthPollResponse>(getProviderOAuthPollPath(provider, sessionID), { method: "GET" });
 }
 
 export function listAPIKeys() {

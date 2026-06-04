@@ -158,6 +158,63 @@ func TestOAuthPollAcceptsGitHubAlias(t *testing.T) {
 	}
 }
 
+func TestOAuthPollUsesStoredVerifierAndAccountLabel(t *testing.T) {
+	flow := &fakeOAuthFlow{provider: oauth.ProviderID("cursor")}
+	flow.startSession = oauth.AuthSession{
+		Provider:  flow.ProviderID(),
+		AuthURL:   "https://cursor.example/loginDeepControl?uuid=cursor-state",
+		SessionID: "cursor-state.cursor-verifier",
+	}
+	flow.pollResult = oauth.PollResult{
+		Status: oauth.PollStatusComplete,
+		Token: &oauth.TokenResult{
+			Provider:     flow.ProviderID(),
+			AccessToken:  "cursor-access-token",
+			RefreshToken: "cursor-refresh-token",
+			TokenType:    "Bearer",
+		},
+	}
+	s := openHandlerTestStore(t)
+	startCtx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/cursor/authorize", []byte(`{"account_label":"cursor-work"}`))
+
+	OAuthStart(startCtx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if startCtx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("start status = %d, want 200; body=%s", startCtx.Response.StatusCode(), startCtx.Response.Body())
+	}
+	var session oauth.AuthSession
+	decodeOAuthBody(t, startCtx, &session)
+	if session.SessionID != "cursor-state" {
+		t.Fatalf("public session id = %q, want cursor-state", session.SessionID)
+	}
+	if strings.Contains(string(startCtx.Response.Body()), "cursor-verifier") {
+		t.Fatalf("response leaked verifier: %s", startCtx.Response.Body())
+	}
+
+	pollCtx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/cursor/poll?session_id=cursor-state", nil)
+	OAuthPoll(pollCtx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if pollCtx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("poll status = %d, want 200; body=%s", pollCtx.Response.StatusCode(), pollCtx.Response.Body())
+	}
+	if flow.polledSession.SessionID != "cursor-state.cursor-verifier" {
+		t.Fatalf("polled session id = %q, want stored verifier restored", flow.polledSession.SessionID)
+	}
+	if strings.Contains(string(pollCtx.Response.Body()), "cursor-access-token") || strings.Contains(string(pollCtx.Response.Body()), "cursor-refresh-token") {
+		t.Fatalf("poll response leaked token material: %s", pollCtx.Response.Body())
+	}
+	connections, err := s.GetConnections("cursor")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(connections) != 1 || connections[0].Name != "cursor-work" {
+		t.Fatalf("connections = %+v, want cursor-work connection", connections)
+	}
+	if _, err := s.ConsumeOAuthSession("cursor-state"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("session should be consumed after complete poll, err = %v", err)
+	}
+}
+
 func TestOAuthStartStoresCallbackSessionWithoutVerifierLeak(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("anthropic")}
 	flowSessionID := "state-123.verifier-secret"

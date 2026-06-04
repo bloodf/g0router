@@ -12,6 +12,7 @@ import {
   getMcpServersPath,
   getMcpToolsPath,
   getProviderModelsPath,
+  getProviderOAuthPollPath,
   getProvidersPath,
   getPricingPath,
   getQuotaPath,
@@ -33,6 +34,7 @@ describe("api path helpers", () => {
   it("matches the management API contract", () => {
     expect(getProvidersPath()).toBe("/api/providers");
     expect(getProviderModelsPath("github/copilot")).toBe("/api/providers/github%2Fcopilot/models");
+    expect(getProviderOAuthPollPath("github/copilot", "state.value")).toBe("/api/oauth/github%2Fcopilot/poll?session_id=state.value");
     expect(getConnectionsPath()).toBe("/api/connections");
     expect(getSettingsPath()).toBe("/api/settings");
     expect(getApiKeysPath()).toBe("/api/keys");

@@ -295,6 +295,74 @@ describe("ProvidersPage", () => {
     expect(screen.queryByText(/returned-access-token|returned-refresh-token|callback-code/i)).not.toBeInTheDocument();
   });
 
+  it("polls device-style provider OAuth, reloads the redacted connection, and does not render secrets", async () => {
+    const connections: unknown[] = [];
+    const cursorProvider = { ...providerEntry, id: "cursor", public_status: "auth_only", auth_types: ["oauth"] };
+    const fetch = vi.fn(async (path: string, options?: RequestInit) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [cursorProvider] });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: connections });
+      }
+      if (path === "/api/oauth/cursor/authorize" && options?.method === "POST") {
+        return jsonResponse({
+          provider: "cursor",
+          auth_url: "https://cursor.example/loginDeepControl?uuid=cursor-session",
+          session_id: "cursor-session",
+          user_code: "cursor-session",
+          verification: "https://cursor.example/loginDeepControl?uuid=cursor-session",
+          poll_interval: 1,
+          access_token: "should-not-render",
+          refresh_token: "should-not-render"
+        });
+      }
+      if (path === "/api/oauth/cursor/poll?session_id=cursor-session" && options?.method === "GET") {
+        connections.push({
+          ID: "conn-cursor",
+          Provider: "cursor",
+          Name: "Cursor OAuth",
+          AuthType: "oauth",
+          IsActive: true,
+          AccountID: null,
+          Email: null,
+          BackoffLevel: 0,
+          CreatedAt: "2026-06-04T00:00:00Z",
+          UpdatedAt: "2026-06-04T00:00:00Z",
+          AccessToken: "returned-cursor-access-token",
+          RefreshToken: "returned-cursor-refresh-token"
+        });
+        return jsonResponse({
+          status: "complete",
+          connection: {
+            id: "conn-cursor",
+            provider: "cursor",
+            name: "Cursor OAuth",
+            auth_type: "oauth"
+          }
+        });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    await screen.findByRole("combobox", { name: "OAuth provider" });
+    fireEvent.change(screen.getByLabelText("OAuth account label"), { target: { value: "Cursor OAuth" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start OAuth" }));
+    await screen.findByRole("link", { name: "Open authorization URL" });
+    expect(screen.getByText("Device code: cursor-session")).toBeInTheDocument();
+    expect(screen.getByText("Poll interval: 1s")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Poll OAuth" }));
+
+    expect(await screen.findByText("OAuth connected Cursor OAuth")).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /Cursor OAuth cursor local oauth active/i })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith("/api/oauth/cursor/poll?session_id=cursor-session", expect.objectContaining({ method: "GET" }));
+    expect(screen.queryByText(/should-not-render|returned-cursor-access-token|returned-cursor-refresh-token/i)).not.toBeInTheDocument();
+  });
+
   it("handles provider OAuth exchange failures without leaking callback secrets", async () => {
     const fetch = vi.fn(async (path: string, options?: RequestInit) => {
       if (path === "/api/providers") {
