@@ -451,7 +451,7 @@ tasks:
     name: "Bind Vertex auth to Gemini OAuth flow"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "4fc4f27"
     files_owned:
       - api/handlers/oauth.go
       - api/handlers/oauth_test.go
