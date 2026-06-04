@@ -60,6 +60,10 @@ export function CombosPage() {
   }
 
   async function handleDelete(combo: ComboResponse) {
+    if (!window.confirm(`Delete combo ${combo.Name}?`)) {
+      return;
+    }
+
     setMutationError(null);
     setDeletingID(combo.ID);
     try {

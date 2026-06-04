@@ -119,12 +119,15 @@ describe("EndpointPage", () => {
       throw new Error(`unexpected path ${path}`);
     });
     vi.stubGlobal("fetch", fetch);
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
 
     render(<EndpointPage />);
 
     await screen.findByRole("row", { name: /local-admin/i });
     fireEvent.click(screen.getByRole("button", { name: "Delete local-admin" }));
 
+    expect(confirm).toHaveBeenCalledWith("Delete API key local-admin?");
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith("/api/keys/key-1", expect.objectContaining({ method: "DELETE" }));
     });

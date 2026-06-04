@@ -17,6 +17,7 @@ export function EndpointPage() {
   const [keyName, setKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState<CreateAPIKeyResponse | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [copiedEndpoint, setCopiedEndpoint] = useState("");
   const [creating, setCreating] = useState(false);
   const [deletingID, setDeletingID] = useState<string | null>(null);
 
@@ -60,6 +61,10 @@ export function EndpointPage() {
   }
 
   async function handleDelete(key: APIKeyResponse) {
+    if (!window.confirm(`Delete API key ${key.Name}?`)) {
+      return;
+    }
+
     setDeletingID(key.ID);
     setActionError(null);
     setCreatedKey(null);
@@ -78,8 +83,42 @@ export function EndpointPage() {
     }
   }
 
+  async function handleCopyEndpoint(path: string) {
+    const endpoint = `http://127.0.0.1:8080${path}`;
+    await navigator.clipboard.writeText(endpoint);
+    setCopiedEndpoint(endpoint);
+  }
+
   return (
     <Panel title="Endpoint controls" description="API key, request transformation, and endpoint protection controls.">
+      <div className="mb-5 rounded-md border border-zinc-200 p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-zinc-700">OpenAI-compatible endpoints</h4>
+            <p className="mt-1 text-sm text-zinc-500">Use these local URLs in OpenAI-compatible clients.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700"
+              type="button"
+              onClick={() => void handleCopyEndpoint("/v1/chat/completions")}
+            >
+              Copy chat completions endpoint
+            </button>
+            <button
+              className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700"
+              type="button"
+              onClick={() => void handleCopyEndpoint("/v1/models")}
+            >
+              Copy models endpoint
+            </button>
+          </div>
+        </div>
+        {copiedEndpoint ? (
+          <p className="mt-3 text-sm font-semibold text-emerald-700">Endpoint copied</p>
+        ) : null}
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="min-w-0">
           <div className="mb-3 flex items-center justify-between gap-3">

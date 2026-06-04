@@ -60,6 +60,10 @@ export function AliasesPage() {
   }
 
   async function handleDelete(alias: ModelAliasResponse) {
+    if (!window.confirm(`Delete alias ${alias.Alias}?`)) {
+      return;
+    }
+
     setMutationError(null);
     setBusyAlias(alias.Alias);
     try {

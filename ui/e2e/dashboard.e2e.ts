@@ -89,7 +89,9 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("New gateway key")).toBeVisible();
     await expect(page.getByText("g0r_e2e_created_secret")).toBeVisible();
     await page.getByRole("button", { name: "Dismiss" }).click();
-    await page.getByRole("button", { name: "Delete automation-client" }).click();
+    await clickWithConfirm(page, "Delete API key automation-client?", () =>
+      page.getByRole("button", { name: "Delete automation-client" }).click()
+    );
     await expect(page.getByRole("table", { name: "API keys" })).not.toContainText("automation-client");
 
     await navigateTo(page, "Combos");
@@ -98,7 +100,9 @@ test.describe("dashboard control plane", () => {
     await page.getByLabel("Step model").fill("gpt-5-mini");
     await page.getByRole("button", { name: "Create combo" }).click();
     await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("fast-fallback");
-    await page.getByRole("button", { name: "Delete fast-fallback" }).click();
+    await clickWithConfirm(page, "Delete combo fast-fallback?", () =>
+      page.getByRole("button", { name: "Delete fast-fallback" }).click()
+    );
     await expect(page.getByRole("table", { name: "Combo routes" })).not.toContainText("fast-fallback");
 
     await navigateTo(page, "Aliases");
@@ -107,7 +111,7 @@ test.describe("dashboard control plane", () => {
     await page.getByRole("textbox", { exact: true, name: "Model" }).fill("llama-3.3-70b-versatile");
     await page.getByRole("button", { name: "Create alias" }).click();
     await expect(page.getByRole("table", { name: "Model aliases" })).toContainText("cheap");
-    await page.getByRole("button", { name: "Delete cheap" }).click();
+    await clickWithConfirm(page, "Delete alias cheap?", () => page.getByRole("button", { name: "Delete cheap" }).click());
     await expect(page.getByRole("table", { name: "Model aliases" })).not.toContainText("cheap");
 
     await navigateTo(page, "Pricing");
@@ -117,7 +121,9 @@ test.describe("dashboard control plane", () => {
     await page.getByLabel("Output cost per token").fill("0.000015");
     await page.getByRole("button", { name: "Create override" }).click();
     await expect(page.getByRole("table", { name: "Pricing overrides" })).toContainText("claude-sonnet");
-    await page.getByRole("button", { name: "Delete anthropic claude-sonnet" }).click();
+    await clickWithConfirm(page, "Delete pricing override anthropic/claude-sonnet?", () =>
+      page.getByRole("button", { name: "Delete anthropic claude-sonnet" }).click()
+    );
     await expect(page.getByRole("table", { name: "Pricing overrides" })).not.toContainText("claude-sonnet");
 
     await navigateTo(page, "MCP");
@@ -140,6 +146,68 @@ test.describe("dashboard control plane", () => {
     await page.getByRole("button", { name: "Save settings" }).click();
     await expect(page.getByText("Settings saved")).toBeVisible();
     await expect(page.getByLabel("Proxy URL")).toHaveValue("http://127.0.0.1:9090");
+  });
+
+  test("handles endpoint copy, destructive cancellation, and mutation failure states", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:5173" });
+    await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "Endpoint");
+    await page.getByRole("button", { name: "Copy chat completions endpoint" }).click();
+    await expect(page.getByText("Endpoint copied")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("http://127.0.0.1:8080/v1/chat/completions");
+
+    await page.getByLabel("Key name").fill("temporary-client");
+    await page.getByRole("button", { name: "Create key" }).click();
+    await page.getByRole("button", { name: "Dismiss" }).click();
+    await clickWithConfirm(page, "Delete API key temporary-client?", () =>
+      page.getByRole("button", { name: "Delete temporary-client" }).click(), "dismiss"
+    );
+    await expect(page.getByRole("table", { name: "API keys" })).toContainText("temporary-client");
+
+    await mockAPI(page, { mode: "mutation-failure" });
+    await page.goto("/");
+
+    await navigateTo(page, "Endpoint");
+    await page.getByLabel("Key name").fill("broken-client");
+    await page.getByRole("button", { name: "Create key" }).click();
+    await expect(page.getByText("API key action failed")).toBeVisible();
+    await expect(page.getByText("forced mutation failure")).toBeVisible();
+
+    await navigateTo(page, "Aliases");
+    await page.getByRole("textbox", { exact: true, name: "Alias" }).fill("broken");
+    await page.getByRole("textbox", { exact: true, name: "Provider" }).fill("openai");
+    await page.getByRole("textbox", { exact: true, name: "Model" }).fill("gpt-5-mini");
+    await page.getByRole("button", { name: "Create alias" }).click();
+    await expect(page.getByText("Could not change alias")).toBeVisible();
+
+    await navigateTo(page, "Combos");
+    await page.getByLabel("Combo name").fill("broken-combo");
+    await page.getByLabel("Step provider").fill("openai");
+    await page.getByLabel("Step model").fill("gpt-5-mini");
+    await page.getByRole("button", { name: "Create combo" }).click();
+    await expect(page.getByText("Could not change combo")).toBeVisible();
+
+    await navigateTo(page, "Pricing");
+    await page.getByRole("textbox", { exact: true, name: "Provider" }).fill("openai");
+    await page.getByRole("textbox", { exact: true, name: "Model" }).fill("gpt-5-mini");
+    await page.getByLabel("Input cost per token").fill("0.000001");
+    await page.getByLabel("Output cost per token").fill("0.000002");
+    await page.getByRole("button", { name: "Create override" }).click();
+    await expect(page.getByText("Could not change pricing")).toBeVisible();
+
+    await navigateTo(page, "MCP");
+    await page.getByLabel("Instance name").fill("broken-mcp");
+    await page.getByLabel("Server key").fill("broken");
+    await page.getByRole("textbox", { exact: true, name: "URL" }).fill("https://mcp.example.test");
+    await page.getByRole("button", { name: "Create instance" }).click();
+    await expect(page.getByText("forced mutation failure")).toBeVisible();
+
+    await navigateTo(page, "Settings");
+    await page.getByLabel("Proxy URL").fill("http://127.0.0.1:9091");
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect(page.getByText("Could not save settings")).toBeVisible();
   });
 
   test("renders empty states for every dashboard section with mocked API data", async ({ page }) => {
@@ -209,7 +277,7 @@ async function navigateTo(page: Page, label: string) {
   await page.getByRole("button", { name: label }).click();
 }
 
-type MockMode = "normal" | "empty" | "auth-expired";
+type MockMode = "normal" | "empty" | "auth-expired" | "mutation-failure";
 
 async function mockAPI(page: Page, options: { mode?: MockMode } = {}) {
   const apiRequests: RecordedAPIRequest[] = [];
@@ -223,6 +291,7 @@ async function mockAPI(page: Page, options: { mode?: MockMode } = {}) {
     settings: { ...settings }
   };
 
+  await page.unroute("**/*").catch(() => undefined);
   await page.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -260,6 +329,10 @@ function recordAPIRequest(request: Request, url: URL): RecordedAPIRequest {
 function apiResponse(state: MockAPIState, path: string, method: string, body: unknown, mode: MockMode): MockAPIResponse {
   if (mode === "auth-expired") {
     return { status: 401, body: { error: "control-plane auth required" } };
+  }
+
+  if (mode === "mutation-failure" && method !== "GET") {
+    return { status: 500, body: { error: "forced mutation failure" } };
   }
 
   if (mode === "empty" && method === "GET") {
@@ -422,6 +495,19 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     default:
       return { status: 404, body: { error: `No E2E API fixture for ${path}` } };
   }
+}
+
+async function clickWithConfirm(page: Page, message: string, click: () => Promise<unknown>, action: "accept" | "dismiss" = "accept") {
+  const dialogPromise = page.waitForEvent("dialog");
+  const clickPromise = click();
+  const dialog = await dialogPromise;
+  expect(dialog.message()).toBe(message);
+  if (action === "dismiss") {
+    await dialog.dismiss();
+  } else {
+    await dialog.accept();
+  }
+  await clickPromise;
 }
 
 function emptyAPIResponse(path: string): MockAPIResponse {

@@ -53,6 +53,8 @@ describe("PricingPage", () => {
       throw new Error(`unexpected ${method} ${path}`);
     });
     vi.stubGlobal("fetch", fetch);
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
 
     render(<PricingPage />);
 
@@ -80,6 +82,7 @@ describe("PricingPage", () => {
     const row = await screen.findByRole("row", { name: /anthropic claude-sonnet/i });
     fireEvent.click(within(row).getByRole("button", { name: "Delete anthropic claude-sonnet" }));
 
+    expect(confirm).toHaveBeenCalledWith("Delete pricing override anthropic/claude-sonnet?");
     await waitFor(() => {
       expect(fetch).toHaveBeenCalledWith(`${getPricingPath()}/anthropic/claude-sonnet`, expect.objectContaining({ method: "DELETE" }));
     });

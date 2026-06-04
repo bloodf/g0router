@@ -62,6 +62,10 @@ export function PricingPage() {
   }
 
   async function handleDelete(override: PricingOverrideResponse) {
+    if (!window.confirm(`Delete pricing override ${override.Provider}/${override.Model}?`)) {
+      return;
+    }
+
     setMutationError(null);
     setBusyKey(rowKey(override.Provider, override.Model));
     try {
