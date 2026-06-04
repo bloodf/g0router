@@ -29,7 +29,7 @@ Check:
 - Workflow status is accurate for Wave 8.AM.
 
 Run gates:
-- `go test ./internal/mcp -run 'TestHTTPLauncherStoresStreamableSessionID|TestHTTPTransportStreamableInitializeSendsClientInfo|TestStreamableHTTPClientListsAndCallsTools' -count=1`
+- `go test ./internal/mcp -run 'TestHTTPLauncherStoresStreamableSessionID|TestStreamableHTTPClientListsAndCallsTools' -count=1`
 - `go test ./internal/mcp -count=1`
 - `go test ./... -count=1`
 - `go vet ./...`

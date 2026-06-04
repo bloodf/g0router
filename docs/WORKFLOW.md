@@ -1196,12 +1196,12 @@ tasks:
 wave: "8.AM"
 status: DONE
 max_agents: 1
-gate: "go test ./internal/mcp -run 'TestHTTPLauncherStoresStreamableSessionID|TestHTTPTransportStreamableInitializeSendsClientInfo|TestStreamableHTTPClientListsAndCallsTools' -count=1 && go test ./internal/mcp -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+gate: "go test ./internal/mcp -run 'TestHTTPLauncherStoresStreamableSessionID|TestStreamableHTTPClientListsAndCallsTools' -count=1 && go test ./internal/mcp -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
 completed_at: "2026-06-04T12:40:00Z"
 evaluator_prompt: "docs/evaluations/wave-8AM-evaluator-prompt.md"
-evaluation: "PENDING"
+evaluation: "PASS external evaluator thread 019e9294-e5ff-75c1-8d66-1f3474d97ff5; follow-up docs removed nonexistent focused test name"
 gate_results:
-  - "go test ./internal/mcp -run 'TestHTTPLauncherStoresStreamableSessionID|TestHTTPTransportStreamableInitializeSendsClientInfo|TestStreamableHTTPClientListsAndCallsTools' -count=1: PASS"
+  - "go test ./internal/mcp -run 'TestHTTPLauncherStoresStreamableSessionID|TestStreamableHTTPClientListsAndCallsTools' -count=1: PASS"
   - "go test ./internal/mcp -count=1: PASS"
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
