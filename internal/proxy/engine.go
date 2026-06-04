@@ -581,6 +581,7 @@ func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
 		providers.ProviderLMStudio,
 		providers.ProviderQianfan,
 		providers.ProviderVLLM,
+		providers.ProviderXiaomi,
 		providers.ProviderZhipu:
 		return modelRoute{Provider: provider, Model: upstreamModel}, true
 	default:

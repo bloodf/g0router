@@ -24,16 +24,22 @@ const (
 )
 
 type AnthropicProvider struct {
+	name         providers.ModelProvider
 	baseURL      string
 	client       *fasthttp.Client
 	streamClient *http.Client
 }
 
 func New(baseURL string) *AnthropicProvider {
+	return NewForProvider(providers.ProviderAnthropic, baseURL)
+}
+
+func NewForProvider(name providers.ModelProvider, baseURL string) *AnthropicProvider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
 	return &AnthropicProvider{
+		name:         name,
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
 		streamClient: &http.Client{},
@@ -41,7 +47,7 @@ func New(baseURL string) *AnthropicProvider {
 }
 
 func (p *AnthropicProvider) Name() providers.ModelProvider {
-	return providers.ProviderAnthropic
+	return p.name
 }
 
 func (p *AnthropicProvider) ChatCompletion(ctx context.Context, key providers.Key, req *providers.ChatRequest) (*providers.ChatResponse, error) {
@@ -136,8 +142,8 @@ func (p *AnthropicProvider) ListModels(ctx context.Context, key providers.Key) (
 			ID:       model.ID,
 			Object:   model.Type,
 			Created:  parseCreatedAt(model.CreatedAt),
-			OwnedBy:  "anthropic",
-			Provider: providers.ProviderAnthropic,
+			OwnedBy:  p.name.String(),
+			Provider: p.name,
 		})
 	}
 	return models, nil

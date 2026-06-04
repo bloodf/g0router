@@ -78,7 +78,7 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 
 func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kimi", "litellm", "lm-studio", "qianfan", "vllm", "zhipu"} {
+	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kimi", "litellm", "lm-studio", "qianfan", "vllm", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -188,6 +188,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"vertex":                true,
 		"vllm":                  true,
 		"xai":                   true,
+		"xiaomi":                true,
 		"zhipu":                 true,
 	}
 	if len(ids) != len(want) {
@@ -214,7 +215,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "zhipu"} {
+	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -225,13 +226,13 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
 			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
 		}
-		if id == "alibaba" || id == "azure" || id == "cloudflare-ai-gateway" || id == "github-copilot" || id == "kimi" || id == "litellm" || id == "lm-studio" || id == "qianfan" || id == "vllm" || id == "zhipu" {
+		if id == "alibaba" || id == "azure" || id == "cloudflare-ai-gateway" || id == "github-copilot" || id == "kimi" || id == "litellm" || id == "lm-studio" || id == "qianfan" || id == "vllm" || id == "xiaomi" || id == "zhipu" {
 			if entry.ModelCatalog {
 				t.Fatalf("%s should not claim static model catalog for deployment-defined routing: %+v", id, entry)
 			}
-			if id == "cloudflare-ai-gateway" {
+			if id == "cloudflare-ai-gateway" || id == "xiaomi" {
 				if entry.ListModels {
-					t.Fatalf("%s should not claim model listing until Cloudflare REST model-list support is implemented: %+v", id, entry)
+					t.Fatalf("%s should not claim model listing until provider-specific model-list support is implemented: %+v", id, entry)
 				}
 			} else if !entry.ListModels {
 				t.Fatalf("%s should expose upstream list models/deployments: %+v", id, entry)

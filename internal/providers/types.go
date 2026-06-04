@@ -39,6 +39,7 @@ const (
 	ProviderAlibaba       ModelProvider = "alibaba"
 	ProviderKimi          ModelProvider = "kimi"
 	ProviderQianfan       ModelProvider = "qianfan"
+	ProviderXiaomi        ModelProvider = "xiaomi"
 	ProviderZhipu         ModelProvider = "zhipu"
 )
 

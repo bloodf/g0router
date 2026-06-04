@@ -67,7 +67,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		dynamicRoutableProvider("kimi", "kimi", true, true, true, false, "api_key", "oauth"),
 		authOnlyProvider("kiro", "kiro", true, "OAuth is implemented, but no Kiro inference adapter is wired."),
 		catalogRoutableProvider("xai", "xai", true, true, true, false, "api_key", "oauth"),
-		authOnlyProvider("xiaomi", "xiaomi", true, "OAuth is implemented, but no Xiaomi inference adapter is wired."),
+		xiaomiProvider(),
 		dynamicRoutableProvider("alibaba", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("minimax", "", false, true, true, false, "api_key"),
 		dynamicRoutableProvider("zhipu", "", false, true, true, false, "api_key"),
@@ -187,6 +187,12 @@ func dynamicRoutableProvider(id string, oauthProvider string, refresh, streaming
 func cloudflareGatewayProvider() ProviderMatrixEntry {
 	entry := dynamicRoutableProvider("cloudflare-ai-gateway", "", false, true, false, false, "api_key")
 	entry.Notes = "Public direct dispatch works through provider-qualified Cloudflare REST API model IDs when the stored connection includes account_id; no static model catalog or quota fetcher is implemented."
+	return entry
+}
+
+func xiaomiProvider() ProviderMatrixEntry {
+	entry := dynamicRoutableProvider("xiaomi", "xiaomi", true, true, false, false, "api_key", "oauth")
+	entry.Notes = "Public direct dispatch works through provider-qualified Xiaomi Anthropic-compatible model IDs; token-plan keys use the OMP token-plan endpoint, and no static model catalog or quota fetcher is implemented."
 	return entry
 }
 

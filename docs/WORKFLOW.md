@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BK"
-last_updated: "2026-06-05T00:31:00Z"
+current_wave: "8.BL"
+last_updated: "2026-06-05T00:49:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2325,6 +2325,56 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BK removes the Kimi `auth_only` runtime gap. Kimi now registers through the shared OpenAI-compatible adapter at `https://api.moonshot.ai/v1`, appears in public provider/API/CLI surfaces, and routes provider-qualified models such as `kimi/kimi-k2.6` upstream as `kimi-k2.6`. Static catalog, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
+
+---
+
+### Wave 8.BL — Xiaomi Anthropic-Compatible Runtime Routing
+
+```yaml
+wave: "8.BL"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/xiaomi ./internal/provider ./internal/proxy ./internal/cli -run 'TestProviderRoutesStandardKeysToXiaomiAnthropicEndpoint|TestProviderRoutesTokenPlanKeysToTokenPlanEndpoint|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T00:49:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BL-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused Xiaomi provider/matrix/proxy/CLI tests: RED before implementation, xiaomi provider package was undefined, matrix remained auth_only, dynamic route returned provider not found, and CLI did not list xiaomi"
+  - "focused Xiaomi provider/matrix/proxy/CLI tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BL.1"
+    name: "Promote Xiaomi to OMP-style Anthropic-compatible dynamic runtime routing"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/anthropic/anthropic.go
+      - internal/providers/xiaomi/xiaomi.go
+      - internal/providers/xiaomi/xiaomi_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - docs/PROVIDERS.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BL-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BL removes the Xiaomi `auth_only` runtime gap. Xiaomi now registers as an Anthropic-compatible runtime provider, routes provider-qualified models such as `xiaomi/claude-sonnet-4` upstream as `claude-sonnet-4`, and selects the OMP token-plan endpoint for `tp-` keys. Static catalog, model listing, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
 
 ---
 
