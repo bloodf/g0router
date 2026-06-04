@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	providercred "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/provider/oauth"
@@ -58,6 +59,8 @@ func newAuthListCommand() *cobra.Command {
 func newAuthLoginCommand(use string, dataDir *string, flowFactory oauthFlowFactory) *cobra.Command {
 	var device bool
 	var key bool
+	var apiKeyValue string
+	var connectionName string
 
 	cmd := &cobra.Command{
 		Use:   use + " <provider>",
@@ -68,7 +71,14 @@ func newAuthLoginCommand(use string, dataDir *string, flowFactory oauthFlowFacto
 				return fmt.Errorf("choose either --device or --key")
 			}
 			if key {
-				fmt.Fprintf(cmd.OutOrStdout(), "API key login for %s: run g0router keys add <name> or add credentials in the web UI.\n", args[0])
+				if apiKeyValue == "" {
+					fmt.Fprintf(cmd.OutOrStdout(), "API key login for %s: rerun with --api-key or add provider credentials in the web UI.\n", args[0])
+					return nil
+				}
+				if err := persistAPIKeyLogin(*dataDir, args[0], connectionName, apiKeyValue); err != nil {
+					return err
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "stored API key connection for %s\n", providercred.CanonicalProviderID(args[0]))
 				return nil
 			}
 
@@ -97,7 +107,50 @@ func newAuthLoginCommand(use string, dataDir *string, flowFactory oauthFlowFacto
 	}
 	cmd.Flags().BoolVar(&device, "device", false, "start device authorization flow")
 	cmd.Flags().BoolVar(&key, "key", false, "start API key credential flow")
+	cmd.Flags().StringVar(&apiKeyValue, "api-key", "", "provider API key to store with --key")
+	cmd.Flags().StringVar(&connectionName, "name", "", "connection name to store with --key")
 	return cmd
+}
+
+func persistAPIKeyLogin(dataDir, provider, name, apiKeyValue string) error {
+	canonicalProvider := providercred.CanonicalProviderID(provider)
+	entry, ok := providercred.ProviderMatrix().Provider(canonicalProvider)
+	if !ok || !authTypesInclude(entry.AuthTypes, "api_key") {
+		return fmt.Errorf("provider %s does not support API-key auth", canonicalProvider)
+	}
+	if strings.TrimSpace(apiKeyValue) == "" {
+		return fmt.Errorf("api key is required")
+	}
+	if strings.TrimSpace(name) == "" {
+		name = canonicalProvider
+	}
+
+	s, err := openCLIStore(dataDir)
+	if err != nil {
+		return err
+	}
+	defer s.Close()
+
+	conn := &store.Connection{
+		Provider: canonicalProvider,
+		Name:     name,
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   &apiKeyValue,
+		IsActive: true,
+	}
+	if err := s.CreateConnection(conn); err != nil {
+		return fmt.Errorf("create api key connection: %w", err)
+	}
+	return nil
+}
+
+func authTypesInclude(authTypes []string, want string) bool {
+	for _, authType := range authTypes {
+		if authType == want {
+			return true
+		}
+	}
+	return false
 }
 
 func completeDeviceLogin(ctx context.Context, dataDir string, flow oauth.Flow, session oauth.AuthSession) (oauth.PollStatus, error) {
@@ -178,6 +231,11 @@ func supportedProviderNames() []string {
 	seen := make(map[string]bool, len(oauthFlowFactories()))
 	for _, factory := range oauthFlowFactories() {
 		seen[factory().ProviderID().String()] = true
+	}
+	for _, entry := range providercred.ProviderMatrix().Entries() {
+		if len(entry.AuthTypes) > 0 {
+			seen[entry.G0RouterID] = true
+		}
 	}
 	names := make([]string, 0, len(seen))
 	for name := range seen {

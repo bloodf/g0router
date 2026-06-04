@@ -63,7 +63,7 @@ func TestAuthListShowsSupportedProviders(t *testing.T) {
 	for _, provider := range providers {
 		providerSet[provider] = true
 	}
-	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "minimax"} {
+	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "minimax", "qwen", "openrouter"} {
 		if !providerSet[want] {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}
@@ -154,6 +154,61 @@ func TestLoginCommandAcceptsAdvertisedFlags(t *testing.T) {
 	}
 	if got := out.String(); !strings.Contains(got, "API key") || strings.Contains(got, "Open this URL") {
 		t.Fatalf("key login output = %q, want api key flow", got)
+	}
+}
+
+func TestLoginCommandPersistsAPIKeyConnection(t *testing.T) {
+	dataDir := t.TempDir()
+	cmd := newRootCommand(rootConfig{
+		Version: "test",
+		Serve:   func(ctx context.Context, config serveConfig) error { return nil },
+	})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--data-dir", dataDir, "login", "qwen", "--key", "--api-key", "qwen-secret", "--name", "work"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if strings.Contains(out.String(), "qwen-secret") {
+		t.Fatalf("login output leaked provider key: %s", out.String())
+	}
+	if !strings.Contains(out.String(), "stored API key connection for qwen") {
+		t.Fatalf("login output = %q, want stored connection message", out.String())
+	}
+
+	s := openCLIStoreForTest(t, dataDir)
+	defer s.Close()
+	connections, err := s.GetConnections("qwen")
+	if err != nil {
+		t.Fatalf("GetConnections: %v", err)
+	}
+	if len(connections) != 1 {
+		t.Fatalf("qwen connections = %d, want 1", len(connections))
+	}
+	if connections[0].Name != "work" || connections[0].AuthType != store.AuthTypeAPIKey || connections[0].APIKey == nil || *connections[0].APIKey != "qwen-secret" || !connections[0].IsActive {
+		t.Fatalf("qwen connection = %+v, want active named API-key connection", connections[0])
+	}
+}
+
+func TestLoginCommandRejectsAPIKeyForOAuthOnlyProvider(t *testing.T) {
+	dataDir := t.TempDir()
+	cmd := newRootCommand(rootConfig{
+		Version: "test",
+		Serve:   func(ctx context.Context, config serveConfig) error { return nil },
+	})
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--data-dir", dataDir, "login", "cursor", "--key", "--api-key", "cursor-secret"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("execute error is nil")
+	}
+	if !strings.Contains(err.Error(), "provider cursor does not support API-key auth") {
+		t.Fatalf("error = %q, want API-key unsupported message", err.Error())
 	}
 }
 
