@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AD"
-last_updated: "2026-06-04T10:43:03Z"
+current_wave: "8.AE"
+last_updated: "2026-06-04T10:51:03Z"
 last_agent: "orchestrator"
 ```
 
@@ -863,7 +863,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:43:03Z"
 evaluator_prompt: "docs/evaluations/wave-8AD-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e923e-23b6-7b90-a1ba-b41d1a856f42 at commit ed9dca9"
 gate_results:
   - "npm --prefix ui test -- --run App: FAIL before implementation, missing Endpoint Setup label"
   - "npm --prefix ui test -- --run App: PASS"
@@ -894,6 +894,44 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AD aligns the dashboard navigation with the documented `Endpoint Setup` and `Combos/Routing` management page names and proves those exact labels in unit and Playwright E2E coverage.
+
+### Wave 8.AE — MCP OAuth Metadata Discovery
+
+```yaml
+wave: "8.AE"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:51:03Z"
+evaluator_prompt: "docs/evaluations/wave-8AE-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./internal/mcp -run 'TestOAuthEngine(DiscoversTokenEndpointFromAuthorizationServerMetadata|RequiresRealTokenEndpoint)' -count=1: FAIL before implementation, metadata token endpoint unavailable"
+  - "go test ./internal/mcp -run 'TestOAuthEngine(DiscoversTokenEndpointFromAuthorizationServerMetadata|RequiresRealTokenEndpoint|CompletesCallbackForMatchingInstance|RejectsRedirectingTokenEndpointWithoutFollowing)' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AE.1"
+    name: "Discover MCP OAuth token endpoint from authorization server metadata"
+    status: DONE
+    agent: "orchestrator"
+    commit: "60a0e41"
+    files_owned:
+      - internal/mcp/oauth.go
+      - internal/mcp/oauth_test.go
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AE-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AE replaces MCP OAuth token endpoint fabrication for non-`/authorize` flows with read-only authorization-server metadata discovery, while preserving the existing `/authorize` convention and no-redirect token behavior.
 
 ---
 
