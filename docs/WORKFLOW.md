@@ -2337,7 +2337,7 @@ max_agents: 1
 gate: "go test ./internal/providers/xiaomi ./internal/provider ./internal/proxy ./internal/cli -run 'TestProviderRoutesStandardKeysToXiaomiAnthropicEndpoint|TestProviderRoutesTokenPlanKeysToTokenPlanEndpoint|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T00:49:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BL-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e94df-ce53-7bf1-aed2-ff270ccba771 at commit c11b8e4"
 gate_results:
   - "focused Xiaomi provider/matrix/proxy/CLI tests: RED before implementation, xiaomi provider package was undefined, matrix remained auth_only, dynamic route returned provider not found, and CLI did not list xiaomi"
   - "focused Xiaomi provider/matrix/proxy/CLI tests: PASS"
@@ -2349,6 +2349,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e94df-ce53-7bf1-aed2-ff270ccba771: PASS, no blocking findings; workflow pending marker replaced by this record commit"
 
 tasks:
   - id: "8.BL.1"
