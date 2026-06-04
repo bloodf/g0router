@@ -85,6 +85,20 @@ export type ConnectionResponse = {
   UpdatedAt: string;
 };
 
+export type CreateConnectionRequest = {
+  provider: string;
+  name: string;
+  auth_type: "api_key" | "oauth" | "noauth";
+  api_key?: string;
+  is_active: boolean;
+};
+
+export type ConnectionTestResponse = {
+  ok: boolean;
+  provider: string;
+  name: string;
+};
+
 export type APIKeyResponse = {
   ID: string;
   Name: string;
@@ -444,6 +458,18 @@ export function listProviderModels(provider: string) {
 
 export function listConnections() {
   return apiList<ConnectionResponse>(getConnectionsPath());
+}
+
+export function createConnection(request: CreateConnectionRequest) {
+  return apiFetch<ConnectionResponse>(getConnectionsPath(), { method: "POST", body: request });
+}
+
+export function deleteConnection(id: string) {
+  return apiFetch<void>(`${getConnectionsPath()}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function testConnection(id: string) {
+  return apiFetch<ConnectionTestResponse>(`${getConnectionsPath()}/${encodeURIComponent(id)}/test`, { method: "POST" });
 }
 
 export function listAPIKeys() {

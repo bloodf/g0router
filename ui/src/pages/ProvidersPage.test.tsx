@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProvidersPage } from "./ProvidersPage";
 
@@ -110,6 +110,62 @@ describe("ProvidersPage", () => {
     expect(fetch).toHaveBeenCalledWith("/api/providers", expect.objectContaining({ credentials: "same-origin" }));
     expect(fetch).toHaveBeenCalledWith("/api/connections", expect.objectContaining({ credentials: "same-origin" }));
     expect(screen.queryByText(/top-secret|provider-access-token|provider-refresh-token|provider-api-key/i)).not.toBeInTheDocument();
+  });
+
+  it("creates, tests, and deletes API-key connections without rendering secrets", async () => {
+    const connections = [connectionEntry];
+    const fetch = vi.fn(async (path: string, options?: RequestInit) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [providerEntry] });
+      }
+      if (path === "/api/connections" && options?.method === "POST") {
+        expect(options.body).toContain("\"api_key\":\"sk-created-secret\"");
+        connections.push({
+          ...connectionEntry,
+          ID: "conn-created",
+          Provider: "openai",
+          Name: "created",
+          AuthType: "api_key",
+          Email: "",
+          AccountID: ""
+        });
+        return jsonResponse(connections[1], { status: 201 });
+      }
+      if (path === "/api/connections/conn-created/test") {
+        return jsonResponse({ ok: true, provider: "openai", name: "created" });
+      }
+      if (path === "/api/connections/conn-created" && options?.method === "DELETE") {
+        connections.splice(1, 1);
+        return new Response(null, { status: 204 });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: connections });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<ProvidersPage />);
+
+    await screen.findByRole("row", { name: /primary openai/i });
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "openai" } });
+    fireEvent.change(screen.getByLabelText("Connection name"), { target: { value: "created" } });
+    fireEvent.change(screen.getByLabelText("Provider API key"), { target: { value: "sk-created-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add connection" }));
+
+    const createdRow = await screen.findByRole("row", { name: /created openai local api_key active/i });
+    expect(createdRow).toBeInTheDocument();
+    expect(screen.queryByText("sk-created-secret")).not.toBeInTheDocument();
+
+    fireEvent.click(within(createdRow).getByRole("button", { name: "Test created" }));
+    expect(await screen.findByText("created is active")).toBeInTheDocument();
+
+    fireEvent.click(within(createdRow).getByRole("button", { name: "Delete created" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("row", { name: /created openai local api_key active/i })).not.toBeInTheDocument();
+    });
+    expect(window.confirm).toHaveBeenCalledWith("Delete provider connection created?");
   });
 
   it("renders providers with null auth_types from the live provider matrix as none", async () => {

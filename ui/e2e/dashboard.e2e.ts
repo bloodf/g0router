@@ -38,6 +38,7 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Provider contract" })).toContainText("openai");
     await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("OpenAI primary");
+    await expect(page.getByText("e2e-provider-secret")).not.toBeVisible();
 
     await navigateTo(page, "Aliases");
     await expect(page.getByRole("heading", { exact: true, name: "Aliases" })).toBeVisible();
@@ -93,6 +94,20 @@ test.describe("dashboard control plane", () => {
       page.getByRole("button", { name: "Delete automation-client" }).click()
     );
     await expect(page.getByRole("table", { name: "API keys" })).not.toContainText("automation-client");
+
+    await navigateTo(page, "Providers");
+    await page.getByRole("combobox", { name: "Provider" }).selectOption("openai");
+    await page.getByLabel("Connection name").fill("OpenAI e2e");
+    await page.getByLabel("Provider API key").fill("e2e-provider-secret");
+    await page.getByRole("button", { name: "Add connection" }).click();
+    await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("OpenAI e2e");
+    await expect(page.getByText("e2e-provider-secret")).not.toBeVisible();
+    await page.getByRole("button", { name: "Test OpenAI e2e" }).click();
+    await expect(page.getByText("OpenAI e2e is active")).toBeVisible();
+    await clickWithConfirm(page, "Delete provider connection OpenAI e2e?", () =>
+      page.getByRole("button", { name: "Delete OpenAI e2e" }).click()
+    );
+    await expect(page.getByRole("table", { name: "Provider connections" })).not.toContainText("OpenAI e2e");
 
     await navigateTo(page, "Combos");
     await page.getByLabel("Combo name").fill("fast-fallback");
@@ -197,6 +212,13 @@ test.describe("dashboard control plane", () => {
     await page.getByRole("button", { name: "Create override" }).click();
     await expect(page.getByText("Could not change pricing")).toBeVisible();
 
+    await navigateTo(page, "Providers");
+    await page.getByLabel("Connection name").fill("broken-provider");
+    await page.getByLabel("Provider API key").fill("broken-provider-secret");
+    await page.getByRole("button", { name: "Add connection" }).click();
+    await expect(page.getByText("forced mutation failure")).toBeVisible();
+    await expect(page.getByText("broken-provider-secret")).not.toBeVisible();
+
     await navigateTo(page, "MCP");
     await page.getByLabel("Instance name").fill("broken-mcp");
     await page.getByLabel("Server key").fill("broken");
@@ -285,6 +307,7 @@ async function mockAPI(page: Page, options: { mode?: MockMode } = {}) {
   const state = {
     apiKeys: [...apiKeys],
     aliases: [...aliases],
+    connections: [...connections],
     combos: [...combos],
     mcpInstances: [...mcpInstances],
     pricing: [...pricing],
@@ -356,6 +379,34 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
   if (method === "DELETE" && path.startsWith("/api/keys/")) {
     const id = decodeURIComponent(path.slice("/api/keys/".length));
     state.apiKeys = state.apiKeys.filter((key) => key.ID !== id);
+    return { status: 204, body: undefined };
+  }
+
+  if (method === "POST" && path === "/api/connections") {
+    const request = body as { auth_type?: string; is_active?: boolean; name?: string; provider?: string };
+    const connection = {
+      ID: "conn-created",
+      Provider: request.provider ?? "openai",
+      Name: request.name ?? "created-provider",
+      AuthType: request.auth_type ?? "api_key",
+      IsActive: request.is_active ?? true,
+      AccountID: null,
+      Email: null,
+      BackoffLevel: 0,
+      CreatedAt: "2026-06-03T11:00:00Z",
+      UpdatedAt: "2026-06-03T11:00:00Z"
+    };
+    state.connections = [...state.connections, connection];
+    return { status: 201, body: connection };
+  }
+
+  if (method === "POST" && path === "/api/connections/conn-created/test") {
+    return { status: 200, body: { ok: true, provider: "openai", name: "OpenAI e2e" } };
+  }
+
+  if (method === "DELETE" && path.startsWith("/api/connections/")) {
+    const id = decodeURIComponent(path.slice("/api/connections/".length));
+    state.connections = state.connections.filter((connection) => connection.ID !== id);
     return { status: 204, body: undefined };
   }
 
@@ -464,7 +515,7 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     case "/api/providers":
       return { status: 200, body: { data: providers } };
     case "/api/connections":
-      return { status: 200, body: { data: connections } };
+      return { status: 200, body: { data: state.connections } };
     case "/api/keys":
       return { status: 200, body: { data: state.apiKeys } };
     case "/api/aliases":
@@ -539,6 +590,7 @@ function emptyAPIResponse(path: string): MockAPIResponse {
 type MockAPIState = {
   apiKeys: typeof apiKeys;
   aliases: typeof aliases;
+  connections: typeof connections;
   combos: typeof combos;
   mcpInstances: typeof mcpInstances;
   pricing: typeof pricing;

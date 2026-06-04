@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   ApiError,
   asyncError,
+  createConnection,
+  deleteConnection,
   listConnections,
   listProviders,
+  testConnection,
   type AsyncState,
   type ConnectionResponse,
   type ProviderMatrixEntry
@@ -61,14 +64,133 @@ export function ProvidersPage() {
       {state.status === "empty" ? (
         <EmptyState title="No provider records" description="The management API returned no providers or connections." />
       ) : null}
-      {state.status === "success" ? <ProviderTables data={state.data} /> : null}
+      {state.status === "success" ? <ProviderTables data={state.data} onReload={loadProviders} /> : null}
     </Panel>
   );
 }
 
-function ProviderTables({ data }: { data: ProviderData }) {
+function ProviderTables({ data, onReload }: { data: ProviderData; onReload: () => Promise<void> }) {
+  const apiKeyProviders = data.providers.filter((provider) => provider.auth_types?.includes("api_key"));
+  const [provider, setProvider] = useState(apiKeyProviders[0]?.id ?? "");
+  const [name, setName] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [busyConnectionID, setBusyConnectionID] = useState("");
+  const [mutationError, setMutationError] = useState("");
+  const [mutationMessage, setMutationMessage] = useState("");
+
+  const selectedProvider = provider || apiKeyProviders[0]?.id || "";
+
+  async function handleCreateConnection(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProvider || !name.trim() || !apiKey.trim()) {
+      setMutationError("Provider, connection name, and API key are required.");
+      setMutationMessage("");
+      return;
+    }
+    setIsCreating(true);
+    setMutationError("");
+    setMutationMessage("");
+    try {
+      await createConnection({
+        provider: selectedProvider,
+        name: name.trim(),
+        auth_type: "api_key",
+        api_key: apiKey.trim(),
+        is_active: true
+      });
+      setName("");
+      setApiKey("");
+      setMutationMessage(`${name.trim()} was added`);
+      await onReload();
+    } catch (error) {
+      setMutationError(toApiError(error).message);
+    } finally {
+      setIsCreating(false);
+    }
+  }
+
+  async function handleTestConnection(connection: ConnectionResponse) {
+    const label = connection.Name || connection.ID;
+    setBusyConnectionID(connection.ID);
+    setMutationError("");
+    setMutationMessage("");
+    try {
+      const result = await testConnection(connection.ID);
+      setMutationMessage(`${result.name || label} is ${result.ok ? "active" : "inactive"}`);
+    } catch (error) {
+      setMutationError(toApiError(error).message);
+    } finally {
+      setBusyConnectionID("");
+    }
+  }
+
+  async function handleDeleteConnection(connection: ConnectionResponse) {
+    const label = connection.Name || connection.ID;
+    if (!window.confirm(`Delete provider connection ${label}?`)) {
+      return;
+    }
+    setBusyConnectionID(connection.ID);
+    setMutationError("");
+    setMutationMessage("");
+    try {
+      await deleteConnection(connection.ID);
+      setMutationMessage(`${label} was deleted`);
+      await onReload();
+    } catch (error) {
+      setMutationError(toApiError(error).message);
+    } finally {
+      setBusyConnectionID("");
+    }
+  }
+
   return (
     <div className="space-y-5">
+      {apiKeyProviders.length > 0 ? (
+        <form onSubmit={handleCreateConnection} className="grid gap-3 rounded-md border border-zinc-200 bg-zinc-50 p-4 md:grid-cols-[1fr_1fr_1.5fr_auto]">
+          <label className="grid gap-1 text-sm font-medium text-zinc-700">
+            Provider
+            <select
+              value={selectedProvider}
+              onChange={(event) => setProvider(event.target.value)}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
+            >
+              {apiKeyProviders.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-zinc-700">
+            Connection name
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
+              type="text"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-zinc-700">
+            Provider API key
+            <input
+              value={apiKey}
+              onChange={(event) => setApiKey(event.target.value)}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
+              type="password"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={isCreating}
+            className="h-10 self-end rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+          >
+            Add connection
+          </button>
+        </form>
+      ) : null}
+      {mutationMessage ? <p className="text-sm font-medium text-emerald-700">{mutationMessage}</p> : null}
+      {mutationError ? <p className="text-sm font-medium text-red-700">{mutationError}</p> : null}
       <div>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h4 className="text-sm font-semibold text-zinc-700">Provider contract</h4>
@@ -124,6 +246,7 @@ function ProviderTables({ data }: { data: ProviderData }) {
                   <th className="px-4 py-3 font-semibold">Auth</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 font-semibold">Backoff</th>
+                  <th className="px-4 py-3 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200">
@@ -139,6 +262,28 @@ function ProviderTables({ data }: { data: ProviderData }) {
                         <StatusPill tone={connectionStatusTone[status]}>{status}</StatusPill>
                       </td>
                       <td className="px-4 py-3 text-zinc-600">{connection.BackoffLevel}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleTestConnection(connection)}
+                            disabled={busyConnectionID === connection.ID}
+                            className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            aria-label={`Test ${connection.Name || connection.ID}`}
+                          >
+                            Test
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteConnection(connection)}
+                            disabled={busyConnectionID === connection.ID}
+                            className="rounded-md border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 disabled:cursor-not-allowed disabled:text-red-300"
+                            aria-label={`Delete ${connection.Name || connection.ID}`}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
