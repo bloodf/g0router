@@ -675,7 +675,7 @@ tasks:
     name: "Add dedicated dashboard API keys page"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "85c95d5"
     files_owned:
       - ui/src/App.tsx
       - ui/src/App.test.tsx
