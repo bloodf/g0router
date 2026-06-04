@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AC"
-last_updated: "2026-06-04T10:35:19Z"
+current_wave: "8.AD"
+last_updated: "2026-06-04T10:43:03Z"
 last_agent: "orchestrator"
 ```
 
@@ -853,6 +853,47 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AC adds a dedicated Settings/Security dashboard route backed by the real settings API and covers control-plane protection plus request logging controls.
+
+### Wave 8.AD — Dashboard Route Name Reconciliation
+
+```yaml
+wave: "8.AD"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:43:03Z"
+evaluator_prompt: "docs/evaluations/wave-8AD-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "npm --prefix ui test -- --run App: FAIL before implementation, missing Endpoint Setup label"
+  - "npm --prefix ui test -- --run App: PASS"
+  - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
+  - "go test ./... -count=1: PASS after one transient api/TestRequestIDUnique rerun"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AD.1"
+    name: "Align dashboard route names with documented management pages"
+    status: DONE
+    agent: "orchestrator"
+    commit: "e806fe8"
+    files_owned:
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+      - ui/dist/assets/index.js
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AD-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AD aligns the dashboard navigation with the documented `Endpoint Setup` and `Combos/Routing` management page names and proves those exact labels in unit and Playwright E2E coverage.
 
 ---
 
