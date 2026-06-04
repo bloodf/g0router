@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.AY"
-last_updated: "2026-06-04T18:14:41Z"
+last_updated: "2026-06-04T18:27:33Z"
 last_agent: "orchestrator"
 ```
 
@@ -1700,7 +1700,7 @@ max_agents: 1
 gate: "go test ./internal/modelcatalog ./internal/provider ./internal/proxy ./api/handlers ./internal/cli -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T18:14:41Z"
 evaluator_prompt: "docs/evaluations/wave-8AY-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "FAIL external evaluator thread 019e93dc-087a-73e0-866f-846ff956d150 on generated UI artifact drift and untracked ui/test-results; remediated by task 8.AY.2"
 gate_results:
   - "go test ./internal/modelcatalog -run 'TestCatalogRouteForBedrockConverseModel|TestCatalogIncludesRepresentativeWave7IProviderCoverage|TestCatalogHostedModelsHaveExplicitNonZeroRates|TestCatalogOmitsProvidersWithoutDefensibleEmbeddedPricing' -count=1: RED before implementation, Bedrock catalog route and pricing missing"
   - "go test ./internal/provider -run 'TestProviderMatrix.*Bedrock|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport' -count=1: RED before implementation, Bedrock still adapter_only"
@@ -1720,6 +1720,18 @@ gate_results:
   - "npm --prefix ui run build: PASS"
   - "npm --prefix ui run e2e: PASS, 20 tests"
   - "make build: PASS"
+  - "external evaluator thread 019e93dc-087a-73e0-866f-846ff956d150: FAIL because npm/make build rewrote tracked ui/dist assets and Playwright created untracked ui/test-results"
+  - "npm --prefix ui run build: PASS after artifact remediation"
+  - "npm --prefix ui run e2e: PASS after artifact remediation, 20 tests"
+  - "make build: PASS after artifact remediation"
+  - "go test ./internal/modelcatalog -run 'TestCatalogRouteForBedrockConverseModel|TestCatalogIncludesRepresentativeWave7IProviderCoverage|TestCatalogHostedModelsHaveExplicitNonZeroRates|TestCatalogOmitsProvidersWithoutDefensibleEmbeddedPricing' -count=1: PASS after artifact remediation"
+  - "go test ./internal/provider -run 'TestProviderMatrix.*Bedrock|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport' -count=1: PASS after artifact remediation"
+  - "go test ./internal/proxy -run 'TestDispatchUsesCatalogForBedrockConverseModel|TestDispatchUsesBedrockAliasThroughAdapterOnlyInference|TestComboDispatchUsesBedrockAdapterOnlyStep' -count=1: PASS after artifact remediation"
+  - "go test ./api/handlers -run TestProvidersListKnownProviders -count=1: PASS after artifact remediation"
+  - "go test ./internal/cli -run 'TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly' -count=1: PASS after artifact remediation"
+  - "go test ./... -count=1: PASS after artifact remediation"
+  - "git diff --check: PASS after artifact remediation"
+  - "git status --short: only protected local dirt plus intended .gitignore and ui/dist assets before commit"
 
 tasks:
   - id: "8.AY.1"
@@ -1740,9 +1752,18 @@ tasks:
       - docs/PLAN.md
       - docs/ORCHESTRATION.md
       - docs/evaluations/wave-8AY-evaluator-prompt.md
+  - id: "8.AY.2"
+    name: "Resolve evaluator generated UI artifact hygiene failure"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - .gitignore
+      - ui/dist/assets/index.css
+      - ui/dist/assets/index.js
+      - docs/WORKFLOW.md
 ```
 
-**Checkpoint**: Wave 8.AY adds catalog-backed direct dispatch for Bedrock model `anthropic.claude-3-5-haiku-20241022-v1:0` through the existing non-streaming Converse adapter. Bedrock remains non-streaming and quota remains unsupported.
+**Checkpoint**: Wave 8.AY adds catalog-backed direct dispatch for Bedrock model `anthropic.claude-3-5-haiku-20241022-v1:0` through the existing non-streaming Converse adapter. Bedrock remains non-streaming and quota remains unsupported. Evaluator thread `019e93dc-087a-73e0-866f-846ff956d150` found generated UI artifact drift after the required gates; task 8.AY.2 commits regenerated `ui/dist` assets and ignores Playwright `ui/test-results/`.
 
 ---
 
