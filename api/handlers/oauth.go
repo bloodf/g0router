@@ -175,7 +175,7 @@ func exchangeOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flow oauth.Flow, se
 
 	token, err := flow.Exchange(requestContext(ctx), authSession, code)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("exchange oauth: %v", err))
+		writeError(ctx, fasthttp.StatusBadGateway, "oauth exchange failed")
 		return
 	}
 

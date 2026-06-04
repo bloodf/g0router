@@ -240,6 +240,38 @@ func TestOAuthCallbackUsesStoredVerifierAndPersistsConnection(t *testing.T) {
 	}
 }
 
+func TestOAuthCallbackDoesNotLeakExchangeErrorSecrets(t *testing.T) {
+	flow := &fakeOAuthFlow{
+		provider: oauth.ProviderID("anthropic"),
+		exErr: errors.New(`token endpoint returned 400 {"access_token":"leaked-access","refresh_token":"leaked-refresh","Authorization":"Bearer leaked-auth","code":"callback-code"}`),
+	}
+	s := openHandlerTestStore(t)
+	if err := s.CreateOAuthSession(&store.OAuthSession{
+		State:        "callback-state",
+		Provider:     "anthropic",
+		CodeVerifier: "stored-verifier",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	ctx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/callback?state=callback-state&code=callback-code", nil)
+
+	OAuthCallback(ctx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	body := string(ctx.Response.Body())
+	for _, secret := range []string{"leaked-access", "leaked-refresh", "leaked-auth", "callback-code", "access_token", "refresh_token", "Authorization"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("response leaked %q in body: %s", secret, body)
+		}
+	}
+	if !strings.Contains(body, "oauth exchange failed") {
+		t.Fatalf("body = %s, want sanitized exchange failure", body)
+	}
+}
+
 func TestOAuthExchangeUsesJSONBody(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("xai")}
 	s := openHandlerTestStore(t)
