@@ -2050,7 +2050,7 @@ max_agents: 1
 gate: "npm --prefix ui run e2e -- real-server.e2e.ts && npm --prefix ui test -- --run && npm --prefix ui run e2e && npm --prefix ui run build && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && git diff --check"
 completed_at: "2026-06-04T22:05:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BF-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e948a-033d-73e3-9b0a-63646b099d63 at commit 3c30a42"
 gate_results:
   - "npm --prefix ui run e2e -- real-server.e2e.ts: RED before implementation fixes, invalid Playwright skip predicate and ambiguous/broad selectors"
   - "npm --prefix ui run e2e -- real-server.e2e.ts: PASS, chromium real-server smoke passed and mobile project intentionally skipped"
@@ -2061,6 +2061,7 @@ gate_results:
   - "go vet ./...: PASS"
   - "go build ./cmd/g0router: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e948a-033d-73e3-9b0a-63646b099d63: PASS, no blocking findings"
 
 tasks:
   - id: "8.BF.1"
