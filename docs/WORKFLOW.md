@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: ACTIVE_REMEDIATION
+project_status: RELEASE_LOCK_VERIFICATION
 current_stage: 8
 current_wave: "8.AT"
-last_updated: "2026-06-04T13:45:23Z"
+last_updated: "2026-06-04T13:58:54Z"
 last_agent: "orchestrator"
 ```
 
@@ -1470,7 +1470,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T13:44:19Z"
 evaluator_prompt: "docs/evaluations/wave-8AT-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PENDING external evaluator after release gate Makefile fix"
 gate_results:
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
@@ -1478,7 +1478,8 @@ gate_results:
   - "npm --prefix ui test -- --run: PASS, 20 files and 84 tests"
   - "npm --prefix ui run build: PASS"
   - "npm --prefix ui run e2e: PASS, 20 tests"
-  - "make build: PASS"
+  - "make build: initially FAIL under production npm config because dev build tooling was omitted; fixed by forcing npm ci --include=dev in Makefile"
+  - "make build after Makefile fix: PASS"
   - "artifact cleanup after release gates: PASS, generated binary, UI dist rewrites, and Playwright test-results removed/restored"
   - "secret scan for leaked MiniMax/API token patterns, excluding the evaluator prompt that contains the scan expression itself: PASS"
   - "unmerged branch audit: PASS with known stale conflicting branch codex/wave-8an-dashboard-mcp-oauth-resource-discovery intentionally unmerged"
@@ -1494,9 +1495,18 @@ tasks:
       - docs/PLAN.md
       - docs/ORCHESTRATION.md
       - docs/evaluations/wave-8AT-evaluator-prompt.md
+  - id: "8.AT.2"
+    name: "Fix clean npm install release build gate"
+    status: DONE
+    agent: "orchestrator"
+    commit: "self: phase-8/task-release: fix make build clean install"
+    files_owned:
+      - Makefile
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AT-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.AT records a full release-lock gate pass from the main checkout. Generated artifacts from the gate were cleaned afterward; only protected local dirt remains in the worktree.
+**Checkpoint**: Wave 8.AT records a full release-lock gate pass from the main checkout after fixing `make build` to install UI build tooling even when npm is configured to omit development dependencies. Generated artifacts from the gate were cleaned afterward; only protected local dirt remains in the worktree.
 
 ---
 

@@ -16,6 +16,7 @@ Review:
 Check:
 - The release-lock wave records the full required gate chain.
 - Stage 8 wave counts, total wave counts, current wave, gate results, and files owned are accurate for Wave 8.AT.
+- `make build` uses a clean UI install that includes development dependencies required by the TypeScript/Vite build even when npm is configured to omit dev dependencies by default.
 - Generated artifacts from UI build, Playwright, and `make build` are not left dirty.
 - The leaked MiniMax token from chat is not present in tracked or untracked repo files.
 - The unmerged branch audit is honest: stale conflicting branch `codex/wave-8an-dashboard-mcp-oauth-resource-discovery` may remain unmerged, but should not be counted as unfinished valid implementation.

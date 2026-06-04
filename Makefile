@@ -16,7 +16,7 @@ lint:
 vet: lint
 
 ui:
-	npm ci --prefix $(UI_DIR)
+	npm ci --prefix $(UI_DIR) --include=dev
 	npm run build --prefix $(UI_DIR)
 
 docker:
