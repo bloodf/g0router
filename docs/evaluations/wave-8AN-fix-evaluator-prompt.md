@@ -25,7 +25,7 @@ Check:
 - `docs/WORKFLOW.md` accurately records the previous evaluator failure and the stabilization evidence.
 
 Required gates:
-- `go test ./api -run 'TestAPITestServerBindsIPv4Loopback|TestInferenceLoggingRecordsStreamingUsageWhenEnabled|TestInferenceLoggingUsesPublicCatalogModelForProviderQualifiedRoute|TestManagementRoutesDispatchThroughServer' -count=50 -shuffle=on`
+- `go test ./api -run 'TestAPITestListenerBindsIPv4Loopback|TestInferenceLoggingRecordsStreamingUsageWhenEnabled|TestInferenceLoggingUsesPublicCatalogModelForProviderQualifiedRoute|TestManagementRoutesDispatchThroughServer' -count=50 -shuffle=on`
 - `go test ./api -count=20 -shuffle=on`
 - `go test ./... -count=1`
 - `go vet ./...`
