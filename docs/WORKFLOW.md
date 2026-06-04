@@ -752,7 +752,7 @@ tasks:
     name: "Add dedicated dashboard Connections/Auth page"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "7f633a5"
     files_owned:
       - ui/src/App.tsx
       - ui/src/App.test.tsx
