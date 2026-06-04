@@ -529,6 +529,12 @@ func TestInferenceLoggingRecordsMessagesRouteWhenEnabled(t *testing.T) {
 	if entry.TotalTokens == nil || *entry.TotalTokens != 18 {
 		t.Fatalf("total tokens = %v, want 18", entry.TotalTokens)
 	}
+	if entry.SourceFormat == nil || *entry.SourceFormat != "anthropic" {
+		t.Fatalf("source format = %v, want anthropic", entry.SourceFormat)
+	}
+	if entry.TargetFormat == nil || *entry.TargetFormat != "unknown" {
+		t.Fatalf("target format = %v, want unknown", entry.TargetFormat)
+	}
 }
 
 func TestInferenceLoggingRecordsResponsesRouteWhenEnabled(t *testing.T) {
@@ -568,6 +574,12 @@ func TestInferenceLoggingRecordsResponsesRouteWhenEnabled(t *testing.T) {
 	}
 	if entry.TotalTokens == nil || *entry.TotalTokens != 18 {
 		t.Fatalf("total tokens = %v, want 18", entry.TotalTokens)
+	}
+	if entry.SourceFormat == nil || *entry.SourceFormat != "responses" {
+		t.Fatalf("source format = %v, want responses", entry.SourceFormat)
+	}
+	if entry.TargetFormat == nil || *entry.TargetFormat != "openai" {
+		t.Fatalf("target format = %v, want openai", entry.TargetFormat)
 	}
 }
 
@@ -871,6 +883,77 @@ func TestInferenceAppliesRTKAndCavemanSettingsBeforeDispatch(t *testing.T) {
 	}
 	if entry.TargetFormat == nil || *entry.TargetFormat != "openai" {
 		t.Fatalf("target format = %v, want openai", entry.TargetFormat)
+	}
+}
+
+func TestInferenceAddsRegisteredMCPToolsBeforeDispatch(t *testing.T) {
+	toolManager := mcp.NewToolManager()
+	if err := toolManager.RegisterManifest(mcp.Manifest{
+		ClientID: "docs",
+		Tools: []mcp.Tool{{
+			Name:        "search",
+			Description: "Search docs",
+			InputSchema: json.RawMessage(`{
+				"type":"object",
+				"properties":{"query":{"type":"string"}},
+				"required":["query"]
+			}`),
+		}},
+	}); err != nil {
+		t.Fatalf("RegisterManifest: %v", err)
+	}
+
+	var received []providers.ChatRequest
+	engine := routeInferenceEngine{response: routeChatResponseWithUsage(), received: &received}
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:             0,
+		Version:          "test",
+		InferenceEngine:  engine,
+		MCPToolManager:   toolManager,
+		MCPClientManager: mcp.NewClientManager(routeMCPConnector{client: &routeMCPClient{}}),
+	})
+
+	cases := []struct {
+		path string
+		body string
+	}{
+		{path: "/v1/chat/completions", body: `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`},
+		{path: "/v1/messages", body: `{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hello"}]}`},
+		{path: "/v1/responses", body: `{"model":"gpt-4o","input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`},
+	}
+
+	for _, tc := range cases {
+		resp, body := postAPITestJSON(t, baseURL+tc.path, tc.body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s status = %d, want 200; body=%s", tc.path, resp.StatusCode, body)
+		}
+	}
+
+	if len(received) != len(cases) {
+		t.Fatalf("engine requests = %d, want %d", len(received), len(cases))
+	}
+	for i, req := range received {
+		if len(req.Tools) != 1 {
+			t.Fatalf("request %d tools = %+v, want one MCP tool", i, req.Tools)
+		}
+		if req.Tools[0].Function.Name != "docs__search" {
+			t.Fatalf("request %d tool name = %q, want docs__search", i, req.Tools[0].Function.Name)
+		}
+	}
+
+	resp, body := postAPITestJSON(t, baseURL+"/v1/chat/completions", `{
+		"model":"gpt-4o",
+		"tools":[{"type":"function","function":{"name":"caller_lookup","description":"Caller tool"}}],
+		"messages":[{"role":"user","content":"hello"}]
+	}`)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("caller tool status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	req := received[len(received)-1]
+	if len(req.Tools) != 1 || req.Tools[0].Function.Name != "caller_lookup" {
+		t.Fatalf("caller tools = %+v, want only caller_lookup", req.Tools)
 	}
 }
 

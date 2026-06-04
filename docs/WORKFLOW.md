@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.T"
-last_updated: "2026-06-04T09:44:20Z"
+current_wave: "8.U"
+last_updated: "2026-06-04T09:48:54Z"
 last_agent: "orchestrator"
 ```
 
@@ -501,6 +501,41 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.T wires runtime settings into normal `/v1/*` dispatch. Requests pass through RTK compression and caveman prompt injection before the inference engine, and request logs now record source/target format plus RTK/caveman enabled flags. External evaluation remains pending.
+
+### Wave 8.U — MCP Tool Injection And Route Format Logging
+
+```yaml
+wave: "8.U"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T09:47:03Z"
+evaluator_prompt: "docs/evaluations/wave-8U-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./api -run 'TestInferenceLoggingRecordsMessagesRouteWhenEnabled|TestInferenceLoggingRecordsResponsesRouteWhenEnabled|TestInferenceAddsRegisteredMCPToolsBeforeDispatch|TestInferenceAppliesRTKAndCavemanSettingsBeforeDispatch' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.U.1"
+    name: "Attach registered MCP tools and log route source formats"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - api/server.go
+      - api/server_test.go
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8U-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.U makes registered MCP tools visible to normal `/v1/chat/completions`, `/v1/messages`, and `/v1/responses` inference requests when callers do not provide their own tools, while preserving caller-supplied tools. Request logs now record `openai`, `anthropic`, or `responses` as the source format according to the public route.
 
 ---
 

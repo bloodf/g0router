@@ -124,18 +124,18 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *Server) handleInference(ctx *fasthttp.RequestCtx) {
-	s.handleLoggedInference(ctx, handlers.Inference)
+	s.handleLoggedInference(ctx, "openai", handlers.Inference)
 }
 
 func (s *Server) handleMessages(ctx *fasthttp.RequestCtx) {
-	s.handleLoggedInference(ctx, handlers.Messages)
+	s.handleLoggedInference(ctx, "anthropic", handlers.Messages)
 }
 
 func (s *Server) handleResponses(ctx *fasthttp.RequestCtx) {
-	s.handleLoggedInference(ctx, handlers.Responses)
+	s.handleLoggedInference(ctx, "responses", handlers.Responses)
 }
 
-func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, handle func(*fasthttp.RequestCtx, handlers.InferenceEngine)) {
+func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat string, handle func(*fasthttp.RequestCtx, handlers.InferenceEngine)) {
 	started := time.Now()
 	engine := s.config.InferenceEngine
 	var captured *capturingInferenceEngine
@@ -143,11 +143,12 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, handle func(*fa
 		engine = preprocessingInferenceEngine{
 			base:     engine,
 			settings: s.runtimeSettings,
+			tools:    s.config.MCPToolManager,
 		}
 		captured = &capturingInferenceEngine{
 			base: engine,
 			onStreamComplete: func(req *providers.ChatRequest, model string, providerUsage *providers.Usage) {
-				s.logInferenceUsage(ctx, started, req, nil, nil, model, providerUsage, fasthttp.StatusOK)
+				s.logInferenceUsage(ctx, started, sourceFormat, req, nil, nil, model, providerUsage, fasthttp.StatusOK)
 			},
 		}
 		engine = captured
@@ -164,10 +165,10 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, handle func(*fa
 		req = captured.request
 		dispatchErr = captured.err
 	}
-	s.logInferenceUsage(ctx, started, req, resp, dispatchErr, "", nil, ctx.Response.StatusCode())
+	s.logInferenceUsage(ctx, started, sourceFormat, req, resp, dispatchErr, "", nil, ctx.Response.StatusCode())
 }
 
-func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, request *providers.ChatRequest, response *providers.ChatResponse, dispatchErr error, streamModel string, streamUsage *providers.Usage, statusCode int) {
+func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, sourceFormat string, request *providers.ChatRequest, response *providers.ChatResponse, dispatchErr error, streamModel string, streamUsage *providers.Usage, statusCode int) {
 	usageStore, ok := s.config.UsageStore.(logging.RequestStore)
 	if !ok || usageStore == nil || !s.requestLogsEnabled() {
 		return
@@ -207,7 +208,7 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, 
 		StatusCode:     statusCode,
 		Error:          sanitizedLogError(ctx, dispatchErr, statusCode),
 		APIKeyID:       metadata.apiKeyID,
-		SourceFormat:   stringPtrIfNotEmpty("openai"),
+		SourceFormat:   stringPtrIfNotEmpty(sourceFormat),
 		TargetFormat:   stringPtrIfNotEmpty(metadata.provider),
 		RTKEnabled:     boolPtr(settings.RTKEnabled),
 		CavemanEnabled: boolPtr(settings.CavemanEnabled),
@@ -218,21 +219,22 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, 
 type preprocessingInferenceEngine struct {
 	base     handlers.InferenceEngine
 	settings func() store.Settings
+	tools    *mcp.ToolManager
 }
 
 func (e preprocessingInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
-	return e.base.Dispatch(ctx, e.preprocess(req))
+	return e.base.Dispatch(ctx, e.preprocess(ctx, req))
 }
 
 func (e preprocessingInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	return e.base.DispatchStream(ctx, e.preprocess(req))
+	return e.base.DispatchStream(ctx, e.preprocess(ctx, req))
 }
 
 func (e preprocessingInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
 	return e.base.ListModels(ctx)
 }
 
-func (e preprocessingInferenceEngine) preprocess(req *providers.ChatRequest) *providers.ChatRequest {
+func (e preprocessingInferenceEngine) preprocess(ctx context.Context, req *providers.ChatRequest) *providers.ChatRequest {
 	if req == nil {
 		return nil
 	}
@@ -243,6 +245,9 @@ func (e preprocessingInferenceEngine) preprocess(req *providers.ChatRequest) *pr
 	}
 	if settings.CavemanEnabled {
 		processed = rtk.InjectCaveman(processed, rtk.CavemanLevel(settings.CavemanLevel))
+	}
+	if len(processed.Tools) == 0 && e.tools != nil {
+		processed.Tools = e.tools.CompactToolsForRequest(ctx)
 	}
 	return &processed
 }
