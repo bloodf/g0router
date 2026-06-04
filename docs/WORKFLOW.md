@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BJ"
-last_updated: "2026-06-04T23:34:00Z"
+current_wave: "8.BK"
+last_updated: "2026-06-05T00:05:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2273,6 +2273,55 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BJ closes the dashboard management gap introduced by account-scoped Cloudflare routing. The provider connection form now shows a Cloudflare account ID field only for `cloudflare-ai-gateway`, requires it before submission, sends it as `account_id`, clears it after creation/provider changes, and continues to avoid rendering provider credentials.
+
+---
+
+### Wave 8.BK — Kimi Dynamic Runtime Routing
+
+```yaml
+wave: "8.BK"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/provider ./internal/providers/openaicompat ./internal/proxy ./internal/cli ./api/handlers -run 'TestProviderMatrixMarksAuthOnlyProvidersExplicitly|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestDefaultConfigsAreRegistered|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListKnownProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T00:05:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BK-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused provider/API/CLI tests: RED before implementation, ProviderKimi was undefined and Kimi remained auth_only"
+  - "focused provider/API/CLI tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BK.1"
+    name: "Promote Kimi to OpenAI-compatible provider-qualified runtime routing"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/openaicompat/registry.go
+      - internal/providers/openaicompat/provider_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/PLAN.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BK-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BK removes the Kimi `auth_only` runtime gap. Kimi now registers through the shared OpenAI-compatible adapter at `https://api.moonshot.ai/v1`, appears in public provider/API/CLI surfaces, and routes provider-qualified models such as `kimi/kimi-k2.6` upstream as `kimi-k2.6`. Static catalog, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
 
 ---
 

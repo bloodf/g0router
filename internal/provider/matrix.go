@@ -64,7 +64,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		dynamicRoutableProvider("github-copilot", "github-copilot", true, true, true, false, "oauth"),
 		authOnlyProvider("cursor", "cursor", true, "OMP-style loginDeepControl polling OAuth is implemented, but no Cursor inference adapter is wired."),
 		authOnlyProvider("gitlab", "gitlab", true, "OAuth is implemented for GitLab-style identity, but no GitLab inference adapter is wired."),
-		authOnlyProvider("kimi", "kimi", true, "Device-code OAuth is implemented, but no Moonshot/Kimi inference adapter is wired."),
+		dynamicRoutableProvider("kimi", "kimi", true, true, true, false, "api_key", "oauth"),
 		authOnlyProvider("kiro", "kiro", true, "OAuth is implemented, but no Kiro inference adapter is wired."),
 		catalogRoutableProvider("xai", "xai", true, true, true, false, "api_key", "oauth"),
 		authOnlyProvider("xiaomi", "xiaomi", true, "OAuth is implemented, but no Xiaomi inference adapter is wired."),

@@ -17,6 +17,7 @@ func DefaultConfigs() map[providers.ModelProvider]Config {
 		providers.ProviderDeepSeek:      {Provider: providers.ProviderDeepSeek, BaseURL: "https://api.deepseek.com"},
 		providers.ProviderOpenRouter:    {Provider: providers.ProviderOpenRouter, BaseURL: "https://openrouter.ai/api"},
 		providers.ProviderHuggingFace:   {Provider: providers.ProviderHuggingFace, BaseURL: "https://router.huggingface.co"},
+		providers.ProviderKimi:          {Provider: providers.ProviderKimi, BaseURL: "https://api.moonshot.ai/v1"},
 		providers.ProviderNebius:        {Provider: providers.ProviderNebius, BaseURL: "https://api.tokenfactory.nebius.com"},
 		providers.ProviderMiniMax:       {Provider: providers.ProviderMiniMax, BaseURL: "https://api.minimax.io/v1"},
 		providers.ProviderQwen:          {Provider: providers.ProviderQwen, BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"},
