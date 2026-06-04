@@ -45,6 +45,7 @@ describe("App", () => {
       "MCP Accounts",
       "MCP Tools",
       "Settings",
+      "Settings/Security",
       "Diagnostics"
     ]) {
       expect(within(primaryNav).getByRole("button", { name: label })).toBeInTheDocument();

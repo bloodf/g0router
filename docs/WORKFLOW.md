@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AB"
-last_updated: "2026-06-04T10:30:05Z"
+current_wave: "8.AC"
+last_updated: "2026-06-04T10:35:19Z"
 last_agent: "orchestrator"
 ```
 
@@ -811,6 +811,48 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AB splits the dashboard MCP surface into dedicated Instances, Accounts, and Tools routes while preserving the combined MCP route and credential redaction.
+
+### Wave 8.AC — Dashboard Settings/Security Page
+
+```yaml
+wave: "8.AC"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:35:19Z"
+evaluator_prompt: "docs/evaluations/wave-8AC-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "npm --prefix ui test -- --run SettingsSecurityPage SettingsPage App: PASS"
+  - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AC.1"
+    name: "Add dedicated dashboard Settings/Security page"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - ui/src/pages/SettingsPage.tsx
+      - ui/src/pages/SettingsSecurityPage.tsx
+      - ui/src/pages/SettingsSecurityPage.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AC-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AC adds a dedicated Settings/Security dashboard route backed by the real settings API and covers control-plane protection plus request logging controls.
 
 ---
 

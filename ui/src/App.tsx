@@ -18,6 +18,7 @@ import { PricingPage } from "./pages/PricingPage";
 import { ProvidersPage } from "./pages/ProvidersPage";
 import { QuotaPage } from "./pages/QuotaPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { SettingsSecurityPage } from "./pages/SettingsSecurityPage";
 import { UsagePage } from "./pages/UsagePage";
 
 const pages = [
@@ -139,6 +140,13 @@ const pages = [
     title: "Settings",
     description: "Runtime defaults and local control-plane configuration.",
     Component: SettingsPage
+  },
+  {
+    id: "settings-security",
+    label: "Settings/Security",
+    title: "Settings/Security",
+    description: "Control-plane protection, request logging, and runtime safety settings.",
+    Component: SettingsSecurityPage
   },
   {
     id: "diagnostics",

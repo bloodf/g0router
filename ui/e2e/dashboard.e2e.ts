@@ -108,6 +108,11 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("heading", { exact: true, name: "Settings" })).toBeVisible();
     await expect(page.getByLabel("Proxy URL")).toHaveValue("http://127.0.0.1:8080");
 
+    await navigateTo(page, "Settings/Security");
+    await expect(page.getByRole("heading", { exact: true, name: "Settings/Security" })).toBeVisible();
+    await expect(page.getByLabel("Require API key")).toBeChecked();
+    await expect(page.getByLabel("Enable request logs")).toBeChecked();
+
     await navigateTo(page, "Diagnostics");
     await expect(page.getByRole("heading", { exact: true, level: 2, name: "Diagnostics" })).toBeVisible();
     await expect(page.getByText("Control plane protected")).toBeVisible();
@@ -231,6 +236,11 @@ test.describe("dashboard control plane", () => {
     await page.getByRole("button", { name: "Save settings" }).click();
     await expect(page.getByText("Settings saved")).toBeVisible();
     await expect(page.getByLabel("Proxy URL")).toHaveValue("http://127.0.0.1:9090");
+
+    await navigateTo(page, "Settings/Security");
+    await page.getByLabel("Enable request logs").check();
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect(page.getByText("Settings saved")).toBeVisible();
   });
 
   test("handles endpoint copy, destructive cancellation, and mutation failure states", async ({ page, context }) => {
@@ -300,6 +310,11 @@ test.describe("dashboard control plane", () => {
     await page.getByLabel("Proxy URL").fill("http://127.0.0.1:9091");
     await page.getByRole("button", { name: "Save settings" }).click();
     await expect(page.getByText("Could not save settings")).toBeVisible();
+
+    await navigateTo(page, "Settings/Security");
+    await page.getByLabel("Enable request logs").check();
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect(page.getByText("Could not save settings")).toBeVisible();
   });
 
   test("renders empty states for every dashboard section with mocked API data", async ({ page }) => {
@@ -353,6 +368,9 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Settings");
     await expect(page.getByText("No runtime settings returned")).toBeVisible();
 
+    await navigateTo(page, "Settings/Security");
+    await expect(page.getByText("No runtime settings returned")).toBeVisible();
+
     await navigateTo(page, "Diagnostics");
     await expect(page.getByText("No diagnostics data")).toBeVisible();
   });
@@ -392,6 +410,9 @@ test.describe("dashboard control plane", () => {
 
     await navigateTo(page, "MCP Tools");
     await expect(page.getByText("MCP session expired")).toBeVisible();
+
+    await navigateTo(page, "Settings/Security");
+    await expect(page.getByText("Session expired")).toBeVisible();
   });
 });
 

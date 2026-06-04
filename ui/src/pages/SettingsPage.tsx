@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ApiError, asyncError, getSettings, updateSettings, type AsyncState, type SettingsResponse } from "../api";
 import { EmptyState, ErrorState, LoadingState, Panel, StatusPill } from "../components/Primitives";
 
-export function SettingsPage() {
+export function SettingsPage({ title = "Runtime settings", description = "Gateway defaults that affect proxy behavior and local control-plane access." }: { title?: string; description?: string } = {}) {
   const [loadState, setLoadState] = useState<AsyncState<SettingsResponse | null>>({ status: "loading" });
   const [form, setForm] = useState<SettingsResponse | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -54,7 +54,7 @@ export function SettingsPage() {
   }
 
   return (
-    <Panel title="Runtime settings" description="Gateway defaults that affect proxy behavior and local control-plane access.">
+    <Panel title={title} description={description}>
       {renderSettingsState(loadState, loadSettings, form, setForm, handleSave, isSaving, saveError, saved)}
     </Panel>
   );
