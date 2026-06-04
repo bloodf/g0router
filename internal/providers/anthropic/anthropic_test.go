@@ -378,6 +378,68 @@ func TestParseSSEStream(t *testing.T) {
 	}
 }
 
+func TestParseSSEStreamReportsMalformedEvent(t *testing.T) {
+	server := streamServer(t, strings.Join([]string{
+		"event: content_block_delta",
+		`data: {"type":"content_block_delta","error":"sk-live-secret leaked upstream body"`,
+		"",
+		"event: content_block_delta",
+		"data: " + streamContentDeltaJSON,
+		"",
+	}, "\n"))
+	provider := New(server.URL)
+
+	chunks, err := provider.ChatCompletionStream(context.Background(), testKey("api_key"), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+
+	got := collectChunks(chunks)
+	if len(got) != 1 {
+		t.Fatalf("chunks len = %d, want 1; chunks=%+v", len(got), got)
+	}
+	if got[0].Error == nil {
+		t.Fatalf("chunk error = nil, want malformed stream error")
+	}
+	if strings.Contains(got[0].Error.Message, "sk-live-secret") || strings.Contains(got[0].Error.Message, "leaked upstream body") {
+		t.Fatalf("chunk error leaked upstream body: %+v", got[0].Error)
+	}
+	if got[0].Error.Code != "upstream_stream_malformed" {
+		t.Fatalf("chunk error code = %q, want upstream_stream_malformed", got[0].Error.Code)
+	}
+}
+
+func TestParseSSEStreamMapsUpstreamErrorEvent(t *testing.T) {
+	server := streamServer(t, strings.Join([]string{
+		"event: error",
+		`data: {"type":"error","error":{"type":"overloaded_error","message":"sk-live-secret leaked upstream body"}}`,
+		"",
+		"event: content_block_delta",
+		"data: " + streamContentDeltaJSON,
+		"",
+	}, "\n"))
+	provider := New(server.URL)
+
+	chunks, err := provider.ChatCompletionStream(context.Background(), testKey("api_key"), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+
+	got := collectChunks(chunks)
+	if len(got) != 1 {
+		t.Fatalf("chunks len = %d, want 1; chunks=%+v", len(got), got)
+	}
+	if got[0].Error == nil {
+		t.Fatalf("chunk error = nil, want upstream stream error")
+	}
+	if strings.Contains(got[0].Error.Message, "sk-live-secret") || strings.Contains(got[0].Error.Message, "leaked upstream body") {
+		t.Fatalf("chunk error leaked upstream body: %+v", got[0].Error)
+	}
+	if got[0].Error.Code != "upstream_stream_error" {
+		t.Fatalf("chunk error code = %q, want upstream_stream_error", got[0].Error.Code)
+	}
+}
+
 func TestParseSSEToolUseStream(t *testing.T) {
 	server := streamServer(t, strings.Join([]string{
 		"event: message_start",

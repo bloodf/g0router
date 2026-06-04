@@ -83,6 +83,7 @@ type streamEvent struct {
 	ContentBlock *anthropicContentBlock `json:"content_block,omitempty"`
 	Delta        streamDelta            `json:"delta,omitempty"`
 	Usage        anthropicUsage         `json:"usage,omitempty"`
+	Error        *anthropicError        `json:"error,omitempty"`
 }
 
 type streamDelta struct {

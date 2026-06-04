@@ -582,7 +582,9 @@ func parseSSE(body io.Reader, chunks chan<- providers.StreamChunk) {
 	for scanner.Scan() {
 		line := strings.TrimRight(scanner.Text(), "\r")
 		if line == "" {
-			handleSSEData(dataLines, chunks, &state)
+			if handleSSEData(dataLines, chunks, &state) {
+				return
+			}
 			dataLines = nil
 			continue
 		}
@@ -591,7 +593,12 @@ func parseSSE(body io.Reader, chunks chan<- providers.StreamChunk) {
 		}
 	}
 	if len(dataLines) > 0 {
-		handleSSEData(dataLines, chunks, &state)
+		if handleSSEData(dataLines, chunks, &state) {
+			return
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		chunks <- anthropicStreamErrorChunk("upstream_stream_error")
 	}
 }
 
@@ -608,20 +615,29 @@ type streamToolBlock struct {
 	partialJSON strings.Builder
 }
 
-func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk, state *streamState) {
+func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk, state *streamState) bool {
 	if len(dataLines) == 0 {
-		return
+		return false
+	}
+
+	data := strings.Join(dataLines, "\n")
+	if data == "[DONE]" {
+		return true
 	}
 
 	var event streamEvent
-	if err := json.Unmarshal([]byte(strings.Join(dataLines, "\n")), &event); err != nil {
-		return
+	if err := json.Unmarshal([]byte(data), &event); err != nil {
+		chunks <- anthropicStreamErrorChunk("upstream_stream_malformed")
+		return true
 	}
 
 	switch event.Type {
+	case "error":
+		chunks <- anthropicStreamErrorChunk("upstream_stream_error")
+		return true
 	case "message_start":
 		if event.Message == nil {
-			return
+			return false
 		}
 		state.id = event.Message.ID
 		state.model = event.Message.Model
@@ -630,7 +646,7 @@ func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk, stat
 		chunks <- streamChunk(state, providers.StreamDelta{Role: &role}, nil, nil)
 	case "content_block_start":
 		if event.ContentBlock == nil || event.ContentBlock.Type != "tool_use" {
-			return
+			return false
 		}
 		if state.toolBlocks == nil {
 			state.toolBlocks = make(map[int]*streamToolBlock)
@@ -648,12 +664,12 @@ func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk, stat
 		case "input_json_delta":
 			block := state.toolBlocks[event.Index]
 			if block == nil {
-				return
+				return false
 			}
 			block.partialJSON.WriteString(event.Delta.PartialJSON)
 		default:
 			if event.Delta.Text == "" {
-				return
+				return false
 			}
 			text := event.Delta.Text
 			chunks <- streamChunk(state, providers.StreamDelta{Content: &text}, nil, nil)
@@ -661,7 +677,7 @@ func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk, stat
 	case "content_block_stop":
 		block := state.toolBlocks[event.Index]
 		if block == nil {
-			return
+			return false
 		}
 		delete(state.toolBlocks, event.Index)
 		arguments, err := compactJSONString(json.RawMessage(block.partialJSON.String()))
@@ -684,6 +700,7 @@ func handleSSEData(dataLines []string, chunks chan<- providers.StreamChunk, stat
 		usage.InputTokens = state.inputTokens
 		chunks <- streamChunk(state, providers.StreamDelta{}, finishReason, toUsage(usage))
 	}
+	return false
 }
 
 func streamChunk(state *streamState, delta providers.StreamDelta, finishReason *string, usage *providers.Usage) providers.StreamChunk {
@@ -698,6 +715,16 @@ func streamChunk(state *streamState, delta providers.StreamDelta, finishReason *
 			FinishReason: finishReason,
 		}},
 		Usage: usage,
+	}
+}
+
+func anthropicStreamErrorChunk(code string) providers.StreamChunk {
+	return providers.StreamChunk{
+		Error: &providers.StreamError{
+			Message: "upstream provider stream error",
+			Type:    "server_error",
+			Code:    code,
+		},
 	}
 }
 
