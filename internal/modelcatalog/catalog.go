@@ -75,6 +75,9 @@ func NewCatalog() Catalog {
 			providers.ProviderCerebras: {
 				"llama3.1-8b": noHostedCacheDiscount(0.10, 0.10),
 			},
+			providers.ProviderCohere: {
+				"command-r-08-2024": noHostedCacheDiscount(0.15, 0.60),
+			},
 			providers.ProviderFireworks: {
 				"accounts/fireworks/models/deepseek-v4-flash":       paid(0.14, 0.028, 0.28),
 				"accounts/fireworks/models/llama-v3p1-70b-instruct": paid(0.30, 0.15, 1.20),

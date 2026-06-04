@@ -7,7 +7,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/openaicompat"
 )
 
-const defaultBaseURL = "https://api.cohere.com"
+const defaultBaseURL = "https://api.cohere.ai/compatibility/v1"
 
 func New(baseURL string) (*openaicompat.Provider, error) {
 	if baseURL == "" {

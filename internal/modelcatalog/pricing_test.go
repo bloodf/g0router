@@ -99,6 +99,7 @@ func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 		{providers.ProviderOpenAI, "gpt-4o-mini", Pricing{InputPerMillionUSD: 0.15, CachedInputPerMillionUSD: 0.075, OutputPerMillionUSD: 0.60}},
 		{providers.ProviderAnthropic, "claude-3-5-haiku-20241022", Pricing{InputPerMillionUSD: 0.80, CachedInputPerMillionUSD: 0.08, OutputPerMillionUSD: 4.00}},
 		{providers.ProviderGemini, "gemini-2.5-flash", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.03, OutputPerMillionUSD: 2.50}},
+		{providers.ProviderCohere, "command-r-08-2024", Pricing{InputPerMillionUSD: 0.15, CachedInputPerMillionUSD: 0.15, OutputPerMillionUSD: 0.60}},
 		{providers.ProviderGroq, "llama-3.3-70b-versatile", Pricing{InputPerMillionUSD: 0.59, CachedInputPerMillionUSD: 0.59, OutputPerMillionUSD: 0.79}},
 		{providers.ProviderMistral, "mistral-small-latest", Pricing{InputPerMillionUSD: 0.10, CachedInputPerMillionUSD: 0.10, OutputPerMillionUSD: 0.30}},
 		{providers.ProviderOpenRouter, "openai/gpt-4o-mini", Pricing{InputPerMillionUSD: 0.15, CachedInputPerMillionUSD: 0.15, OutputPerMillionUSD: 0.60}},

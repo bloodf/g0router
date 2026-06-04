@@ -253,6 +253,7 @@ func TestDispatchUsesCatalogForPublicOpenAICompatibleProviders(t *testing.T) {
 	}{
 		{name: "groq", provider: providers.ProviderGroq, model: "llama-3.3-70b-versatile", key: "groq-key"},
 		{name: "cerebras", provider: providers.ProviderCerebras, model: "llama3.1-8b", key: "cerebras-key"},
+		{name: "cohere", provider: providers.ProviderCohere, model: "command-r-08-2024", key: "cohere-key"},
 		{name: "fireworks", provider: providers.ProviderFireworks, model: "accounts/fireworks/models/llama-v3p1-70b-instruct", key: "fireworks-key"},
 		{name: "mistral", provider: providers.ProviderMistral, model: "mistral-small-latest", key: "mistral-key"},
 		{name: "minimax", provider: providers.ProviderMiniMax, model: "MiniMax-M3", key: "minimax-key"},
