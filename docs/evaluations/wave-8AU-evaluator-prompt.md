@@ -29,7 +29,7 @@ Check:
 - Malformed upstream SSE produces a stream error chunk instead of panicking.
 - Non-streaming Gemini request and response behavior remains unchanged.
 - `internal/provider/matrix.go` and `docs/PROVIDERS.md` now mark Gemini streaming as supported.
-- Vertex remains explicitly non-streaming until its own implementation exists.
+- Vertex behavior is out of scope for Wave 8.AU and must not be changed by the Gemini streaming work.
 - Workflow, plan, and orchestration wave counts are accurate through Wave 8.AU.
 - Changes are surgical and limited to Gemini streaming parity plus matching metadata.
 

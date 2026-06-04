@@ -38,6 +38,18 @@ func TestChatCompletionRequiresProjectAndLocation(t *testing.T) {
 	}
 }
 
+func TestChatCompletionStreamRequiresProjectAndLocation(t *testing.T) {
+	provider := New("http://127.0.0.1:1", Config{})
+
+	_, err := provider.ChatCompletionStream(context.Background(), oauthKey(), testChatRequest())
+	if !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("expected ErrUnsupported for missing config, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "project") || !strings.Contains(err.Error(), "location") {
+		t.Fatalf("error = %q, want project and location context", err.Error())
+	}
+}
+
 func TestChatCompletionBuildsVertexRequest(t *testing.T) {
 	var gotPath string
 	var gotQuery string
@@ -141,6 +153,76 @@ func TestParseGenerateContentResponse(t *testing.T) {
 	}
 }
 
+func TestChatCompletionStreamMapsVertexSSEChunks(t *testing.T) {
+	var gotPath string
+	var gotQuery string
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: " + generateContentStreamTextChunkJSON + "\n\n"))
+		_, _ = w.Write([]byte("data: " + generateContentStreamUsageChunkJSON + "\n\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL, Config{ProjectID: "test-project", Location: "us-central1"})
+	chunks, err := provider.ChatCompletionStream(context.Background(), oauthKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+	got := collectStreamChunks(chunks)
+
+	wantPath := "/v1/projects/test-project/locations/us-central1/publishers/google/models/gemini-2.5-flash:streamGenerateContent"
+	if gotPath != wantPath {
+		t.Errorf("path = %q, want %q", gotPath, wantPath)
+	}
+	if gotQuery != "alt=sse" {
+		t.Errorf("query = %q", gotQuery)
+	}
+	if gotAuth != "Bearer vertex-token" {
+		t.Errorf("Authorization = %q", gotAuth)
+	}
+	if len(got) != 2 {
+		t.Fatalf("chunks = %+v", got)
+	}
+	if got[0].Object != "chat.completion.chunk" || got[0].Model != "gemini-2.5-flash" {
+		t.Fatalf("first chunk metadata = %+v", got[0])
+	}
+	if got[0].Choices[0].Delta.Content == nil || *got[0].Choices[0].Delta.Content != "hello" {
+		t.Fatalf("first chunk content = %+v", got[0].Choices[0].Delta.Content)
+	}
+	if got[1].Choices[0].FinishReason == nil || *got[1].Choices[0].FinishReason != "stop" {
+		t.Fatalf("finish reason = %+v", got[1].Choices[0].FinishReason)
+	}
+	if got[1].Usage == nil || got[1].Usage.TotalTokens != 14 {
+		t.Fatalf("usage = %+v", got[1].Usage)
+	}
+}
+
+func TestChatCompletionStreamMalformedSSEEmitsErrorChunk(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {not-json}\n\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL, Config{ProjectID: "test-project", Location: "us-central1"})
+	chunks, err := provider.ChatCompletionStream(context.Background(), oauthKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+	got := collectStreamChunks(chunks)
+
+	if len(got) != 1 || got[0].Error == nil {
+		t.Fatalf("chunks = %+v, want one error chunk", got)
+	}
+	if got[0].Error.Code != "upstream_stream_malformed" {
+		t.Fatalf("error code = %q", got[0].Error.Code)
+	}
+}
+
 func TestParseError401(t *testing.T) {
 	server := jsonServer(t, http.StatusUnauthorized, `{"error":{"message":"invalid token"}}`)
 	provider := New(server.URL, Config{ProjectID: "test-project", Location: "us-central1"})
@@ -198,6 +280,14 @@ func jsonServer(t *testing.T, status int, body string) *httptest.Server {
 	return server
 }
 
+func collectStreamChunks(chunks <-chan providers.StreamChunk) []providers.StreamChunk {
+	var got []providers.StreamChunk
+	for chunk := range chunks {
+		got = append(got, chunk)
+	}
+	return got
+}
+
 const generateContentResponseJSON = `{
 	"candidates": [{
 		"content": {"role": "model", "parts": [{"text": "hello back"}]},
@@ -209,3 +299,7 @@ const generateContentResponseJSON = `{
 		"totalTokenCount": 14
 	}
 }`
+
+const generateContentStreamTextChunkJSON = `{"candidates":[{"content":{"role":"model","parts":[{"text":"hello"}]}}]}`
+
+const generateContentStreamUsageChunkJSON = `{"candidates":[{"content":{"role":"model","parts":[]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":9,"totalTokenCount":14}}`

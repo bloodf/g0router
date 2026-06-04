@@ -1,10 +1,13 @@
 package vertex
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -38,9 +41,10 @@ func (e *RateLimitError) Is(target error) bool {
 }
 
 type VertexProvider struct {
-	baseURL string
-	config  Config
-	client  *fasthttp.Client
+	baseURL      string
+	config       Config
+	client       *fasthttp.Client
+	streamClient *http.Client
 }
 
 func New(baseURL string, config Config) *VertexProvider {
@@ -48,9 +52,10 @@ func New(baseURL string, config Config) *VertexProvider {
 		baseURL = defaultBaseURL
 	}
 	return &VertexProvider{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		config:  config,
-		client:  &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		baseURL:      strings.TrimRight(baseURL, "/"),
+		config:       config,
+		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		streamClient: &http.Client{},
 	}
 }
 
@@ -91,8 +96,41 @@ func (p *VertexProvider) ChatCompletion(ctx context.Context, key providers.Key, 
 	return mapGenerateContentResponse(req.Model, decoded), nil
 }
 
-func (p *VertexProvider) ChatCompletionStream(context.Context, providers.Key, *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	return nil, fmt.Errorf("%w: vertex streaming is not implemented", ErrUnsupported)
+func (p *VertexProvider) ChatCompletionStream(ctx context.Context, key providers.Key, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	if err := p.validateConfig(); err != nil {
+		return nil, err
+	}
+	vertexReq, err := buildGenerateContentRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	path := p.modelPath(req.Model) + ":streamGenerateContent"
+	httpReq, err := p.newHTTPJSONRequest(ctx, http.MethodPost, path, key, vertexReq, url.Values{"alt": []string{"sse"}})
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := p.streamClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("vertex stream generate content: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("read vertex error response: %w", readErr)
+		}
+		return nil, mapStatusError(resp.StatusCode, body)
+	}
+
+	chunks := make(chan providers.StreamChunk)
+	go func() {
+		defer close(chunks)
+		defer resp.Body.Close()
+		parseVertexSSE(req.Model, resp.Body, chunks)
+	}()
+	return chunks, nil
 }
 
 func (p *VertexProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
@@ -219,6 +257,31 @@ func (p *VertexProvider) newJSONRequest(method, path string, key providers.Key, 
 	return req, nil
 }
 
+func (p *VertexProvider) newHTTPJSONRequest(ctx context.Context, method, path string, key providers.Key, body any, extraQuery url.Values) (*http.Request, error) {
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("marshal vertex request: %w", err)
+		}
+		reader = strings.NewReader(string(data))
+	}
+
+	endpoint := p.baseURL + path
+	if len(extraQuery) > 0 {
+		endpoint += "?" + extraQuery.Encode()
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
+	if err != nil {
+		return nil, fmt.Errorf("create vertex request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+key.Value)
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, nil
+}
+
 func (p *VertexProvider) do(ctx context.Context, req *fasthttp.Request) (*fasthttp.Response, error) {
 	resp := fasthttp.AcquireResponse()
 	if err := ctx.Err(); err != nil {
@@ -284,6 +347,117 @@ func mapGenerateContentResponse(model string, decoded generateContentResponse) *
 	return resp
 }
 
+func parseVertexSSE(model string, body io.Reader, chunks chan<- providers.StreamChunk) {
+	scanner := bufio.NewScanner(body)
+	var dataLines []string
+
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			done, failed := handleVertexSSEData(model, dataLines, chunks)
+			if done || failed {
+				return
+			}
+			dataLines = nil
+			continue
+		}
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		}
+	}
+	if len(dataLines) > 0 {
+		_, failed := handleVertexSSEData(model, dataLines, chunks)
+		if failed {
+			return
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		chunks <- vertexStreamErrorChunk("upstream_stream_error")
+	}
+}
+
+func handleVertexSSEData(model string, dataLines []string, chunks chan<- providers.StreamChunk) (bool, bool) {
+	if len(dataLines) == 0 {
+		return false, false
+	}
+
+	data := strings.Join(dataLines, "\n")
+	if data == "[DONE]" {
+		return true, false
+	}
+
+	var decoded generateContentResponse
+	if err := json.Unmarshal([]byte(data), &decoded); err != nil {
+		chunks <- vertexStreamErrorChunk("upstream_stream_malformed")
+		return false, true
+	}
+	for _, chunk := range mapGenerateContentStreamChunks(model, decoded) {
+		chunks <- chunk
+	}
+	return false, false
+}
+
+func mapGenerateContentStreamChunks(model string, decoded generateContentResponse) []providers.StreamChunk {
+	chunks := make([]providers.StreamChunk, 0, len(decoded.Candidates))
+	usage := usageFromMetadata(decoded.UsageMetadata)
+	for i, candidate := range decoded.Candidates {
+		finishReason := mapFinishReason(candidate.FinishReason)
+		var finishReasonPtr *string
+		if candidate.FinishReason != "" {
+			finishReasonPtr = &finishReason
+		}
+		delta := providers.StreamDelta{}
+		if text := textFromParts(candidate.Content.Parts); text != "" {
+			delta.Content = &text
+		}
+		chunks = append(chunks, providers.StreamChunk{
+			Object:  "chat.completion.chunk",
+			Model:   model,
+			Created: time.Now().Unix(),
+			Choices: []providers.StreamChoice{{
+				Index:        i,
+				Delta:        delta,
+				FinishReason: finishReasonPtr,
+			}},
+			Usage: usage,
+		})
+	}
+	if len(chunks) == 0 && usage != nil {
+		chunks = append(chunks, providers.StreamChunk{
+			Object:  "chat.completion.chunk",
+			Model:   model,
+			Created: time.Now().Unix(),
+			Choices: []providers.StreamChoice{{
+				Index: 0,
+				Delta: providers.StreamDelta{},
+			}},
+			Usage: usage,
+		})
+	}
+	return chunks
+}
+
+func usageFromMetadata(metadata usageMetadata) *providers.Usage {
+	if metadata.PromptTokenCount == 0 && metadata.CandidatesTokenCount == 0 && metadata.TotalTokenCount == 0 {
+		return nil
+	}
+	return &providers.Usage{
+		PromptTokens:     metadata.PromptTokenCount,
+		CompletionTokens: metadata.CandidatesTokenCount,
+		TotalTokens:      metadata.TotalTokenCount,
+	}
+}
+
+func vertexStreamErrorChunk(code string) providers.StreamChunk {
+	return providers.StreamChunk{
+		Error: &providers.StreamError{
+			Message: "upstream provider stream error",
+			Type:    "server_error",
+			Code:    code,
+		},
+	}
+}
+
 func textFromParts(parts []part) string {
 	var builder strings.Builder
 	for _, part := range parts {
@@ -306,18 +480,22 @@ func mapFinishReason(reason string) string {
 }
 
 func mapError(resp *fasthttp.Response) error {
-	message := parseErrorMessage(resp.Body())
+	return mapStatusError(resp.StatusCode(), resp.Body())
+}
 
-	switch resp.StatusCode() {
+func mapStatusError(statusCode int, body []byte) error {
+	message := parseErrorMessage(body)
+
+	switch statusCode {
 	case fasthttp.StatusUnauthorized, fasthttp.StatusForbidden:
 		return fmt.Errorf("%w: %s", ErrAuth, message)
 	case fasthttp.StatusTooManyRequests:
 		return &RateLimitError{Message: message}
 	default:
-		if resp.StatusCode() >= 500 {
+		if statusCode >= 500 {
 			return fmt.Errorf("%w: %s", ErrServer, message)
 		}
-		return fmt.Errorf("vertex error status %d: %s", resp.StatusCode(), message)
+		return fmt.Errorf("vertex error status %d: %s", statusCode, message)
 	}
 }
 

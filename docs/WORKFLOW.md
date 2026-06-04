@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.AU"
-last_updated: "2026-06-04T17:09:27Z"
+current_wave: "8.AV"
+last_updated: "2026-06-04T17:12:53Z"
 last_agent: "orchestrator"
 ```
 
@@ -1549,6 +1549,47 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AU removes a concrete provider parity gap by replacing Gemini's unsupported streaming stub with a native `streamGenerateContent?alt=sse` implementation. Tests prove API-key and OAuth request behavior against a local SSE server, text/tool-call/finish/usage chunk mapping, and updated provider matrix streaming capability.
+
+---
+
+### Wave 8.AV — Vertex Streaming Parity
+
+```yaml
+wave: "8.AV"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/vertex ./internal/provider -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+completed_at: "2026-06-04T17:12:53Z"
+evaluator_prompt: "docs/evaluations/wave-8AV-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after Vertex native SSE streaming parity"
+gate_results:
+  - "go test ./internal/providers/vertex -run 'TestChatCompletionStreamMapsVertexSSEChunks|TestChatCompletionStreamMalformedSSEEmitsErrorChunk' -count=1: RED before implementation, ChatCompletionStream returned vertex unsupported operation"
+  - "go test ./internal/providers/vertex -run 'TestChatCompletionStreamMapsVertexSSEChunks|TestChatCompletionStreamMalformedSSEEmitsErrorChunk' -count=1: PASS"
+  - "go test ./internal/providers/vertex ./internal/provider -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+
+tasks:
+  - id: "8.AV.1"
+    name: "Implement native Vertex SSE streaming"
+    status: DONE
+    agent: "orchestrator"
+    commit: "TBD"
+    files_owned:
+      - internal/providers/vertex/vertex.go
+      - internal/providers/vertex/vertex_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AU-evaluator-prompt.md
+      - docs/evaluations/wave-8AV-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AV removes Vertex's unsupported streaming stub and adds native Vertex `streamGenerateContent?alt=sse` support for configured project/location routing. Tests prove bearer-auth request behavior against a local SSE server, text/finish/usage chunk mapping, malformed stream error chunks, and updated provider matrix streaming capability.
 
 ---
 

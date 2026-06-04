@@ -254,7 +254,7 @@ func TestGeminiPublicNativeProviderStreams(t *testing.T) {
 	}
 }
 
-func TestVertexPublicNativeProviderCanBeNonStreaming(t *testing.T) {
+func TestVertexPublicNativeProviderStreams(t *testing.T) {
 	entry, ok := ProviderMatrix().Provider("vertex")
 	if !ok {
 		t.Fatal("provider matrix missing vertex")
@@ -265,11 +265,8 @@ func TestVertexPublicNativeProviderCanBeNonStreaming(t *testing.T) {
 	if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
 		t.Fatalf("vertex supported surface is incomplete: %+v", entry)
 	}
-	if entry.Streaming {
-		t.Fatal("vertex streaming = true, want false until streaming is implemented")
-	}
-	if !entry.ModelCatalog || !entry.ListModels {
-		t.Fatalf("vertex should expose catalog and ListModels: %+v", entry)
+	if !entry.Streaming || !entry.ModelCatalog || !entry.ListModels {
+		t.Fatalf("vertex should expose streaming, catalog, and ListModels: %+v", entry)
 	}
 	if entry.Quota {
 		t.Fatal("vertex should not claim quota support until a real quota fetcher exists")
