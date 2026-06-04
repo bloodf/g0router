@@ -27,7 +27,7 @@
 
 ## Task 10.1: UI Scaffold
 
-### TODO
+### Completed Work
 
 - [x] Initialize Vite + React + Tailwind
 - [x] Verify `npm run build` succeeds
@@ -78,7 +78,7 @@ phase-10/task-1: ui scaffold
 
 ## Task 10.2: Dashboard Page
 
-### TODO
+### Completed Work
 
 - [x] Build overview page
 - [x] Commit: `phase-10/task-2: dashboard overview page`
@@ -128,7 +128,7 @@ phase-10/task-2: dashboard overview page
 
 ## Task 10.3: Endpoint Page
 
-### TODO
+### Completed Work
 
 - [x] Build API key + RTK + caveman controls
 - [x] Commit: `phase-10/task-3: endpoint configuration page`
@@ -178,7 +178,7 @@ phase-10/task-3: endpoint configuration page
 
 ## Task 10.4: Providers Page
 
-### TODO
+### Completed Work
 
 - [x] Build provider grid + connect flow
 - [x] Commit: `phase-10/task-4: providers management page`
@@ -228,7 +228,7 @@ phase-10/task-4: providers management page
 
 ## Task 10.5: Usage Page
 
-### TODO
+### Completed Work
 
 - [x] Build charts + request table
 - [x] Commit: `phase-10/task-5: usage analytics page`
@@ -278,7 +278,7 @@ phase-10/task-5: usage analytics page
 
 ## Task 10.6: Quota Page
 
-### TODO
+### Completed Work
 
 - [x] Build quota bars
 - [x] Commit: `phase-10/task-6: quota display page`
@@ -328,7 +328,7 @@ phase-10/task-6: quota display page
 
 ## Task 10.7: Remaining Pages
 
-### TODO
+### Completed Work
 
 - [x] Build combos, MCP, settings pages
 - [x] Commit: `phase-10/task-7: combos mcp settings pages`
@@ -378,7 +378,7 @@ phase-10/task-7: combos mcp settings pages
 
 ## Task 10.8: Embed UI in Go Binary
 
-### TODO
+### Completed Work
 
 - [x] Write `embed.go`
 - [x] Update server to serve embedded files

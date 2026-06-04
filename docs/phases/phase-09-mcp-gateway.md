@@ -26,7 +26,7 @@
 
 ## Task 9.1: MCP Client Manager
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/mcp/clientmanager_test.go` — test FIRST
 - [x] Implement
@@ -40,7 +40,7 @@
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -77,7 +77,7 @@ phase-9/task-1: mcp client manager
 
 ## Task 9.2: MCP Tool Manager
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/mcp/toolmanager_test.go` — test FIRST
 - [x] Implement
@@ -91,7 +91,7 @@ phase-9/task-1: mcp client manager
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -128,7 +128,7 @@ phase-9/task-2: mcp tool manager
 
 ## Task 9.3: MCP Tool Discovery
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/mcp/discovery_test.go` — test FIRST
 - [x] Implement compact manifests
@@ -142,7 +142,7 @@ phase-9/task-2: mcp tool manager
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -179,7 +179,7 @@ phase-9/task-3: mcp compact tool discovery
 
 ## Task 9.4: MCP Agent Loop
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/mcp/agent_test.go` — test FIRST
 - [x] Implement multi-turn execution
@@ -193,7 +193,7 @@ phase-9/task-3: mcp compact tool discovery
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -230,7 +230,7 @@ phase-9/task-4: mcp agent loop
 
 ## Task 9.5: MCP Health Monitor
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/mcp/healthmonitor_test.go` — test FIRST
 - [x] Implement
@@ -244,7 +244,7 @@ phase-9/task-4: mcp agent loop
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -281,7 +281,7 @@ phase-9/task-5: mcp health monitor
 
 ## Task 9.6: MCP API Handlers + Store
 
-### TODO
+### Completed Work
 
 - [x] Write tests FIRST
 - [x] Implement
@@ -295,7 +295,7 @@ phase-9/task-5: mcp health monitor
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist

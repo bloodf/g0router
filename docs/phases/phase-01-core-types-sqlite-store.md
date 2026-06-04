@@ -29,7 +29,7 @@
 
 ## Task 1.1: Define Core Types
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/types_test.go` — **test file FIRST**
 - [x] Run tests → see RED (types don't exist)
@@ -461,7 +461,7 @@ phase-1/task-1: define core types with OpenAI-compatible JSON
 
 ## Task 1.2: SQLite Store Foundation
 
-### TODO
+### Completed Work
 
 - [x] `go get modernc.org/sqlite`
 - [x] Write `internal/store/sqlite_test.go` — **test file FIRST**
@@ -714,7 +714,7 @@ phase-1/task-2: sqlite store foundation with migration
 
 ## Task 1.3: Connection CRUD
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/store/connections_test.go` — **test file FIRST**
 - [x] Write `internal/store/errors.go` — `ErrNotFound`
@@ -943,7 +943,7 @@ phase-1/task-3: connection CRUD with provider filtering
 
 ## Task 1.4: Settings + API Keys Store
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/store/settings_test.go` — **test file FIRST**
 - [x] Write `internal/store/apikeys_test.go` — **test file FIRST**
@@ -1013,7 +1013,7 @@ phase-1/task-4: settings and API key store with HMAC validation
 
 ## Task 1.5: Usage Log Store
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/store/usage_test.go` — **test file FIRST**
 - [x] Run tests → see RED
@@ -1065,7 +1065,7 @@ phase-1/task-5: usage log store with filtering and aggregation
 
 ## Task 1.6: Config Loading
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/config/config_test.go` — **test file FIRST**
 - [x] Run tests → see RED

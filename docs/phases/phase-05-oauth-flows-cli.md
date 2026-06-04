@@ -27,7 +27,7 @@
 
 ## Task 5.1: OAuth Types and Interface
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/provider/oauth/types_test.go` — test FIRST
 - [x] Implement types.go
@@ -41,7 +41,7 @@
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -78,7 +78,7 @@ phase-5/task-1: oauth types and interface
 
 ## Task 5.2: Anthropic OAuth (Claude Code)
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/provider/oauth/anthropic_test.go` — test FIRST
 - [x] Implement PKCE flow
@@ -92,7 +92,7 @@ phase-5/task-1: oauth types and interface
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -129,7 +129,7 @@ phase-5/task-2: anthropic oauth with pkce
 
 ## Task 5.3: OpenAI Codex OAuth
 
-### TODO
+### Completed Work
 
 - [x] Write test FIRST
 - [x] Implement device-code flow
@@ -143,7 +143,7 @@ phase-5/task-2: anthropic oauth with pkce
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -180,7 +180,7 @@ phase-5/task-3: openai codex device-code oauth
 
 ## Task 5.4: GitHub Copilot OAuth
 
-### TODO
+### Completed Work
 
 - [x] Write test FIRST
 - [x] Implement
@@ -194,7 +194,7 @@ phase-5/task-3: openai codex device-code oauth
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -231,7 +231,7 @@ phase-5/task-4: github copilot oauth
 
 ## Task 5.5: Cursor PKCE OAuth
 
-### TODO
+### Completed Work
 
 - [x] Write test FIRST
 - [x] Implement
@@ -245,7 +245,7 @@ phase-5/task-4: github copilot oauth
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -282,7 +282,7 @@ phase-5/task-5: cursor pkce oauth
 
 ## Task 5.6: Google OAuth (Gemini CLI, Antigravity)
 
-### TODO
+### Completed Work
 
 - [x] Write tests FIRST
 - [x] Implement both flows
@@ -296,7 +296,7 @@ phase-5/task-5: cursor pkce oauth
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -333,7 +333,7 @@ phase-5/task-6: google oauth flows
 
 ## Task 5.7: xAI, DeepSeek, GitLab, Kiro OAuth
 
-### TODO
+### Completed Work
 
 - [x] Write tests FIRST
 - [x] Implement each
@@ -347,7 +347,7 @@ phase-5/task-6: google oauth flows
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -384,7 +384,7 @@ phase-5/task-7: xai deepseek gitlab kiro oauth
 
 ## Task 5.8: Chinese Provider OAuth
 
-### TODO
+### Completed Work
 
 - [x] Write tests FIRST
 - [x] Implement each
@@ -398,7 +398,7 @@ phase-5/task-7: xai deepseek gitlab kiro oauth
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -435,7 +435,7 @@ phase-5/task-8: chinese provider oauth
 
 ## Task 5.9: Token Refresh with Dedup
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/provider/refresh_test.go` — test FIRST
 - [x] Implement singleflight dedup
@@ -449,7 +449,7 @@ phase-5/task-8: chinese provider oauth
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -486,7 +486,7 @@ phase-5/task-9: token refresh with singleflight dedup
 
 ## Task 5.10: OAuth HTTP Endpoints
 
-### TODO
+### Completed Work
 
 - [x] Write handler tests FIRST
 - [x] Implement authorize/poll/callback
@@ -500,7 +500,7 @@ phase-5/task-9: token refresh with singleflight dedup
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -537,7 +537,7 @@ phase-5/task-10: oauth http endpoints
 
 ## Task 5.11: CLI Commands (Cobra)
 
-### TODO
+### Completed Work
 
 - [x] go get github.com/spf13/cobra
 - [x] Write CLI tests FIRST
@@ -553,7 +553,7 @@ phase-5/task-10: oauth http endpoints
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist

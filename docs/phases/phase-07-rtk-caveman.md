@@ -26,7 +26,7 @@
 
 ## Task 7.1: RTK Autodetect
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/rtk/autodetect_test.go` — test FIRST with real samples
 - [x] Run tests → RED
@@ -42,7 +42,7 @@
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -79,7 +79,7 @@ phase-7/task-1: rtk content format autodetection
 
 ## Task 7.2: RTK Filters (11 total)
 
-### TODO
+### Completed Work
 
 - [x] For EACH filter: write test FIRST with real-world sample
 - [x] Implement filter
@@ -94,7 +94,7 @@ phase-7/task-1: rtk content format autodetection
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -125,7 +125,7 @@ go vet ./...              # Clean
 
 ## Task 7.3: RTK Message Compression
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/rtk/rtk_test.go` — test FIRST
 - [x] Run tests → RED
@@ -141,7 +141,7 @@ go vet ./...              # Clean
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -178,7 +178,7 @@ phase-7/task-3: rtk message compression
 
 ## Task 7.4: Caveman Prompt Injection
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/rtk/caveman_test.go` — test FIRST
 - [x] Run tests → RED
@@ -194,7 +194,7 @@ phase-7/task-3: rtk message compression
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist

@@ -157,7 +157,7 @@ g0router mcp remove <instance>
 
 ## Task 12.1: MCP Instance Model + Store
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/store/mcpinstances_test.go` first.
 - [x] Write `internal/mcp/instances_test.go` first.
@@ -177,7 +177,7 @@ g0router mcp remove <instance>
 
 ## Task 12.2: MCP Launchers for Command, Npx, Docker, and HTTP
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/mcp/launcher_test.go` first.
 - [x] Implement launch specs for `command`, `npx`, `docker`, and `http`.
@@ -198,7 +198,7 @@ g0router mcp remove <instance>
 
 ## Task 12.3: MCP OAuth Account Engine
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/mcp/oauth_test.go` first.
 - [x] Write `internal/store/mcpoauth_test.go` first.
@@ -221,7 +221,7 @@ g0router mcp remove <instance>
 
 ## Task 12.4: OAuth Callback URL Completion
 
-### TODO
+### Completed Work
 
 - [x] Write `api/handlers/mcpoauth_test.go` first.
 - [x] Write CLI tests for pasted callback URL completion first.
@@ -243,7 +243,7 @@ g0router mcp remove <instance>
 
 ## Task 12.5: MCP Management Surfaces
 
-### TODO
+### Completed Work
 
 - [x] Write API tests first for instance CRUD, auth start, auth complete, accounts, and tool listing.
 - [x] Write CLI tests first for add/auth/accounts/tools/remove commands.
@@ -263,7 +263,7 @@ g0router mcp remove <instance>
 
 ## Task 12.6: Advanced MCP Integration Tests + Docs
 
-### TODO
+### Completed Work
 
 - [x] Write integration tests first with fake MCP servers and fake OAuth endpoints.
 - [x] Add a documented manual verification path for real `npx`, `docker`, and remote HTTP MCP servers.

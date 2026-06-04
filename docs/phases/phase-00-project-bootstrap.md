@@ -16,7 +16,7 @@
 
 ## Task 0.1: Initialize Go Module and Directory Structure
 
-### TODO
+### Completed Work
 
 - [x] Create `go.mod`
 - [x] Create `cmd/g0router/main.go`

@@ -27,7 +27,7 @@
 
 ## Task 3.1: Anthropic Provider
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/anthropic/anthropic_test.go` — test FIRST
 - [x] Run tests → RED (types don't exist)
@@ -45,7 +45,7 @@
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -82,7 +82,7 @@ phase-3/task-1: anthropic provider with Messages API
 
 ## Task 3.2: Format Translation Engine
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/translate/detect_test.go` — test FIRST
 - [x] Write `internal/translate/anthropic_test.go` — test FIRST
@@ -101,7 +101,7 @@ phase-3/task-1: anthropic provider with Messages API
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -138,7 +138,7 @@ phase-3/task-2: format translation engine
 
 ## Task 3.3: OpenAI-Compatible Providers (batch)
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/openaicompat/provider_test.go` — parameterized test FIRST
 - [x] Run tests → RED
@@ -155,7 +155,7 @@ phase-3/task-2: format translation engine
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -192,7 +192,7 @@ phase-3/task-3: openai-compatible provider factory
 
 ## Task 3.4: Gemini Provider
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/gemini/gemini_test.go` — test FIRST
 - [x] Run tests → RED
@@ -208,7 +208,7 @@ phase-3/task-3: openai-compatible provider factory
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -245,7 +245,7 @@ phase-3/task-4: gemini provider with generateContent
 
 ## Task 3.5: Gemini Format Translation
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/translate/gemini_test.go` — test FIRST
 - [x] Run tests → RED
@@ -261,7 +261,7 @@ phase-3/task-4: gemini provider with generateContent
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -298,7 +298,7 @@ phase-3/task-5: openai to gemini format translation
 
 ## Task 3.6: Vertex AI Provider
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/vertex/vertex_test.go` — test FIRST
 - [x] Implement
@@ -312,7 +312,7 @@ phase-3/task-5: openai to gemini format translation
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -349,7 +349,7 @@ phase-3/task-6: vertex ai provider
 
 ## Task 3.7: AWS Bedrock Provider
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/bedrock/bedrock_test.go` — test FIRST
 - [x] Implement with SigV4 signing
@@ -363,7 +363,7 @@ phase-3/task-6: vertex ai provider
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -400,7 +400,7 @@ phase-3/task-7: aws bedrock provider with sigv4
 
 ## Task 3.8: Azure OpenAI Provider
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/azure/azure_test.go` — test FIRST
 - [x] Implement
@@ -414,7 +414,7 @@ phase-3/task-7: aws bedrock provider with sigv4
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -451,7 +451,7 @@ phase-3/task-8: azure openai provider
 
 ## Task 3.9: Mistral, Ollama, Cohere, Replicate
 
-### TODO
+### Completed Work
 
 - [x] Write tests FIRST for each
 - [x] Implement each
@@ -465,7 +465,7 @@ phase-3/task-8: azure openai provider
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -502,7 +502,7 @@ phase-3/task-9: additional providers
 
 ## Task 3.10: Responses API Support
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/openai/responses_test.go` — test FIRST
 - [x] Implement
@@ -516,7 +516,7 @@ phase-3/task-9: additional providers
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist

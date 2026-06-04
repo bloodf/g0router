@@ -16,7 +16,7 @@
 
 ## Task 11.1: Makefile
 
-### TODO
+### Completed Work
 
 - [x] Write Makefile with build, test, lint, ui, docker, install targets
 - [x] Verify `make build` + `make test`
@@ -67,7 +67,7 @@ phase-11/task-1: makefile
 
 ## Task 11.2: systemd + Install CLI
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/cli/install_test.go` — test FIRST
 - [x] Write `deploy/g0router.service`
@@ -83,7 +83,7 @@ phase-11/task-1: makefile
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -120,7 +120,7 @@ phase-11/task-2: systemd service and install command
 
 ## Task 11.3: Docker Support
 
-### TODO
+### Completed Work
 
 - [x] Write `Dockerfile` (multi-stage)
 - [x] Write `docker-compose.yml`
@@ -173,7 +173,7 @@ phase-11/task-3: docker support
 
 ## Task 11.4: .env.example + README
 
-### TODO
+### Completed Work
 
 - [x] Verify all docs are accurate
 - [x] Update README with tested examples
@@ -224,7 +224,7 @@ phase-11/task-4: documentation polish
 
 ## Task 11.5: Final Integration Test Suite
 
-### TODO
+### Completed Work
 
 - [x] Write E2E test (server start → login → request → usage)
 - [x] Run with real API keys

@@ -28,7 +28,7 @@
 
 ## Task 2.1: fasthttp Server Skeleton
 
-### TODO
+### Completed Work
 
 - [x] `go get github.com/valyala/fasthttp`
 - [x] Write `api/server_test.go` — **test file FIRST**
@@ -148,7 +148,7 @@ phase-2/task-1: fasthttp server with health endpoint
 
 ## Task 2.2: Middleware (CORS, Auth, Request ID)
 
-### TODO
+### Completed Work
 
 - [x] Write `api/middleware_test.go` — **test file FIRST**
 - [x] Run tests → see RED
@@ -196,7 +196,7 @@ phase-2/task-2: middleware for CORS, request ID, and API key auth
 
 ## Task 2.3: Proxy Engine Core
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/proxy/engine_test.go` — **test file FIRST**
 - [x] Run tests → see RED
@@ -247,7 +247,7 @@ phase-2/task-3: proxy engine with provider dispatch
 
 ## Task 2.4: OpenAI Provider Implementation
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/openai/openai_test.go` — **test file FIRST**
 - [x] Run tests → see RED
@@ -290,7 +290,7 @@ phase-2/task-4: OpenAI provider with streaming SSE parser
 
 ## Task 2.5: Shared Provider Utilities
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/providers/utils/http_test.go` — **test file FIRST**
 - [x] Write `internal/providers/utils/sse_test.go` — **test file FIRST**
@@ -331,7 +331,7 @@ phase-2/task-5: shared HTTP client and SSE parser utilities
 
 ## Task 2.6: Streaming Accumulator
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/streaming/accumulator_test.go` — **test file FIRST**
 - [x] Run tests → see RED
@@ -360,7 +360,7 @@ phase-2/task-6: streaming accumulator for chunk collection
 
 ## Task 2.7: Inference Handler
 
-### TODO
+### Completed Work
 
 - [x] Write `api/handlers/inference_test.go` — **test file FIRST**
 - [x] Write `api/handlers/models.go`

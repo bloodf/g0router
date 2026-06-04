@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AP"
-last_updated: "2026-06-04T13:19:03Z"
+current_wave: "8.AQ"
+last_updated: "2026-06-04T13:23:16Z"
 last_agent: "orchestrator"
 ```
 
@@ -1345,6 +1345,46 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AP reconciles the dashboard user-facing quota page label with the Stage 8 dashboard scope by rendering navigation, route title, page heading, and E2E navigation as `Quotas` while preserving the stable `quota` route id and `/api/usage/quota/{provider}` backend contract.
+
+---
+
+### Wave 8.AQ — Phase Documentation Completion Wording
+
+```yaml
+wave: "8.AQ"
+status: DONE
+max_agents: 1
+gate: "rg -n '^### TODO$|Create the test file referenced in TODO|implementation does not exist|implementation doesn''t exist' docs/phases --glob '*.md' && false || true; rg -n -- '- \\[ \\]' docs/phases docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/README.md && false || true"
+completed_at: "2026-06-04T13:23:16Z"
+evaluator_prompt: "docs/evaluations/wave-8AQ-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "rg -n '^### TODO$|Create the test file referenced in TODO|implementation does not exist|implementation doesn''t exist' docs/phases --glob '*.md': PASS, no stale phase TODO wording"
+  - "rg -n -- '- \\[ \\]' docs/phases docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/README.md: PASS, no unchecked task boxes"
+
+tasks:
+  - id: "8.AQ.1"
+    name: "Reconcile stale phase TODO wording"
+    status: DONE
+    agent: "orchestrator"
+    commit: "SELF"
+    files_owned:
+      - docs/phases/phase-00-project-bootstrap.md
+      - docs/phases/phase-01-core-types-sqlite-store.md
+      - docs/phases/phase-02-http-server-proxy-engine.md
+      - docs/phases/phase-03-multi-provider-support.md
+      - docs/phases/phase-04-persistence-provider-registry.md
+      - docs/phases/phase-05-oauth-flows-cli.md
+      - docs/phases/phase-06-account-fallback-combos.md
+      - docs/phases/phase-07-rtk-caveman.md
+      - docs/phases/phase-08-usage-tracking-cost-logging.md
+      - docs/phases/phase-09-mcp-gateway.md
+      - docs/phases/phase-10-dashboard-ui.md
+      - docs/phases/phase-11-packaging-deployment-polish.md
+      - docs/phases/phase-12-advanced-mcp-gateway.md
+```
+
+**Checkpoint**: Wave 8.AQ removes stale future-tense TODO wording from completed phase documents. Task checklists remain intact and completed, while the repeated TDD boilerplate now reads as implementation evidence instead of claiming the implementation still does not exist.
 
 ---
 

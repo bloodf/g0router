@@ -25,7 +25,7 @@
 
 ## Task 4.1: Provider Registry
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/provider/registry_test.go` — test FIRST
 - [x] Run tests → RED
@@ -41,7 +41,7 @@
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -78,7 +78,7 @@ phase-4/task-1: provider registry with model resolution
 
 ## Task 4.2: Connection Management with Round-Robin
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/provider/connection_test.go` — test FIRST
 - [x] Run tests → RED
@@ -94,7 +94,7 @@ phase-4/task-1: provider registry with model resolution
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -131,7 +131,7 @@ phase-4/task-2: round-robin connection selection
 
 ## Task 4.3: Combos Store + Resolver
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/store/combos_test.go` — test FIRST
 - [x] Run tests → RED
@@ -147,7 +147,7 @@ phase-4/task-2: round-robin connection selection
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -184,7 +184,7 @@ phase-4/task-3: combo model store and resolver
 
 ## Task 4.4: Model Aliases + Pricing Overrides
 
-### TODO
+### Completed Work
 
 - [x] Write tests FIRST
 - [x] Implement `internal/store/aliases.go` + `internal/store/pricing.go`
@@ -198,7 +198,7 @@ phase-4/task-3: combo model store and resolver
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -235,7 +235,7 @@ phase-4/task-4: model aliases and pricing overrides
 
 ## Task 4.5: Management API Handlers
 
-### TODO
+### Completed Work
 
 - [x] Write handler tests FIRST
 - [x] Implement all CRUD endpoints
@@ -249,7 +249,7 @@ phase-4/task-4: model aliases and pricing overrides
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist

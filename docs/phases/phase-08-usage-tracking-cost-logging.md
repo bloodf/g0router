@@ -25,7 +25,7 @@
 
 ## Task 8.1: Usage Extraction
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/usage/tracker_test.go` — test FIRST
 - [x] Implement
@@ -39,7 +39,7 @@
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -76,7 +76,7 @@ phase-8/task-1: usage extraction from provider responses
 
 ## Task 8.2: Model Pricing Catalog
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/modelcatalog/pricing_test.go` — test FIRST
 - [x] Implement
@@ -90,7 +90,7 @@ phase-8/task-1: usage extraction from provider responses
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -127,7 +127,7 @@ phase-8/task-2: model pricing catalog
 
 ## Task 8.3: Cost Calculation
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/usage/cost_test.go` — test FIRST
 - [x] Implement
@@ -141,7 +141,7 @@ phase-8/task-2: model pricing catalog
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -178,7 +178,7 @@ phase-8/task-3: cost calculation
 
 ## Task 8.4: Provider Quota Fetchers
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/usage/quota_test.go` — test FIRST
 - [x] Implement quota fetcher contract and 5-minute cache wrapper; unsupported providers return explicit unsupported errors instead of fabricated quotas
@@ -192,7 +192,7 @@ phase-8/task-3: cost calculation
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -229,7 +229,7 @@ phase-8/task-4: provider quota fetchers
 
 ## Task 8.5: Request/Response Logging
 
-### TODO
+### Completed Work
 
 - [x] Write `internal/logging/logger_test.go` — test FIRST
 - [x] Implement
@@ -243,7 +243,7 @@ phase-8/task-4: provider quota fetchers
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
@@ -280,7 +280,7 @@ phase-8/task-5: request response logging
 
 ## Task 8.6: Usage + Logging API Handlers
 
-### TODO
+### Completed Work
 
 - [x] Write handler tests FIRST
 - [x] Implement endpoints
@@ -294,7 +294,7 @@ phase-8/task-5: request response logging
 
 #### RED: Write Failing Tests First
 
-Create the test file referenced in TODO. Write tests that exercise the public API of the new code. Tests must compile but FAIL because the implementation doesn't exist.
+Implementation evidence: tests for this task were expected to be written before code and to exercise the public API before implementation.
 
 ```bash
 go test ./...  # Expected: FAIL — new types/functions don't exist
