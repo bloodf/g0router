@@ -29,6 +29,8 @@ type OAuthFlow struct {
 	RedirectURI        string
 	AuthorizationURL   string
 	ResourceURI        string
+	ClientID           string
+	ClientSecret       string
 	ExpiresAt          time.Time
 	CreatedAt          string
 }
@@ -73,6 +75,8 @@ type OAuthStartConfig struct {
 	AuthorizationURL  string
 	RedirectURI       string
 	ResourceURI       string
+	ClientID          string
+	ClientSecret      string
 	ExpirationSeconds int
 }
 
@@ -176,6 +180,10 @@ func BuildOAuthStartFlow(config OAuthStartConfig) (OAuthFlow, error) {
 	query.Set("redirect_uri", redirectURI)
 	query.Set("code_challenge_method", "S256")
 	query.Set("code_challenge", pkceChallenge(verifier))
+	clientID := strings.TrimSpace(config.ClientID)
+	if clientID != "" {
+		query.Set("client_id", clientID)
+	}
 	authorizationURL.RawQuery = query.Encode()
 
 	expiresAt := time.Now().Add(10 * time.Minute)
@@ -190,6 +198,8 @@ func BuildOAuthStartFlow(config OAuthStartConfig) (OAuthFlow, error) {
 		RedirectURI:        redirectURI,
 		AuthorizationURL:   authorizationURL.String(),
 		ResourceURI:        config.ResourceURI,
+		ClientID:           clientID,
+		ClientSecret:       strings.TrimSpace(config.ClientSecret),
 		ExpiresAt:          expiresAt,
 	}, nil
 }
@@ -308,6 +318,12 @@ func (e *OAuthEngine) exchangeAuthorizationCode(ctx context.Context, tokenEndpoi
 	form.Set("redirect_uri", flow.RedirectURI)
 	if flow.ResourceURI != "" {
 		form.Set("resource", flow.ResourceURI)
+	}
+	if flow.ClientID != "" {
+		form.Set("client_id", flow.ClientID)
+	}
+	if flow.ClientSecret != "" {
+		form.Set("client_secret", flow.ClientSecret)
 	}
 	token, err := e.postToken(ctx, tokenEndpoint, form)
 	if err != nil {

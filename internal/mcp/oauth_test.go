@@ -57,6 +57,31 @@ func TestOAuthStartBuildsPKCEAuthorizationURL(t *testing.T) {
 	}
 }
 
+func TestOAuthStartIncludesClientID(t *testing.T) {
+	flow, err := BuildOAuthStartFlow(OAuthStartConfig{
+		InstanceID:        "inst-1",
+		AuthorizationURL:  "https://auth.example/authorize",
+		ResourceURI:       "https://mcp.example",
+		RedirectURI:       "http://localhost:3000/api/mcp/oauth/callback",
+		ClientID:          "client-123",
+		ExpirationSeconds: 600,
+	})
+	if err != nil {
+		t.Fatalf("BuildOAuthStartFlow: %v", err)
+	}
+
+	parsed, err := url.Parse(flow.AuthorizationURL)
+	if err != nil {
+		t.Fatalf("parse auth URL: %v", err)
+	}
+	if parsed.Query().Get("client_id") != "client-123" {
+		t.Fatalf("client_id query = %q, want client-123", parsed.Query().Get("client_id"))
+	}
+	if flow.ClientID != "client-123" {
+		t.Fatalf("flow client id = %q, want client-123", flow.ClientID)
+	}
+}
+
 func TestOAuthEngineCompletesCallbackForMatchingInstance(t *testing.T) {
 	store := newFakeOAuthStore()
 	var tokenForm url.Values
@@ -117,6 +142,51 @@ func TestOAuthEngineCompletesCallbackForMatchingInstance(t *testing.T) {
 	}
 	if _, err := engine.CompleteCallback(context.Background(), "inst-1", "https://callback.example?code=ok&state=state-1"); err == nil {
 		t.Fatal("state should be single-use")
+	}
+}
+
+func TestOAuthEnginePostsClientCredentialsWhenFlowProvidesThem(t *testing.T) {
+	store := newFakeOAuthStore()
+	var tokenForm url.Values
+	tokenServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("ParseForm: %v", err)
+		}
+		tokenForm = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "access-token",
+			"expires_in":   3600,
+		}); err != nil {
+			t.Fatalf("Encode: %v", err)
+		}
+	}))
+	defer tokenServer.Close()
+
+	engine := NewOAuthEngine(store, tokenServer.Client())
+	if err := store.CreateFlow(OAuthFlow{
+		InstanceID:         "inst-1",
+		State:              "state-1",
+		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost:3000/api/mcp/oauth/callback?instance_id=inst-1",
+		AuthorizationURL:   tokenServer.URL + "/authorize",
+		ResourceURI:        "https://mcp.example",
+		ClientID:           "client-123",
+		ClientSecret:       "client-secret",
+		ExpiresAt:          time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateFlow: %v", err)
+	}
+
+	_, err := engine.CompleteCallback(context.Background(), "inst-1", "https://callback.example?code=ok&state=state-1")
+	if err != nil {
+		t.Fatalf("CompleteCallback: %v", err)
+	}
+	if tokenForm.Get("client_id") != "client-123" {
+		t.Fatalf("client_id form = %q, want client-123", tokenForm.Get("client_id"))
+	}
+	if tokenForm.Get("client_secret") != "client-secret" {
+		t.Fatal("client_secret form was not posted from consumed flow")
 	}
 }
 

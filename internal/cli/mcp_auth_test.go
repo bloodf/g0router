@@ -127,18 +127,27 @@ func TestMCPOAuthStartCommandStoresPKCEVerifier(t *testing.T) {
 		"--authorization-url", "https://auth.example/authorize",
 		"--resource", "https://mcp.example",
 		"--redirect-url", "http://localhost:3000/api/mcp/oauth/callback",
+		"--client-id", "client-123",
+		"--client-secret", "client-secret",
 	})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	authURL, err := url.Parse(strings.TrimSpace(out.String()))
+	output := strings.TrimSpace(out.String())
+	if strings.Contains(output, "client-secret") {
+		t.Fatalf("output leaked client secret: %q", output)
+	}
+	authURL, err := url.Parse(output)
 	if err != nil {
 		t.Fatalf("parse auth URL: %v", err)
 	}
 	query := authURL.Query()
 	if query.Get("code_challenge_method") != "S256" || query.Get("code_challenge") == "" {
 		t.Fatalf("query = %s, want S256 PKCE", authURL.RawQuery)
+	}
+	if query.Get("client_id") != "client-123" {
+		t.Fatalf("client_id query = %q, want client-123", query.Get("client_id"))
 	}
 	redirect, err := url.Parse(query.Get("redirect_uri"))
 	if err != nil {
@@ -159,6 +168,9 @@ func TestMCPOAuthStartCommandStoresPKCEVerifier(t *testing.T) {
 	}
 	if flow.CodeVerifierSecret == "" || flow.CodeVerifierSecret == query.Get("state") {
 		t.Fatalf("verifier = %q state = %q, want separate verifier", flow.CodeVerifierSecret, query.Get("state"))
+	}
+	if flow.ClientID != "client-123" || flow.ClientSecret != "client-secret" {
+		t.Fatal("stored client credentials did not match flag credentials")
 	}
 	if pkceChallengeForCLITest(flow.CodeVerifierSecret) != query.Get("code_challenge") {
 		t.Fatalf("stored verifier does not match challenge")
