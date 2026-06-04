@@ -838,7 +838,7 @@ tasks:
     name: "Add dedicated dashboard Settings/Security page"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "f707219"
     files_owned:
       - ui/src/App.tsx
       - ui/src/App.test.tsx
