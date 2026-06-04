@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.AS"
-last_updated: "2026-06-04T13:41:57Z"
+last_updated: "2026-06-04T13:43:50Z"
 last_agent: "orchestrator"
 ```
 
@@ -1437,7 +1437,7 @@ max_agents: 1
 gate: "rg -n 'Data Model Plan|Phase 12 should add or migrate' docs/phases/phase-12-advanced-mcp-gateway.md && false || true; rg -n -- '- \\[ \\]' docs/phases docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/README.md && false || true"
 completed_at: "2026-06-04T13:38:25Z"
 evaluator_prompt: "docs/evaluations/wave-8AS-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e92dc-320d-75c1-9b05-74938b8339e8 after metadata fix 4da4d73; no blocking findings"
 gate_results:
   - "rg -n 'Data Model Plan|Phase 12 should add or migrate' docs/phases/phase-12-advanced-mcp-gateway.md: PASS, no matches"
   - "rg -n -- '- \\[ \\]' docs/phases docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/README.md: PASS, no matches"
