@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.V"
-last_updated: "2026-06-04T09:56:31Z"
+last_updated: "2026-06-04T09:57:21Z"
 last_agent: "orchestrator"
 ```
 
@@ -564,7 +564,7 @@ tasks:
     name: "Run MCP agent loop from proxy dispatch"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "902b91f"
     files_owned:
       - internal/proxy/engine.go
       - internal/proxy/engine_test.go
