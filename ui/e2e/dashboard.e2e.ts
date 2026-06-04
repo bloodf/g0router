@@ -34,6 +34,11 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("heading", { name: "Endpoint configuration" })).toBeVisible();
     await expect(page.getByRole("table", { name: "API keys" })).toContainText("desktop-client");
 
+    await navigateTo(page, "API Keys");
+    await expect(page.getByRole("heading", { exact: true, name: "API Keys" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "API keys" })).toContainText("desktop-client");
+    await expect(page.getByRole("button", { name: "Copy chat completions endpoint" })).not.toBeVisible();
+
     await navigateTo(page, "Providers");
     await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Provider contract" })).toContainText("openai");
@@ -260,6 +265,9 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Endpoint");
     await expect(page.getByText("No API keys")).toBeVisible();
 
+    await navigateTo(page, "API Keys");
+    await expect(page.getByText("No API keys")).toBeVisible();
+
     await navigateTo(page, "Providers");
     await expect(page.getByText("No provider records")).toBeVisible();
 
@@ -301,6 +309,9 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("Session expired")).toBeVisible();
 
     await navigateTo(page, "Endpoint");
+    await expect(page.getByText("Authentication expired")).toBeVisible();
+
+    await navigateTo(page, "API Keys");
     await expect(page.getByText("Authentication expired")).toBeVisible();
 
     await navigateTo(page, "Providers");

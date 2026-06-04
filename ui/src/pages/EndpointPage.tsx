@@ -13,6 +13,10 @@ import {
 import { EmptyState, ErrorState, LoadingState, Panel, StatusPill } from "../components/Primitives";
 
 export function EndpointPage() {
+  return <APIKeysControlPlane showEndpointControls />;
+}
+
+export function APIKeysControlPlane({ showEndpointControls = false }: { showEndpointControls?: boolean }) {
   const [state, setState] = useState<AsyncState<APIKeyResponse[]>>({ status: "loading" });
   const [keyName, setKeyName] = useState("");
   const [createdKey, setCreatedKey] = useState<CreateAPIKeyResponse | null>(null);
@@ -90,34 +94,39 @@ export function EndpointPage() {
   }
 
   return (
-    <Panel title="Endpoint controls" description="API key, request transformation, and endpoint protection controls.">
-      <div className="mb-5 rounded-md border border-zinc-200 p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h4 className="text-sm font-semibold text-zinc-700">OpenAI-compatible endpoints</h4>
-            <p className="mt-1 text-sm text-zinc-500">Use these local URLs in OpenAI-compatible clients.</p>
+    <Panel
+      title={showEndpointControls ? "Endpoint controls" : "API keys"}
+      description={showEndpointControls ? "API key, request transformation, and endpoint protection controls." : "Gateway API keys for authenticated client traffic."}
+    >
+      {showEndpointControls ? (
+        <div className="mb-5 rounded-md border border-zinc-200 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h4 className="text-sm font-semibold text-zinc-700">OpenAI-compatible endpoints</h4>
+              <p className="mt-1 text-sm text-zinc-500">Use these local URLs in OpenAI-compatible clients.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700"
+                type="button"
+                onClick={() => void handleCopyEndpoint("/v1/chat/completions")}
+              >
+                Copy chat completions endpoint
+              </button>
+              <button
+                className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700"
+                type="button"
+                onClick={() => void handleCopyEndpoint("/v1/models")}
+              >
+                Copy models endpoint
+              </button>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700"
-              type="button"
-              onClick={() => void handleCopyEndpoint("/v1/chat/completions")}
-            >
-              Copy chat completions endpoint
-            </button>
-            <button
-              className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700"
-              type="button"
-              onClick={() => void handleCopyEndpoint("/v1/models")}
-            >
-              Copy models endpoint
-            </button>
-          </div>
+          {copiedEndpoint ? (
+            <p className="mt-3 text-sm font-semibold text-emerald-700">Endpoint copied</p>
+          ) : null}
         </div>
-        {copiedEndpoint ? (
-          <p className="mt-3 text-sm font-semibold text-emerald-700">Endpoint copied</p>
-        ) : null}
-      </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <div className="min-w-0">

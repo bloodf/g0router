@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.X"
-last_updated: "2026-06-04T10:06:21Z"
+current_wave: "8.Y"
+last_updated: "2026-06-04T10:11:28Z"
 last_agent: "orchestrator"
 ```
 
@@ -648,6 +648,46 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.X updates the documentation landing page so it no longer implies Stage 8 is merely future or secondary to Stage 7; `docs/WORKFLOW.md` remains the source of truth for active remediation status.
+
+### Wave 8.Y — Dashboard API Keys Page
+
+```yaml
+wave: "8.Y"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:11:28Z"
+evaluator_prompt: "docs/evaluations/wave-8Y-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "npm --prefix ui test -- --run APIKeysPage EndpointPage App: PASS"
+  - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.Y.1"
+    name: "Add dedicated dashboard API keys page"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - ui/src/pages/APIKeysPage.tsx
+      - ui/src/pages/APIKeysPage.test.tsx
+      - ui/src/pages/EndpointPage.tsx
+      - ui/e2e/dashboard.e2e.ts
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8Y-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.Y separates API key management into its own dashboard route backed by the existing `/api/keys` contract while leaving endpoint-copy controls only on Endpoint Setup.
 
 ---
 

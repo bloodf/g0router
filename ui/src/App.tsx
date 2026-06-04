@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import "./index.css";
 import { clearControlPlaneKey, getControlPlaneKey, saveControlPlaneKey } from "./api";
+import { APIKeysPage } from "./pages/APIKeysPage";
 import { AliasesPage } from "./pages/AliasesPage";
 import { CombosPage } from "./pages/CombosPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -29,6 +30,13 @@ const pages = [
     title: "Endpoint configuration",
     description: "API keys, RTK, caveman, and request controls.",
     Component: EndpointPage
+  },
+  {
+    id: "api-keys",
+    label: "API Keys",
+    title: "API Keys",
+    description: "Gateway keys for authenticated client traffic.",
+    Component: APIKeysPage
   },
   {
     id: "providers",

@@ -27,7 +27,7 @@ describe("App", () => {
     const primaryNav = screen.getByRole("navigation", { name: "Primary" });
     expect(primaryNav).toBeInTheDocument();
 
-    for (const label of ["Dashboard", "Endpoint", "Providers", "Aliases", "Models", "Pricing", "Usage", "Logs", "Quota", "Combos", "MCP", "Settings", "Diagnostics"]) {
+    for (const label of ["Dashboard", "Endpoint", "API Keys", "Providers", "Aliases", "Models", "Pricing", "Usage", "Logs", "Quota", "Combos", "MCP", "Settings", "Diagnostics"]) {
       expect(within(primaryNav).getByRole("button", { name: label })).toBeInTheDocument();
     }
   });
