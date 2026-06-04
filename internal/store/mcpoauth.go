@@ -18,6 +18,8 @@ type MCPOAuthFlow struct {
 	RedirectURI        string
 	AuthorizationURL   string
 	ResourceURI        string
+	ClientID           string
+	ClientSecret       string
 	ExpiresAt          time.Time
 	CreatedAt          string
 }
@@ -43,8 +45,8 @@ func (s *Store) CreateMCPOAuthFlow(flow *MCPOAuthFlow) error {
 	row := s.db.QueryRow(
 		`INSERT INTO mcp_oauth_flows (
 			instance_id, state_hash, code_verifier_secret, redirect_uri,
-			authorization_url, resource_uri, expires_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?)
+			authorization_url, resource_uri, client_id, client_secret, expires_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at`,
 		flow.InstanceID,
 		hashOAuthState(flow.State),
@@ -52,6 +54,8 @@ func (s *Store) CreateMCPOAuthFlow(flow *MCPOAuthFlow) error {
 		flow.RedirectURI,
 		flow.AuthorizationURL,
 		flow.ResourceURI,
+		flow.ClientID,
+		flow.ClientSecret,
 		flow.ExpiresAt.Format(time.RFC3339),
 	)
 	if err := row.Scan(&flow.ID, &flow.CreatedAt); err != nil {
@@ -185,6 +189,8 @@ func (s *Store) ConsumeFlow(instanceID, state string) (mcp.OAuthFlow, error) {
 		RedirectURI:        flow.RedirectURI,
 		AuthorizationURL:   flow.AuthorizationURL,
 		ResourceURI:        flow.ResourceURI,
+		ClientID:           flow.ClientID,
+		ClientSecret:       flow.ClientSecret,
 		ExpiresAt:          flow.ExpiresAt,
 		CreatedAt:          flow.CreatedAt,
 	}, nil
@@ -223,7 +229,18 @@ func (s *Store) AccountLabelForInstance(instanceID string) (string, error) {
 func scanMCPOAuthFlow(scanner connectionScanner) (*MCPOAuthFlow, error) {
 	var flow MCPOAuthFlow
 	var expiresAt string
-	err := scanner.Scan(&flow.ID, &flow.InstanceID, &flow.CodeVerifierSecret, &flow.RedirectURI, &flow.AuthorizationURL, &flow.ResourceURI, &expiresAt, &flow.CreatedAt)
+	err := scanner.Scan(
+		&flow.ID,
+		&flow.InstanceID,
+		&flow.CodeVerifierSecret,
+		&flow.RedirectURI,
+		&flow.AuthorizationURL,
+		&flow.ResourceURI,
+		&flow.ClientID,
+		&flow.ClientSecret,
+		&expiresAt,
+		&flow.CreatedAt,
+	)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -281,7 +298,7 @@ func scanMCPOAuthAccount(scanner connectionScanner) (*MCPOAuthAccount, error) {
 }
 
 func mcpOAuthFlowSelectSQL() string {
-	return `SELECT id, instance_id, code_verifier_secret, redirect_uri, authorization_url, resource_uri, expires_at, created_at FROM mcp_oauth_flows`
+	return `SELECT id, instance_id, code_verifier_secret, redirect_uri, authorization_url, resource_uri, client_id, client_secret, expires_at, created_at FROM mcp_oauth_flows`
 }
 
 func mcpOAuthAccountSelectSQL() string {

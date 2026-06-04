@@ -198,7 +198,7 @@ func newMCPToolsCommand(dataDir *string) *cobra.Command {
 }
 
 func newMCPAuthStartCommand(dataDir *string) *cobra.Command {
-	var authorizationURL, resourceURI, redirectURI string
+	var authorizationURL, resourceURI, redirectURI, clientID, clientSecret string
 	cmd := &cobra.Command{
 		Use:   "start <instance>",
 		Short: "Start MCP OAuth",
@@ -224,6 +224,8 @@ func newMCPAuthStartCommand(dataDir *string) *cobra.Command {
 				AuthorizationURL:  authorizationURL,
 				RedirectURI:       redirectURI,
 				ResourceURI:       resourceURI,
+				ClientID:          clientID,
+				ClientSecret:      clientSecret,
 				ExpirationSeconds: int((10 * time.Minute).Seconds()),
 			})
 			if err != nil {
@@ -236,6 +238,8 @@ func newMCPAuthStartCommand(dataDir *string) *cobra.Command {
 				RedirectURI:        flow.RedirectURI,
 				AuthorizationURL:   flow.AuthorizationURL,
 				ResourceURI:        flow.ResourceURI,
+				ClientID:           flow.ClientID,
+				ClientSecret:       flow.ClientSecret,
 				ExpiresAt:          flow.ExpiresAt,
 			}); err != nil {
 				return fmt.Errorf("create mcp oauth flow: %w", err)
@@ -247,6 +251,8 @@ func newMCPAuthStartCommand(dataDir *string) *cobra.Command {
 	cmd.Flags().StringVar(&authorizationURL, "authorization-url", "", "authorization URL")
 	cmd.Flags().StringVar(&resourceURI, "resource", "", "resource URI")
 	cmd.Flags().StringVar(&redirectURI, "redirect-url", "", "redirect URL")
+	cmd.Flags().StringVar(&clientID, "client-id", "", "OAuth client ID")
+	cmd.Flags().StringVar(&clientSecret, "client-secret", "", "OAuth client secret")
 	return cmd
 }
 

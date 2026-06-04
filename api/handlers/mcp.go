@@ -44,6 +44,8 @@ type mcpOAuthStartRequest struct {
 	AuthorizationURL string `json:"authorization_url"`
 	ResourceURI      string `json:"resource_uri"`
 	RedirectURI      string `json:"redirect_uri"`
+	ClientID         string `json:"client_id"`
+	ClientSecret     string `json:"client_secret"`
 }
 
 type mcpOAuthStartResponse struct {
@@ -177,6 +179,8 @@ func MCPOAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) 
 		AuthorizationURL:  authorizationURL,
 		RedirectURI:       req.RedirectURI,
 		ResourceURI:       resourceURI,
+		ClientID:          req.ClientID,
+		ClientSecret:      req.ClientSecret,
 		ExpirationSeconds: int((10 * time.Minute).Seconds()),
 	})
 	if err != nil {
@@ -190,6 +194,8 @@ func MCPOAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) 
 		RedirectURI:        flow.RedirectURI,
 		AuthorizationURL:   flow.AuthorizationURL,
 		ResourceURI:        flow.ResourceURI,
+		ClientID:           flow.ClientID,
+		ClientSecret:       flow.ClientSecret,
 		ExpiresAt:          flow.ExpiresAt,
 	}); err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create mcp oauth flow: %v", err))

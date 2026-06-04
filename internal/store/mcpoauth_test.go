@@ -17,6 +17,8 @@ func TestMCPOAuthFlowIsSingleUseAndInstanceScoped(t *testing.T) {
 		RedirectURI:        "http://localhost/callback",
 		AuthorizationURL:   "https://auth.example/authorize",
 		ResourceURI:        "https://mcp.example",
+		ClientID:           "client-123",
+		ClientSecret:       "client-secret",
 		ExpiresAt:          time.Now().Add(time.Hour),
 	}
 
@@ -33,6 +35,9 @@ func TestMCPOAuthFlowIsSingleUseAndInstanceScoped(t *testing.T) {
 	}
 	if consumed.CodeVerifierSecret != "verifier" {
 		t.Fatalf("verifier = %q, want verifier", consumed.CodeVerifierSecret)
+	}
+	if consumed.ClientID != "client-123" || consumed.ClientSecret != "client-secret" {
+		t.Fatal("client credentials did not round trip")
 	}
 	if _, err := s.ConsumeMCPOAuthFlow(instance.ID, "state-1"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second consume err = %v, want ErrNotFound", err)

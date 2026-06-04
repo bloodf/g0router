@@ -360,13 +360,13 @@ func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	}
 
 	ctx = newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances/"+created.ID+"/auth/start")
-	ctx.Request.SetBodyString(`{"authorization_url":"https://auth.example/authorize","resource_uri":"https://mcp.atlassian.com","redirect_uri":"http://localhost:3000/api/mcp/oauth/callback"}`)
+	ctx.Request.SetBodyString(`{"authorization_url":"https://auth.example/authorize","resource_uri":"https://mcp.atlassian.com","redirect_uri":"http://localhost:3000/api/mcp/oauth/callback","client_id":"client-123","client_secret":"client-secret"}`)
 	MCPOAuthStart(ctx, s, created.ID)
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("auth status = %d, want 201; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
 	}
-	if strings.Contains(string(ctx.Response.Body()), "secret") {
-		t.Fatalf("auth response leaked secret: %s", ctx.Response.Body())
+	if strings.Contains(string(ctx.Response.Body()), "client-secret") {
+		t.Fatalf("auth response leaked client secret: %s", ctx.Response.Body())
 	}
 
 	var started struct {
@@ -383,6 +383,9 @@ func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	if query.Get("resource") != "https://mcp.atlassian.com" || query.Get("code_challenge_method") != "S256" || query.Get("code_challenge") == "" {
 		t.Fatalf("auth query = %s, want resource and S256 PKCE challenge", authURL.RawQuery)
 	}
+	if query.Get("client_id") != "client-123" {
+		t.Fatalf("client_id query = %q, want client-123", query.Get("client_id"))
+	}
 	redirect, err := url.Parse(query.Get("redirect_uri"))
 	if err != nil {
 		t.Fatalf("parse redirect: %v", err)
@@ -396,6 +399,9 @@ func TestMCPInstancesCreateListRedactsSecretsAndStartsAuth(t *testing.T) {
 	}
 	if flow.CodeVerifierSecret == "" || flow.CodeVerifierSecret == query.Get("state") {
 		t.Fatalf("verifier = %q state = %q, want separate verifier", flow.CodeVerifierSecret, query.Get("state"))
+	}
+	if flow.ClientID != "client-123" || flow.ClientSecret != "client-secret" {
+		t.Fatal("stored client credentials did not match request credentials")
 	}
 	if pkceChallengeForHandlerTest(flow.CodeVerifierSecret) != query.Get("code_challenge") {
 		t.Fatalf("stored verifier does not match code challenge")
