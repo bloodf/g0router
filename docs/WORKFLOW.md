@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AE"
-last_updated: "2026-06-04T10:58:50Z"
+current_wave: "8.AF"
+last_updated: "2026-06-04T10:59:19Z"
 last_agent: "orchestrator"
 ```
 
@@ -932,6 +932,42 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AE replaces MCP OAuth token endpoint fabrication for non-`/authorize` flows with read-only authorization-server metadata discovery, while preserving the existing `/authorize` convention and no-redirect token behavior.
+
+### Wave 8.AF — Public Route Integration Coverage
+
+```yaml
+wave: "8.AF"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:59:19Z"
+evaluator_prompt: "docs/evaluations/wave-8AF-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./api -run TestIntegrationAuthenticatedAPIServerWithFakeUpstream -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AF.1"
+    name: "Cover /v1/messages and /v1/responses in real-server integration"
+    status: DONE
+    agent: "orchestrator"
+    commit: "32c2131"
+    files_owned:
+      - api/server_integration_test.go
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AF-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AF extends the authenticated real-server integration test to prove `/v1/messages` and `/v1/responses` dispatch through the same configured gateway and fake OpenAI-compatible upstream as `/v1/chat/completions`, including response-shape and usage mapping assertions.
 
 ---
 
