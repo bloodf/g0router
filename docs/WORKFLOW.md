@@ -410,7 +410,7 @@ tasks:
     name: "Provider-qualified Vertex catalog routing"
     status: DONE
     agent: "orchestrator"
-    commit: "3480362"
+    commit: "22c24f2"
     files_owned:
       - api/server.go
       - api/server_test.go
