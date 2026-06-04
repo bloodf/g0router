@@ -12,12 +12,12 @@ Start here to understand the project, then dive into specific areas.
 
 ## Current Status
 
-Implementation and remediation waves through **7.M** are complete and merged.
-Stage 8 completion hardening is active for provider parity, dashboard E2E, API
-integration coverage, and release-gate reconciliation. Use
-[WORKFLOW.md](WORKFLOW.md) as the source of truth for gate results, evaluator
-prompts, and remaining caveats. Phase documents are retained as completed
-implementation guides.
+Implementation and remediation waves through **Stage 7** are complete and merged.
+**Stage 8 completion hardening remains active** for provider parity, dashboard
+coverage, MCP runtime behavior, API integration coverage, and release-gate
+reconciliation. Use [WORKFLOW.md](WORKFLOW.md) as the source of truth for the
+current wave, gate results, evaluator prompts, and remaining caveats. Phase
+documents are retained as completed implementation guides.
 
 ## Reference
 

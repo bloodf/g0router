@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.W"
-last_updated: "2026-06-04T10:03:31Z"
+current_wave: "8.X"
+last_updated: "2026-06-04T10:05:54Z"
 last_agent: "orchestrator"
 ```
 
@@ -615,6 +615,39 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.W adds a real Models dashboard route backed by `/api/providers` and `/api/providers/{provider}/models`, with unit and E2E coverage for loading, provider switching, empty state, and auth-expired state.
+
+### Wave 8.X — Documentation Status Reconciliation
+
+```yaml
+wave: "8.X"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:03:52Z"
+evaluator_prompt: "docs/evaluations/wave-8X-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.X.1"
+    name: "Refresh README Stage 8 status"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - docs/README.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8X-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.X updates the documentation landing page so it no longer implies Stage 8 is merely future or secondary to Stage 7; `docs/WORKFLOW.md` remains the source of truth for active remediation status.
 
 ---
 
