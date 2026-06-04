@@ -89,9 +89,11 @@ func TestIntegrationAuthenticatedAPIServerWithFakeUpstream(t *testing.T) {
 
 	assertAuthenticatedModels(t, baseURL, rawAPIKey, upstreamModelID)
 	assertAuthenticatedChatCompletion(t, baseURL, rawAPIKey, upstreamModelID, upstreamReplyText)
+	assertAuthenticatedMessages(t, baseURL, rawAPIKey, upstreamModelID, upstreamReplyText)
+	assertAuthenticatedResponses(t, baseURL, rawAPIKey, upstreamModelID, upstreamReplyText)
 
-	if len(upstream.requests) != 2 {
-		t.Fatalf("upstream requests = %d, want 2", len(upstream.requests))
+	if len(upstream.requests) != 4 {
+		t.Fatalf("upstream requests = %d, want 4", len(upstream.requests))
 	}
 	for _, req := range upstream.requests {
 		if !req.authorizationOK {
@@ -663,6 +665,93 @@ func assertAuthenticatedChatCompletion(t *testing.T, baseURL, rawAPIKey, modelID
 	}
 	if decoded.Model != modelID || len(decoded.Choices) != 1 || decoded.Choices[0].Message.Content != replyText {
 		t.Fatalf("chat response = %+v, want %s reply for %s", decoded, replyText, modelID)
+	}
+}
+
+func assertAuthenticatedMessages(t *testing.T, baseURL, rawAPIKey, modelID, replyText string) {
+	t.Helper()
+
+	body := strings.NewReader(`{"model":"` + modelID + `","messages":[{"role":"user","content":"hello"}]}`)
+	req := newAuthenticatedRequest(t, http.MethodPost, baseURL+"/v1/messages", rawAPIKey, body)
+	resp, err := httpClient().Do(req)
+	if err != nil {
+		t.Fatalf("POST /v1/messages: %v", err)
+	}
+	data, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read messages response: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /v1/messages status = %d, want 200; body=%s", resp.StatusCode, data)
+	}
+	var decoded struct {
+		Type    string `json:"type"`
+		Role    string `json:"role"`
+		Model   string `json:"model"`
+		Content []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		} `json:"content"`
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("decode messages response: %v; body=%s", err, data)
+	}
+	if decoded.Type != "message" || decoded.Role != "assistant" || decoded.Model != modelID || len(decoded.Content) != 1 || decoded.Content[0].Text != replyText {
+		t.Fatalf("messages response = %+v, want %s reply for %s", decoded, replyText, modelID)
+	}
+	if decoded.Usage.InputTokens != 7 || decoded.Usage.OutputTokens != 3 {
+		t.Fatalf("messages usage = %+v, want upstream usage mapped", decoded.Usage)
+	}
+}
+
+func assertAuthenticatedResponses(t *testing.T, baseURL, rawAPIKey, modelID, replyText string) {
+	t.Helper()
+
+	body := strings.NewReader(`{"model":"` + modelID + `","input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
+	req := newAuthenticatedRequest(t, http.MethodPost, baseURL+"/v1/responses", rawAPIKey, body)
+	resp, err := httpClient().Do(req)
+	if err != nil {
+		t.Fatalf("POST /v1/responses: %v", err)
+	}
+	data, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatalf("read responses response: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST /v1/responses status = %d, want 200; body=%s", resp.StatusCode, data)
+	}
+	var decoded struct {
+		Object string `json:"object"`
+		Status string `json:"status"`
+		Model  string `json:"model"`
+		Output []struct {
+			Type    string `json:"type"`
+			Role    string `json:"role"`
+			Content []struct {
+				Type string `json:"type"`
+				Text string `json:"text"`
+			} `json:"content"`
+		} `json:"output"`
+		Usage struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+			TotalTokens  int `json:"total_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("decode responses response: %v; body=%s", err, data)
+	}
+	if decoded.Object != "response" || decoded.Status != "completed" || decoded.Model != modelID || len(decoded.Output) != 1 || len(decoded.Output[0].Content) != 1 || decoded.Output[0].Content[0].Text != replyText {
+		t.Fatalf("responses response = %+v, want %s reply for %s", decoded, replyText, modelID)
+	}
+	if decoded.Usage.InputTokens != 7 || decoded.Usage.OutputTokens != 3 || decoded.Usage.TotalTokens != 10 {
+		t.Fatalf("responses usage = %+v, want upstream usage mapped", decoded.Usage)
 	}
 }
 
