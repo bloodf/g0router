@@ -2140,7 +2140,7 @@ max_agents: 1
 gate: "go test ./internal/provider/oauth ./internal/providers/openaicompat ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestQianfanFlow|TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestDefaultConfigsAreRegistered|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-04T23:02:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BH-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e94ac-f7d0-7531-9780-a7fd6213b41a at commit 426ed8c"
 gate_results:
   - "focused provider/API/CLI tests: RED before implementation, NewQianfanFlow and ProviderQianfan were missing; Qianfan remained unsupported"
   - "focused provider/API/CLI tests: PASS"
@@ -2152,6 +2152,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e94ac-f7d0-7531-9780-a7fd6213b41a: PASS, no blocking findings"
 
 tasks:
   - id: "8.BH.1"
