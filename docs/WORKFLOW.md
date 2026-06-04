@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AQ"
-last_updated: "2026-06-04T13:23:16Z"
+current_wave: "8.AR"
+last_updated: "2026-06-04T13:30:32Z"
 last_agent: "orchestrator"
 ```
 
@@ -1389,6 +1389,42 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AQ removes stale future-tense TODO wording from completed phase documents. Task checklists remain intact and completed, while the repeated TDD boilerplate now reads as implementation evidence instead of claiming the implementation still does not exist.
+
+---
+
+### Wave 8.AR — MCP Unsupported Launch Transport Guard
+
+```yaml
+wave: "8.AR"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/cli -run TestMCPLauncherConnectorRejectsUnsupportedLaunchTransport -count=1 && go test ./internal/cli -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+completed_at: "2026-06-04T13:30:32Z"
+evaluator_prompt: "docs/evaluations/wave-8AR-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./internal/cli -run TestMCPLauncherConnectorRejectsUnsupportedLaunchTransport -count=1: PASS"
+  - "go test ./internal/cli -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+
+tasks:
+  - id: "8.AR.1"
+    name: "Remove silent MCP fallback client for unsupported launch transports"
+    status: DONE
+    agent: "orchestrator"
+    commit: "199d4d3"
+    files_owned:
+      - internal/cli/mcp_runtime.go
+      - internal/cli/mcp_runtime_test.go
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AR-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AR removes the unreachable MCP fallback client that silently returned no tools and tool-not-found for unknown launch transports. The connector now rejects unsupported launcher transports with `mcp.ErrInvalidClientConfig` and closes any launched process before returning the error.
 
 ---
 
