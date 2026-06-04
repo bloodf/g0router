@@ -1047,7 +1047,24 @@ func TestDocumentedV1ResponsesRouteDispatches(t *testing.T) {
 }
 
 func httpClient() *http.Client {
-	return &http.Client{Timeout: 2 * time.Second}
+	return &http.Client{
+		Timeout: 2 * time.Second,
+		Transport: &http.Transport{
+			DisableKeepAlives: true,
+		},
+	}
+}
+
+func TestHTTPClientUsesIsolatedTransport(t *testing.T) {
+	first := httpClient()
+	second := httpClient()
+
+	if first.Transport == nil || second.Transport == nil {
+		t.Fatal("httpClient should not use the shared default transport")
+	}
+	if first.Transport == second.Transport {
+		t.Fatal("httpClient should isolate transports between ephemeral test servers")
+	}
 }
 
 func localhostAddr(t *testing.T, ln net.Listener) string {
