@@ -1319,7 +1319,7 @@ max_agents: 1
 gate: "npm --prefix ui test -- --run App QuotaPage && npm --prefix ui run e2e -- --grep 'Quotas' && npm --prefix ui run e2e && npm --prefix ui test -- --run && npm --prefix ui run build"
 completed_at: "2026-06-04T13:19:03Z"
 evaluator_prompt: "docs/evaluations/wave-8AP-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e8e4c-d356-7150-990a-2a84fdb825e4 with no blocking findings; full UI gate suite passed with generated artifacts clean after content refresh"
 gate_results:
   - "npm --prefix ui test -- --run App QuotaPage: PASS on main, 11 tests"
   - "npm --prefix ui run e2e -- --grep 'Quotas': PASS on main, 2 tests"
