@@ -31,7 +31,7 @@ const pages = [
   },
   {
     id: "endpoint",
-    label: "Endpoint",
+    label: "Endpoint Setup",
     title: "Endpoint configuration",
     description: "API keys, RTK, caveman, and request controls.",
     Component: EndpointPage
@@ -101,8 +101,8 @@ const pages = [
   },
   {
     id: "combos",
-    label: "Combos",
-    title: "Combos",
+    label: "Combos/Routing",
+    title: "Combos/Routing",
     description: "Fallback and routing chains for models and accounts.",
     Component: CombosPage
   },

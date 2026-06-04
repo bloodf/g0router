@@ -29,7 +29,7 @@ describe("App", () => {
 
     for (const label of [
       "Dashboard",
-      "Endpoint",
+      "Endpoint Setup",
       "API Keys",
       "Providers",
       "Connections/Auth",
@@ -39,7 +39,7 @@ describe("App", () => {
       "Usage",
       "Logs",
       "Quota",
-      "Combos",
+      "Combos/Routing",
       "MCP",
       "MCP Instances",
       "MCP Accounts",

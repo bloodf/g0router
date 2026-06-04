@@ -30,7 +30,7 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("Active providers")).toBeVisible();
     await expect(page.getByText("research-stack")).toBeVisible();
 
-    await navigateTo(page, "Endpoint");
+    await navigateTo(page, "Endpoint Setup");
     await expect(page.getByRole("heading", { name: "Endpoint configuration" })).toBeVisible();
     await expect(page.getByRole("table", { name: "API keys" })).toContainText("desktop-client");
 
@@ -78,8 +78,8 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("heading", { exact: true, name: "Quota" })).toBeVisible();
     await expect(page.getByText("No quota-capable providers")).toBeVisible();
 
-    await navigateTo(page, "Combos");
-    await expect(page.getByRole("heading", { exact: true, name: "Combos" })).toBeVisible();
+    await navigateTo(page, "Combos/Routing");
+    await expect(page.getByRole("heading", { exact: true, name: "Combos/Routing" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("research-stack");
 
     await navigateTo(page, "MCP");
@@ -123,7 +123,7 @@ test.describe("dashboard control plane", () => {
 
     await page.goto("/");
 
-    await navigateTo(page, "Endpoint");
+    await navigateTo(page, "Endpoint Setup");
     await page.getByLabel("Key name").fill("automation-client");
     await page.getByRole("button", { name: "Create key" }).click();
     await expect(page.getByText("New gateway key")).toBeVisible();
@@ -148,7 +148,7 @@ test.describe("dashboard control plane", () => {
     );
     await expect(page.getByRole("table", { name: "Provider connections" })).not.toContainText("OpenAI e2e");
 
-    await navigateTo(page, "Combos");
+    await navigateTo(page, "Combos/Routing");
     await page.getByLabel("Combo name").fill("fast-fallback");
     await page.getByLabel("Step provider").fill("openai");
     await page.getByLabel("Step model").fill("gpt-5-mini");
@@ -248,7 +248,7 @@ test.describe("dashboard control plane", () => {
     await mockAPI(page);
 
     await page.goto("/");
-    await navigateTo(page, "Endpoint");
+    await navigateTo(page, "Endpoint Setup");
     await page.getByRole("button", { name: "Copy chat completions endpoint" }).click();
     await expect(page.getByText("Endpoint copied")).toBeVisible();
     await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("http://127.0.0.1:8080/v1/chat/completions");
@@ -264,7 +264,7 @@ test.describe("dashboard control plane", () => {
     await mockAPI(page, { mode: "mutation-failure" });
     await page.goto("/");
 
-    await navigateTo(page, "Endpoint");
+    await navigateTo(page, "Endpoint Setup");
     await page.getByLabel("Key name").fill("broken-client");
     await page.getByRole("button", { name: "Create key" }).click();
     await expect(page.getByText("API key action failed")).toBeVisible();
@@ -277,7 +277,7 @@ test.describe("dashboard control plane", () => {
     await page.getByRole("button", { name: "Create alias" }).click();
     await expect(page.getByText("Could not change alias")).toBeVisible();
 
-    await navigateTo(page, "Combos");
+    await navigateTo(page, "Combos/Routing");
     await page.getByLabel("Combo name").fill("broken-combo");
     await page.getByLabel("Step provider").fill("openai");
     await page.getByLabel("Step model").fill("gpt-5-mini");
@@ -323,7 +323,7 @@ test.describe("dashboard control plane", () => {
     await page.goto("/");
     await expect(page.getByText("No overview data yet")).toBeVisible();
 
-    await navigateTo(page, "Endpoint");
+    await navigateTo(page, "Endpoint Setup");
     await expect(page.getByText("No API keys")).toBeVisible();
 
     await navigateTo(page, "API Keys");
@@ -350,7 +350,7 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Quota");
     await expect(page.getByText("No quota-capable providers")).toBeVisible();
 
-    await navigateTo(page, "Combos");
+    await navigateTo(page, "Combos/Routing");
     await expect(page.getByText("No combo routes configured")).toBeVisible();
 
     await navigateTo(page, "MCP");
@@ -381,7 +381,7 @@ test.describe("dashboard control plane", () => {
     await page.goto("/");
     await expect(page.getByText("Session expired")).toBeVisible();
 
-    await navigateTo(page, "Endpoint");
+    await navigateTo(page, "Endpoint Setup");
     await expect(page.getByText("Authentication expired")).toBeVisible();
 
     await navigateTo(page, "API Keys");
@@ -396,7 +396,7 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Models");
     await expect(page.getByText("Session expired")).toBeVisible();
 
-    await navigateTo(page, "Combos");
+    await navigateTo(page, "Combos/Routing");
     await expect(page.getByText("Session expired")).toBeVisible();
 
     await navigateTo(page, "MCP");
