@@ -1127,7 +1127,7 @@ max_agents: 1
 gate: "go test ./internal/mcp -run 'TestOAuthStartIncludesClientID|TestOAuthEnginePostsClientCredentialsWhenFlowProvidesThem' -count=1 && go test ./internal/store -run TestMCPOAuthFlow -count=1 && go test ./api/handlers -run TestMCPOAuthStart -count=1 && go test ./internal/cli -run TestMCPOAuthStartCommand -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
 completed_at: "2026-06-04T12:19:00Z"
 evaluator_prompt: "docs/evaluations/wave-8AK-evaluator-prompt.md"
-evaluation: "PENDING"
+evaluation: "PASS external evaluator thread 019e9284-6fe9-79c1-a73f-88a2a2f2336d after remediation commits 3a4a38b and 0fa8a28; initial migration and API suite gate failures resolved"
 gate_results:
   - "go test ./internal/mcp -run 'TestOAuthStartIncludesClientID|TestOAuthEnginePostsClientCredentialsWhenFlowProvidesThem' -count=1: PASS"
   - "go test ./internal/store -run TestMCPOAuthFlow -count=1: PASS"
@@ -1136,6 +1136,8 @@ gate_results:
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
   - "go build ./cmd/g0router: PASS"
+  - "go test ./api -count=20 after API stabilization: PASS"
+  - "go test ./api -run 'TestInferenceAddsRegisteredMCPToolsBeforeDispatch|TestManagementRoutesRequireAPIKey' -count=50 after API stabilization: PASS"
 
 tasks:
   - id: "8.AK.1"
@@ -1144,6 +1146,10 @@ tasks:
     agent: "subagent 019e927a-aba7-7d22-8bc6-a0a342e32172"
     commit: "e57c6d6"
     merge_commit: "e751673"
+    remediation_commits:
+      - "3a4a38b"
+      - "0fa8a28"
+    remediation_merge_commit: "4d9b03e"
     files_owned:
       - internal/mcp/oauth.go
       - internal/mcp/oauth_test.go
