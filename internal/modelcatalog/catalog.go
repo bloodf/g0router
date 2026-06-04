@@ -65,6 +65,10 @@ func NewCatalog() Catalog {
 			providers.ProviderMiniMax: {
 				"MiniMax-M3": paid(0.30, 0.06, 1.20),
 			},
+			providers.ProviderQwen: {
+				"qwen3.7-max":  noHostedCacheDiscount(2.50, 7.50),
+				"qwen3.6-plus": noHostedCacheDiscount(0.50, 3.00),
+			},
 			providers.ProviderCerebras: {
 				"llama3.1-8b": noHostedCacheDiscount(0.10, 0.10),
 			},

@@ -257,6 +257,7 @@ func TestDispatchUsesCatalogForPublicOpenAICompatibleProviders(t *testing.T) {
 		{name: "deepseek", provider: providers.ProviderDeepSeek, model: "deepseek-chat", key: "deepseek-key"},
 		{name: "openrouter", provider: providers.ProviderOpenRouter, model: "openai/gpt-4o-mini", key: "openrouter-key"},
 		{name: "perplexity", provider: providers.ProviderPerplexity, model: "sonar-pro", key: "perplexity-key"},
+		{name: "qwen", provider: providers.ProviderQwen, model: "qwen3.6-plus", key: "qwen-key"},
 	}
 
 	for _, tc := range cases {

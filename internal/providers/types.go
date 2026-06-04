@@ -28,6 +28,7 @@ const (
 	ProviderXAI           ModelProvider = "xai"
 	ProviderNebius        ModelProvider = "nebius"
 	ProviderMiniMax       ModelProvider = "minimax"
+	ProviderQwen          ModelProvider = "qwen"
 	ProviderGitHubCopilot ModelProvider = "github-copilot"
 	ProviderCursor        ModelProvider = "cursor"
 )

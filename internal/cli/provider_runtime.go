@@ -67,6 +67,7 @@ func registerOpenAICompatible(engine *proxy.Engine) {
 		providers.ProviderHuggingFace,
 		providers.ProviderNebius,
 		providers.ProviderMiniMax,
+		providers.ProviderQwen,
 	} {
 		provider := provider
 		registerProvider(engine, func() (providers.Provider, error) {

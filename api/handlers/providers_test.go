@@ -82,7 +82,7 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["openai"].PublicStatus != "supported" || !byID["openai"].PublicInference || !byID["openai"].DirectDispatch || !byID["openai"].Inference {
 		t.Fatalf("openai provider = %+v, want supported inference provider", byID["openai"])
 	}
-	for _, id := range []string{"deepseek", "groq", "mistral", "minimax", "openrouter", "perplexity"} {
+	for _, id := range []string{"deepseek", "groq", "mistral", "minimax", "openrouter", "perplexity", "qwen"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported catalog-routable provider", id, byID[id])
 		}
@@ -92,9 +92,6 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	}
 	if byID["github-copilot"].PublicStatus != "auth_only" || byID["github-copilot"].Inference {
 		t.Fatalf("github-copilot provider = %+v, want auth_only without inference", byID["github-copilot"])
-	}
-	if byID["qwen"].PublicStatus != "unsupported" || byID["qwen"].Inference {
-		t.Fatalf("qwen provider = %+v, want unsupported without inference", byID["qwen"])
 	}
 
 	matrix := providerinfo.ProviderMatrix()

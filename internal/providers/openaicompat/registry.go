@@ -19,6 +19,7 @@ func DefaultConfigs() map[providers.ModelProvider]Config {
 		providers.ProviderHuggingFace: {Provider: providers.ProviderHuggingFace, BaseURL: "https://api-inference.huggingface.co"},
 		providers.ProviderNebius:      {Provider: providers.ProviderNebius, BaseURL: "https://api.studio.nebius.ai"},
 		providers.ProviderMiniMax:     {Provider: providers.ProviderMiniMax, BaseURL: "https://api.minimax.io/v1"},
+		providers.ProviderQwen:        {Provider: providers.ProviderQwen, BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"},
 	}
 }
 

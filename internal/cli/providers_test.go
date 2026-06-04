@@ -18,12 +18,12 @@ func TestProvidersListShowsKnownProviders(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"anthropic", "deepseek", "groq", "mistral", "minimax", "openai", "openrouter", "perplexity"} {
+	for _, want := range []string{"anthropic", "deepseek", "groq", "mistral", "minimax", "openai", "openrouter", "perplexity", "qwen"} {
 		if !strings.Contains(output, want+"\n") {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}
 	}
-	for _, wantAbsent := range []string{"gemini", "github-copilot", "cursor", "qwen"} {
+	for _, wantAbsent := range []string{"gemini", "github-copilot", "cursor"} {
 		if strings.Contains(output, wantAbsent+"\n") {
 			t.Fatalf("output = %q, should not list non-public provider %q", output, wantAbsent)
 		}
