@@ -42,7 +42,7 @@ func ProviderMatrix() ProviderMatrixTable {
 	entries := []ProviderMatrixEntry{
 		supportedProvider("openai", "codex", true, true, true, "api_key", "oauth"),
 		supportedProvider("anthropic", "anthropic", true, true, true, "api_key", "oauth"),
-		adapterOnlyProvider("azure", "", false, true, true, false, "api_key"),
+		dynamicRoutableProvider("azure", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("bedrock", "", false, false, true, false, "api_key"),
 		catalogRoutableProvider("cerebras", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("cohere", "", false, true, true, false, "api_key"),
@@ -74,15 +74,15 @@ func ProviderMatrix() ProviderMatrixTable {
 		unsupportedProvider("cloudflare-ai-gateway", "No gateway adapter is implemented."),
 		unsupportedProvider("kagi", "No Kagi tool/search provider integration is implemented."),
 		unsupportedProvider("kilo", "No Kilo provider integration is implemented."),
-		adapterOnlyProvider("litellm", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("lm-studio", "", false, true, true, false, "api_key"),
+		dynamicRoutableProvider("litellm", "", false, true, true, false, "api_key"),
+		dynamicRoutableProvider("lm-studio", "", false, true, true, false, "api_key"),
 		unsupportedProvider("ollama-cloud", "Only local Ollama is implemented."),
 		unsupportedProvider("opencode", "No OpenCode provider integration is implemented."),
 		unsupportedProvider("qianfan", "No Baidu Qianfan auth or inference adapter is implemented."),
 		catalogRoutableProvider("qwen", "", false, true, true, false, "api_key"),
 		unsupportedProvider("tavily", "No Tavily tool/search provider integration is implemented."),
 		catalogRoutableProvider("vercel-ai-gateway", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("vllm", "", false, true, true, false, "api_key"),
+		dynamicRoutableProvider("vllm", "", false, true, true, false, "api_key"),
 	}
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].G0RouterID < entries[j].G0RouterID
@@ -172,6 +172,15 @@ func adapterOnlyProvider(id string, oauthProvider string, refresh, streaming, li
 	entry.Quota = quota
 	entry.PublicStatus = ProviderStatusAdapterOnly
 	entry.Notes = "Adapter is registered in normal startup, but public routing remains limited by model catalog and capability coverage."
+	return entry
+}
+
+func dynamicRoutableProvider(id string, oauthProvider string, refresh, streaming, listModels, quota bool, authTypes ...string) ProviderMatrixEntry {
+	entry := adapterOnlyProvider(id, oauthProvider, refresh, streaming, listModels, quota, authTypes...)
+	entry.PublicInference = true
+	entry.DirectDispatch = true
+	entry.PublicStatus = ProviderStatusSupported
+	entry.Notes = "Public direct dispatch works through provider-qualified dynamic model IDs; no static model catalog or quota fetcher is implemented."
 	return entry
 }
 

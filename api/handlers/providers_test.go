@@ -88,9 +88,9 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["anthropic"].Quota {
 		t.Fatalf("anthropic provider = %+v, should not claim quota support until a real fetcher exists", byID["anthropic"])
 	}
-	for _, id := range []string{"bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "xai"} {
+	for _, id := range []string{"azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
-			t.Fatalf("%s provider = %+v, want supported catalog-routable provider", id, byID[id])
+			t.Fatalf("%s provider = %+v, want supported inference provider", id, byID[id])
 		}
 		if byID[id].Quota {
 			t.Fatalf("%s provider = %+v, should not claim quota support", id, byID[id])
@@ -99,12 +99,9 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["github-copilot"].PublicStatus != "auth_only" || byID["github-copilot"].Inference {
 		t.Fatalf("github-copilot provider = %+v, want auth_only without inference", byID["github-copilot"])
 	}
-	for _, id := range []string{"litellm", "lm-studio", "vllm"} {
-		if byID[id].PublicStatus != "adapter_only" || !byID[id].RegisteredAdapter || !byID[id].Inference || byID[id].PublicInference || byID[id].DirectDispatch {
-			t.Fatalf("%s provider = %+v, want registered adapter-only OpenAI-compatible provider", id, byID[id])
-		}
+	if byID["replicate"].PublicStatus != "adapter_only" || !byID["replicate"].RegisteredAdapter || !byID["replicate"].Inference || byID["replicate"].PublicInference || byID["replicate"].DirectDispatch {
+		t.Fatalf("replicate provider = %+v, want registered adapter-only provider until public semantics are proven", byID["replicate"])
 	}
-
 	matrix := providerinfo.ProviderMatrix()
 	for _, got := range decoded.Data {
 		entry, ok := matrix.Provider(got.ID)

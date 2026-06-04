@@ -305,6 +305,10 @@ func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
 		return routableModelRoute(modelRoute{Provider: route.Provider, Model: route.UpstreamModel})
 	}
 
+	if route, ok := providerQualifiedDynamicRoute(model); ok {
+		return routableModelRoute(route)
+	}
+
 	if provider, ok := resolveProvider(model); ok {
 		return routableModelRoute(modelRoute{Provider: provider, Model: model})
 	}
@@ -554,6 +558,24 @@ func resolveProvider(model string) (providers.ModelProvider, bool) {
 		return providers.ProviderAnthropic, true
 	default:
 		return "", false
+	}
+}
+
+func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
+	providerID, upstreamModel, ok := strings.Cut(model, "/")
+	if !ok || upstreamModel == "" {
+		return modelRoute{}, false
+	}
+
+	provider := providers.ModelProvider(providercore.CanonicalProviderID(providerID))
+	switch provider {
+	case providers.ProviderAzure,
+		providers.ProviderLiteLLM,
+		providers.ProviderLMStudio,
+		providers.ProviderVLLM:
+		return modelRoute{Provider: provider, Model: upstreamModel}, true
+	default:
+		return modelRoute{}, false
 	}
 }
 

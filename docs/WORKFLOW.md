@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.AY"
-last_updated: "2026-06-04T18:40:08Z"
+current_wave: "8.AZ"
+last_updated: "2026-06-04T18:53:35Z"
 last_agent: "orchestrator"
 ```
 
@@ -1765,6 +1765,54 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AY adds catalog-backed direct dispatch for Bedrock model `anthropic.claude-3-5-haiku-20241022-v1:0` through the existing non-streaming Converse adapter. Bedrock remains non-streaming and quota remains unsupported. Evaluator thread `019e93dc-087a-73e0-866f-846ff956d150` initially found generated UI artifact drift after the required gates; task 8.AY.2 commits regenerated `ui/dist` assets and ignores Playwright `ui/test-results/`, and the evaluator re-run passed after remediation commit `3699aa4`.
+
+### Wave 8.AZ — Provider-Qualified Dynamic Adapter Routing
+
+```yaml
+wave: "8.AZ"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/proxy ./internal/provider ./api/handlers ./internal/cli -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T18:53:35Z"
+evaluator_prompt: "docs/evaluations/wave-8AZ-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./internal/proxy -run 'TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestDispatchPrefersExactCatalogBeforeProviderQualifiedDynamicRoute' -count=1: RED before implementation, provider-qualified dynamic models returned provider not found"
+  - "go test ./internal/provider -run 'TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs' -count=1: RED before implementation, deployment-defined adapters remained adapter_only"
+  - "go test ./api/handlers -run TestProvidersListKnownProviders -count=1: RED before implementation, provider metadata still reported adapter_only"
+  - "go test ./internal/proxy -run 'TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestDispatchPrefersExactCatalogBeforeProviderQualifiedDynamicRoute|TestDispatchStreamUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestDispatchRejectsInvalidProviderQualifiedDynamicRoutes' -count=1: PASS"
+  - "go test ./internal/provider -run 'TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestReplicateRemainsAdapterOnlyUntilPublicSemanticsAreProven|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestPublicProvidersDoNotClaimQuotaSupport' -count=1: PASS"
+  - "go test ./api/handlers -run TestProvidersListKnownProviders -count=1 && go test ./internal/cli -run 'TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 84 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 20 tests"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.AZ.1"
+    name: "Promote deployment-defined adapters through provider-qualified dynamic routing"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - api/handlers/providers_test.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AZ-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AZ adds provider-qualified dynamic public routing for deployment-defined registered adapters: `azure/<deployment>`, `litellm/<model>`, `lm-studio/<loaded-model>`, and `vllm/<served-model>`. Exact catalog matches still win before dynamic prefix routing, so catalog-owned slash models such as OpenRouter models are not hijacked. These providers remain without static catalog pricing or quota fetchers. Replicate stays adapter-only until its public API semantics are proven.
 
 ---
 

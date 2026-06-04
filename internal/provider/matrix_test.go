@@ -76,24 +76,30 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 	}
 }
 
-func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *testing.T) {
+func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"azure", "replicate"} {
+	for _, id := range []string{"azure", "litellm", "lm-studio", "vllm"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
 		}
-		if entry.PublicStatus != ProviderStatusAdapterOnly {
-			t.Fatalf("%s status = %q, want adapter_only", id, entry.PublicStatus)
+		if entry.PublicStatus != ProviderStatusSupported {
+			t.Fatalf("%s status = %q, want supported", id, entry.PublicStatus)
 		}
 		if !entry.RegisteredAdapter {
 			t.Fatalf("%s should mark registered adapter", id)
 		}
 		if !entry.Inference {
-			t.Fatalf("%s should mark adapter inference capability even without public dispatch", id)
+			t.Fatalf("%s should mark adapter inference capability", id)
 		}
-		if entry.PublicInference || entry.DirectDispatch {
-			t.Fatalf("%s should not be public/direct dispatch yet: %+v", id, entry)
+		if !entry.PublicInference || !entry.DirectDispatch {
+			t.Fatalf("%s should mark provider-qualified public routing: %+v", id, entry)
+		}
+		if entry.ModelCatalog || entry.Quota {
+			t.Fatalf("%s should not claim fake catalog or quota support: %+v", id, entry)
+		}
+		if !strings.Contains(strings.ToLower(entry.Notes), "provider-qualified") {
+			t.Fatalf("%s notes = %q, want provider-qualified routing caveat", id, entry.Notes)
 		}
 	}
 }
@@ -153,6 +159,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	want := map[string]bool{
 		"openai":            true,
 		"anthropic":         true,
+		"azure":             true,
 		"bedrock":           true,
 		"cerebras":          true,
 		"cohere":            true,
@@ -161,6 +168,8 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"gemini":            true,
 		"groq":              true,
 		"huggingface":       true,
+		"litellm":           true,
+		"lm-studio":         true,
 		"mistral":           true,
 		"minimax":           true,
 		"nebius":            true,
@@ -172,6 +181,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"together":          true,
 		"vercel-ai-gateway": true,
 		"vertex":            true,
+		"vllm":              true,
 		"xai":               true,
 	}
 	if len(ids) != len(want) {
@@ -197,16 +207,11 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	if ids["cursor"] {
 		t.Fatal("cursor is auth-only today and must not be advertised as an inference provider")
 	}
-	for _, id := range []string{"litellm", "lm-studio", "replicate", "vllm"} {
-		if ids[id] {
-			t.Fatalf("%s remains adapter-only and must not be advertised as a public inference provider", id)
-		}
-	}
 }
 
 func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"anthropic", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "xai"} {
+	for _, id := range []string{"anthropic", "azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "vllm", "xai"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -217,7 +222,14 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
 			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
 		}
-		if !entry.ModelCatalog || !entry.ListModels {
+		if id == "azure" || id == "litellm" || id == "lm-studio" || id == "vllm" {
+			if entry.ModelCatalog {
+				t.Fatalf("%s should not claim static model catalog for deployment-defined routing: %+v", id, entry)
+			}
+			if !entry.ListModels {
+				t.Fatalf("%s should expose upstream list models/deployments: %+v", id, entry)
+			}
+		} else if !entry.ModelCatalog || !entry.ListModels {
 			t.Fatalf("%s should expose catalog and model APIs: %+v", id, entry)
 		}
 		if id == "bedrock" {
@@ -233,22 +245,41 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	}
 }
 
-func TestOpenAICompatibleGatewayProvidersAreRegisteredWithoutFakeCatalogs(t *testing.T) {
+func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs(t *testing.T) {
 	matrix := ProviderMatrix()
 	for _, id := range []string{"litellm", "lm-studio", "vllm"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
 		}
-		if entry.PublicStatus != ProviderStatusAdapterOnly {
-			t.Fatalf("%s status = %q, want adapter_only", id, entry.PublicStatus)
+		if entry.PublicStatus != ProviderStatusSupported {
+			t.Fatalf("%s status = %q, want supported", id, entry.PublicStatus)
 		}
 		if !entry.RegisteredAdapter || !entry.Inference || !entry.Streaming || !entry.ListModels {
 			t.Fatalf("%s should expose the OpenAI-compatible adapter surface: %+v", id, entry)
 		}
-		if entry.PublicInference || entry.DirectDispatch || entry.ModelCatalog || entry.Quota {
-			t.Fatalf("%s should not claim public routing, fake catalog, or quota: %+v", id, entry)
+		if !entry.PublicInference || !entry.DirectDispatch {
+			t.Fatalf("%s should expose provider-qualified public routing: %+v", id, entry)
 		}
+		if entry.ModelCatalog || entry.Quota {
+			t.Fatalf("%s should not claim fake catalog or quota: %+v", id, entry)
+		}
+	}
+}
+
+func TestReplicateRemainsAdapterOnlyUntilPublicSemanticsAreProven(t *testing.T) {
+	entry, ok := ProviderMatrix().Provider("replicate")
+	if !ok {
+		t.Fatal("provider matrix missing replicate")
+	}
+	if entry.PublicStatus != ProviderStatusAdapterOnly {
+		t.Fatalf("replicate status = %q, want adapter_only", entry.PublicStatus)
+	}
+	if !entry.RegisteredAdapter || !entry.Inference || !entry.Streaming || !entry.ListModels {
+		t.Fatalf("replicate should keep registered adapter capabilities: %+v", entry)
+	}
+	if entry.PublicInference || entry.DirectDispatch || entry.ModelCatalog || entry.Quota {
+		t.Fatalf("replicate should not claim public routing, fake catalog, or quota yet: %+v", entry)
 	}
 }
 

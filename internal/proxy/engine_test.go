@@ -615,6 +615,156 @@ func TestDispatchUsesProviderQualifiedCatalogRouteForVertex(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(t *testing.T) {
+	cases := []struct {
+		name        string
+		provider    providers.ModelProvider
+		publicModel string
+		upstream    string
+	}{
+		{name: "azure", provider: providers.ProviderAzure, publicModel: "azure/gpt-4o-prod", upstream: "gpt-4o-prod"},
+		{name: "litellm", provider: providers.ProviderLiteLLM, publicModel: "litellm/team/gpt-4o", upstream: "team/gpt-4o"},
+		{name: "lm-studio", provider: providers.ProviderLMStudio, publicModel: "lm-studio/local-model", upstream: "local-model"},
+		{name: "vllm", provider: providers.ProviderVLLM, publicModel: "vllm/meta-llama/Llama-3.1-8B-Instruct", upstream: "meta-llama/Llama-3.1-8B-Instruct"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := openProxyTestStore(t)
+			createProxyConnection(t, s, tc.provider.String(), tc.name+"-key")
+
+			runtime := &fakeProvider{
+				name: tc.provider,
+				response: &providers.ChatResponse{
+					ID:    "chatcmpl-" + tc.name,
+					Model: tc.upstream,
+				},
+			}
+			engine := NewEngine(s)
+			engine.Register(runtime)
+
+			req := &providers.ChatRequest{Model: tc.publicModel}
+			resp, err := engine.Dispatch(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Dispatch: %v", err)
+			}
+			if !runtime.called {
+				t.Fatal("provider was not called")
+			}
+			if runtime.received == req {
+				t.Fatal("provider-qualified dynamic route should rewrite upstream model")
+			}
+			if runtime.received.Model != tc.upstream {
+				t.Fatalf("provider request model = %q, want %q", runtime.received.Model, tc.upstream)
+			}
+			if req.Model != tc.publicModel {
+				t.Fatalf("original request model = %q, want public model unchanged", req.Model)
+			}
+			if runtime.receivedKey.Provider != tc.provider {
+				t.Fatalf("key provider = %q, want %q", runtime.receivedKey.Provider, tc.provider)
+			}
+			if runtime.receivedKey.Value != tc.name+"-key" {
+				t.Fatalf("key value = %q, want %q", runtime.receivedKey.Value, tc.name+"-key")
+			}
+			if resp.Provider != tc.provider {
+				t.Fatalf("response provider = %q, want %q", resp.Provider, tc.provider)
+			}
+		})
+	}
+}
+
+func TestDispatchPrefersExactCatalogBeforeProviderQualifiedDynamicRoute(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openrouter", "openrouter-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+
+	openRouter := &fakeProvider{name: providers.ProviderOpenRouter, response: &providers.ChatResponse{ID: "chatcmpl-openrouter"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-openai"}}
+	engine := NewEngine(s)
+	engine.Register(openRouter)
+	engine.Register(openAI)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "openai/gpt-4o-mini"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-openrouter" {
+		t.Fatalf("response ID = %q, want openrouter catalog route", resp.ID)
+	}
+	if !openRouter.called {
+		t.Fatal("openrouter provider was not called")
+	}
+	if openAI.called {
+		t.Fatal("openai provider should not hijack exact OpenRouter catalog model")
+	}
+	if openRouter.received.Model != "openai/gpt-4o-mini" {
+		t.Fatalf("openrouter model = %q, want exact catalog model", openRouter.received.Model)
+	}
+}
+
+func TestDispatchStreamUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "vllm", "vllm-key")
+
+	content := "hello dynamic stream"
+	chunks := make(chan providers.StreamChunk, 1)
+	chunks <- providers.StreamChunk{
+		ID:    "chunk-vllm",
+		Model: "meta-llama/Llama-3.1-8B-Instruct",
+		Choices: []providers.StreamChoice{{
+			Delta: providers.StreamDelta{Content: &content},
+		}},
+	}
+	close(chunks)
+
+	vllm := &fakeProvider{name: providers.ProviderVLLM, stream: chunks}
+	engine := NewEngine(s)
+	engine.Register(vllm)
+
+	req := &providers.ChatRequest{Model: "vllm/meta-llama/Llama-3.1-8B-Instruct"}
+	stream, err := engine.DispatchStream(context.Background(), req)
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	if !vllm.streamed {
+		t.Fatal("vllm provider was not streamed")
+	}
+	if vllm.received == req {
+		t.Fatal("provider-qualified dynamic stream route should rewrite upstream model")
+	}
+	if vllm.received.Model != "meta-llama/Llama-3.1-8B-Instruct" {
+		t.Fatalf("provider request model = %q, want stripped upstream model", vllm.received.Model)
+	}
+	if vllm.receivedKey.Provider != providers.ProviderVLLM || vllm.receivedKey.Value != "vllm-key" {
+		t.Fatalf("received key = %+v, want vllm-key", vllm.receivedKey)
+	}
+
+	got := <-stream
+	if got.ID != "chunk-vllm" || got.Choices[0].Delta.Content == nil || *got.Choices[0].Delta.Content != content {
+		t.Fatalf("stream chunk = %+v, want vllm content", got)
+	}
+}
+
+func TestDispatchRejectsInvalidProviderQualifiedDynamicRoutes(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "azure", "azure-key")
+	azure := &fakeProvider{name: providers.ProviderAzure, response: &providers.ChatResponse{ID: "chatcmpl-azure"}}
+	engine := NewEngine(s)
+	engine.Register(azure)
+
+	for _, model := range []string{"azure/", "missing/model"} {
+		t.Run(model, func(t *testing.T) {
+			_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: model})
+			if !errors.Is(err, ErrProviderNotFound) {
+				t.Fatalf("Dispatch error = %v, want ErrProviderNotFound", err)
+			}
+		})
+	}
+	if azure.called {
+		t.Fatal("azure provider should not be called for invalid provider-qualified routes")
+	}
+}
+
 func TestDispatchUsesCatalogForBedrockConverseModel(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "bedrock", "bedrock-key")
