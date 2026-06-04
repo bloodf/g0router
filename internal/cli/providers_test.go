@@ -18,7 +18,7 @@ func TestProvidersListShowsKnownProviders(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"anthropic", "deepseek", "groq", "mistral", "minimax", "openai", "openrouter", "perplexity", "qwen"} {
+	for _, want := range []string{"anthropic", "deepseek", "groq", "mistral", "minimax", "openai", "openrouter", "perplexity", "qwen", "xai"} {
 		if !strings.Contains(output, want+"\n") {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}

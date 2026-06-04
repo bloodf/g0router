@@ -151,6 +151,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"openrouter": true,
 		"perplexity": true,
 		"qwen":       true,
+		"xai":        true,
 	}
 	if len(ids) != len(want) {
 		t.Fatalf("public inference providers = %+v, want %+v", ids, want)
@@ -184,7 +185,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"deepseek", "groq", "mistral", "minimax", "openrouter", "perplexity", "qwen"} {
+	for _, id := range []string{"deepseek", "groq", "mistral", "minimax", "openrouter", "perplexity", "qwen", "xai"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)

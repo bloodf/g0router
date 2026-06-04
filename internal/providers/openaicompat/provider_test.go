@@ -31,6 +31,7 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 		{"nebius", providers.ProviderNebius},
 		{"minimax", providers.ProviderMiniMax},
 		{"qwen", providers.ProviderQwen},
+		{"xai", providers.ProviderXAI},
 	}
 
 	for _, tc := range cases {
@@ -148,6 +149,7 @@ func TestDefaultConfigsAreRegistered(t *testing.T) {
 		providers.ProviderNebius:      "https://api.studio.nebius.ai",
 		providers.ProviderMiniMax:     "https://api.minimax.io/v1",
 		providers.ProviderQwen:        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+		providers.ProviderXAI:         "https://api.x.ai/v1",
 	}
 
 	if len(configs) != len(want) {

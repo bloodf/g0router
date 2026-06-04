@@ -9,7 +9,7 @@ Status meanings:
 - `auth_only`: credential capture exists, but no inference adapter is wired.
 - `unsupported`: explicitly not implemented; do not advertise as usable.
 
-Current public direct-dispatch providers are `openai`, `anthropic`, `deepseek`, `groq`, `mistral`, `minimax`, `openrouter`, `perplexity`, and `qwen`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
+Current public direct-dispatch providers are `openai`, `anthropic`, `deepseek`, `groq`, `mistral`, `minimax`, `openrouter`, `perplexity`, `qwen`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
 
 ## Public Surfaces
 
@@ -62,10 +62,10 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `deepseek`, 
 | `vercel-ai-gateway` | `vercel-ai-gateway` | `vercel-ai-gateway` | `vercel-ai-gateway` | `unsupported` | none | no | no | no | no | no | no | No Vercel AI Gateway adapter. |
 | `vertex` | `vertex` | `vertex` | `vertex` | `adapter_only` | OAuth/service account | yes | yes | no | no | no | yes | Vertex adapter exists; no streaming or public routing yet. |
 | `vllm` | `vllm` | `vllm` | `vllm` | `unsupported` | none | no | no | no | no | no | no | No configurable self-hosted vLLM adapter. |
-| `xai` | `xai` | `xai` | `xai` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no xAI inference adapter. |
+| `xai` | `xai` | `xai` | `xai` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Cataloged Grok model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `xiaomi` | `xiaomi` | `xiaomi` | `xiaomi` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Xiaomi inference adapter. |
 | `zhipu` | `zhipu` | `zhipu` | `zhipu` | `auth_only` | API key | no | no | no | no | no | no | API-key capture exists; no ZAI/Zhipu inference adapter. |
 
 ## Model Routing Caveat
 
-Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, DeepSeek, Groq, Mistral, MiniMax, OpenRouter, Perplexity, and Qwen model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.
+Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, DeepSeek, Groq, Mistral, MiniMax, OpenRouter, Perplexity, Qwen, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.

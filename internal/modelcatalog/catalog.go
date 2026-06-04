@@ -69,6 +69,9 @@ func NewCatalog() Catalog {
 				"qwen3.7-max":  noHostedCacheDiscount(2.50, 7.50),
 				"qwen3.6-plus": noHostedCacheDiscount(0.50, 3.00),
 			},
+			providers.ProviderXAI: {
+				"grok-4.3": paid(1.25, 0.20, 2.50),
+			},
 			providers.ProviderCerebras: {
 				"llama3.1-8b": noHostedCacheDiscount(0.10, 0.10),
 			},

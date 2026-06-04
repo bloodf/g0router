@@ -258,6 +258,7 @@ func TestDispatchUsesCatalogForPublicOpenAICompatibleProviders(t *testing.T) {
 		{name: "openrouter", provider: providers.ProviderOpenRouter, model: "openai/gpt-4o-mini", key: "openrouter-key"},
 		{name: "perplexity", provider: providers.ProviderPerplexity, model: "sonar-pro", key: "perplexity-key"},
 		{name: "qwen", provider: providers.ProviderQwen, model: "qwen3.6-plus", key: "qwen-key"},
+		{name: "xai", provider: providers.ProviderXAI, model: "grok-4.3", key: "xai-key"},
 	}
 
 	for _, tc := range cases {

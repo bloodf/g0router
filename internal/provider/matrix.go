@@ -66,7 +66,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		authOnlyProvider("gitlab", "gitlab", true, "OAuth is implemented for GitLab-style identity, but no GitLab inference adapter is wired."),
 		authOnlyProvider("kimi", "kimi", true, "Device-code OAuth is implemented, but no Moonshot/Kimi inference adapter is wired."),
 		authOnlyProvider("kiro", "kiro", true, "OAuth is implemented, but no Kiro inference adapter is wired."),
-		authOnlyProvider("xai", "xai", true, "OAuth is implemented, but no xAI inference adapter is wired."),
+		catalogRoutableProvider("xai", "xai", true, true, true, false, "api_key", "oauth"),
 		authOnlyProvider("xiaomi", "xiaomi", true, "OAuth is implemented, but no Xiaomi inference adapter is wired."),
 		apiKeyAuthOnlyProvider("alibaba", "Direct API-key capture is implemented, but no Alibaba inference adapter is wired."),
 		catalogRoutableProvider("minimax", "", false, true, true, false, "api_key"),

@@ -20,6 +20,7 @@ func DefaultConfigs() map[providers.ModelProvider]Config {
 		providers.ProviderNebius:      {Provider: providers.ProviderNebius, BaseURL: "https://api.studio.nebius.ai"},
 		providers.ProviderMiniMax:     {Provider: providers.ProviderMiniMax, BaseURL: "https://api.minimax.io/v1"},
 		providers.ProviderQwen:        {Provider: providers.ProviderQwen, BaseURL: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"},
+		providers.ProviderXAI:         {Provider: providers.ProviderXAI, BaseURL: "https://api.x.ai/v1"},
 	}
 }
 
