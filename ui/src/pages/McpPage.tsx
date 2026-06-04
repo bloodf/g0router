@@ -31,7 +31,11 @@ type MCPData = {
 
 type InstanceForm = {
   accountLabel: string;
+  argsJSON: string;
   command: string;
+  cwd: string;
+  envJSON: string;
+  headersJSON: string;
   isActive: boolean;
   launchType: "command" | "npx" | "docker" | "http";
   name: string;
@@ -63,7 +67,11 @@ const emptyData: MCPData = {
 
 const defaultInstanceForm: InstanceForm = {
   accountLabel: "",
+  argsJSON: "",
   command: "",
+  cwd: "",
+  envJSON: "",
+  headersJSON: "",
   isActive: true,
   launchType: "http",
   name: "",
@@ -132,6 +140,23 @@ export function McpPage({ view = "all" }: { view?: MCPView }) {
   async function handleCreateInstance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreateError("");
+
+    const parsedArgs = parseOptionalJSONArray(instanceForm.argsJSON, "Args JSON");
+    if (!parsedArgs.ok) {
+      setCreateError(parsedArgs.error);
+      return;
+    }
+    const parsedHeaders = parseOptionalJSONObject(instanceForm.headersJSON, "Headers JSON");
+    if (!parsedHeaders.ok) {
+      setCreateError(parsedHeaders.error);
+      return;
+    }
+    const parsedEnv = parseOptionalJSONObject(instanceForm.envJSON, "Env JSON");
+    if (!parsedEnv.ok) {
+      setCreateError(parsedEnv.error);
+      return;
+    }
+
     setIsCreating(true);
 
     try {
@@ -139,7 +164,11 @@ export function McpPage({ view = "all" }: { view?: MCPView }) {
         method: "POST",
         body: {
           account_label: blankToUndefined(instanceForm.accountLabel),
+          args: parsedArgs.value,
           command: blankToUndefined(instanceForm.command),
+          cwd: blankToUndefined(instanceForm.cwd),
+          env: parsedEnv.value,
+          headers: parsedHeaders.value,
           is_active: instanceForm.isActive,
           launch_type: instanceForm.launchType,
           name: instanceForm.name.trim(),
@@ -402,6 +431,18 @@ function InstanceFormView({
         />
         <TextField label="URL" value={form.url} onChange={(url) => onChange({ ...form, url })} />
         <TextField label="Command" value={form.command} onChange={(command) => onChange({ ...form, command })} />
+        <TextAreaField
+          label="Args JSON"
+          value={form.argsJSON}
+          onChange={(argsJSON) => onChange({ ...form, argsJSON })}
+        />
+        <TextAreaField
+          label="Headers JSON"
+          value={form.headersJSON}
+          onChange={(headersJSON) => onChange({ ...form, headersJSON })}
+        />
+        <TextAreaField label="Env JSON" value={form.envJSON} onChange={(envJSON) => onChange({ ...form, envJSON })} />
+        <TextField label="Working directory" value={form.cwd} onChange={(cwd) => onChange({ ...form, cwd })} />
         <TextField
           label="Account label"
           value={form.accountLabel}
@@ -805,6 +846,27 @@ function TextField({
   );
 }
 
+function TextAreaField({
+  label,
+  onChange,
+  value
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="grid gap-1 text-sm font-medium text-zinc-700">
+      {label}
+      <textarea
+        className="min-h-20 rounded-md border border-zinc-200 px-3 py-2 font-mono text-sm text-zinc-950"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
 function SelectField({
   label,
   onChange,
@@ -917,6 +979,44 @@ function toApiError(error: unknown) {
 function blankToUndefined(value: string) {
   const trimmed = value.trim();
   return trimmed === "" ? undefined : trimmed;
+}
+
+type ParseResult<T> = { ok: true; value: T | undefined } | { error: string; ok: false };
+
+function parseOptionalJSONArray(value: string, label: string): ParseResult<unknown[]> {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return { ok: true, value: undefined };
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!Array.isArray(parsed)) {
+      return { error: `${label} must be a JSON array.`, ok: false };
+    }
+    return { ok: true, value: parsed };
+  } catch {
+    return { error: `${label} is invalid.`, ok: false };
+  }
+}
+
+function parseOptionalJSONObject(value: string, label: string): ParseResult<Record<string, unknown>> {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return { ok: true, value: undefined };
+  }
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!isJSONObject(parsed)) {
+      return { error: `${label} must be a JSON object.`, ok: false };
+    }
+    return { ok: true, value: parsed };
+  } catch {
+    return { error: `${label} is invalid.`, ok: false };
+  }
+}
+
+function isJSONObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function textValue(value: string | null | undefined, fallback = "-") {

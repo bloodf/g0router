@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getMcpAccountsPath, getMcpClientsPath, getMcpServersPath, getMcpToolsPath } from "../api";
 import { McpAccountsPage } from "./McpAccountsPage";
@@ -94,5 +94,80 @@ describe("split MCP dashboard pages", () => {
     expect(screen.getByRole("heading", { name: "Tools" }).closest("section")).toHaveTextContent("inst-1__search");
     expect(screen.queryByRole("table", { name: "MCP instances" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Start OAuth" })).not.toBeInTheDocument();
+  });
+
+  it("submits parsed MCP instance launch fields and blocks malformed JSON", async () => {
+    const postBodies: unknown[] = [];
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === getMcpClientsPath()) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getMcpToolsPath()) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getMcpAccountsPath("inst-1")) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getMcpServersPath() && init?.method === "POST") {
+        postBodies.push(JSON.parse(String(init.body)));
+        return jsonResponse(
+          {
+            ...instance,
+            ID: "inst-created",
+            Name: "filesystem-tools",
+            ServerKey: "filesystem",
+            LaunchType: "command",
+            Transport: "stdio"
+          },
+          { status: 201 }
+        );
+      }
+      if (path === getMcpServersPath()) {
+        return jsonResponse({ data: [instance] });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<McpInstancesPage />);
+
+    expect(await screen.findByRole("heading", { level: 3, name: "MCP instances" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Args JSON")).toBeInTheDocument();
+    expect(screen.getByLabelText("Headers JSON")).toBeInTheDocument();
+    expect(screen.getByLabelText("Env JSON")).toBeInTheDocument();
+    expect(screen.getByLabelText("Working directory")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Instance name"), { target: { value: "filesystem-tools" } });
+    fireEvent.change(screen.getByLabelText("Server key"), { target: { value: "filesystem" } });
+    fireEvent.change(screen.getByLabelText("Launch type"), { target: { value: "command" } });
+    fireEvent.change(screen.getByLabelText("Command"), { target: { value: "node" } });
+    fireEvent.change(screen.getByLabelText("Args JSON"), { target: { value: "[\"server.js\", \"--stdio\"]" } });
+    fireEvent.change(screen.getByLabelText("Headers JSON"), { target: { value: "{\"Authorization\":\"Bearer secret-token\"}" } });
+    fireEvent.change(screen.getByLabelText("Env JSON"), { target: { value: "{\"API_KEY\":\"secret-value\"}" } });
+    fireEvent.change(screen.getByLabelText("Working directory"), { target: { value: "/srv/mcp" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create instance" }));
+
+    await waitFor(() => expect(postBodies).toHaveLength(1));
+    expect(postBodies[0]).toMatchObject({
+      args: ["server.js", "--stdio"],
+      command: "node",
+      cwd: "/srv/mcp",
+      env: { API_KEY: "secret-value" },
+      headers: { Authorization: "Bearer secret-token" },
+      launch_type: "command",
+      name: "filesystem-tools",
+      server_key: "filesystem",
+      transport: "stdio"
+    });
+
+    fireEvent.change(screen.getByLabelText("Instance name"), { target: { value: "broken-tools" } });
+    fireEvent.change(screen.getByLabelText("Server key"), { target: { value: "broken" } });
+    fireEvent.change(screen.getByLabelText("Args JSON"), { target: { value: "[\"server.js\"]" } });
+    fireEvent.change(screen.getByLabelText("Headers JSON"), { target: { value: "{\"Authorization\":" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create instance" }));
+
+    expect(await screen.findByText("Headers JSON is invalid.")).toBeInTheDocument();
+    expect(postBodies).toHaveLength(1);
   });
 });

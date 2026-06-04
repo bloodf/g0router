@@ -2,6 +2,7 @@ import { expect, test, type Page, type Request } from "@playwright/test";
 
 type RecordedAPIRequest = {
   authorization: string | null;
+  body: unknown;
   method: string;
   path: string;
 };
@@ -243,6 +244,37 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("Settings saved")).toBeVisible();
   });
 
+  test("creates MCP instances with advanced launch fields", async ({ page }) => {
+    const apiRequests = await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "MCP Instances");
+    await page.getByLabel("Instance name").fill("filesystem-tools");
+    await page.getByLabel("Server key").fill("filesystem");
+    await page.getByRole("combobox", { name: "Launch type" }).selectOption("command");
+    await page.getByRole("textbox", { exact: true, name: "Command" }).fill("node");
+    await page.getByLabel("Args JSON").fill("[\"server.js\",\"--stdio\"]");
+    await page.getByLabel("Headers JSON").fill("{\"Authorization\":\"Bearer e2e-secret\"}");
+    await page.getByLabel("Env JSON").fill("{\"API_KEY\":\"e2e-env-secret\"}");
+    await page.getByLabel("Working directory").fill("/srv/mcp");
+    await page.getByRole("button", { name: "Create instance" }).click();
+
+    await expect(page.getByRole("table", { name: "MCP instances" })).toContainText("filesystem-tools");
+    await expect.poll(() => apiRequests.find((request) => request.method === "POST" && request.path === "/api/mcp/instances")?.body).toMatchObject({
+      args: ["server.js", "--stdio"],
+      command: "node",
+      cwd: "/srv/mcp",
+      env: { API_KEY: "e2e-env-secret" },
+      headers: { Authorization: "Bearer e2e-secret" },
+      launch_type: "command",
+      name: "filesystem-tools",
+      server_key: "filesystem",
+      transport: "stdio"
+    });
+    await expect(page.getByText("e2e-secret")).not.toBeVisible();
+    await expect(page.getByText("e2e-env-secret")).not.toBeVisible();
+  });
+
   test("handles endpoint copy, destructive cancellation, and mutation failure states", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:5173" });
     await mockAPI(page);
@@ -442,8 +474,9 @@ async function mockAPI(page: Page, options: { mode?: MockMode } = {}) {
     const url = new URL(request.url());
 
     if (url.origin === "http://127.0.0.1:5173" && url.pathname.startsWith("/api/")) {
-      apiRequests.push(recordAPIRequest(request, url));
-      const response = apiResponse(state, url.pathname, request.method(), request.postDataJSON(), mode);
+      const body = parseRequestBody(request);
+      apiRequests.push(recordAPIRequest(request, url, body));
+      const response = apiResponse(state, url.pathname, request.method(), body, mode);
       await route.fulfill({
         contentType: "application/json",
         status: response.status,
@@ -463,12 +496,21 @@ async function mockAPI(page: Page, options: { mode?: MockMode } = {}) {
   return apiRequests;
 }
 
-function recordAPIRequest(request: Request, url: URL): RecordedAPIRequest {
+function recordAPIRequest(request: Request, url: URL, body: unknown): RecordedAPIRequest {
   return {
     authorization: request.headers().authorization ?? null,
+    body,
     method: request.method(),
     path: url.pathname
   };
+}
+
+function parseRequestBody(request: Request): unknown {
+  const postData = request.postData();
+  if (!postData) {
+    return undefined;
+  }
+  return request.postDataJSON();
 }
 
 function apiResponse(state: MockAPIState, path: string, method: string, body: unknown, mode: MockMode): MockAPIResponse {
@@ -592,6 +634,10 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     const request = body as {
       account_label?: string;
       command?: string;
+      args?: string[];
+      cwd?: string;
+      env?: Record<string, string>;
+      headers?: Record<string, string>;
       is_active?: boolean;
       launch_type?: string;
       name?: string;
@@ -606,9 +652,11 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
       LaunchType: request.launch_type ?? "http",
       Transport: request.transport ?? "streamable-http",
       URL: request.url ?? null,
+      Args: request.args ?? [],
       Command: request.command ?? null,
-      Headers: {},
-      Env: {},
+      Headers: request.headers ?? {},
+      Env: request.env ?? {},
+      CWD: request.cwd ?? null,
       AccountLabel: request.account_label ?? null,
       IsActive: request.is_active ?? true,
       HealthStatus: "starting",
