@@ -82,6 +82,12 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["openai"].PublicStatus != "supported" || !byID["openai"].PublicInference || !byID["openai"].DirectDispatch || !byID["openai"].Inference {
 		t.Fatalf("openai provider = %+v, want supported inference provider", byID["openai"])
 	}
+	if byID["openai"].Quota {
+		t.Fatalf("openai provider = %+v, should not claim quota support until a real fetcher exists", byID["openai"])
+	}
+	if byID["anthropic"].Quota {
+		t.Fatalf("anthropic provider = %+v, should not claim quota support until a real fetcher exists", byID["anthropic"])
+	}
 	for _, id := range []string{"cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "huggingface", "mistral", "minimax", "nebius", "ollama", "openrouter", "perplexity", "qwen", "together", "xai"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported catalog-routable provider", id, byID[id])

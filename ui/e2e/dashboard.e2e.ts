@@ -59,7 +59,7 @@ test.describe("dashboard control plane", () => {
 
     await navigateTo(page, "Quota");
     await expect(page.getByRole("heading", { exact: true, name: "Quota" })).toBeVisible();
-    await expect(page.getByRole("article", { name: "openai quota" })).toContainText("850 remaining");
+    await expect(page.getByText("No quota-capable providers")).toBeVisible();
 
     await navigateTo(page, "Combos");
     await expect(page.getByRole("heading", { exact: true, name: "Combos" })).toBeVisible();
@@ -617,7 +617,7 @@ const providers = [
     streaming: true,
     model_catalog: true,
     list_models: true,
-    quota: true,
+    quota: false,
     public_status: "supported",
     notes: "E2E fixture"
   }

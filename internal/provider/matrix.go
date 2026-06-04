@@ -128,8 +128,9 @@ func supportedProvider(id string, oauthProvider string, refresh, streaming, mode
 	entry.Streaming = streaming
 	entry.ModelCatalog = modelCatalog
 	entry.ListModels = modelCatalog
-	entry.Quota = true
+	entry.Quota = false
 	entry.PublicStatus = ProviderStatusSupported
+	entry.Notes = "Public direct dispatch works through native routing; quota fetcher is not implemented yet."
 	if id == "openai" {
 		entry.OMPID = "openai/codex"
 	}
