@@ -73,7 +73,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		dynamicRoutableProvider("zhipu", "", false, true, true, false, "api_key"),
 		cloudflareGatewayProvider(),
 		unsupportedProvider("kagi", "No Kagi tool/search provider integration is implemented."),
-		unsupportedProvider("kilo", "No Kilo provider integration is implemented."),
+		kiloProvider(),
 		dynamicRoutableProvider("litellm", "", false, true, true, false, "api_key"),
 		dynamicRoutableProvider("lm-studio", "", false, true, true, false, "api_key"),
 		unsupportedProvider("ollama-cloud", "Only local Ollama is implemented."),
@@ -199,6 +199,12 @@ func xiaomiProvider() ProviderMatrixEntry {
 func opencodeProvider() ProviderMatrixEntry {
 	entry := dynamicRoutableProvider("opencode", "", false, true, false, false, "api_key")
 	entry.Notes = "OpenCode Zen is supported through provider-qualified dynamic model IDs; OpenCode Go is not separately wired yet, and no static model catalog or quota fetcher is implemented."
+	return entry
+}
+
+func kiloProvider() ProviderMatrixEntry {
+	entry := dynamicRoutableProvider("kilo", "", false, true, false, false, "api_key")
+	entry.Notes = "Kilo Gateway is supported through provider-qualified OpenAI-compatible dynamic model IDs; no static model catalog, model listing, or quota fetcher is implemented."
 	return entry
 }
 

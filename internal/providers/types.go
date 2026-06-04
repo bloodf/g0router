@@ -35,6 +35,7 @@ const (
 	ProviderVLLM          ModelProvider = "vllm"
 	ProviderLMStudio      ModelProvider = "lm-studio"
 	ProviderOpenCode      ModelProvider = "opencode"
+	ProviderKilo          ModelProvider = "kilo"
 	ProviderGitHubCopilot ModelProvider = "github-copilot"
 	ProviderCursor        ModelProvider = "cursor"
 	ProviderAlibaba       ModelProvider = "alibaba"

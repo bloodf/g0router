@@ -386,7 +386,7 @@ func TestProvidersListShowsSupportedInferenceProvidersOnly(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"openai", "alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "groq", "huggingface", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "xiaomi", "zhipu"} {
+	for _, want := range []string{"openai", "alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "xiaomi", "zhipu"} {
 		if !strings.Contains(output, want+"\n") {
 			t.Fatalf("output = %q, want supported provider %q", output, want)
 		}
@@ -453,6 +453,17 @@ func TestDefaultInferenceEngineRegistersImplementedVertexProvider(t *testing.T) 
 
 	if !containsModelProvider(engine.RegisteredProviders(), providers.ProviderVertex) {
 		t.Fatalf("registered providers = %v, want vertex", engine.RegisteredProviders())
+	}
+}
+
+func TestDefaultInferenceEngineRegistersKiloProvider(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	engine := newDefaultInferenceEngine(s)
+
+	if !containsModelProvider(engine.RegisteredProviders(), providers.ProviderKilo) {
+		t.Fatalf("registered providers = %v, want kilo", engine.RegisteredProviders())
 	}
 }
 

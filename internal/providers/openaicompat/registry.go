@@ -31,6 +31,7 @@ func DefaultConfigs() map[providers.ModelProvider]Config {
 		providers.ProviderVLLM:          {Provider: providers.ProviderVLLM, BaseURL: "http://localhost:8000/v1"},
 		providers.ProviderLMStudio:      {Provider: providers.ProviderLMStudio, BaseURL: "http://localhost:1234/v1"},
 		providers.ProviderOpenCode:      {Provider: providers.ProviderOpenCode, BaseURL: "https://opencode.ai/zen/v1"},
+		providers.ProviderKilo:          {Provider: providers.ProviderKilo, BaseURL: "https://api.kilo.ai/api/gateway"},
 	}
 }
 

@@ -78,7 +78,7 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 
 func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kimi", "litellm", "lm-studio", "opencode", "qianfan", "vllm", "xiaomi", "zhipu"} {
+	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kilo", "kimi", "litellm", "lm-studio", "opencode", "qianfan", "vllm", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -133,7 +133,7 @@ func TestProviderMatrixMarksBedrockPublicNonStreamingAfterConverseSupport(t *tes
 	}
 }
 
-func TestProviderMatrixKeepsKiroAndKiloDistinct(t *testing.T) {
+func TestProviderMatrixKeepsKiroAuthOnlyAndKiloSupportedDistinct(t *testing.T) {
 	matrix := ProviderMatrix()
 
 	kiro, ok := matrix.Provider("kiro")
@@ -148,8 +148,14 @@ func TestProviderMatrixKeepsKiroAndKiloDistinct(t *testing.T) {
 	if !ok {
 		t.Fatal("provider matrix missing kilo")
 	}
-	if kilo.PublicStatus != ProviderStatusUnsupported {
-		t.Fatalf("kilo status = %q, want unsupported", kilo.PublicStatus)
+	if kilo.PublicStatus != ProviderStatusSupported {
+		t.Fatalf("kilo status = %q, want supported", kilo.PublicStatus)
+	}
+	if !kilo.RegisteredAdapter || !kilo.PublicInference || !kilo.DirectDispatch || !kilo.Inference || !kilo.Streaming {
+		t.Fatalf("kilo supported surface is incomplete: %+v", kilo)
+	}
+	if kilo.ModelCatalog || kilo.ListModels || kilo.Quota {
+		t.Fatalf("kilo should not claim catalog, model listing, or quota support: %+v", kilo)
 	}
 }
 
@@ -171,6 +177,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"github-copilot":        true,
 		"groq":                  true,
 		"huggingface":           true,
+		"kilo":                  true,
 		"kimi":                  true,
 		"litellm":               true,
 		"lm-studio":             true,
@@ -216,7 +223,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "opencode", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "xiaomi", "zhipu"} {
+	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "opencode", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -227,11 +234,11 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
 			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
 		}
-		if id == "alibaba" || id == "azure" || id == "cloudflare-ai-gateway" || id == "github-copilot" || id == "kimi" || id == "litellm" || id == "lm-studio" || id == "opencode" || id == "qianfan" || id == "vllm" || id == "xiaomi" || id == "zhipu" {
+		if id == "alibaba" || id == "azure" || id == "cloudflare-ai-gateway" || id == "github-copilot" || id == "kilo" || id == "kimi" || id == "litellm" || id == "lm-studio" || id == "opencode" || id == "qianfan" || id == "vllm" || id == "xiaomi" || id == "zhipu" {
 			if entry.ModelCatalog {
 				t.Fatalf("%s should not claim static model catalog for deployment-defined routing: %+v", id, entry)
 			}
-			if id == "cloudflare-ai-gateway" || id == "opencode" || id == "xiaomi" {
+			if id == "cloudflare-ai-gateway" || id == "kilo" || id == "opencode" || id == "xiaomi" {
 				if entry.ListModels {
 					t.Fatalf("%s should not claim model listing until provider-specific model-list support is implemented: %+v", id, entry)
 				}
@@ -256,7 +263,7 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 
 func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "cloudflare-ai-gateway", "github-copilot", "kimi", "litellm", "lm-studio", "opencode", "qianfan", "vllm", "zhipu"} {
+	for _, id := range []string{"alibaba", "cloudflare-ai-gateway", "github-copilot", "kilo", "kimi", "litellm", "lm-studio", "opencode", "qianfan", "vllm", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -267,7 +274,7 @@ func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalo
 		if !entry.RegisteredAdapter || !entry.Inference || !entry.Streaming {
 			t.Fatalf("%s should expose the OpenAI-compatible adapter surface: %+v", id, entry)
 		}
-		if id != "cloudflare-ai-gateway" && id != "opencode" && !entry.ListModels {
+		if id != "cloudflare-ai-gateway" && id != "kilo" && id != "opencode" && !entry.ListModels {
 			t.Fatalf("%s should expose upstream list models/deployments: %+v", id, entry)
 		}
 		if !entry.PublicInference || !entry.DirectDispatch {

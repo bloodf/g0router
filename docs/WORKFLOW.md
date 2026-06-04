@@ -30,7 +30,7 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BM"
+current_wave: "8.BN"
 last_updated: "2026-06-05T01:10:00Z"
 last_agent: "orchestrator"
 ```
@@ -2426,6 +2426,56 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BM removes the OpenCode `unsupported` runtime gap for OpenCode Zen only. OpenCode now registers through the shared OpenAI-compatible adapter at `https://opencode.ai/zen/v1`, appears in public provider/API/CLI surfaces, and routes provider-qualified models such as `opencode/anthropic/claude-sonnet-4` upstream as `anthropic/claude-sonnet-4`. OpenCode Go remains explicitly not wired, and static catalog, model listing, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
+
+---
+
+### Wave 8.BN — Kilo Gateway Dynamic Runtime Routing
+
+```yaml
+wave: "8.BN"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/openaicompat ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestKiloDefaultConfigUsesGatewayEndpoint|TestConfiguredProvidersUseOpenAICompatibleEndpoints|TestDefaultConfigsAreRegistered|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestDeploymentDefinedPublicProvidersExposeDynamicRouting|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedProvidersOnly|TestProvidersListKnownProviders|TestProvidersLoginListsSupportedProvidersOnly|TestDefaultInferenceEngineRegistersKiloProvider' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-04T23:26:02Z"
+evaluator_prompt: "docs/evaluations/wave-8BN-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused Kilo provider/matrix/proxy/CLI/API tests: RED before implementation, ProviderKilo was undefined, matrix remained unsupported, public lists omitted kilo, and dynamic route support was absent"
+  - "focused Kilo provider/matrix/proxy/CLI/API tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BN.1"
+    name: "Promote Kilo Gateway to OpenAI-compatible dynamic runtime routing"
+    status: DONE
+    agent: "orchestrator after subagent 019e94ee-2178-7362-884b-e703af0c10f5 stalled before docs/full gates"
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/openaicompat/registry.go
+      - internal/providers/openaicompat/provider_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BN-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BN removes the Kilo `unsupported` runtime gap. Kilo now registers through the shared OpenAI-compatible adapter at `https://api.kilo.ai/api/gateway`, appears in public provider/API/CLI surfaces, and routes provider-qualified models such as `kilo/anthropic/claude-sonnet-4.5` upstream as `anthropic/claude-sonnet-4.5`. Kiro remains a distinct auth-only provider, and static catalog, model listing, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
 
 ---
 

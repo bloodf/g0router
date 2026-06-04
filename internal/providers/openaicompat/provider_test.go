@@ -37,6 +37,7 @@ func TestConfiguredProvidersUseOpenAICompatibleEndpoints(t *testing.T) {
 		{"vercel-ai-gateway", providers.ProviderVercelGateway},
 		{"github-copilot", providers.ProviderGitHubCopilot},
 		{"opencode", providers.ProviderOpenCode},
+		{"kilo", providers.ProviderKilo},
 		{"alibaba", providers.ProviderAlibaba},
 		{"litellm", providers.ProviderLiteLLM},
 		{"vllm", providers.ProviderVLLM},
@@ -138,6 +139,19 @@ func TestOpenCodeDefaultConfigUsesZenOpenAICompatibleEndpoint(t *testing.T) {
 	}
 	if config.BaseURL != "https://opencode.ai/zen/v1" {
 		t.Fatalf("base URL = %q, want OpenCode Zen endpoint", config.BaseURL)
+	}
+}
+
+func TestKiloDefaultConfigUsesGatewayEndpoint(t *testing.T) {
+	config, ok := DefaultConfigs()[providers.ProviderKilo]
+	if !ok {
+		t.Fatal("kilo default config missing")
+	}
+	if config.Provider != providers.ProviderKilo {
+		t.Fatalf("provider = %q, want kilo", config.Provider)
+	}
+	if config.BaseURL != "https://api.kilo.ai/api/gateway" {
+		t.Fatalf("base URL = %q, want Kilo Gateway endpoint", config.BaseURL)
 	}
 }
 
@@ -302,6 +316,7 @@ func TestDefaultConfigsAreRegistered(t *testing.T) {
 		providers.ProviderVLLM:          "http://localhost:8000/v1",
 		providers.ProviderLMStudio:      "http://localhost:1234/v1",
 		providers.ProviderOpenCode:      "https://opencode.ai/zen/v1",
+		providers.ProviderKilo:          "https://api.kilo.ai/api/gateway",
 	}
 
 	if len(configs) != len(want) {

@@ -626,6 +626,7 @@ func TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(
 		{name: "azure", provider: providers.ProviderAzure, publicModel: "azure/gpt-4o-prod", upstream: "gpt-4o-prod"},
 		{name: "cloudflare-ai-gateway", provider: providers.ProviderCloudflare, publicModel: "cloudflare-ai-gateway/openai/gpt-4.1", upstream: "openai/gpt-4.1"},
 		{name: "github-copilot", provider: providers.ProviderGitHubCopilot, publicModel: "github-copilot/gpt-4o", upstream: "gpt-4o"},
+		{name: "kilo", provider: providers.ProviderKilo, publicModel: "kilo/anthropic/claude-sonnet-4.5", upstream: "anthropic/claude-sonnet-4.5"},
 		{name: "kimi", provider: providers.ProviderKimi, publicModel: "kimi/kimi-k2.6", upstream: "kimi-k2.6"},
 		{name: "litellm", provider: providers.ProviderLiteLLM, publicModel: "litellm/team/gpt-4o", upstream: "team/gpt-4o"},
 		{name: "lm-studio", provider: providers.ProviderLMStudio, publicModel: "lm-studio/local-model", upstream: "local-model"},
