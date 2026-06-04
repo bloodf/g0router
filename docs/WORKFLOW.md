@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.W"
-last_updated: "2026-06-04T10:02:42Z"
+last_updated: "2026-06-04T10:03:31Z"
 last_agent: "orchestrator"
 ```
 
@@ -603,7 +603,7 @@ tasks:
     name: "Add dashboard provider models page"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "69e3d41"
     files_owned:
       - ui/src/App.tsx
       - ui/src/App.test.tsx
