@@ -21,9 +21,10 @@ import (
 )
 
 const (
-	defaultBaseURL = "https://bedrock-runtime.us-east-1.amazonaws.com"
-	defaultRegion  = "us-east-1"
-	serviceName    = "bedrock"
+	defaultRuntimeBaseURL = "https://bedrock-runtime.us-east-1.amazonaws.com"
+	defaultModelBaseURL   = "https://bedrock.us-east-1.amazonaws.com"
+	defaultRegion         = "us-east-1"
+	serviceName           = "bedrock"
 )
 
 var (
@@ -32,10 +33,11 @@ var (
 )
 
 type BedrockProvider struct {
-	baseURL string
-	region  string
-	client  *http.Client
-	now     func() time.Time
+	baseURL      string
+	modelBaseURL string
+	region       string
+	client       *http.Client
+	now          func() time.Time
 }
 
 type credentials struct {
@@ -56,13 +58,15 @@ type modelSummary struct {
 
 func New(baseURL string) *BedrockProvider {
 	if baseURL == "" {
-		baseURL = defaultBaseURL
+		baseURL = defaultRuntimeBaseURL
 	}
+	baseURL = strings.TrimRight(baseURL, "/")
 	return &BedrockProvider{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		region:  defaultRegion,
-		client:  &http.Client{Timeout: 60 * time.Second},
-		now:     time.Now,
+		baseURL:      baseURL,
+		modelBaseURL: modelEndpointFor(baseURL),
+		region:       defaultRegion,
+		client:       &http.Client{Timeout: 60 * time.Second},
+		now:          time.Now,
 	}
 }
 
@@ -174,7 +178,7 @@ func (p *BedrockProvider) newInvokeRequest(ctx context.Context, creds credential
 }
 
 func (p *BedrockProvider) newListModelsRequest(ctx context.Context, creds credentials) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/foundation-models", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.modelBaseURL+"/foundation-models", nil)
 	if err != nil {
 		return nil, fmt.Errorf("create bedrock list models request: %w", err)
 	}
@@ -183,6 +187,13 @@ func (p *BedrockProvider) newListModelsRequest(ctx context.Context, creds creden
 		return nil, fmt.Errorf("sign bedrock list models request: %w", err)
 	}
 	return req, nil
+}
+
+func modelEndpointFor(runtimeBaseURL string) string {
+	if runtimeBaseURL == defaultRuntimeBaseURL {
+		return defaultModelBaseURL
+	}
+	return strings.Replace(runtimeBaseURL, "://bedrock-runtime.", "://bedrock.", 1)
 }
 
 func toInvokeRequest(req *providers.ChatRequest) invokeRequest {

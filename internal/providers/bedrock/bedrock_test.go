@@ -218,6 +218,22 @@ func TestListModelsSignsAndParsesFoundationModels(t *testing.T) {
 	}
 }
 
+func TestListModelsUsesBedrockControlPlaneEndpointByDefault(t *testing.T) {
+	provider := New("")
+
+	req, err := provider.newListModelsRequest(context.Background(), credentials{accessKey: "AKID", secretKey: "SECRET"})
+	if err != nil {
+		t.Fatalf("newListModelsRequest: %v", err)
+	}
+
+	if req.URL.Host != "bedrock.us-east-1.amazonaws.com" {
+		t.Fatalf("host = %q, want Bedrock control-plane endpoint", req.URL.Host)
+	}
+	if req.URL.Path != "/foundation-models" {
+		t.Fatalf("path = %q", req.URL.Path)
+	}
+}
+
 func TestUnsupportedMethodsReturnErrors(t *testing.T) {
 	provider := New("http://127.0.0.1")
 
