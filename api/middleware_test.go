@@ -371,10 +371,7 @@ func startTestServer(t *testing.T, config ServerConfig) (*Server, string) {
 	t.Helper()
 
 	srv := NewServer(config)
-	ln := srv.listener()
-	if ln == nil {
-		t.Fatal("listener failed")
-	}
+	ln := apiTestListener(t)
 
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Stop() })
