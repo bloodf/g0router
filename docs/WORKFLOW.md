@@ -821,7 +821,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:35:19Z"
 evaluator_prompt: "docs/evaluations/wave-8AC-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e9236-2327-7263-b659-909e4ac0abf9 at commit 8254a07"
 gate_results:
   - "npm --prefix ui test -- --run SettingsSecurityPage SettingsPage App: PASS"
   - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
