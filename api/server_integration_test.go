@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -127,6 +129,101 @@ func TestIntegrationManagementMutationsRoundTripThroughAuthenticatedServer(t *te
 	assertSettingsManagementRoundTrip(t, baseURL, rawAPIKey)
 }
 
+func TestIntegrationMCPInstanceOAuthRoundTripThroughAuthenticatedServer(t *testing.T) {
+	const apiKeySecret = "test-secret"
+
+	tokenServer := newIntegrationFakeMCPOAuthTokenServer(t)
+	defer tokenServer.Close()
+
+	s := newAPITestStore(t)
+	_, rawAPIKey, err := s.CreateAPIKey("admin", apiKeySecret)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	runtime := &integrationMCPInstanceRuntime{manifest: mcp.Manifest{
+		Tools: []mcp.Tool{{Name: "search", Description: "Search docs", InputSchema: json.RawMessage(`{"type":"object"}`)}},
+	}}
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:               0,
+		Version:            "integration-test",
+		Store:              s,
+		RequireAPIKey:      true,
+		APIKeySecret:       apiKeySecret,
+		APIKeyValidator:    integrationStoreAPIKeyValidator{s: s},
+		MCPInstanceRuntime: runtime,
+	})
+
+	var created store.MCPInstance
+	createdBody := doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/mcp/instances", rawAPIKey, `{"name":"atlassian-a","server_key":"atlassian","launch_type":"http","transport":"streamable-http","url":"https://mcp.atlassian.com/mcp","headers":{"Authorization":"Bearer secret-header"},"env":{"API_TOKEN":"secret-env"},"account_label":"work","is_active":true}`, http.StatusCreated, &created)
+	if created.ID == "" || created.Name != "atlassian-a" || created.ToolManifest == nil || len(created.ToolManifest.Tools) != 1 {
+		t.Fatalf("created mcp instance = %+v, want registered instance with manifest", created)
+	}
+	if len(runtime.registered) != 1 || runtime.registered[0] != created.ID {
+		t.Fatalf("registered mcp instances = %+v, want %s", runtime.registered, created.ID)
+	}
+	if strings.Contains(string(createdBody), "secret-header") || strings.Contains(string(createdBody), "secret-env") {
+		t.Fatalf("mcp instance create response leaked secret: %s", createdBody)
+	}
+
+	listBody := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/mcp/instances", http.StatusOK)
+	if strings.Contains(string(listBody), "secret-header") || strings.Contains(string(listBody), "secret-env") {
+		t.Fatalf("mcp instance list leaked secret: %s", listBody)
+	}
+
+	var started struct {
+		AuthorizationURL string `json:"authorization_url"`
+		ExpiresAt        string `json:"expires_at"`
+	}
+	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/mcp/instances/"+created.ID+"/auth/start", rawAPIKey, `{"authorization_url":"`+tokenServer.URL+`/authorize","resource_uri":"https://mcp.atlassian.com","redirect_uri":"http://localhost:3000/api/mcp/oauth/callback"}`, http.StatusCreated, &started)
+	authURL, err := url.Parse(started.AuthorizationURL)
+	if err != nil {
+		t.Fatalf("parse mcp authorization URL: %v", err)
+	}
+	state := authURL.Query().Get("state")
+	if state == "" || authURL.Query().Get("code_challenge_method") != "S256" || authURL.Query().Get("code_challenge") == "" {
+		t.Fatalf("authorization query = %s, want state and S256 PKCE", authURL.RawQuery)
+	}
+
+	var completed struct {
+		InstanceID   string `json:"instance_id"`
+		AccountLabel string `json:"account_label"`
+	}
+	callbackURL := "http://localhost:3000/api/mcp/oauth/callback?code=oauth-code&state=" + url.QueryEscape(state)
+	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/mcp/instances/"+created.ID+"/oauth/complete", rawAPIKey, `{"callback_url":"`+callbackURL+`"}`, http.StatusOK, &completed)
+	if completed.InstanceID != created.ID || completed.AccountLabel != "team-a" {
+		t.Fatalf("mcp oauth completion = %+v, want team-a account for %s", completed, created.ID)
+	}
+	if len(runtime.reapplied) != 1 || runtime.reapplied[0] != created.ID {
+		t.Fatalf("reapplied mcp instances = %+v, want %s", runtime.reapplied, created.ID)
+	}
+	if tokenServer.codeVerifier == "" || tokenServer.codeVerifier == state {
+		t.Fatalf("token exchange verifier = %q state = %q, want stored verifier separate from state", tokenServer.codeVerifier, state)
+	}
+
+	accountsBody := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/mcp/instances/"+created.ID+"/accounts", http.StatusOK)
+	if strings.Contains(string(accountsBody), "access-token") || strings.Contains(string(accountsBody), "refresh-token") {
+		t.Fatalf("mcp account response leaked tokens: %s", accountsBody)
+	}
+	var accounts struct {
+		Data []struct {
+			InstanceID   string `json:"instance_id"`
+			AccountLabel string `json:"account_label"`
+			Email        string `json:"email"`
+			ResourceURI  string `json:"resource_uri"`
+		} `json:"data"`
+	}
+	decodeIntegrationJSON(t, accountsBody, &accounts)
+	if len(accounts.Data) != 1 || accounts.Data[0].InstanceID != created.ID || accounts.Data[0].AccountLabel != "team-a" || accounts.Data[0].Email != "team@example.test" || accounts.Data[0].ResourceURI != "https://mcp.atlassian.com" {
+		t.Fatalf("mcp accounts = %+v, want redacted team-a account", accounts.Data)
+	}
+
+	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/mcp/instances/"+created.ID, rawAPIKey, "", http.StatusNoContent, nil)
+	if len(runtime.closed) != 1 || runtime.closed[0] != created.ID {
+		t.Fatalf("closed mcp instances = %+v, want %s", runtime.closed, created.ID)
+	}
+}
+
 type integrationStoreAPIKeyValidator struct {
 	s *store.Store
 }
@@ -152,6 +249,37 @@ type integrationUpstreamRequest struct {
 type integrationFakeOpenAI struct {
 	*httptest.Server
 	requests []integrationUpstreamRequest
+}
+
+type integrationFakeMCPOAuthTokenServer struct {
+	*httptest.Server
+	codeVerifier string
+}
+
+type integrationMCPInstanceRuntime struct {
+	manifest   mcp.Manifest
+	registered []string
+	reapplied  []string
+	closed     []string
+}
+
+func (r *integrationMCPInstanceRuntime) RegisterInstance(ctx context.Context, instance *store.MCPInstance) (mcp.Manifest, error) {
+	r.registered = append(r.registered, instance.ID)
+	manifest := r.manifest
+	manifest.ClientID = instance.ID
+	return manifest, nil
+}
+
+func (r *integrationMCPInstanceRuntime) CloseInstance(instanceID string) error {
+	r.closed = append(r.closed, instanceID)
+	return nil
+}
+
+func (r *integrationMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
+	r.reapplied = append(r.reapplied, instanceID)
+	manifest := r.manifest
+	manifest.ClientID = instanceID
+	return manifest, nil
 }
 
 func newIntegrationFakeOpenAI(t *testing.T, expectedKey, modelID, replyText string) *integrationFakeOpenAI {
@@ -218,6 +346,44 @@ func newIntegrationFakeOpenAI(t *testing.T, expectedKey, modelID, replyText stri
 		default:
 			http.NotFound(w, r)
 		}
+	}))
+	return fake
+}
+
+func newIntegrationFakeMCPOAuthTokenServer(t *testing.T) *integrationFakeMCPOAuthTokenServer {
+	t.Helper()
+
+	fake := &integrationFakeMCPOAuthTokenServer{}
+	fake.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/token" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Errorf("parse token form: %v", err)
+			http.Error(w, `{"error":"bad form"}`, http.StatusBadRequest)
+			return
+		}
+		if r.Form.Get("grant_type") != "authorization_code" || r.Form.Get("code") != "oauth-code" || r.Form.Get("redirect_uri") == "" || r.Form.Get("resource") != "https://mcp.atlassian.com" {
+			t.Errorf("token form = %s, want authorization-code exchange", r.Form.Encode())
+			http.Error(w, `{"error":"bad request"}`, http.StatusBadRequest)
+			return
+		}
+		fake.codeVerifier = r.Form.Get("code_verifier")
+		if fake.codeVerifier == "" {
+			t.Error("token exchange missing PKCE verifier")
+			http.Error(w, `{"error":"missing verifier"}`, http.StatusBadRequest)
+			return
+		}
+		writeIntegrationJSON(t, w, map[string]any{
+			"access_token":  "access-token",
+			"refresh_token": "refresh-token",
+			"expires_in":    3600,
+			"scope":         "read write",
+			"account_label": "team-a",
+			"email":         "team@example.test",
+			"issuer":        "https://auth.example.test",
+		})
 	}))
 	return fake
 }
