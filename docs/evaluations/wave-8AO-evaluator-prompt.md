@@ -20,6 +20,7 @@ Review:
 - Diff/commits:
   - `95a6f22 phase-8/task-ui: add provider oauth connect flow`
   - `d2a2972 Merge wave 8.AO dashboard provider OAuth connect flow`
+  - `5b1586f phase-8/task-workflow: record provider oauth dashboard`
 
 Check:
 - OAuth controls render only for providers whose `auth_types` include `oauth`.
