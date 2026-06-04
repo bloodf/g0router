@@ -3,8 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
 import {
   getApiKeysPath,
+  getAliasesPath,
   getCombosPath,
   getConnectionsPath,
+  getPricingPath,
   getMcpServersPath,
   getQuotaPath,
   getSettingsPath,
@@ -25,7 +27,7 @@ describe("App", () => {
     const primaryNav = screen.getByRole("navigation", { name: "Primary" });
     expect(primaryNav).toBeInTheDocument();
 
-    for (const label of ["Dashboard", "Endpoint", "Providers", "Usage", "Quota", "Combos", "MCP", "Settings"]) {
+    for (const label of ["Dashboard", "Endpoint", "Providers", "Aliases", "Pricing", "Usage", "Logs", "Quota", "Combos", "MCP", "Settings", "Diagnostics"]) {
       expect(within(primaryNav).getByRole("button", { name: label })).toBeInTheDocument();
     }
   });
@@ -40,6 +42,7 @@ describe("App", () => {
     expect(screen.queryByText("Endpoint controls")).not.toBeInTheDocument();
     expect(screen.queryByText("Provider connections")).not.toBeInTheDocument();
     expect(screen.queryByText("Usage analytics")).not.toBeInTheDocument();
+    expect(screen.queryByText("Request logs")).not.toBeInTheDocument();
     expect(screen.queryByText("Quota monitor")).not.toBeInTheDocument();
     expect(screen.queryByText("Combo routing")).not.toBeInTheDocument();
     expect(screen.queryByText("MCP gateway")).not.toBeInTheDocument();
@@ -85,6 +88,8 @@ describe("api helpers", () => {
   it("exposes typed management API paths", () => {
     expect(getConnectionsPath()).toBe("/api/connections");
     expect(getApiKeysPath()).toBe("/api/keys");
+    expect(getAliasesPath()).toBe("/api/aliases");
+    expect(getPricingPath()).toBe("/api/pricing");
     expect(getUsagePath()).toBe("/api/usage");
     expect(getQuotaPath("openai")).toBe("/api/usage/quota/openai");
     expect(getCombosPath()).toBe("/api/combos");
@@ -100,6 +105,8 @@ function stubDashboardFetch() {
       case "/api/connections":
       case "/api/providers":
       case "/api/combos":
+      case "/api/aliases":
+      case "/api/pricing":
       case "/api/mcp/instances":
       case "/api/mcp/clients":
       case "/api/mcp/tools":

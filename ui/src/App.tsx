@@ -1,10 +1,14 @@
 import { type FormEvent, useState } from "react";
 import "./index.css";
 import { clearControlPlaneKey, getControlPlaneKey, saveControlPlaneKey } from "./api";
+import { AliasesPage } from "./pages/AliasesPage";
 import { CombosPage } from "./pages/CombosPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { EndpointPage } from "./pages/EndpointPage";
+import { LogsPage } from "./pages/LogsPage";
 import { McpPage } from "./pages/McpPage";
+import { PricingPage } from "./pages/PricingPage";
 import { ProvidersPage } from "./pages/ProvidersPage";
 import { QuotaPage } from "./pages/QuotaPage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -33,11 +37,32 @@ const pages = [
     Component: ProvidersPage
   },
   {
+    id: "aliases",
+    label: "Aliases",
+    title: "Aliases",
+    description: "Stable model names mapped to provider and upstream model targets.",
+    Component: AliasesPage
+  },
+  {
+    id: "pricing",
+    label: "Pricing",
+    title: "Pricing",
+    description: "Provider/model cost overrides used for usage accounting.",
+    Component: PricingPage
+  },
+  {
     id: "usage",
     label: "Usage",
     title: "Usage",
     description: "Request volume, token spend, and recent gateway traffic.",
     Component: UsagePage
+  },
+  {
+    id: "logs",
+    label: "Logs",
+    title: "Logs",
+    description: "Recent gateway request log records and status outcomes.",
+    Component: LogsPage
   },
   {
     id: "quota",
@@ -66,6 +91,13 @@ const pages = [
     title: "Settings",
     description: "Runtime defaults and local control-plane configuration.",
     Component: SettingsPage
+  },
+  {
+    id: "diagnostics",
+    label: "Diagnostics",
+    title: "Diagnostics",
+    description: "Release-readiness and control-plane health checks.",
+    Component: DiagnosticsPage
   }
 ] as const;
 

@@ -170,6 +170,19 @@ export type ComboResponse = {
   UpdatedAt: string;
 };
 
+export type ModelAliasResponse = {
+  Alias: string;
+  Provider: string;
+  Model: string;
+};
+
+export type PricingOverrideResponse = {
+  Provider: string;
+  Model: string;
+  InputCostPerToken: number;
+  OutputCostPerToken: number;
+};
+
 export type MCPManifestTool = {
   name: string;
   description?: string;
@@ -270,6 +283,8 @@ const apiPaths = {
   providers: "/api/providers",
   connections: "/api/connections",
   apiKeys: "/api/keys",
+  aliases: "/api/aliases",
+  pricing: "/api/pricing",
   usage: "/api/usage",
   usageSummary: "/api/usage/summary",
   logs: "/api/logs",
@@ -323,6 +338,14 @@ export function getConnectionsPath() {
 
 export function getApiKeysPath() {
   return apiPaths.apiKeys;
+}
+
+export function getAliasesPath() {
+  return apiPaths.aliases;
+}
+
+export function getPricingPath() {
+  return apiPaths.pricing;
 }
 
 export function getUsagePath() {
@@ -433,6 +456,43 @@ export function createAPIKey(name: string) {
 
 export function deleteAPIKey(id: string) {
   return apiFetch<void>(`${getApiKeysPath()}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function listAliases() {
+  return apiList<ModelAliasResponse>(getAliasesPath());
+}
+
+export function createAlias(alias: string, provider: string, model: string) {
+  return apiFetch<ModelAliasResponse>(getAliasesPath(), { method: "POST", body: { alias, provider, model } });
+}
+
+export function deleteAlias(alias: string) {
+  return apiFetch<void>(`${getAliasesPath()}/${encodeURIComponent(alias)}`, { method: "DELETE" });
+}
+
+export function listPricingOverrides() {
+  return apiList<PricingOverrideResponse>(getPricingPath());
+}
+
+export function createPricingOverride(
+  provider: string,
+  model: string,
+  inputCostPerToken: number,
+  outputCostPerToken: number
+) {
+  return apiFetch<PricingOverrideResponse>(getPricingPath(), {
+    method: "POST",
+    body: {
+      provider,
+      model,
+      input_cost_per_token: inputCostPerToken,
+      output_cost_per_token: outputCostPerToken
+    }
+  });
+}
+
+export function deletePricingOverride(provider: string, model: string) {
+  return apiFetch<void>(`${getPricingPath()}/${encodeURIComponent(provider)}/${encodeURIComponent(model)}`, { method: "DELETE" });
 }
 
 export function getSettings() {

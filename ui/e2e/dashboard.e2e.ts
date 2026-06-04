@@ -39,10 +39,22 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("table", { name: "Provider contract" })).toContainText("openai");
     await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("OpenAI primary");
 
+    await navigateTo(page, "Aliases");
+    await expect(page.getByRole("heading", { exact: true, name: "Aliases" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Model aliases" })).toContainText("fast");
+
+    await navigateTo(page, "Pricing");
+    await expect(page.getByRole("heading", { exact: true, name: "Pricing" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Pricing overrides" })).toContainText("gpt-5-mini");
+
     await navigateTo(page, "Usage");
     await expect(page.getByRole("heading", { exact: true, name: "Usage" })).toBeVisible();
     await expect(page.getByRole("table", { name: "Usage rows" })).toContainText("req_001");
     await expect(page.getByRole("table", { name: "Request logs" })).toContainText("codex");
+
+    await navigateTo(page, "Logs");
+    await expect(page.getByRole("heading", { exact: true, name: "Logs" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "Request logs" })).toContainText("req_001");
 
     await navigateTo(page, "Quota");
     await expect(page.getByRole("heading", { exact: true, name: "Quota" })).toBeVisible();
@@ -60,6 +72,10 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Settings");
     await expect(page.getByRole("heading", { exact: true, name: "Settings" })).toBeVisible();
     await expect(page.getByLabel("Proxy URL")).toHaveValue("http://127.0.0.1:8080");
+
+    await navigateTo(page, "Diagnostics");
+    await expect(page.getByRole("heading", { exact: true, level: 2, name: "Diagnostics" })).toBeVisible();
+    await expect(page.getByText("Control plane protected")).toBeVisible();
   });
 
   test("executes existing dashboard mutations with mocked API data", async ({ page }) => {
@@ -84,6 +100,25 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("fast-fallback");
     await page.getByRole("button", { name: "Delete fast-fallback" }).click();
     await expect(page.getByRole("table", { name: "Combo routes" })).not.toContainText("fast-fallback");
+
+    await navigateTo(page, "Aliases");
+    await page.getByRole("textbox", { exact: true, name: "Alias" }).fill("cheap");
+    await page.getByRole("textbox", { exact: true, name: "Provider" }).fill("groq");
+    await page.getByRole("textbox", { exact: true, name: "Model" }).fill("llama-3.3-70b-versatile");
+    await page.getByRole("button", { name: "Create alias" }).click();
+    await expect(page.getByRole("table", { name: "Model aliases" })).toContainText("cheap");
+    await page.getByRole("button", { name: "Delete cheap" }).click();
+    await expect(page.getByRole("table", { name: "Model aliases" })).not.toContainText("cheap");
+
+    await navigateTo(page, "Pricing");
+    await page.getByRole("textbox", { exact: true, name: "Provider" }).fill("anthropic");
+    await page.getByRole("textbox", { exact: true, name: "Model" }).fill("claude-sonnet");
+    await page.getByLabel("Input cost per token").fill("0.000003");
+    await page.getByLabel("Output cost per token").fill("0.000015");
+    await page.getByRole("button", { name: "Create override" }).click();
+    await expect(page.getByRole("table", { name: "Pricing overrides" })).toContainText("claude-sonnet");
+    await page.getByRole("button", { name: "Delete anthropic claude-sonnet" }).click();
+    await expect(page.getByRole("table", { name: "Pricing overrides" })).not.toContainText("claude-sonnet");
 
     await navigateTo(page, "MCP");
     await page.getByLabel("Instance name").fill("github-tools");
@@ -116,8 +151,10 @@ async function mockAPI(page: Page) {
   const apiRequests: RecordedAPIRequest[] = [];
   const state = {
     apiKeys: [...apiKeys],
+    aliases: [...aliases],
     combos: [...combos],
     mcpInstances: [...mcpInstances],
+    pricing: [...pricing],
     settings: { ...settings }
   };
 
@@ -190,6 +227,42 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     return { status: 201, body: combo };
   }
 
+  if (method === "POST" && path === "/api/aliases") {
+    const request = body as { alias?: string; model?: string; provider?: string };
+    const alias = { Alias: request.alias ?? "created", Provider: request.provider ?? "openai", Model: request.model ?? "gpt-5-mini" };
+    state.aliases = [...state.aliases, alias];
+    return { status: 201, body: alias };
+  }
+
+  if (method === "DELETE" && path.startsWith("/api/aliases/")) {
+    const aliasID = decodeURIComponent(path.slice("/api/aliases/".length));
+    state.aliases = state.aliases.filter((alias) => alias.Alias !== aliasID);
+    return { status: 204, body: undefined };
+  }
+
+  if (method === "POST" && path === "/api/pricing") {
+    const request = body as {
+      input_cost_per_token?: number;
+      model?: string;
+      output_cost_per_token?: number;
+      provider?: string;
+    };
+    const override = {
+      Provider: request.provider ?? "openai",
+      Model: request.model ?? "gpt-5-mini",
+      InputCostPerToken: request.input_cost_per_token ?? 0,
+      OutputCostPerToken: request.output_cost_per_token ?? 0
+    };
+    state.pricing = [...state.pricing, override];
+    return { status: 201, body: override };
+  }
+
+  if (method === "DELETE" && path.startsWith("/api/pricing/")) {
+    const [provider, model] = path.slice("/api/pricing/".length).split("/").map(decodeURIComponent);
+    state.pricing = state.pricing.filter((override) => override.Provider !== provider || override.Model !== model);
+    return { status: 204, body: undefined };
+  }
+
   if (method === "DELETE" && path.startsWith("/api/combos/")) {
     const id = decodeURIComponent(path.slice("/api/combos/".length));
     state.combos = state.combos.filter((combo) => combo.ID !== id);
@@ -248,6 +321,10 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
       return { status: 200, body: { data: connections } };
     case "/api/keys":
       return { status: 200, body: { data: state.apiKeys } };
+    case "/api/aliases":
+      return { status: 200, body: { data: state.aliases } };
+    case "/api/pricing":
+      return { status: 200, body: { data: state.pricing } };
     case "/api/usage":
     case "/api/logs":
       return { status: 200, body: { object: "list", data: usageRows, limit: 25, offset: 0 } };
@@ -276,8 +353,10 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
 
 type MockAPIState = {
   apiKeys: typeof apiKeys;
+  aliases: typeof aliases;
   combos: typeof combos;
   mcpInstances: typeof mcpInstances;
+  pricing: typeof pricing;
   settings: typeof settings;
 };
 
@@ -330,6 +409,23 @@ const apiKeys = [
     IsActive: true,
     LastUsedAt: "2026-06-03T10:00:00Z",
     CreatedAt: "2026-06-03T09:00:00Z"
+  }
+];
+
+const aliases = [
+  {
+    Alias: "fast",
+    Provider: "openai",
+    Model: "gpt-5-mini"
+  }
+];
+
+const pricing = [
+  {
+    Provider: "openai",
+    Model: "gpt-5-mini",
+    InputCostPerToken: 0.000001,
+    OutputCostPerToken: 0.000002
   }
 ];
 

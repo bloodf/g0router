@@ -3,6 +3,7 @@ import {
   ApiError,
   apiFetch,
   getApiKeysPath,
+  getAliasesPath,
   getCombosPath,
   getConnectionsPath,
   getLogsPath,
@@ -12,6 +13,7 @@ import {
   getMcpToolsPath,
   getProviderModelsPath,
   getProvidersPath,
+  getPricingPath,
   getQuotaPath,
   getSettingsPath,
   getUsagePath,
@@ -34,6 +36,8 @@ describe("api path helpers", () => {
     expect(getConnectionsPath()).toBe("/api/connections");
     expect(getSettingsPath()).toBe("/api/settings");
     expect(getApiKeysPath()).toBe("/api/keys");
+    expect(getAliasesPath()).toBe("/api/aliases");
+    expect(getPricingPath()).toBe("/api/pricing");
     expect(getCombosPath()).toBe("/api/combos");
     expect(getUsagePath()).toBe("/api/usage");
     expect(getUsageSummaryPath()).toBe("/api/usage/summary");
