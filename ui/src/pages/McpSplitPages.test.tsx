@@ -85,6 +85,85 @@ describe("split MCP dashboard pages", () => {
     expect(screen.queryByRole("heading", { name: "Execute tool" })).not.toBeInTheDocument();
   });
 
+  it("starts MCP OAuth with resource URI discovery when Authorization URL is empty", async () => {
+    const postBodies: unknown[] = [];
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === getMcpClientsPath()) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getMcpServersPath()) {
+        return jsonResponse({ data: [instance] });
+      }
+      if (path === getMcpToolsPath()) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getMcpAccountsPath("inst-1")) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === `${getMcpServersPath()}/inst-1/auth/start` && init?.method === "POST") {
+        postBodies.push(JSON.parse(String(init.body)));
+        return jsonResponse(
+          {
+            authorization_url: "https://auth.linear.example/authorize?state=unit",
+            expires_at: "2026-06-04T12:00:00Z"
+          },
+          { status: 201 }
+        );
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<McpAccountsPage />);
+
+    expect(await screen.findByRole("heading", { level: 3, name: "MCP accounts" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Resource URI"), { target: { value: "https://mcp.linear.app" } });
+
+    expect(screen.getByLabelText("Authorization URL")).not.toBeRequired();
+    fireEvent.click(screen.getByRole("button", { name: "Start OAuth" }));
+
+    await waitFor(() => expect(postBodies).toHaveLength(1));
+    expect(postBodies[0]).toMatchObject({
+      authorization_url: "",
+      redirect_uri: "http://localhost:3000/api/mcp/oauth/callback",
+      resource_uri: "https://mcp.linear.app"
+    });
+  });
+
+  it("blocks MCP OAuth start when Authorization URL and Resource URI are empty", async () => {
+    const postBodies: unknown[] = [];
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      if (path === getMcpClientsPath()) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getMcpServersPath()) {
+        return jsonResponse({ data: [instance] });
+      }
+      if (path === getMcpToolsPath()) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getMcpAccountsPath("inst-1")) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === `${getMcpServersPath()}/inst-1/auth/start` && init?.method === "POST") {
+        postBodies.push(JSON.parse(String(init.body)));
+        return jsonResponse({ authorization_url: "https://auth.linear.example/authorize", expires_at: "2026-06-04T12:00:00Z" }, { status: 201 });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<McpAccountsPage />);
+
+    expect(await screen.findByRole("heading", { level: 3, name: "MCP accounts" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start OAuth" }));
+
+    expect(await screen.findByText("Authorization URL or Resource URI is required.")).toBeInTheDocument();
+    expect(postBodies).toHaveLength(0);
+  });
+
   it("renders only tool controls on MCP Tools", async () => {
     stubMCPFetch();
     render(<McpToolsPage />);
