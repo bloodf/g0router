@@ -176,7 +176,7 @@ func TestComboDispatchResolvesAliasStepAndRewritesModel(t *testing.T) {
 	}
 }
 
-func TestComboDispatchBlocksProviderWithoutInferenceBeforeFallback(t *testing.T) {
+func TestComboDispatchUsesBedrockAdapterOnlyStep(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "bedrock", "bedrock-key")
 	createProxyConnection(t, s, "openai", "openai-key")
@@ -191,7 +191,7 @@ func TestComboDispatchBlocksProviderWithoutInferenceBeforeFallback(t *testing.T)
 		t.Fatalf("CreateCombo: %v", err)
 	}
 
-	bedrock := &fakeProvider{name: providers.ProviderBedrock, response: &providers.ChatResponse{ID: "bedrock-should-not-run"}}
+	bedrock := &fakeProvider{name: providers.ProviderBedrock, response: &providers.ChatResponse{ID: "chatcmpl-bedrock"}}
 	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "chatcmpl-openai"}}
 	engine := NewEngine(s)
 	engine.Register(bedrock)
@@ -201,11 +201,11 @@ func TestComboDispatchBlocksProviderWithoutInferenceBeforeFallback(t *testing.T)
 	if err != nil {
 		t.Fatalf("Dispatch: %v", err)
 	}
-	if bedrock.called {
-		t.Fatal("bedrock provider should not be called through a combo step")
+	if !bedrock.called || resp.ID != "chatcmpl-bedrock" {
+		t.Fatalf("bedrock called=%v resp=%+v", bedrock.called, resp)
 	}
-	if !openAI.called || resp.ID != "chatcmpl-openai" {
-		t.Fatalf("openai fallback called=%v resp=%+v", openAI.called, resp)
+	if openAI.called {
+		t.Fatal("openai fallback should not run after Bedrock succeeds")
 	}
 }
 

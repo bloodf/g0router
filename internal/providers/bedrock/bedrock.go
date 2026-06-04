@@ -99,7 +99,7 @@ func (p *BedrockProvider) ChatCompletion(ctx context.Context, key providers.Key,
 		return nil, mapError(resp.StatusCode, body)
 	}
 
-	var decoded invokeResponse
+	var decoded converseResponse
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		return nil, fmt.Errorf("parse bedrock chat response: %w", err)
 	}
@@ -155,12 +155,12 @@ func (p *BedrockProvider) ListModels(ctx context.Context, key providers.Key) ([]
 }
 
 func (p *BedrockProvider) newInvokeRequest(ctx context.Context, creds credentials, chatReq *providers.ChatRequest) (*http.Request, error) {
-	body, err := json.Marshal(toInvokeRequest(chatReq))
+	body, err := json.Marshal(toConverseRequest(chatReq))
 	if err != nil {
 		return nil, fmt.Errorf("marshal bedrock request: %w", err)
 	}
 
-	endpoint := p.baseURL + "/model/" + url.PathEscape(chatReq.Model) + "/invoke"
+	endpoint := p.baseURL + "/model/" + url.PathEscape(chatReq.Model) + "/converse"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("create bedrock request: %w", err)
@@ -196,7 +196,7 @@ func modelEndpointFor(runtimeBaseURL string) string {
 	return strings.Replace(runtimeBaseURL, "://bedrock-runtime.", "://bedrock.", 1)
 }
 
-func toInvokeRequest(req *providers.ChatRequest) invokeRequest {
+func toConverseRequest(req *providers.ChatRequest) converseRequest {
 	maxTokens := 1024
 	if req.MaxTokens != nil {
 		maxTokens = *req.MaxTokens
@@ -206,16 +206,26 @@ func toInvokeRequest(req *providers.ChatRequest) invokeRequest {
 
 	messages := make([]bedrockMessage, 0, len(req.Messages))
 	for _, message := range req.Messages {
-		messages = append(messages, bedrockMessage{Role: message.Role, Content: message.Content})
+		messages = append(messages, bedrockMessage{Role: message.Role, Content: toContentBlocks(message.Content)})
 	}
 
-	return invokeRequest{
-		AnthropicVersion: "bedrock-2023-05-31",
-		Messages:         messages,
-		MaxTokens:        maxTokens,
-		Temperature:      req.Temperature,
-		TopP:             req.TopP,
-		StopSequences:    req.Stop,
+	return converseRequest{
+		Messages: messages,
+		InferenceConfig: &bedrockInferenceConfig{
+			MaxTokens:     maxTokens,
+			Temperature:   req.Temperature,
+			TopP:          req.TopP,
+			StopSequences: req.Stop,
+		},
+	}
+}
+
+func toContentBlocks(content any) []bedrockContentBlock {
+	switch value := content.(type) {
+	case string:
+		return []bedrockContentBlock{{Text: value}}
+	default:
+		return []bedrockContentBlock{{Text: fmt.Sprint(value)}}
 	}
 }
 
@@ -284,19 +294,14 @@ func canonicalHeaders(req *http.Request) (string, string) {
 	return strings.Join(keys, ";"), canonical.String()
 }
 
-func toChatResponse(model string, resp invokeResponse) *providers.ChatResponse {
+func toChatResponse(model string, resp converseResponse) *providers.ChatResponse {
 	content := ""
-	for _, block := range resp.Content {
-		if block.Type == "text" {
-			content += block.Text
-		}
+	for _, block := range resp.Output.Message.Content {
+		content += block.Text
 	}
 
-	id := resp.ID
-	if id == "" {
-		id = "bedrock-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	}
-	role := resp.Role
+	id := "bedrock-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	role := resp.Output.Message.Role
 	if role == "" {
 		role = "assistant"
 	}
@@ -306,7 +311,10 @@ func toChatResponse(model string, resp invokeResponse) *providers.ChatResponse {
 		usage = &providers.Usage{
 			PromptTokens:     resp.Usage.InputTokens,
 			CompletionTokens: resp.Usage.OutputTokens,
-			TotalTokens:      resp.Usage.InputTokens + resp.Usage.OutputTokens,
+			TotalTokens:      resp.Usage.TotalTokens,
+		}
+		if usage.TotalTokens == 0 {
+			usage.TotalTokens = resp.Usage.InputTokens + resp.Usage.OutputTokens
 		}
 	}
 

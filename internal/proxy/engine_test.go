@@ -615,7 +615,7 @@ func TestDispatchUsesProviderQualifiedCatalogRouteForVertex(t *testing.T) {
 	}
 }
 
-func TestDispatchBlocksAliasToProviderWithoutInference(t *testing.T) {
+func TestDispatchUsesBedrockAliasThroughAdapterOnlyInference(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "bedrock", "bedrock-key")
 	if err := s.SetModelAlias(store.ModelAlias{
@@ -626,16 +626,19 @@ func TestDispatchBlocksAliasToProviderWithoutInference(t *testing.T) {
 		t.Fatalf("SetModelAlias: %v", err)
 	}
 
-	bedrock := &fakeProvider{name: providers.ProviderBedrock, response: &providers.ChatResponse{ID: "bedrock-should-not-run"}}
+	bedrock := &fakeProvider{name: providers.ProviderBedrock, response: &providers.ChatResponse{ID: "chatcmpl-bedrock"}}
 	engine := NewEngine(s)
 	engine.Register(bedrock)
 
-	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "bedrock-alias"})
-	if !errors.Is(err, ErrProviderInferenceUnavailable) {
-		t.Fatalf("Dispatch error = %v, want ErrProviderInferenceUnavailable", err)
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "bedrock-alias"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
 	}
-	if bedrock.called {
-		t.Fatal("bedrock provider should not be called through an alias")
+	if !bedrock.called || resp.ID != "chatcmpl-bedrock" {
+		t.Fatalf("bedrock called=%v resp=%+v", bedrock.called, resp)
+	}
+	if bedrock.received.Model != "anthropic.claude-3-haiku-20240307-v1:0" {
+		t.Fatalf("bedrock model = %q", bedrock.received.Model)
 	}
 }
 

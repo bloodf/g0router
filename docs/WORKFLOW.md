@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.AW"
-last_updated: "2026-06-04T17:40:24Z"
+current_wave: "8.AX"
+last_updated: "2026-06-04T17:45:48Z"
 last_agent: "orchestrator"
 ```
 
@@ -1637,7 +1637,48 @@ tasks:
       - docs/evaluations/wave-8AW-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.AW removes one Bedrock adapter gap by replacing the unsupported `ListModels` stub with a signed `GET /foundation-models` implementation. Tests prove SigV4 headers, session-token propagation, response parsing, and provider matrix/API exposure while keeping Bedrock non-public for Converse, streaming, catalog routing, quota, and direct dispatch.
+**Checkpoint**: Wave 8.AW removes one Bedrock adapter gap by replacing the unsupported `ListModels` stub with a signed `GET /foundation-models` implementation. Tests prove SigV4 headers, session-token propagation, response parsing, and provider matrix/API exposure while keeping Bedrock non-public for streaming, catalog routing, quota, and direct dispatch.
+
+---
+
+### Wave 8.AX — Bedrock Converse Adapter Parity
+
+```yaml
+wave: "8.AX"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/bedrock ./internal/provider ./api/handlers ./internal/proxy -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+completed_at: "2026-06-04T17:45:48Z"
+evaluator_prompt: "docs/evaluations/wave-8AX-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after Bedrock Converse adapter parity"
+gate_results:
+  - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse' -count=1: RED before implementation, missing Converse request contract"
+  - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse' -count=1: PASS"
+  - "go test ./internal/providers/bedrock ./internal/provider ./api/handlers ./internal/proxy -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse|TestProviderMatrixKeepsBedrockAdapterOnlyAfterConverseSupport|TestProvidersListKnownProviders|TestDispatchUsesBedrockAliasThroughAdapterOnlyInference|TestComboDispatchUsesBedrockAdapterOnlyStep' -count=1: PASS"
+
+tasks:
+  - id: "8.AX.1"
+    name: "Implement non-streaming Bedrock Converse dispatch"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - internal/providers/bedrock/bedrock.go
+      - internal/providers/bedrock/bedrock_test.go
+      - internal/providers/bedrock/types.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - api/handlers/providers_test.go
+      - internal/proxy/engine_test.go
+      - internal/proxy/combo_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AX-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AX replaces the Bedrock Anthropic-native invoke request path with the AWS Bedrock Converse API for non-streaming chat completions. Explicit aliases and combo steps can now route to Bedrock adapter-only inference, while public direct dispatch, streaming, catalog routing, and quota remain disabled.
 
 ---
 

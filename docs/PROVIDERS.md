@@ -9,7 +9,7 @@ Status meanings:
 - `auth_only`: credential capture exists, but no inference adapter is wired.
 - `unsupported`: explicitly not implemented; do not advertise as usable.
 
-Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `cohere`, `deepseek`, `fireworks`, `gemini`, `groq`, `huggingface`, `mistral`, `minimax`, `nebius`, `nvidia`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, `vercel-ai-gateway`, `vertex`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
+Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `cohere`, `deepseek`, `fireworks`, `gemini`, `groq`, `huggingface`, `mistral`, `minimax`, `nebius`, `nvidia`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, `vercel-ai-gateway`, `vertex`, and `xai`. Adapter-only providers with matrix `Inference=true`, including `bedrock`, may be reached only through explicit aliases or `combo/*` routes.
 
 ## Public Surfaces
 
@@ -26,7 +26,7 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 | `anthropic` | `anthropic` | `anthropic` | `anthropic` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Claude adapter is public-routable; quota fetcher is not implemented. |
 | `antigravity` | `antigravity` | `antigravity` | `antigravity` | `auth_only` | OAuth | yes | no | no | no | no | no | Google OAuth credential flow exists; dispatch is not a separate Antigravity provider. |
 | `azure` | `azure` | `azure` | `azure` | `adapter_only` | API key | no | yes | no | yes | no | yes | Registered adapter, but no ordinary model-name routing yet. |
-| `bedrock` | `bedrock` | `bedrock` | `bedrock` | `adapter_only` | API key/AWS material | no | yes | no | no | no | yes | Registered adapter can list Bedrock foundation models, but does not implement Bedrock Converse, streaming, model catalog routing, quota, or public direct dispatch. |
+| `bedrock` | `bedrock` | `bedrock` | `bedrock` | `adapter_only` | API key/AWS material | no | yes | no | no | no | yes | Registered adapter supports non-streaming Bedrock Converse and foundation model listing, but does not implement streaming, model catalog routing, quota, or public direct dispatch. |
 | `cerebras` | `cerebras` | `cerebras` | `cerebras` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `cloudflare-ai-gateway` | `unsupported` | none | no | no | no | no | no | no | No gateway adapter. |
 | `cohere` | `cohere` | `cohere` | `cohere` | `supported` | API key | no | yes | yes | yes | yes | yes | `command-r-08-2024` routes through the OpenAI-compatible adapter; quota fetcher is not implemented. |

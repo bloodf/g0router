@@ -89,7 +89,7 @@ func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *test
 		if !entry.RegisteredAdapter {
 			t.Fatalf("%s should mark registered adapter", id)
 		}
-		if id != "bedrock" && !entry.Inference {
+		if !entry.Inference {
 			t.Fatalf("%s should mark adapter inference capability even without public dispatch", id)
 		}
 		if entry.PublicInference || entry.DirectDispatch {
@@ -98,7 +98,7 @@ func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *test
 	}
 }
 
-func TestProviderMatrixLocksBedrockBehindIncompleteConverseStatus(t *testing.T) {
+func TestProviderMatrixKeepsBedrockAdapterOnlyAfterConverseSupport(t *testing.T) {
 	entry, ok := ProviderMatrix().Provider("bedrock")
 	if !ok {
 		t.Fatal("provider matrix missing bedrock")
@@ -109,8 +109,11 @@ func TestProviderMatrixLocksBedrockBehindIncompleteConverseStatus(t *testing.T) 
 	if !entry.RegisteredAdapter {
 		t.Fatal("bedrock should mark registered adapter")
 	}
-	if entry.PublicInference || entry.DirectDispatch || entry.Inference || entry.Streaming || entry.ModelCatalog || entry.Quota {
-		t.Fatalf("bedrock dispatch capabilities should stay false except registered adapter/list models: %+v", entry)
+	if entry.PublicInference || entry.DirectDispatch || entry.Streaming || entry.ModelCatalog || entry.Quota {
+		t.Fatalf("bedrock public/streaming/catalog/quota capabilities should stay false: %+v", entry)
+	}
+	if !entry.Inference {
+		t.Fatalf("bedrock should expose adapter-only non-streaming Converse inference: %+v", entry)
 	}
 	if !entry.ListModels {
 		t.Fatalf("bedrock should expose signed foundation model listing: %+v", entry)

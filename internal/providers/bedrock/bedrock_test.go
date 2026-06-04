@@ -26,14 +26,14 @@ func TestNewImplementsProvider(t *testing.T) {
 	var _ providers.Provider = provider
 }
 
-func TestChatCompletionSignsInvokeModelRequest(t *testing.T) {
+func TestChatCompletionSignsConverseRequest(t *testing.T) {
 	var gotPath string
 	var gotAuth string
 	var gotDate string
 	var gotHash string
 	var gotToken string
 	var gotBody []byte
-	var gotRequest invokeRequest
+	var gotRequest converseRequest
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.RequestURI
@@ -52,7 +52,7 @@ func TestChatCompletionSignsInvokeModelRequest(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(bedrockResponseJSON))
+		_, _ = w.Write([]byte(bedrockConverseResponseJSON))
 	}))
 	t.Cleanup(server.Close)
 
@@ -71,20 +71,20 @@ func TestChatCompletionSignsInvokeModelRequest(t *testing.T) {
 		t.Fatalf("ChatCompletion: %v", err)
 	}
 
-	expectedPath := "/model/anthropic.claude-3-haiku-20240307-v1:0/invoke"
+	expectedPath := "/model/anthropic.claude-3-haiku-20240307-v1:0/converse"
 	if gotPath != expectedPath {
 		t.Fatalf("path = %q, want %q", gotPath, expectedPath)
 	}
-	if gotRequest.AnthropicVersion != "bedrock-2023-05-31" {
-		t.Errorf("anthropic_version = %q", gotRequest.AnthropicVersion)
+	if gotRequest.InferenceConfig == nil {
+		t.Fatal("missing inferenceConfig")
 	}
-	if gotRequest.MaxTokens != 64 {
-		t.Errorf("max_tokens = %d", gotRequest.MaxTokens)
+	if gotRequest.InferenceConfig.MaxTokens != 64 {
+		t.Errorf("maxTokens = %d", gotRequest.InferenceConfig.MaxTokens)
 	}
-	if gotRequest.Temperature == nil || *gotRequest.Temperature != 0.3 {
-		t.Errorf("temperature = %+v", gotRequest.Temperature)
+	if gotRequest.InferenceConfig.Temperature == nil || *gotRequest.InferenceConfig.Temperature != 0.3 {
+		t.Errorf("temperature = %+v", gotRequest.InferenceConfig.Temperature)
 	}
-	if len(gotRequest.Messages) != 1 || gotRequest.Messages[0].Role != "user" || gotRequest.Messages[0].Content != "hello" {
+	if len(gotRequest.Messages) != 1 || gotRequest.Messages[0].Role != "user" || len(gotRequest.Messages[0].Content) != 1 || gotRequest.Messages[0].Content[0].Text != "hello" {
 		t.Errorf("messages = %+v", gotRequest.Messages)
 	}
 
@@ -106,7 +106,7 @@ func TestChatCompletionSignsInvokeModelRequest(t *testing.T) {
 }
 
 func TestChatCompletionParsesBedrockResponse(t *testing.T) {
-	server := bedrockJSONServer(t, http.StatusOK, bedrockResponseJSON)
+	server := bedrockJSONServer(t, http.StatusOK, bedrockConverseResponseJSON)
 	provider := New(server.URL)
 
 	resp, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
@@ -130,7 +130,7 @@ func TestChatCompletionParsesBedrockResponse(t *testing.T) {
 	if choice.Message.Content != "hello from bedrock" {
 		t.Errorf("content = %#v", choice.Message.Content)
 	}
-	if choice.FinishReason == nil || *choice.FinishReason != "stop" {
+	if choice.FinishReason == nil || *choice.FinishReason != "end_turn" {
 		t.Errorf("finish reason = %+v", choice.FinishReason)
 	}
 	if resp.Usage == nil || resp.Usage.PromptTokens != 5 || resp.Usage.CompletionTokens != 7 || resp.Usage.TotalTokens != 12 {
@@ -290,13 +290,15 @@ func testChatRequest() *providers.ChatRequest {
 	}
 }
 
-const bedrockResponseJSON = `{
-	"id": "msg_bdrk_123",
-	"type": "message",
-	"role": "assistant",
-	"content": [{"type": "text", "text": "hello from bedrock"}],
-	"stop_reason": "stop",
-	"usage": {"input_tokens": 5, "output_tokens": 7}
+const bedrockConverseResponseJSON = `{
+	"output": {
+		"message": {
+			"role": "assistant",
+			"content": [{"text": "hello from bedrock"}]
+		}
+	},
+	"stopReason": "end_turn",
+	"usage": {"inputTokens": 5, "outputTokens": 7, "totalTokens": 12}
 }`
 
 const bedrockModelsResponseJSON = `{

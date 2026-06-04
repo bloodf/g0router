@@ -170,8 +170,7 @@ func adapterOnlyProvider(id string, oauthProvider string, refresh, streaming, li
 	entry.PublicStatus = ProviderStatusAdapterOnly
 	entry.Notes = "Adapter is registered in normal startup, but public routing remains limited by model catalog and capability coverage."
 	if id == "bedrock" {
-		entry.Inference = false
-		entry.Notes = "Adapter is registered and can list Bedrock foundation models, but it does not implement Bedrock Converse, streaming, model catalog, quota, or public direct dispatch."
+		entry.Notes = "Adapter is registered and supports non-streaming Bedrock Converse plus foundation model listing, but it does not implement streaming, model catalog routing, quota, or public direct dispatch."
 	}
 	return entry
 }
