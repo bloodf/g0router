@@ -22,7 +22,7 @@ Review:
 - `internal/proxy/combo_test.go`
 
 Important commit:
-- Implementation commit: `{commit}`
+- Implementation commit: `e9c8a78 phase-8/task-provider: implement bedrock converse dispatch`
 
 Check:
 - Bedrock non-streaming chat completions use `POST /model/{modelId}/converse`, not the old `/invoke` Anthropic-native payload.

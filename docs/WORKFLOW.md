@@ -1655,13 +1655,20 @@ gate_results:
   - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse' -count=1: RED before implementation, missing Converse request contract"
   - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse' -count=1: PASS"
   - "go test ./internal/providers/bedrock ./internal/provider ./api/handlers ./internal/proxy -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse|TestProviderMatrixKeepsBedrockAdapterOnlyAfterConverseSupport|TestProvidersListKnownProviders|TestDispatchUsesBedrockAliasThroughAdapterOnlyInference|TestComboDispatchUsesBedrockAdapterOnlyStep' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
 
 tasks:
   - id: "8.AX.1"
     name: "Implement non-streaming Bedrock Converse dispatch"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "e9c8a78"
     files_owned:
       - internal/providers/bedrock/bedrock.go
       - internal/providers/bedrock/bedrock_test.go
