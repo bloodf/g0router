@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.AX"
-last_updated: "2026-06-04T17:45:48Z"
+last_updated: "2026-06-04T18:01:48Z"
 last_agent: "orchestrator"
 ```
 
@@ -1650,18 +1650,21 @@ max_agents: 1
 gate: "go test ./internal/providers/bedrock ./internal/provider ./api/handlers ./internal/proxy -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
 completed_at: "2026-06-04T17:45:48Z"
 evaluator_prompt: "docs/evaluations/wave-8AX-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after Bedrock Converse adapter parity"
+evaluation: "FAIL external evaluator thread 019e93c1-50db-7ae1-8fb3-ee9d6fdeea12; Bedrock stopSequences accepted invalid OpenAI stop shapes. Remediated by commit 3c0ef3e; re-evaluation pending."
 gate_results:
   - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse' -count=1: RED before implementation, missing Converse request contract"
   - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse' -count=1: PASS"
+  - "go test ./internal/providers/bedrock -run 'TestChatCompletionNormalizesStopArray|TestChatCompletionRejectsUnsupportedStopShape' -count=1: RED after evaluator, []any stop was dropped and unsupported stop reached the network path"
+  - "go test ./internal/providers/bedrock -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionNormalizesStopArray|TestChatCompletionRejectsUnsupportedStopShape|TestChatCompletionParsesBedrockResponse' -count=1: PASS after stopSequences remediation"
+  - "go test ./internal/providers/bedrock -count=1: PASS after stopSequences remediation"
   - "go test ./internal/providers/bedrock ./internal/provider ./api/handlers ./internal/proxy -run 'TestChatCompletionSignsConverseRequest|TestChatCompletionParsesBedrockResponse|TestProviderMatrixKeepsBedrockAdapterOnlyAfterConverseSupport|TestProvidersListKnownProviders|TestDispatchUsesBedrockAliasThroughAdapterOnlyInference|TestComboDispatchUsesBedrockAdapterOnlyStep' -count=1: PASS"
-  - "go test ./... -count=1: PASS"
-  - "go vet ./...: PASS"
-  - "go build ./cmd/g0router: PASS"
-  - "npm --prefix ui test -- --run: PASS"
-  - "npm --prefix ui run build: PASS"
-  - "npm --prefix ui run e2e: PASS"
-  - "make build: PASS"
+  - "go test ./... -count=1: PASS after stopSequences remediation"
+  - "go vet ./...: PASS after stopSequences remediation"
+  - "go build ./cmd/g0router: PASS after stopSequences remediation"
+  - "npm --prefix ui test -- --run: PASS after stopSequences remediation, 20 files and 84 tests"
+  - "make build: PASS after stopSequences remediation"
+  - "npm --prefix ui run build: PASS after stopSequences remediation"
+  - "npm --prefix ui run e2e: PASS after stopSequences remediation, 20 tests"
 
 tasks:
   - id: "8.AX.1"
@@ -1669,6 +1672,7 @@ tasks:
     status: DONE
     agent: "orchestrator"
     commit: "e9c8a78"
+    fix_commit: "3c0ef3e"
     files_owned:
       - internal/providers/bedrock/bedrock.go
       - internal/providers/bedrock/bedrock_test.go
