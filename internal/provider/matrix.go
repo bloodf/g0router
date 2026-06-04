@@ -78,7 +78,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		dynamicRoutableProvider("lm-studio", "", false, true, true, false, "api_key"),
 		unsupportedProvider("ollama-cloud", "Only local Ollama is implemented."),
 		unsupportedProvider("opencode", "No OpenCode provider integration is implemented."),
-		unsupportedProvider("qianfan", "No Baidu Qianfan auth or inference adapter is implemented."),
+		dynamicRoutableProvider("qianfan", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("qwen", "", false, true, true, false, "api_key"),
 		unsupportedProvider("tavily", "No Tavily tool/search provider integration is implemented."),
 		catalogRoutableProvider("vercel-ai-gateway", "", false, true, true, false, "api_key"),

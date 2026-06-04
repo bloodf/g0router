@@ -627,6 +627,7 @@ func TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(
 		{name: "github-copilot", provider: providers.ProviderGitHubCopilot, publicModel: "github-copilot/gpt-4o", upstream: "gpt-4o"},
 		{name: "litellm", provider: providers.ProviderLiteLLM, publicModel: "litellm/team/gpt-4o", upstream: "team/gpt-4o"},
 		{name: "lm-studio", provider: providers.ProviderLMStudio, publicModel: "lm-studio/local-model", upstream: "local-model"},
+		{name: "qianfan", provider: providers.ProviderQianfan, publicModel: "qianfan/deepseek-v3.1-250821", upstream: "deepseek-v3.1-250821"},
 		{name: "vllm", provider: providers.ProviderVLLM, publicModel: "vllm/meta-llama/Llama-3.1-8B-Instruct", upstream: "meta-llama/Llama-3.1-8B-Instruct"},
 		{name: "zhipu", provider: providers.ProviderZhipu, publicModel: "zhipu/glm-5.1", upstream: "glm-5.1"},
 	}

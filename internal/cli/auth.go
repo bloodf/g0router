@@ -270,8 +270,11 @@ func oauthFlowFactories() map[string]func() oauth.Flow {
 		"kimi":    func() oauth.Flow { return oauth.NewKimiFlow(oauth.KimiFlowConfig{}) },
 		"kiro":    func() oauth.Flow { return oauth.NewKiroFlow(oauth.KiroConfig{}) },
 		"minimax": func() oauth.Flow { return oauth.NewMiniMaxFlow() },
-		"xai":     func() oauth.Flow { return oauth.NewXAIFlow(oauth.XAIConfig{}) },
-		"xiaomi":  func() oauth.Flow { return oauth.NewXiaomiFlow(oauth.XiaomiConfig{}) },
-		"zhipu":   func() oauth.Flow { return oauth.NewZhipuFlow() },
+		"qianfan": func() oauth.Flow {
+			return oauth.NewQianfanFlow()
+		},
+		"xai":    func() oauth.Flow { return oauth.NewXAIFlow(oauth.XAIConfig{}) },
+		"xiaomi": func() oauth.Flow { return oauth.NewXiaomiFlow(oauth.XiaomiConfig{}) },
+		"zhipu":  func() oauth.Flow { return oauth.NewZhipuFlow() },
 	}
 }

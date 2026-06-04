@@ -574,6 +574,7 @@ func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
 		providers.ProviderGitHubCopilot,
 		providers.ProviderLiteLLM,
 		providers.ProviderLMStudio,
+		providers.ProviderQianfan,
 		providers.ProviderVLLM,
 		providers.ProviderZhipu:
 		return modelRoute{Provider: provider, Model: upstreamModel}, true

@@ -36,6 +36,7 @@ const (
 	ProviderGitHubCopilot ModelProvider = "github-copilot"
 	ProviderCursor        ModelProvider = "cursor"
 	ProviderAlibaba       ModelProvider = "alibaba"
+	ProviderQianfan       ModelProvider = "qianfan"
 	ProviderZhipu         ModelProvider = "zhipu"
 )
 
