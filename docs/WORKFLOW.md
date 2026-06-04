@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.L"
-last_updated: "2026-06-04T07:19:56Z"
+current_wave: "8.M"
+last_updated: "2026-06-04T07:25:36Z"
 last_agent: "orchestrator"
 ```
 
@@ -77,6 +77,29 @@ tasks:
 ```
 
 **Checkpoint**: Stage 8 remains active; continue auditing docs-defined gaps and run evaluator before release lock.
+
+### Wave 8.M — Optional Live Provider Smoke Gate
+
+```yaml
+wave: "8.M"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T07:25:36Z"
+evaluator_prompt: "docs/evaluations/wave-8M-evaluator-prompt.md"
+
+tasks:
+  - id: "8.M.1"
+    name: "Opt-in MiniMax live provider smoke test"
+    status: DONE
+    agent: "orchestrator"
+    commit: "f83addd"
+    files_owned:
+      - internal/providers/openaicompat/live_minimax_test.go
+      - docs/CONFIG.md
+```
+
+**Checkpoint**: Live-provider checks are optional and skipped by default; release gates remain deterministic without external network credentials.
 
 ---
 
