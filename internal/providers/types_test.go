@@ -74,6 +74,27 @@ func TestChatRequestMinimal(t *testing.T) {
 	}
 }
 
+func TestKeyCarriesProviderAccountID(t *testing.T) {
+	key := Key{
+		Value:     "cf-token",
+		Provider:  ProviderCloudflare,
+		AccountID: "account-123",
+	}
+
+	data, err := json.Marshal(key)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var got Key
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.AccountID != "account-123" {
+		t.Fatalf("account id = %q, want account-123", got.AccountID)
+	}
+}
+
 func TestChatResponseJSONRoundTrip(t *testing.T) {
 	finish := "stop"
 	resp := ChatResponse{

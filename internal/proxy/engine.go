@@ -402,6 +402,9 @@ func (e *Engine) keyForModel(ctx context.Context, provider providers.ModelProvid
 	} else if conn.AccessToken != nil {
 		key.Value = *conn.AccessToken
 	}
+	if conn.AccountID != nil {
+		key.AccountID = *conn.AccountID
+	}
 
 	return key, conn, nil
 }
@@ -571,6 +574,7 @@ func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
 	switch provider {
 	case providers.ProviderAlibaba,
 		providers.ProviderAzure,
+		providers.ProviderCloudflare,
 		providers.ProviderGitHubCopilot,
 		providers.ProviderLiteLLM,
 		providers.ProviderLMStudio,

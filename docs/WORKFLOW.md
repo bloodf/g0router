@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BH"
-last_updated: "2026-06-04T23:02:00Z"
+current_wave: "8.BI"
+last_updated: "2026-06-04T23:28:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2180,6 +2180,55 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BH removes one concrete `unsupported` provider gap. Qianfan now has direct API-key credential capture, registers the OpenAI-compatible Qianfan adapter, and routes provider-qualified models such as `qianfan/deepseek-v3.1-250821`. Qianfan remains intentionally non-catalog and non-quota to avoid fake pricing or unsupported quota claims.
+
+---
+
+### Wave 8.BI — Cloudflare AI Gateway Dynamic Runtime Routing
+
+```yaml
+wave: "8.BI"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers ./internal/providers/cloudflare ./internal/provider ./internal/proxy ./internal/cli ./api/handlers -run 'TestKeyCarriesProviderAccountID|TestChatCompletionUsesAccountScopedCloudflareOpenAIEndpoint|TestChatCompletionRequiresAccountID|TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestPublicProvidersDoNotClaimQuotaSupport|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs|TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestProvidersListShowsKnownProviders|TestProvidersListShowsSupportedInferenceProvidersOnly|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-04T23:28:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BI-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused provider/API/CLI tests: RED before implementation, providers.Key lacked AccountID, Cloudflare provider package was missing, and Cloudflare remained unsupported"
+  - "focused provider/API/CLI tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 85 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BI.1"
+    name: "Promote Cloudflare AI Gateway to account-scoped dynamic runtime routing"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/types_test.go
+      - internal/providers/cloudflare/cloudflare.go
+      - internal/providers/cloudflare/cloudflare_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BI-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BI removes one concrete `unsupported` gateway provider gap. Cloudflare AI Gateway now has a native account-scoped adapter that delegates to the shared OpenAI-compatible runtime at `/accounts/{account_id}/ai/v1/chat/completions`, propagates stored connection `account_id` into provider keys, and routes provider-qualified models such as `cloudflare-ai-gateway/openai/gpt-4.1`. Cloudflare remains intentionally non-catalog, non-listing, and non-quota until those public contracts are implemented.
 
 ---
 

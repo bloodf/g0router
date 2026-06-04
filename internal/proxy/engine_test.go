@@ -624,6 +624,7 @@ func TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(
 	}{
 		{name: "alibaba", provider: providers.ProviderAlibaba, publicModel: "alibaba/qwen3-max-2026-01-23", upstream: "qwen3-max-2026-01-23"},
 		{name: "azure", provider: providers.ProviderAzure, publicModel: "azure/gpt-4o-prod", upstream: "gpt-4o-prod"},
+		{name: "cloudflare-ai-gateway", provider: providers.ProviderCloudflare, publicModel: "cloudflare-ai-gateway/openai/gpt-4.1", upstream: "openai/gpt-4.1"},
 		{name: "github-copilot", provider: providers.ProviderGitHubCopilot, publicModel: "github-copilot/gpt-4o", upstream: "gpt-4o"},
 		{name: "litellm", provider: providers.ProviderLiteLLM, publicModel: "litellm/team/gpt-4o", upstream: "team/gpt-4o"},
 		{name: "lm-studio", provider: providers.ProviderLMStudio, publicModel: "lm-studio/local-model", upstream: "local-model"},
@@ -636,6 +637,20 @@ func TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(
 		t.Run(tc.name, func(t *testing.T) {
 			s := openProxyTestStore(t)
 			createProxyConnection(t, s, tc.provider.String(), tc.name+"-key")
+			if tc.provider == providers.ProviderCloudflare {
+				connections, err := s.GetConnections(tc.provider.String())
+				if err != nil {
+					t.Fatalf("GetConnections cloudflare: %v", err)
+				}
+				if len(connections) != 1 {
+					t.Fatalf("cloudflare connections = %d, want 1", len(connections))
+				}
+				accountID := "account-123"
+				connections[0].AccountID = &accountID
+				if err := s.UpdateConnection(connections[0]); err != nil {
+					t.Fatalf("UpdateConnection cloudflare account: %v", err)
+				}
+			}
 
 			runtime := &fakeProvider{
 				name: tc.provider,
@@ -669,6 +684,9 @@ func TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(
 			}
 			if runtime.receivedKey.Value != tc.name+"-key" {
 				t.Fatalf("key value = %q, want %q", runtime.receivedKey.Value, tc.name+"-key")
+			}
+			if tc.provider == providers.ProviderCloudflare && runtime.receivedKey.AccountID != "account-123" {
+				t.Fatalf("account id = %q, want account-123", runtime.receivedKey.AccountID)
 			}
 			if resp.Provider != tc.provider {
 				t.Fatalf("response provider = %q, want %q", resp.Provider, tc.provider)

@@ -23,6 +23,7 @@ const (
 	ProviderTogether      ModelProvider = "together"
 	ProviderNVIDIA        ModelProvider = "nvidia"
 	ProviderHuggingFace   ModelProvider = "huggingface"
+	ProviderCloudflare    ModelProvider = "cloudflare-ai-gateway"
 	ProviderCohere        ModelProvider = "cohere"
 	ProviderReplicate     ModelProvider = "replicate"
 	ProviderXAI           ModelProvider = "xai"
@@ -46,10 +47,11 @@ func (p ModelProvider) String() string {
 
 // Key holds credentials for a single provider request.
 type Key struct {
-	Value    string        `json:"value"`
-	Provider ModelProvider `json:"provider"`
-	ConnID   string        `json:"conn_id"`
-	AuthType string        `json:"auth_type"`
+	Value     string        `json:"value"`
+	Provider  ModelProvider `json:"provider"`
+	ConnID    string        `json:"conn_id"`
+	AuthType  string        `json:"auth_type"`
+	AccountID string        `json:"account_id,omitempty"`
 }
 
 // Model represents an available model.

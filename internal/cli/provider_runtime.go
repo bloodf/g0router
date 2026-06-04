@@ -6,6 +6,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/anthropic"
 	"github.com/bloodf/g0router/internal/providers/azure"
 	"github.com/bloodf/g0router/internal/providers/bedrock"
+	"github.com/bloodf/g0router/internal/providers/cloudflare"
 	"github.com/bloodf/g0router/internal/providers/cohere"
 	"github.com/bloodf/g0router/internal/providers/gemini"
 	"github.com/bloodf/g0router/internal/providers/mistral"
@@ -26,6 +27,7 @@ func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
 	engine.Register(gemini.New(""))
 	engine.Register(azure.New("", ""))
 	engine.Register(bedrock.New(""))
+	engine.Register(cloudflare.New(""))
 	engine.Register(vertex.New("", vertex.Config{
 		ProjectID: envString("VERTEX_PROJECT_ID", ""),
 		Location:  envString("VERTEX_LOCATION", "us-central1"),

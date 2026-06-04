@@ -71,7 +71,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		dynamicRoutableProvider("alibaba", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("minimax", "", false, true, true, false, "api_key"),
 		dynamicRoutableProvider("zhipu", "", false, true, true, false, "api_key"),
-		unsupportedProvider("cloudflare-ai-gateway", "No gateway adapter is implemented."),
+		cloudflareGatewayProvider(),
 		unsupportedProvider("kagi", "No Kagi tool/search provider integration is implemented."),
 		unsupportedProvider("kilo", "No Kilo provider integration is implemented."),
 		dynamicRoutableProvider("litellm", "", false, true, true, false, "api_key"),
@@ -181,6 +181,12 @@ func dynamicRoutableProvider(id string, oauthProvider string, refresh, streaming
 	entry.DirectDispatch = true
 	entry.PublicStatus = ProviderStatusSupported
 	entry.Notes = "Public direct dispatch works through provider-qualified dynamic model IDs; no static model catalog or quota fetcher is implemented."
+	return entry
+}
+
+func cloudflareGatewayProvider() ProviderMatrixEntry {
+	entry := dynamicRoutableProvider("cloudflare-ai-gateway", "", false, true, false, false, "api_key")
+	entry.Notes = "Public direct dispatch works through provider-qualified Cloudflare REST API model IDs when the stored connection includes account_id; no static model catalog or quota fetcher is implemented."
 	return entry
 }
 

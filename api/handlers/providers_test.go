@@ -88,7 +88,7 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["anthropic"].Quota {
 		t.Fatalf("anthropic provider = %+v, should not claim quota support until a real fetcher exists", byID["anthropic"])
 	}
-	for _, id := range []string{"alibaba", "azure", "bedrock", "cerebras", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "zhipu"} {
+	for _, id := range []string{"alibaba", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "groq", "huggingface", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "zhipu"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported inference provider", id, byID[id])
 		}
