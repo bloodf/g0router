@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.T"
-last_updated: "2026-06-04T09:43:15Z"
+last_updated: "2026-06-04T09:44:20Z"
 last_agent: "orchestrator"
 ```
 
@@ -492,7 +492,7 @@ tasks:
     name: "Apply RTK and caveman settings before dispatch"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "5baa4c6"
     files_owned:
       - api/server.go
       - api/server_test.go
