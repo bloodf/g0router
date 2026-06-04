@@ -1480,7 +1480,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 20 tests"
   - "make build: PASS"
   - "artifact cleanup after release gates: PASS, generated binary, UI dist rewrites, and Playwright test-results removed/restored"
-  - "secret scan for leaked MiniMax/API token patterns: PASS"
+  - "secret scan for leaked MiniMax/API token patterns, excluding the evaluator prompt that contains the scan expression itself: PASS"
   - "unmerged branch audit: PASS with known stale conflicting branch codex/wave-8an-dashboard-mcp-oauth-resource-discovery intentionally unmerged"
 
 tasks:

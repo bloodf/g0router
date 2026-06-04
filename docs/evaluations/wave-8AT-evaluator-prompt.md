@@ -2,7 +2,7 @@
 
 Evaluate completed wave `8.AT` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
 
-Start read-only. Do not edit files.
+Start read-only. Do not edit files except for the explicit generated-artifact cleanup command listed below after build gates.
 
 Review:
 - `AGENTS.md`
@@ -31,14 +31,14 @@ Gates to run:
 - `npm --prefix ui run e2e`
 - `make build`
 - `rm -rf ui/test-results && git restore ui/dist/assets/index.css ui/dist/assets/index.js ui/dist/index.html 2>/dev/null || true && rm -f g0router`
-- `rg -n "sk-cp-|SKsM8|G0ROUTER_E2E_MINIMAX_API_KEY=.*sk|API_KEY_SECRET=.*sk" . --glob '!ui/node_modules/**' --glob '!ui/dist/**' --glob '!ui/test-results/**' --glob '!g0router' --glob '!.git/**'`
+- `rg -n "sk-cp-|SKsM8|G0ROUTER_E2E_MINIMAX_API_KEY=.*sk|API_KEY_SECRET=.*sk" . --glob '!ui/node_modules/**' --glob '!ui/dist/**' --glob '!ui/test-results/**' --glob '!g0router' --glob '!.git/**' --glob '!docs/evaluations/wave-8AT-evaluator-prompt.md'`
 - `git branch --no-merged main --format='%(refname:short) %(objectname:short)'`
 - `git diff --check`
 - `git status --short`
 
 Expected behavior:
 - All build/test commands should exit 0.
-- The secret scan should return no matches and exit 1. Treat matches as failures.
+- The secret scan should return no matches and exit 1. Treat matches as failures. The evaluator prompt is excluded because it contains the scan expression itself, not a credential.
 - `git status --short` should only show protected local dirt listed above after artifact cleanup.
 
 Return:
