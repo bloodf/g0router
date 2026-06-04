@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func openTestStore(t *testing.T) *Store {
@@ -115,6 +116,63 @@ func TestMigrateCreatesIndexes(t *testing.T) {
 		if name != index {
 			t.Errorf("index name = %q, want %q", name, index)
 		}
+	}
+}
+
+func TestMigrateAddsMCPOAuthFlowClientCredentialColumns(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE mcp_oauth_flows (
+		id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+		instance_id TEXT NOT NULL,
+		state_hash TEXT NOT NULL,
+		code_verifier_secret TEXT NOT NULL,
+		redirect_uri TEXT,
+		authorization_url TEXT,
+		resource_uri TEXT,
+		expires_at TEXT NOT NULL,
+		created_at TEXT NOT NULL DEFAULT (datetime('now')),
+		UNIQUE(instance_id, state_hash)
+	)`); err != nil {
+		t.Fatalf("create old mcp_oauth_flows: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close setup db: %v", err)
+	}
+
+	s, err := NewStore(path)
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := s.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	})
+	instance := createOAuthTestInstance(t, s, "legacy-linear")
+
+	if err := s.CreateMCPOAuthFlow(&MCPOAuthFlow{
+		InstanceID:         instance.ID,
+		State:              "state-1",
+		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost/callback",
+		AuthorizationURL:   "https://auth.example/authorize",
+		ResourceURI:        "https://mcp.example",
+		ClientID:           "client-123",
+		ClientSecret:       "client-secret",
+		ExpiresAt:          time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateMCPOAuthFlow after migration: %v", err)
+	}
+	flow, err := s.ConsumeMCPOAuthFlow(instance.ID, "state-1")
+	if err != nil {
+		t.Fatalf("ConsumeMCPOAuthFlow after migration: %v", err)
+	}
+	if flow.ClientID != "client-123" || flow.ClientSecret != "client-secret" {
+		t.Fatal("client credentials did not survive migrated flow table")
 	}
 }
 

@@ -196,6 +196,8 @@ CREATE TABLE mcp_oauth_flows (
     redirect_uri TEXT,
     authorization_url TEXT,
     resource_uri TEXT,
+    client_id TEXT,
+    client_secret TEXT,
     expires_at TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(instance_id, state_hash),
