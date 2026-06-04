@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/providers"
@@ -59,6 +60,78 @@ func TestNewDefault(t *testing.T) {
 	}
 	if provider.Name() != providers.ProviderMistral {
 		t.Fatalf("Name = %q", provider.Name())
+	}
+}
+
+func TestNewSupportsStreaming(t *testing.T) {
+	var gotRequest providers.ChatRequest
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/chat/completions" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotRequest); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte(strings.Join([]string{
+			`data: {"id":"chunk-1","object":"chat.completion.chunk","created":1710000000,"model":"test-model","choices":[{"index":0,"delta":{"content":"hello"},"finish_reason":null}]}`,
+			"",
+			"data: [DONE]",
+			"",
+		}, "\n")))
+	}))
+	t.Cleanup(server.Close)
+
+	provider, err := New(server.URL)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	chunks, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+
+	chunk, ok := <-chunks
+	if !ok {
+		t.Fatal("stream closed before first chunk")
+	}
+	if gotRequest.Stream == nil || !*gotRequest.Stream {
+		t.Fatalf("request stream = %v, want true", gotRequest.Stream)
+	}
+	if chunk.ID != "chunk-1" {
+		t.Fatalf("chunk ID = %q, want chunk-1", chunk.ID)
+	}
+	if chunk.Choices[0].Delta.Content == nil || *chunk.Choices[0].Delta.Content != "hello" {
+		t.Fatalf("chunk content = %+v", chunk.Choices[0].Delta.Content)
+	}
+}
+
+func TestNewSupportsListModels(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("path = %q", r.URL.Path)
+		}
+		if r.Header.Get("Authorization") != "Bearer test-key" {
+			t.Fatalf("Authorization = %q", r.Header.Get("Authorization"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"mistral-small-latest","object":"model","created":1710000000,"owned_by":"mistral"}]}`))
+	}))
+	t.Cleanup(server.Close)
+
+	provider, err := New(server.URL)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	models, err := provider.ListModels(context.Background(), testKey())
+	if err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+	if len(models) != 1 || models[0].ID != "mistral-small-latest" {
+		t.Fatalf("models = %+v", models)
+	}
+	if models[0].Provider != providers.ProviderMistral {
+		t.Fatalf("model provider = %q, want mistral", models[0].Provider)
 	}
 }
 

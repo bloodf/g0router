@@ -78,7 +78,7 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 
 func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"gemini", "groq", "azure", "vertex", "bedrock", "ollama", "cohere", "replicate", "nebius"} {
+	for _, id := range []string{"gemini", "azure", "vertex", "bedrock", "ollama", "cohere", "replicate", "nebius"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -141,8 +141,22 @@ func TestProviderMatrixKeepsKiroAndKiloDistinct(t *testing.T) {
 func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing.T) {
 	public := PublicInferenceProviders()
 	ids := providerIDs(public)
-	if len(ids) != 2 || !ids["openai"] || !ids["anthropic"] {
-		t.Fatalf("public inference providers = %+v, want only openai and anthropic until catalog routing lands", ids)
+	want := map[string]bool{
+		"openai":     true,
+		"anthropic":  true,
+		"deepseek":   true,
+		"groq":       true,
+		"mistral":    true,
+		"openrouter": true,
+		"perplexity": true,
+	}
+	if len(ids) != len(want) {
+		t.Fatalf("public inference providers = %+v, want %+v", ids, want)
+	}
+	for id := range want {
+		if !ids[id] {
+			t.Fatalf("public inference providers = %+v, missing %s", ids, id)
+		}
 	}
 	for _, entry := range public {
 		if entry.PublicStatus != ProviderStatusSupported {
@@ -162,8 +176,32 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	if ids["qwen"] {
 		t.Fatal("qwen is unsupported today and must not be advertised as an inference provider")
 	}
-	if ids["groq"] {
-		t.Fatal("groq has an adapter but public dispatch cannot route it until Wave 7.E")
+	for _, id := range []string{"cohere", "replicate", "nebius"} {
+		if ids[id] {
+			t.Fatalf("%s remains adapter-only and must not be advertised as a public inference provider", id)
+		}
+	}
+}
+
+func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
+	matrix := ProviderMatrix()
+	for _, id := range []string{"deepseek", "groq", "mistral", "openrouter", "perplexity"} {
+		entry, ok := matrix.Provider(id)
+		if !ok {
+			t.Fatalf("provider %q missing", id)
+		}
+		if entry.PublicStatus != ProviderStatusSupported {
+			t.Fatalf("%s status = %q, want supported", id, entry.PublicStatus)
+		}
+		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
+			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
+		}
+		if !entry.Streaming || !entry.ModelCatalog || !entry.ListModels {
+			t.Fatalf("%s should expose shared OpenAI-compatible streaming and model APIs: %+v", id, entry)
+		}
+		if entry.Quota {
+			t.Fatalf("%s should not claim quota support until a real quota fetcher exists", id)
+		}
 	}
 }
 

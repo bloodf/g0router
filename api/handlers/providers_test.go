@@ -60,6 +60,7 @@ func TestProvidersListKnownProviders(t *testing.T) {
 		PublicInference   bool
 		DirectDispatch    bool
 		Inference         bool
+		Quota             bool
 	}, len(decoded.Data))
 	for _, provider := range decoded.Data {
 		byID[provider.ID] = struct {
@@ -68,19 +69,26 @@ func TestProvidersListKnownProviders(t *testing.T) {
 			PublicInference   bool
 			DirectDispatch    bool
 			Inference         bool
+			Quota             bool
 		}{
 			PublicStatus:      provider.PublicStatus,
 			RegisteredAdapter: provider.RegisteredAdapter,
 			PublicInference:   provider.PublicInference,
 			DirectDispatch:    provider.DirectDispatch,
 			Inference:         provider.Inference,
+			Quota:             provider.Quota,
 		}
 	}
 	if byID["openai"].PublicStatus != "supported" || !byID["openai"].PublicInference || !byID["openai"].DirectDispatch || !byID["openai"].Inference {
 		t.Fatalf("openai provider = %+v, want supported inference provider", byID["openai"])
 	}
-	if byID["groq"].PublicStatus != "adapter_only" || !byID["groq"].RegisteredAdapter || byID["groq"].PublicInference || byID["groq"].DirectDispatch || !byID["groq"].Inference {
-		t.Fatalf("groq provider = %+v, want inference-capable adapter without public dispatch", byID["groq"])
+	for _, id := range []string{"deepseek", "groq", "mistral", "openrouter", "perplexity"} {
+		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
+			t.Fatalf("%s provider = %+v, want supported catalog-routable provider", id, byID[id])
+		}
+		if byID[id].Quota {
+			t.Fatalf("%s provider = %+v, should not claim quota support", id, byID[id])
+		}
 	}
 	if byID["github-copilot"].PublicStatus != "auth_only" || byID["github-copilot"].Inference {
 		t.Fatalf("github-copilot provider = %+v, want auth_only without inference", byID["github-copilot"])

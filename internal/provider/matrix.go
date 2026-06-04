@@ -46,17 +46,17 @@ func ProviderMatrix() ProviderMatrixTable {
 		adapterOnlyProvider("bedrock", "", false, false, false, false, "api_key"),
 		adapterOnlyProvider("cerebras", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("cohere", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("deepseek", "deepseek", true, true, true, false, "api_key", "oauth"),
+		catalogRoutableProvider("deepseek", "deepseek", true, true, true, false, "api_key", "oauth"),
 		adapterOnlyProvider("fireworks", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("gemini", "gemini", true, false, true, false, "api_key", "oauth"),
-		adapterOnlyProvider("groq", "", false, true, true, false, "api_key"),
+		catalogRoutableProvider("groq", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("huggingface", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("mistral", "", false, true, true, false, "api_key"),
+		catalogRoutableProvider("mistral", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("nebius", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("nvidia", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("ollama", "", false, true, true, false, "noauth"),
-		adapterOnlyProvider("openrouter", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("perplexity", "", false, true, true, false, "api_key"),
+		catalogRoutableProvider("openrouter", "", false, true, true, false, "api_key"),
+		catalogRoutableProvider("perplexity", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("replicate", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("together", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("vertex", "gemini", true, false, true, false, "oauth"),
@@ -132,6 +132,26 @@ func supportedProvider(id string, oauthProvider string, refresh, streaming, mode
 	entry.PublicStatus = ProviderStatusSupported
 	if id == "openai" {
 		entry.OMPID = "openai/codex"
+	}
+	return entry
+}
+
+func catalogRoutableProvider(id string, oauthProvider string, refresh, streaming, modelCatalog, quota bool, authTypes ...string) ProviderMatrixEntry {
+	entry := baseProvider(id)
+	entry.AuthTypes = authTypes
+	entry.OAuthProvider = oauthProvider
+	entry.Refresh = refresh
+	entry.RegisteredAdapter = true
+	entry.PublicInference = true
+	entry.DirectDispatch = true
+	entry.Inference = true
+	entry.Streaming = streaming
+	entry.ModelCatalog = modelCatalog
+	entry.ListModels = modelCatalog
+	entry.Quota = quota
+	entry.PublicStatus = ProviderStatusSupported
+	if !quota {
+		entry.Notes = "Public direct dispatch works through catalog routing; quota fetcher is not implemented yet."
 	}
 	return entry
 }

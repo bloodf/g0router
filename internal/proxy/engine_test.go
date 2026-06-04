@@ -244,6 +244,59 @@ func TestDispatchUsesModelAliasProviderAndRewritesUpstreamModel(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesCatalogForPublicOpenAICompatibleProviders(t *testing.T) {
+	cases := []struct {
+		name     string
+		provider providers.ModelProvider
+		model    string
+		key      string
+	}{
+		{name: "groq", provider: providers.ProviderGroq, model: "llama-3.3-70b-versatile", key: "groq-key"},
+		{name: "mistral", provider: providers.ProviderMistral, model: "mistral-small-latest", key: "mistral-key"},
+		{name: "deepseek", provider: providers.ProviderDeepSeek, model: "deepseek-chat", key: "deepseek-key"},
+		{name: "openrouter", provider: providers.ProviderOpenRouter, model: "openai/gpt-4o-mini", key: "openrouter-key"},
+		{name: "perplexity", provider: providers.ProviderPerplexity, model: "sonar-pro", key: "perplexity-key"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := openProxyTestStore(t)
+			createProxyConnection(t, s, tc.provider.String(), tc.key)
+
+			runtime := &fakeProvider{
+				name: tc.provider,
+				response: &providers.ChatResponse{
+					ID:    "chatcmpl-" + tc.name,
+					Model: tc.model,
+				},
+			}
+			engine := NewEngine(s)
+			engine.Register(runtime)
+
+			req := &providers.ChatRequest{Model: tc.model}
+			resp, err := engine.Dispatch(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Dispatch: %v", err)
+			}
+			if !runtime.called {
+				t.Fatal("provider was not called")
+			}
+			if runtime.received != req {
+				t.Fatal("catalog dispatch should pass the original request")
+			}
+			if runtime.receivedKey.Provider != tc.provider {
+				t.Fatalf("key provider = %q, want %q", runtime.receivedKey.Provider, tc.provider)
+			}
+			if runtime.receivedKey.Value != tc.key {
+				t.Fatalf("key value = %q, want %q", runtime.receivedKey.Value, tc.key)
+			}
+			if resp.Provider != tc.provider {
+				t.Fatalf("response provider = %q, want %q", resp.Provider, tc.provider)
+			}
+		})
+	}
+}
+
 func TestDispatchBlocksAliasToProviderWithoutInference(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "bedrock", "bedrock-key")
