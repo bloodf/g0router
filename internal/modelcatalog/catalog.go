@@ -43,6 +43,9 @@ func NewCatalog() Catalog {
 				"llama-3.3-70b-versatile": noHostedCacheDiscount(0.59, 0.79),
 				"llama-3.1-8b-instant":    noHostedCacheDiscount(0.05, 0.08),
 			},
+			providers.ProviderHuggingFace: {
+				"meta-llama/Llama-3.3-70B-Instruct:groq": noHostedCacheDiscount(0.59, 0.79),
+			},
 			providers.ProviderMistral: {
 				"mistral-large-latest":   noHostedCacheDiscount(2.00, 6.00),
 				"mistral-small-latest":   noHostedCacheDiscount(0.10, 0.30),

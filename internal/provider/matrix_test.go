@@ -142,23 +142,24 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	public := PublicInferenceProviders()
 	ids := providerIDs(public)
 	want := map[string]bool{
-		"openai":     true,
-		"anthropic":  true,
-		"cerebras":   true,
-		"cohere":     true,
-		"deepseek":   true,
-		"fireworks":  true,
-		"gemini":     true,
-		"groq":       true,
-		"mistral":    true,
-		"minimax":    true,
-		"nebius":     true,
-		"ollama":     true,
-		"openrouter": true,
-		"perplexity": true,
-		"qwen":       true,
-		"together":   true,
-		"xai":        true,
+		"openai":      true,
+		"anthropic":   true,
+		"cerebras":    true,
+		"cohere":      true,
+		"deepseek":    true,
+		"fireworks":   true,
+		"gemini":      true,
+		"groq":        true,
+		"huggingface": true,
+		"mistral":     true,
+		"minimax":     true,
+		"nebius":      true,
+		"ollama":      true,
+		"openrouter":  true,
+		"perplexity":  true,
+		"qwen":        true,
+		"together":    true,
+		"xai":         true,
 	}
 	if len(ids) != len(want) {
 		t.Fatalf("public inference providers = %+v, want %+v", ids, want)
@@ -192,7 +193,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"cerebras", "cohere", "deepseek", "fireworks", "groq", "mistral", "minimax", "nebius", "ollama", "openrouter", "perplexity", "qwen", "together", "xai"} {
+	for _, id := range []string{"cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "mistral", "minimax", "nebius", "ollama", "openrouter", "perplexity", "qwen", "together", "xai"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)

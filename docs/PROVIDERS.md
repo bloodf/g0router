@@ -9,7 +9,7 @@ Status meanings:
 - `auth_only`: credential capture exists, but no inference adapter is wired.
 - `unsupported`: explicitly not implemented; do not advertise as usable.
 
-Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `cohere`, `deepseek`, `fireworks`, `gemini`, `groq`, `mistral`, `minimax`, `nebius`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
+Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `cohere`, `deepseek`, `fireworks`, `gemini`, `groq`, `huggingface`, `mistral`, `minimax`, `nebius`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
 
 ## Public Surfaces
 
@@ -37,7 +37,7 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 | `github-copilot` | `github-copilot` | `github-copilot` | `github-copilot` | `auth_only` | OAuth | yes | no | no | no | no | no | Device-code OAuth exists; no Copilot inference adapter. |
 | `gitlab` | `gitlab` | `gitlab` | `gitlab` | `auth_only` | OAuth | yes | no | no | no | no | no | GitLab-style OAuth exists; no inference adapter. |
 | `groq` | `groq` | `groq` | `groq` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
-| `huggingface` | `huggingface` | `huggingface` | `huggingface` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `huggingface` | `huggingface` | `huggingface` | `huggingface` | `supported` | API key | no | yes | yes | yes | yes | yes | Provider-suffixed Hugging Face router model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `kagi` | `kagi` | `kagi` | `kagi` | `unsupported` | none | no | no | no | no | no | no | No Kagi tool/search integration. |
 | `kilo` | `kilo` | `kilo` | `kilo` | `unsupported` | none | no | no | no | no | no | no | No Kilo provider integration. |
 | `kimi` | `kimi` | `kimi` | `kimi` | `auth_only` | OAuth | yes | no | no | no | no | no | Device-code OAuth exists; no Moonshot/Kimi inference adapter. |
@@ -68,4 +68,4 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 
 ## Model Routing Caveat
 
-Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, Cerebras, Cohere, DeepSeek, Fireworks, Gemini, Groq, Mistral, MiniMax, Nebius, Ollama, OpenRouter, Perplexity, Qwen, Together, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.
+Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, Cerebras, Cohere, DeepSeek, Fireworks, Gemini, Groq, Hugging Face, Mistral, MiniMax, Nebius, Ollama, OpenRouter, Perplexity, Qwen, Together, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.

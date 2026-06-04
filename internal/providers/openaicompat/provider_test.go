@@ -145,7 +145,7 @@ func TestDefaultConfigsAreRegistered(t *testing.T) {
 		providers.ProviderNVIDIA:      "https://integrate.api.nvidia.com",
 		providers.ProviderDeepSeek:    "https://api.deepseek.com",
 		providers.ProviderOpenRouter:  "https://openrouter.ai/api",
-		providers.ProviderHuggingFace: "https://api-inference.huggingface.co",
+		providers.ProviderHuggingFace: "https://router.huggingface.co",
 		providers.ProviderNebius:      "https://api.tokenfactory.nebius.com",
 		providers.ProviderMiniMax:     "https://api.minimax.io/v1",
 		providers.ProviderQwen:        "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
