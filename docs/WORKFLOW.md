@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.AI"
-last_updated: "2026-06-04T11:37:28Z"
+last_updated: "2026-06-04T11:43:48Z"
 last_agent: "orchestrator"
 ```
 
@@ -1056,7 +1056,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T11:29:41Z"
 evaluator_prompt: "docs/evaluations/wave-8AI-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e926d-1a74-79d0-94ab-0cd5ce3c35fd at commit 6ce428c"
 gate_results:
   - "go test ./internal/proxy -run 'TestDispatchUsesNoAuthProviderWithoutStoredConnection|TestDispatchStreamUsesNoAuthProviderWithoutStoredConnection|TestDispatchUsesCatalogForOllamaNoAuthProvider' -count=1: FAIL before implementation with Dispatch/DispatchStream reporting no active connections"
   - "go test ./internal/proxy -run 'TestDispatchUsesNoAuthProviderWithoutStoredConnection|TestDispatchStreamUsesNoAuthProviderWithoutStoredConnection|TestDispatchUsesCatalogForOllamaNoAuthProvider' -count=1: PASS"
