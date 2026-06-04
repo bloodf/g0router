@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.AG"
-last_updated: "2026-06-04T11:08:31Z"
+last_updated: "2026-06-04T11:18:02Z"
 last_agent: "orchestrator"
 ```
 
@@ -978,7 +978,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T11:08:31Z"
 evaluator_prompt: "docs/evaluations/wave-8AG-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e9253-0223-75a0-aac8-fed3f2ab8cf9 at commit dccbf70"
 gate_results:
   - "go test ./internal/mcp ./api/handlers ./internal/cli -run 'TestDiscoverOAuthAuthorizationURLFromProtectedResourceMetadata|TestMCPOAuthStartDiscoversAuthorizationURLFromResourceMetadata|TestMCPOAuthStartCommandDiscoversAuthorizationURL' -count=1: FAIL before implementation for missing discovery/helper wiring, then PASS"
   - "go test ./internal/mcp ./api/handlers ./internal/cli -count=1: PASS"
