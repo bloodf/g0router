@@ -420,6 +420,13 @@ func TestDefaultServerConfigWiresWave7BRuntime(t *testing.T) {
 	if cfg.MCPInstanceRuntime == nil {
 		t.Fatal("MCPInstanceRuntime is nil")
 	}
+	engine, ok := cfg.InferenceEngine.(*proxy.Engine)
+	if !ok {
+		t.Fatalf("InferenceEngine type = %T, want *proxy.Engine", cfg.InferenceEngine)
+	}
+	if engine.MCPToolManager() != cfg.MCPToolManager {
+		t.Fatal("InferenceEngine is not wired to the server MCP tool manager")
+	}
 
 	models, err := cfg.InferenceEngine.ListModels(context.Background())
 	if err != nil {

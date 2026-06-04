@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/modelcatalog"
 	providercore "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/provider/oauth"
@@ -49,6 +50,7 @@ type Engine struct {
 	refreshManager *providercore.RefreshManager
 	fallback       *providercore.FallbackManager
 	quotaFetchers  map[providers.ModelProvider]usage.QuotaFetcher
+	mcpTools       *mcp.ToolManager
 	aliasCache     *aliasCache
 	refreshWindow  time.Duration
 	now            func() time.Time
@@ -83,6 +85,14 @@ func (e *Engine) RegisterQuotaFetcher(provider providers.ModelProvider, fetcher 
 		return
 	}
 	e.quotaFetchers[provider] = fetcher
+}
+
+func (e *Engine) RegisterMCPToolManager(tools *mcp.ToolManager) {
+	e.mcpTools = tools
+}
+
+func (e *Engine) MCPToolManager() *mcp.ToolManager {
+	return e.mcpTools
 }
 
 func (e *Engine) RegisteredProviders() []providers.ModelProvider {
@@ -128,7 +138,8 @@ func (e *Engine) dispatchRoute(ctx context.Context, route modelRoute, req *provi
 			return nil, err
 		}
 
-		resp, err := provider.ChatCompletion(ctx, key, requestWithModel(req, upstreamModel))
+		dispatchReq := requestWithModel(req, upstreamModel)
+		resp, err := e.chatCompletion(ctx, provider, key, dispatchReq)
 		if err != nil {
 			wrapped := fmt.Errorf("chat completion: %w", err)
 			if fallbackWorthyError(err) {
@@ -146,6 +157,28 @@ func (e *Engine) dispatchRoute(ctx context.Context, route modelRoute, req *provi
 		return nil, lastErr
 	}
 	return nil, ErrNoConnections
+}
+
+func (e *Engine) chatCompletion(ctx context.Context, provider providers.Provider, key providers.Key, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	if e.shouldRunMCPAgent(ctx, req) {
+		return mcp.NewAgent(provider, key, e.mcpTools).Run(ctx, req)
+	}
+	return provider.ChatCompletion(ctx, key, req)
+}
+
+func (e *Engine) shouldRunMCPAgent(ctx context.Context, req *providers.ChatRequest) bool {
+	if e.mcpTools == nil || req == nil {
+		return false
+	}
+	if len(req.Tools) == 0 {
+		return len(e.mcpTools.CompactToolsForRequest(ctx)) > 0
+	}
+	for _, tool := range req.Tools {
+		if _, err := e.mcpTools.Lookup(tool.Function.Name); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *Engine) dispatchStreamRoute(ctx context.Context, route modelRoute, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {

@@ -2,11 +2,13 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/provider/oauth"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
@@ -183,6 +185,138 @@ func TestDispatchRoutesToCorrectProvider(t *testing.T) {
 	}
 	if resp.AuthType != string(store.AuthTypeAPIKey) {
 		t.Fatalf("response auth type = %q, want api_key", resp.AuthType)
+	}
+}
+
+func TestDispatchRunsMCPAgentToolLoopWhenToolsConfigured(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "sk-openai")
+
+	toolCallID := "call-1"
+	openAI := &fakeProvider{
+		name: providers.ProviderOpenAI,
+		responses: []*providers.ChatResponse{
+			{
+				ID:    "chatcmpl-tool-call",
+				Model: "gpt-4o",
+				Choices: []providers.Choice{{
+					Message: providers.Message{
+						Role: "assistant",
+						ToolCalls: []providers.ToolCall{{
+							ID:   toolCallID,
+							Type: "function",
+							Function: providers.ToolCallFunc{
+								Name:      "docs__search",
+								Arguments: `{"query":"mcp"}`,
+							},
+						}},
+					},
+				}},
+			},
+			{
+				ID:    "chatcmpl-final",
+				Model: "gpt-4o",
+				Choices: []providers.Choice{{
+					Message: providers.Message{Role: "assistant", Content: "found docs"},
+				}},
+			},
+		},
+	}
+	tools := mcp.NewToolManager()
+	if err := tools.RegisterManifest(mcp.Manifest{
+		ClientID: "docs",
+		Tools:    []mcp.Tool{{Name: "search", Description: "Search docs"}},
+	}); err != nil {
+		t.Fatalf("RegisterManifest: %v", err)
+	}
+	client := &fakeProxyMCPClient{result: mcp.CallResult{Content: "doc result"}}
+	tools.RegisterClient("docs", client)
+
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.RegisterMCPToolManager(tools)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{
+		Model:    "gpt-4o",
+		Messages: []providers.Message{{Role: "user", Content: "find docs"}},
+	})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-final" {
+		t.Fatalf("response ID = %q, want final response", resp.ID)
+	}
+	if openAI.calls != 2 {
+		t.Fatalf("provider calls = %d, want 2", openAI.calls)
+	}
+	if len(client.calls) != 1 || client.calls[0].Name != "search" || string(client.calls[0].Arguments) != `{"query":"mcp"}` {
+		t.Fatalf("mcp calls = %#v, want search call", client.calls)
+	}
+	secondMessages := openAI.requests[1].Messages
+	if len(secondMessages) != 3 {
+		t.Fatalf("second request messages = %#v, want user, assistant tool call, tool result", secondMessages)
+	}
+	if secondMessages[2].Role != "tool" || secondMessages[2].ToolCallID == nil || *secondMessages[2].ToolCallID != toolCallID || secondMessages[2].Content != "doc result" {
+		t.Fatalf("tool result message = %#v", secondMessages[2])
+	}
+}
+
+func TestDispatchDoesNotRunMCPAgentForUnregisteredCallerTools(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "sk-openai")
+	openAI := &fakeProvider{
+		name: providers.ProviderOpenAI,
+		response: &providers.ChatResponse{
+			ID:    "chatcmpl-caller-tool",
+			Model: "gpt-4o",
+			Choices: []providers.Choice{{
+				Message: providers.Message{
+					Role: "assistant",
+					ToolCalls: []providers.ToolCall{{
+						ID:   "call-1",
+						Type: "function",
+						Function: providers.ToolCallFunc{
+							Name:      "caller_lookup",
+							Arguments: `{}`,
+						},
+					}},
+				},
+			}},
+		},
+	}
+	tools := mcp.NewToolManager()
+	if err := tools.RegisterManifest(mcp.Manifest{
+		ClientID: "docs",
+		Tools:    []mcp.Tool{{Name: "search", Description: "Search docs"}},
+	}); err != nil {
+		t.Fatalf("RegisterManifest: %v", err)
+	}
+	client := &fakeProxyMCPClient{result: mcp.CallResult{Content: "doc result"}}
+	tools.RegisterClient("docs", client)
+
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.RegisterMCPToolManager(tools)
+
+	_, err := engine.Dispatch(context.Background(), &providers.ChatRequest{
+		Model: "gpt-4o",
+		Tools: []providers.Tool{{
+			Type: "function",
+			Function: providers.ToolFunction{
+				Name:        "caller_lookup",
+				Description: "Caller-owned tool",
+			},
+		}},
+		Messages: []providers.Message{{Role: "user", Content: "use my tool"}},
+	})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if openAI.calls != 1 {
+		t.Fatalf("provider calls = %d, want direct single call", openAI.calls)
+	}
+	if len(client.calls) != 0 {
+		t.Fatalf("mcp calls = %#v, want none for caller-owned tool", client.calls)
 	}
 }
 
@@ -1307,4 +1441,25 @@ func openProxyTestStore(t *testing.T) *store.Store {
 	})
 
 	return s
+}
+
+type fakeProxyMCPClient struct {
+	result mcp.CallResult
+	calls  []mcp.CallRequest
+}
+
+func (c *fakeProxyMCPClient) ListTools(ctx context.Context) ([]mcp.Tool, error) {
+	return nil, nil
+}
+
+func (c *fakeProxyMCPClient) CallTool(ctx context.Context, req mcp.CallRequest) (mcp.CallResult, error) {
+	c.calls = append(c.calls, mcp.CallRequest{
+		Name:      req.Name,
+		Arguments: append(json.RawMessage(nil), req.Arguments...),
+	})
+	return c.result, nil
+}
+
+func (c *fakeProxyMCPClient) Close() error {
+	return nil
 }

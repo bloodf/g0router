@@ -28,7 +28,7 @@ func NewAgent(provider providers.Provider, key providers.Key, tools *ToolManager
 
 func (a *Agent) Run(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
 	nextReq := cloneChatRequest(req)
-	if a.tools != nil {
+	if a.tools != nil && len(nextReq.Tools) == 0 {
 		nextReq.Tools = a.tools.CompactToolsForRequest(ctx)
 	}
 

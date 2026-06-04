@@ -194,6 +194,7 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) ap
 	engine := newDefaultInferenceEngine(s)
 	mcpRuntime := newDefaultMCPRuntime()
 	rehydrateMCPRuntime(ctx, s, mcpRuntime)
+	engine.RegisterMCPToolManager(mcpRuntime.tools)
 	quotaFetchers := defaultQuotaFetchers()
 	for provider, fetcher := range quotaFetchers {
 		engine.RegisterQuotaFetcher(provider, fetcher)
