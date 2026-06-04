@@ -19,7 +19,7 @@ Review:
 - `api/handlers/providers_test.go`
 
 Important commit:
-- Implementation commit: `{commit}`
+- Implementation commit: `d088f8f phase-8/task-provider: implement bedrock model listing`
 
 Check:
 - Bedrock `ListModels` no longer returns the unsupported stub.
