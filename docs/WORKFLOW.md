@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.N"
-last_updated: "2026-06-04T08:35:02Z"
+current_wave: "8.Q"
+last_updated: "2026-06-04T09:06:30Z"
 last_agent: "orchestrator"
 ```
 
