@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.Y"
-last_updated: "2026-06-04T10:11:28Z"
+current_wave: "8.Z"
+last_updated: "2026-06-04T10:16:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -586,7 +586,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:01:03Z"
 evaluator_prompt: "docs/evaluations/wave-8W-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "FAIL external evaluator thread 019e9216-7b90-79a1-95fd-6d849442edd1; missing Models page loading and non-auth error test coverage, remediated in Wave 8.Z"
 gate_results:
   - "npm --prefix ui test -- --run ModelsPage App: PASS"
   - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
@@ -625,7 +625,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:03:52Z"
 evaluator_prompt: "docs/evaluations/wave-8X-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "FAIL external evaluator thread 019e9219-8aaa-7b20-a827-9863248eabfc; docs/PLAN.md and docs/ORCHESTRATION.md still described Stage 8 as Waves 8.A-8.N, remediated in Wave 8.Z"
 gate_results:
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
@@ -688,6 +688,43 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.Y separates API key management into its own dashboard route backed by the existing `/api/keys` contract while leaving endpoint-copy controls only on Endpoint Setup.
+
+### Wave 8.Z — Evaluator Remediation For 8.W And 8.X
+
+```yaml
+wave: "8.Z"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:16:00Z"
+evaluator_prompt: "docs/evaluations/wave-8Z-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "npm --prefix ui test -- --run ModelsPage: PASS"
+  - "rg -n \"8\\.A.*8\\.N|14 \\| 8|40 waves|8\\.Y\" docs/PLAN.md docs/ORCHESTRATION.md docs/WORKFLOW.md: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.Z.1"
+    name: "Remediate Wave 8.W and 8.X evaluator findings"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - ui/src/pages/ModelsPage.test.tsx
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8Z-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.Z fixes evaluator-found gaps from Wave 8.W and 8.X by adding focused Models page loading/empty/error coverage and aligning Stage 8 planning/orchestration docs to the current Wave 8.Y scope.
 
 ---
 

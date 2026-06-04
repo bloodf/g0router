@@ -52,6 +52,25 @@ describe("ModelsPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows a loading state while provider models are loading", async () => {
+    let resolveProviders: (response: Response) => void = () => undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Promise<Response>((resolve) => {
+            resolveProviders = resolve;
+          })
+      )
+    );
+
+    render(<ModelsPage />);
+
+    expect(screen.getByText("Loading provider models")).toBeInTheDocument();
+    resolveProviders(jsonResponse({ data: [] }));
+    expect(await screen.findByText("No model-capable providers")).toBeInTheDocument();
+  });
+
   it("loads provider models and switches provider using management API routes", async () => {
     const fetch = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
@@ -87,6 +106,44 @@ describe("ModelsPage", () => {
     render(<ModelsPage />);
 
     expect(await screen.findByText("No model-capable providers")).toBeInTheDocument();
+  });
+
+  it("shows an empty state when a selected provider returns no models", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === getProvidersPath()) {
+        return jsonResponse({ data: [providers[0]] });
+      }
+      if (path === getProviderModelsPath("openai")) {
+        return jsonResponse({ data: [] });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ModelsPage />);
+
+    expect(await screen.findByText("No models returned")).toBeInTheDocument();
+    expect(screen.getByText("openai did not return catalog or upstream model rows.")).toBeInTheDocument();
+  });
+
+  it("shows non-auth API errors separately from expired sessions", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === getProvidersPath()) {
+        return jsonResponse({ data: [providers[0]] });
+      }
+      if (path === getProviderModelsPath("openai")) {
+        return jsonResponse({ error: "upstream model catalog failed" }, { status: 502 });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ModelsPage />);
+
+    expect(await screen.findByText("Could not load models")).toBeInTheDocument();
+    expect(screen.getByText("upstream model catalog failed")).toBeInTheDocument();
   });
 
   it("shows auth-expired state when model loading is unauthorized", async () => {
