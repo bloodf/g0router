@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BE"
-last_updated: "2026-06-04T21:45:00Z"
+current_wave: "8.BF"
+last_updated: "2026-06-04T22:05:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2014,7 +2014,7 @@ max_agents: 1
 gate: "go test ./api -run TestIntegrationUsageQuotaLogsAndProviderOAuthThroughAuthenticatedServer -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && git diff --check"
 completed_at: "2026-06-04T21:45:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BE-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator agent 019e9482-6da6-77c1-a329-a617a73fd0db at commit d0713ad; no blocking findings"
 gate_results:
   - "go test ./api -run TestIntegrationUsageQuotaLogsAndProviderOAuthThroughAuthenticatedServer -count=1: RED before assertions were complete, provider OAuth exchange rejected an unstored manual session"
   - "go test ./api -run TestIntegrationUsageQuotaLogsAndProviderOAuthThroughAuthenticatedServer -count=1: PASS"
@@ -2038,6 +2038,44 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BE extends authenticated real-server integration coverage beyond route smoke tests for usage, logs, quota, and provider OAuth authorize/poll/callback/exchange. The test seeds real SQLite request logs, exercises quota with active stored provider credentials, verifies usage/log/summary responses through server middleware, and proves provider OAuth completion persists redacted connections without bypassing stored session state.
+
+---
+
+### Wave 8.BF — Real Dashboard Server E2E Smoke
+
+```yaml
+wave: "8.BF"
+status: DONE
+max_agents: 1
+gate: "npm --prefix ui run e2e -- real-server.e2e.ts && npm --prefix ui test -- --run && npm --prefix ui run e2e && npm --prefix ui run build && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && git diff --check"
+completed_at: "2026-06-04T22:05:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BF-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "npm --prefix ui run e2e -- real-server.e2e.ts: RED before implementation fixes, invalid Playwright skip predicate and ambiguous/broad selectors"
+  - "npm --prefix ui run e2e -- real-server.e2e.ts: PASS, chromium real-server smoke passed and mobile project intentionally skipped"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 85 tests"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "npm --prefix ui run build: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BF.1"
+    name: "Add embedded dashboard real-server E2E smoke"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - ui/e2e/real-server.e2e.ts
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8BF-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BF adds a Playwright smoke path that creates a temp data dir, mints a real gateway API key through the CLI, starts `g0router serve` on a random loopback port, loads the embedded dashboard from that server, saves the control-plane key, reads real settings, creates a real API key through the dashboard, and verifies it appears in the live API key table. Mocked dashboard E2E remains the broad deterministic page/action suite.
 
 ---
 
