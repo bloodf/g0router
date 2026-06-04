@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.AS"
-last_updated: "2026-06-04T13:38:25Z"
+last_updated: "2026-06-04T13:41:57Z"
 last_agent: "orchestrator"
 ```
 
@@ -1448,7 +1448,7 @@ tasks:
     name: "Reconcile Phase 12 completed data model wording"
     status: DONE
     agent: "orchestrator"
-    commit: "wave-docs-commit"
+    commit: "0da6717"
     files_owned:
       - docs/phases/phase-12-advanced-mcp-gateway.md
       - docs/WORKFLOW.md
