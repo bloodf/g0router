@@ -313,7 +313,7 @@ max_agents: 2
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T08:59:35Z"
 evaluator_prompt: "docs/evaluations/wave-8P-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e91dc-656d-7952-b293-2292fda400cb at commit c996f13"
 gate_results:
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
@@ -341,7 +341,49 @@ tasks:
       - docs/evaluations/wave-8P-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.P promotes the already registered NVIDIA OpenAI-compatible adapter to public direct dispatch via a catalog-backed `meta/llama-3.1-8b-instruct` route; external evaluation remains pending.
+**Checkpoint**: Wave 8.P promotes the already registered NVIDIA OpenAI-compatible adapter to public direct dispatch via a catalog-backed `meta/llama-3.1-8b-instruct` route; external evaluator thread `019e91dc-656d-7952-b293-2292fda400cb` returned PASS at commit `c996f13` with no blocking findings.
+
+### Wave 8.Q — Vertex Direct Routing
+
+```yaml
+wave: "8.Q"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T09:06:30Z"
+evaluator_prompt: "docs/evaluations/wave-8Q-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.Q.1"
+    name: "Vertex catalog-backed public routing"
+    status: DONE
+    agent: "orchestrator"
+    commit: "1891a0c"
+    files_owned:
+      - .env.example
+      - docs/CONFIG.md
+      - docs/PROVIDERS.md
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/providers/vertex/vertex.go
+      - internal/providers/vertex/vertex_test.go
+      - api/handlers/providers_test.go
+      - docs/evaluations/wave-8Q-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.Q promotes the native Vertex adapter to public direct dispatch for cataloged Gemini models when `VERTEX_PROJECT_ID` and `VERTEX_LOCATION` are configured; streaming and quota remain explicitly unsupported, and external evaluation remains pending.
 
 ---
 
