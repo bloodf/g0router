@@ -1357,7 +1357,7 @@ max_agents: 1
 gate: "rg -n '^### TODO$|Create the test file referenced in TODO|implementation does not exist|implementation doesn''t exist' docs/phases --glob '*.md' && false || true; rg -n -- '- \\[ \\]' docs/phases docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/README.md && false || true"
 completed_at: "2026-06-04T13:23:16Z"
 evaluator_prompt: "docs/evaluations/wave-8AQ-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e9189-4e7f-7ce3-9c7f-1930e571b5b3 after metadata remediation commit ffc9419"
 gate_results:
   - "rg -n '^### TODO$|Create the test file referenced in TODO|implementation does not exist|implementation doesn''t exist' docs/phases --glob '*.md': PASS, no stale phase TODO wording"
   - "rg -n -- '- \\[ \\]' docs/phases docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/README.md: PASS, no unchecked task boxes"
