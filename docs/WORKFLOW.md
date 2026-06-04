@@ -1535,7 +1535,7 @@ tasks:
     name: "Implement native Gemini SSE streaming"
     status: DONE
     agent: "orchestrator"
-    commit: "841a507"
+    commit: "4cc160d"
     files_owned:
       - internal/providers/gemini/gemini.go
       - internal/providers/gemini/gemini_test.go
