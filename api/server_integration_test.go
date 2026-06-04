@@ -582,6 +582,13 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 	if stored.AccessToken == nil || *stored.AccessToken != "access-secret" || stored.RefreshToken == nil || *stored.RefreshToken != "refresh-secret" || stored.APIKey == nil || *stored.APIKey != "api-secret" {
 		t.Fatalf("stored connection secrets = access:%v refresh:%v api:%v, want original secrets persisted", stored.AccessToken, stored.RefreshToken, stored.APIKey)
 	}
+	if stored.ProviderSpecificData["Authorization"] != "Bearer nested-secret" {
+		t.Fatalf("stored provider Authorization = %v, want original nested secret", stored.ProviderSpecificData["Authorization"])
+	}
+	storedHeaders, ok := stored.ProviderSpecificData["headers"].(map[string]any)
+	if !ok || storedHeaders["X-API-Key"] != "nested-key" || storedHeaders["safe"] != "visible" {
+		t.Fatalf("stored provider headers = %+v, want original nested key and safe value", stored.ProviderSpecificData["headers"])
+	}
 
 	tested := struct {
 		OK       bool   `json:"ok"`
@@ -623,6 +630,19 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 	}
 	if updated.ProviderSpecificData["mode"] != "updated" || updated.ProviderSpecificData["token"] != nil {
 		t.Fatalf("updated provider data = %+v, want redacted token and visible mode", updated.ProviderSpecificData)
+	}
+	stored, err = s.GetConnection(created.ID)
+	if err != nil {
+		t.Fatalf("GetConnection after update: %v", err)
+	}
+	if stored.Provider != "anthropic" || stored.Name != "work-updated" || stored.AuthType != store.AuthTypeAPIKey || stored.IsActive {
+		t.Fatalf("stored updated connection = %+v, want inactive anthropic api-key connection", stored)
+	}
+	if stored.APIKey == nil || *stored.APIKey != "updated-secret" {
+		t.Fatalf("stored updated API key = %v, want updated secret", stored.APIKey)
+	}
+	if stored.ProviderSpecificData["mode"] != "updated" || stored.ProviderSpecificData["token"] != "updated-nested-secret" {
+		t.Fatalf("stored updated provider data = %+v, want original updated token and visible mode", stored.ProviderSpecificData)
 	}
 
 	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/connections/"+created.ID, rawAPIKey, "", http.StatusNoContent, nil)
