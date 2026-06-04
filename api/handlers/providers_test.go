@@ -82,7 +82,7 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["openai"].PublicStatus != "supported" || !byID["openai"].PublicInference || !byID["openai"].DirectDispatch || !byID["openai"].Inference {
 		t.Fatalf("openai provider = %+v, want supported inference provider", byID["openai"])
 	}
-	for _, id := range []string{"cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "mistral", "minimax", "ollama", "openrouter", "perplexity", "qwen", "together", "xai"} {
+	for _, id := range []string{"cerebras", "cohere", "deepseek", "fireworks", "gemini", "groq", "mistral", "minimax", "nebius", "ollama", "openrouter", "perplexity", "qwen", "together", "xai"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported catalog-routable provider", id, byID[id])
 		}

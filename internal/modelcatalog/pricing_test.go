@@ -109,6 +109,7 @@ func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 		{providers.ProviderQwen, "qwen3.6-plus", Pricing{InputPerMillionUSD: 0.50, CachedInputPerMillionUSD: 0.50, OutputPerMillionUSD: 3.00}},
 		{providers.ProviderXAI, "grok-4.3", Pricing{InputPerMillionUSD: 1.25, CachedInputPerMillionUSD: 0.20, OutputPerMillionUSD: 2.50}},
 		{providers.ProviderCerebras, "llama3.1-8b", Pricing{InputPerMillionUSD: 0.10, CachedInputPerMillionUSD: 0.10, OutputPerMillionUSD: 0.10}},
+		{providers.ProviderNebius, "meta-llama/Llama-3.3-70B-Instruct", Pricing{InputPerMillionUSD: 0.13, CachedInputPerMillionUSD: 0.13, OutputPerMillionUSD: 0.40}},
 		{providers.ProviderFireworks, "accounts/fireworks/models/llama-v3p1-70b-instruct", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.15, OutputPerMillionUSD: 1.20}},
 		{providers.ProviderTogether, "meta-llama/Llama-3.3-70B-Instruct-Turbo", Pricing{InputPerMillionUSD: 1.04, CachedInputPerMillionUSD: 1.04, OutputPerMillionUSD: 1.04}},
 		{providers.ProviderOllama, "llama3.1:8b", Pricing{}},

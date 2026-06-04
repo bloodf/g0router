@@ -49,6 +49,9 @@ func NewCatalog() Catalog {
 				"magistral-small-latest": noHostedCacheDiscount(0.50, 1.50),
 				"ministral-8b-latest":    noHostedCacheDiscount(0.15, 0.15),
 			},
+			providers.ProviderNebius: {
+				"meta-llama/Llama-3.3-70B-Instruct": noHostedCacheDiscount(0.13, 0.40),
+			},
 			providers.ProviderOpenRouter: {
 				"openai/gpt-4o":      noHostedCacheDiscount(2.50, 10.00),
 				"openai/gpt-4o-mini": noHostedCacheDiscount(0.15, 0.60),

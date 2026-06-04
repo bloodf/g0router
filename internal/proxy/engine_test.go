@@ -257,6 +257,7 @@ func TestDispatchUsesCatalogForPublicOpenAICompatibleProviders(t *testing.T) {
 		{name: "fireworks", provider: providers.ProviderFireworks, model: "accounts/fireworks/models/llama-v3p1-70b-instruct", key: "fireworks-key"},
 		{name: "mistral", provider: providers.ProviderMistral, model: "mistral-small-latest", key: "mistral-key"},
 		{name: "minimax", provider: providers.ProviderMiniMax, model: "MiniMax-M3", key: "minimax-key"},
+		{name: "nebius", provider: providers.ProviderNebius, model: "meta-llama/Llama-3.3-70B-Instruct", key: "nebius-key"},
 		{name: "deepseek", provider: providers.ProviderDeepSeek, model: "deepseek-chat", key: "deepseek-key"},
 		{name: "openrouter", provider: providers.ProviderOpenRouter, model: "openai/gpt-4o-mini", key: "openrouter-key"},
 		{name: "perplexity", provider: providers.ProviderPerplexity, model: "sonar-pro", key: "perplexity-key"},
