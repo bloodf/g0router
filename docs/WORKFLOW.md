@@ -270,7 +270,7 @@ max_agents: 4
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T08:51:20Z"
 evaluator_prompt: "docs/evaluations/wave-8O-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e91d6-1def-7be0-8dc6-67b537725536 at commit 099e3f3"
 gate_results:
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
@@ -302,7 +302,46 @@ tasks:
       - docs/evaluations/wave-8O-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.O adds real OpenAI-compatible adapter coverage for Vercel AI Gateway, LiteLLM, vLLM, and LM Studio without advertising instance-defined local gateway providers as public direct-dispatch surfaces; external evaluation remains pending.
+**Checkpoint**: Wave 8.O adds real OpenAI-compatible adapter coverage for Vercel AI Gateway, LiteLLM, vLLM, and LM Studio without advertising instance-defined local gateway providers as public direct-dispatch surfaces; external evaluator thread `019e91d6-1def-7be0-8dc6-67b537725536` returned PASS at commit `099e3f3` with no blocking findings.
+
+### Wave 8.P — NVIDIA Direct Routing
+
+```yaml
+wave: "8.P"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T08:59:35Z"
+evaluator_prompt: "docs/evaluations/wave-8P-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.P.1"
+    name: "NVIDIA catalog-backed public routing"
+    status: DONE
+    agent: "orchestrator"
+    commit: "d079d50"
+    files_owned:
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/modelcatalog/catalog.go
+      - internal/modelcatalog/pricing_test.go
+      - api/handlers/providers_test.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - docs/PROVIDERS.md
+      - docs/evaluations/wave-8P-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.P promotes the already registered NVIDIA OpenAI-compatible adapter to public direct dispatch via a catalog-backed `meta/llama-3.1-8b-instruct` route; external evaluation remains pending.
 
 ---
 
