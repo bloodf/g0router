@@ -4,7 +4,7 @@ Single-binary Go LLM gateway that unifies multiple AI provider APIs behind one e
 
 ## What It Does
 
-- **Unified API**: Send OpenAI-format requests → g0router routes today to OpenAI and Anthropic, with additional adapters tracked in the provider matrix
+- **Unified API**: Send OpenAI-format requests → g0router routes supported provider models through the provider matrix
 - **OAuth Login**: `g0router login anthropic` → browser OAuth → credentials stored
 - **Format Translation**: Client sends OpenAI format → g0router translates supported provider formats and tracks adapter-only providers separately
 - **Account Fallback**: Rate limited on one connection? Automatically tries the next
@@ -67,7 +67,7 @@ Keep `API_KEY_SECRET` stable across restarts. It validates gateway and dashboard
 
 ## Supported Providers
 
-Public direct-dispatch support is currently OpenAI and Anthropic. Registered adapters, auth-only providers, and unsupported parity targets are listed explicitly in [docs/PROVIDERS.md](docs/PROVIDERS.md); do not treat a provider name there as usable unless its status is `supported`.
+Public direct-dispatch support is defined by the `supported` rows in [docs/PROVIDERS.md](docs/PROVIDERS.md). Registered adapters, auth-only providers, and unsupported parity targets are listed explicitly there; do not treat a provider name as usable unless its status is `supported`.
 
 ## Documentation
 

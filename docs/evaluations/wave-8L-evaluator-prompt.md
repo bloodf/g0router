@@ -3,7 +3,6 @@
 Evaluate completed wave `8.L` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
 
 Review:
-- `AGENTS.md`
 - `CLAUDE.md`
 - `docs/README.md`
 - `docs/WORKFLOW.md`

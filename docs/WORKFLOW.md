@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.M"
-last_updated: "2026-06-04T07:25:36Z"
+current_wave: "8.N"
+last_updated: "2026-06-04T08:27:03Z"
 last_agent: "orchestrator"
 ```
 
@@ -100,6 +100,157 @@ tasks:
 ```
 
 **Checkpoint**: Live-provider checks are optional and skipped by default; release gates remain deterministic without external network credentials.
+
+### Wave 8.N — Principal Audit Remediation
+
+```yaml
+wave: "8.N"
+status: DONE
+max_agents: 8
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T08:27:03Z"
+evaluator_prompt: "docs/evaluations/wave-8N-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.N.1"
+    name: "Dashboard provider connection management"
+    status: DONE
+    agent: "orchestrator"
+    commit: "09d68ac"
+    files_owned:
+      - ui/src/api.ts
+      - ui/src/pages/ProvidersPage.tsx
+      - ui/src/pages/ProvidersPage.test.tsx
+      - ui/e2e/dashboard.spec.ts
+      - ui/dist
+
+  - id: "8.N.2"
+    name: "Provider matrix quota truth"
+    status: DONE
+    agent: "orchestrator"
+    commit: "f83ca6d"
+    files_owned:
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - ui/e2e/dashboard.spec.ts
+
+  - id: "8.N.3"
+    name: "OpenAI-compatible base URL normalization"
+    status: DONE
+    agent: "orchestrator"
+    commit: "9d98320"
+    files_owned:
+      - internal/providers/openaicompat/provider.go
+      - internal/providers/openaicompat/provider_test.go
+
+  - id: "8.N.4"
+    name: "OAuth exchange failure sanitization"
+    status: DONE
+    agent: "orchestrator"
+    commit: "d13892d"
+    files_owned:
+      - api/handlers/oauth.go
+      - api/handlers/oauth_test.go
+
+  - id: "8.N.5"
+    name: "Docker Compose auth configuration alignment"
+    status: DONE
+    agent: "orchestrator"
+    commit: "743e581"
+    files_owned:
+      - docker-compose.yml
+      - .env.example
+
+  - id: "8.N.6"
+    name: "Dashboard MCP OAuth, tools, and deletion actions"
+    status: DONE
+    agent: "orchestrator"
+    commit: "a005601"
+    files_owned:
+      - ui/src/api.ts
+      - ui/src/pages/McpPage.tsx
+      - ui/src/pages/McpPage.test.tsx
+      - ui/e2e/dashboard.spec.ts
+      - ui/dist
+
+  - id: "8.N.7"
+    name: "Anthropic live upstream streaming"
+    status: DONE
+    agent: "orchestrator"
+    commit: "8ce739f"
+    files_owned:
+      - internal/providers/anthropic/anthropic.go
+      - internal/providers/anthropic/anthropic_test.go
+
+  - id: "8.N.8"
+    name: "Unsupported native streaming classification"
+    status: DONE
+    agent: "orchestrator"
+    commit: "f8c3910"
+    files_owned:
+      - internal/proxy/errors.go
+      - api/handlers/inference_test.go
+
+  - id: "8.N.9"
+    name: "Quota API uses active stored provider credentials"
+    status: DONE
+    agent: "orchestrator"
+    commit: "e674de4"
+    files_owned:
+      - api/handlers/usage.go
+      - api/handlers/usage_test.go
+      - api/server.go
+
+  - id: "8.N.10"
+    name: "Malformed SSE errors are surfaced and sanitized"
+    status: DONE
+    agent: "orchestrator"
+    commit: "f98638b"
+    files_owned:
+      - api/handlers/inference.go
+      - api/handlers/inference_test.go
+      - internal/providers/types.go
+      - internal/providers/openai/openai.go
+      - internal/providers/openai/openai_test.go
+      - internal/providers/azure/azure.go
+      - internal/providers/azure/azure_test.go
+      - internal/providers/openaicompat/provider.go
+      - internal/providers/openaicompat/provider_test.go
+
+  - id: "8.N.11"
+    name: "Provider test command and provider model API truth"
+    status: DONE
+    agent: "orchestrator"
+    commit: "e34491d"
+    files_owned:
+      - internal/cli/root.go
+      - internal/cli/providers_test.go
+      - api/handlers/providers.go
+      - api/handlers/providers_test.go
+
+  - id: "8.N.12"
+    name: "Anthropic stream error events are surfaced and sanitized"
+    status: DONE
+    agent: "orchestrator"
+    commit: "b2f6fe2"
+    files_owned:
+      - internal/providers/anthropic/anthropic.go
+      - internal/providers/anthropic/anthropic_test.go
+      - internal/providers/anthropic/types.go
+```
+
+**Checkpoint**: Wave 8.N deterministic gates passed from `main` at `2026-06-04T08:27:03Z`; external evaluation remains pending and release readiness is not claimed until that evaluator returns PASS.
 
 ---
 
