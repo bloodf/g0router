@@ -130,7 +130,7 @@ tasks:
       - ui/src/api.ts
       - ui/src/pages/ProvidersPage.tsx
       - ui/src/pages/ProvidersPage.test.tsx
-      - ui/e2e/dashboard.spec.ts
+      - ui/e2e/dashboard.e2e.ts
       - ui/dist
 
   - id: "8.N.2"
@@ -143,7 +143,7 @@ tasks:
       - internal/provider/matrix_test.go
       - api/handlers/providers_test.go
       - docs/PROVIDERS.md
-      - ui/e2e/dashboard.spec.ts
+      - ui/e2e/dashboard.e2e.ts
 
   - id: "8.N.3"
     name: "OpenAI-compatible base URL normalization"
@@ -181,7 +181,7 @@ tasks:
       - ui/src/api.ts
       - ui/src/pages/McpPage.tsx
       - ui/src/pages/McpPage.test.tsx
-      - ui/e2e/dashboard.spec.ts
+      - ui/e2e/dashboard.e2e.ts
       - ui/dist
 
   - id: "8.N.7"
