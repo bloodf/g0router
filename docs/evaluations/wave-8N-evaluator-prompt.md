@@ -9,7 +9,7 @@ Review:
 - `docs/ORCHESTRATION.md`
 - `docs/PROVIDERS.md`
 - `README.md`
-- Commits: `09d68ac`, `f83ca6d`, `9d98320`, `d13892d`, `743e581`, `a005601`, `8ce739f`, `f8c3910`, `e674de4`, `f98638b`, `e34491d`, `b2f6fe2`
+- Commits: `09d68ac`, `f83ca6d`, `9d98320`, `d13892d`, `743e581`, `a005601`, `8ce739f`, `f8c3910`, `e674de4`, `f98638b`, `e34491d`, `b2f6fe2`, `36c2463`
 
 Start read-only. Do not edit files.
 
@@ -21,6 +21,7 @@ Check:
 - OAuth exchange failures and streaming errors are sanitized and do not leak upstream token material.
 - Docker Compose no longer requires an unused `JWT_SECRET`; `API_KEY_SECRET` remains required.
 - Anthropic, OpenAI, Azure, and OpenAI-compatible streaming surface malformed SSE/upstream error events as sanitized stream errors instead of silent `[DONE]`.
+- MCP OAuth completion failures are sanitized and do not echo callback codes or upstream token response bodies.
 - `g0router providers test` is alias-aware, matrix-aware, and connection-aware.
 - `/api/providers/:id/models` canonicalizes provider aliases and rejects auth-only/non-inference providers explicitly.
 - Workflow, provider docs, README, and orchestration docs accurately reflect Stage 8 and do not claim release readiness before external evaluation.
