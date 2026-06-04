@@ -9,7 +9,7 @@ Status meanings:
 - `auth_only`: credential capture exists, but no inference adapter is wired.
 - `unsupported`: explicitly not implemented; do not advertise as usable.
 
-Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `cohere`, `deepseek`, `fireworks`, `gemini`, `groq`, `huggingface`, `mistral`, `minimax`, `nebius`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, `vercel-ai-gateway`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
+Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `cohere`, `deepseek`, `fireworks`, `gemini`, `groq`, `huggingface`, `mistral`, `minimax`, `nebius`, `nvidia`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, `vercel-ai-gateway`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
 
 ## Public Surfaces
 
@@ -47,7 +47,7 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 | `minimax` | `minimax` | `minimax` | `minimax` | `supported` | API key | no | yes | yes | yes | yes | yes | `MiniMax-M3` routes through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `mistral` | `mistral` | `mistral` | `mistral` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `nebius` | `nebius` | `nebius` | `nebius` | `supported` | API key | no | yes | yes | yes | yes | yes | `meta-llama/Llama-3.3-70B-Instruct` routes through the OpenAI-compatible Token Factory adapter; quota fetcher is not implemented. |
-| `nvidia` | `nvidia` | `nvidia` | `nvidia` | `adapter_only` | API key | no | yes | no | yes | no | yes | OpenAI-compatible adapter, but no public routing yet. |
+| `nvidia` | `nvidia` | `nvidia` | `nvidia` | `supported` | API key | no | yes | yes | yes | yes | yes | `meta/llama-3.1-8b-instruct` routes through the OpenAI-compatible NVIDIA NIM adapter; quota fetcher is not implemented. |
 | `ollama` | `ollama` | `ollama` | `ollama` | `supported` | none | no | yes | yes | yes | yes | yes | Local no-auth cataloged model IDs route through the OpenAI-compatible adapter; hosted quota does not apply. |
 | `ollama-cloud` | `ollama-cloud` | `ollama-cloud` | `ollama-cloud` | `unsupported` | none | no | no | no | no | no | no | Only local Ollama adapter exists. |
 | `opencode` | `opencode` | `opencode` | `opencode` | `unsupported` | none | no | no | no | no | no | no | No OpenCode provider integration. |
@@ -68,4 +68,4 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 
 ## Model Routing Caveat
 
-Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, Cerebras, Cohere, DeepSeek, Fireworks, Gemini, Groq, Hugging Face, Mistral, MiniMax, Nebius, Ollama, OpenRouter, Perplexity, Qwen, Together, Vercel AI Gateway, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Quota fetchers are intentionally unsupported for providers whose matrix `quota` field is `false`; those routes fail open rather than fabricating provider quota data.
+Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, Cerebras, Cohere, DeepSeek, Fireworks, Gemini, Groq, Hugging Face, Mistral, MiniMax, Nebius, NVIDIA, Ollama, OpenRouter, Perplexity, Qwen, Together, Vercel AI Gateway, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Quota fetchers are intentionally unsupported for providers whose matrix `quota` field is `false`; those routes fail open rather than fabricating provider quota data.

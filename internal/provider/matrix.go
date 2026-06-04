@@ -53,7 +53,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		catalogRoutableProvider("huggingface", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("mistral", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("nebius", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("nvidia", "", false, true, true, false, "api_key"),
+		catalogRoutableProvider("nvidia", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("ollama", "", false, true, true, false, "noauth"),
 		catalogRoutableProvider("openrouter", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("perplexity", "", false, true, true, false, "api_key"),

@@ -154,6 +154,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"mistral":           true,
 		"minimax":           true,
 		"nebius":            true,
+		"nvidia":            true,
 		"ollama":            true,
 		"openrouter":        true,
 		"perplexity":        true,
@@ -194,7 +195,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"anthropic", "cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "mistral", "minimax", "nebius", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "xai"} {
+	for _, id := range []string{"anthropic", "cerebras", "cohere", "deepseek", "fireworks", "groq", "huggingface", "mistral", "minimax", "nebius", "nvidia", "ollama", "openai", "openrouter", "perplexity", "qwen", "together", "vercel-ai-gateway", "xai"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)

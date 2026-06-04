@@ -110,6 +110,7 @@ func TestCatalogIncludesRepresentativeWave7IProviderCoverage(t *testing.T) {
 		{providers.ProviderXAI, "grok-4.3", Pricing{InputPerMillionUSD: 1.25, CachedInputPerMillionUSD: 0.20, OutputPerMillionUSD: 2.50}},
 		{providers.ProviderCerebras, "llama3.1-8b", Pricing{InputPerMillionUSD: 0.10, CachedInputPerMillionUSD: 0.10, OutputPerMillionUSD: 0.10}},
 		{providers.ProviderNebius, "meta-llama/Llama-3.3-70B-Instruct", Pricing{InputPerMillionUSD: 0.13, CachedInputPerMillionUSD: 0.13, OutputPerMillionUSD: 0.40}},
+		{providers.ProviderNVIDIA, "meta/llama-3.1-8b-instruct", Pricing{InputPerMillionUSD: 0.10, CachedInputPerMillionUSD: 0.10, OutputPerMillionUSD: 0.10}},
 		{providers.ProviderHuggingFace, "meta-llama/Llama-3.3-70B-Instruct:groq", Pricing{InputPerMillionUSD: 0.59, CachedInputPerMillionUSD: 0.59, OutputPerMillionUSD: 0.79}},
 		{providers.ProviderFireworks, "accounts/fireworks/models/llama-v3p1-70b-instruct", Pricing{InputPerMillionUSD: 0.30, CachedInputPerMillionUSD: 0.15, OutputPerMillionUSD: 1.20}},
 		{providers.ProviderTogether, "meta-llama/Llama-3.3-70B-Instruct-Turbo", Pricing{InputPerMillionUSD: 1.04, CachedInputPerMillionUSD: 1.04, OutputPerMillionUSD: 1.04}},
@@ -162,7 +163,6 @@ func TestCatalogOmitsProvidersWithoutDefensibleEmbeddedPricing(t *testing.T) {
 	for _, provider := range []providers.ModelProvider{
 		providers.ProviderAzure,
 		providers.ProviderBedrock,
-		providers.ProviderNVIDIA,
 		providers.ProviderCursor,
 		providers.ProviderGitHubCopilot,
 		providers.ProviderLiteLLM,

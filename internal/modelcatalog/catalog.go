@@ -55,6 +55,9 @@ func NewCatalog() Catalog {
 			providers.ProviderNebius: {
 				"meta-llama/Llama-3.3-70B-Instruct": noHostedCacheDiscount(0.13, 0.40),
 			},
+			providers.ProviderNVIDIA: {
+				"meta/llama-3.1-8b-instruct": noHostedCacheDiscount(0.10, 0.10),
+			},
 			providers.ProviderOpenRouter: {
 				"openai/gpt-4o":      noHostedCacheDiscount(2.50, 10.00),
 				"openai/gpt-4o-mini": noHostedCacheDiscount(0.15, 0.60),
