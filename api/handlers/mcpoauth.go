@@ -70,7 +70,7 @@ func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, run
 			writeError(ctx, fasthttp.StatusNotFound, "mcp oauth flow not found")
 			return
 		}
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("complete mcp oauth: %v", err))
+		writeError(ctx, fasthttp.StatusBadGateway, "mcp oauth exchange failed")
 		return
 	}
 	if runtime != nil {

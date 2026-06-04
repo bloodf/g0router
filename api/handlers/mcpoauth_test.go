@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -125,6 +126,27 @@ func TestMCPOAuthCompleteRejectsMismatchedState(t *testing.T) {
 
 	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
 		t.Fatalf("status = %d, want 404; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+func TestMCPOAuthCompleteSanitizesCompletionErrors(t *testing.T) {
+	completer := &fakeMCPOAuthCompleter{err: errors.New(`token endpoint returned 400 {"access_token":"leaked-access","refresh_token":"leaked-refresh","code":"pasted-code"}`)}
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances/inst-1/oauth/complete")
+	ctx.Request.SetBodyString(`{"callback_url":"http://localhost:3000/callback?code=pasted-code&state=state-1"}`)
+
+	MCPOAuthComplete(ctx, completer, nil, nil, "inst-1")
+
+	if ctx.Response.StatusCode() != fasthttp.StatusBadGateway {
+		t.Fatalf("status = %d, want 502; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "mcp oauth exchange failed") {
+		t.Fatalf("body = %s, want sanitized exchange error", body)
+	}
+	for _, secret := range []string{"leaked-access", "leaked-refresh", "pasted-code", "access_token", "refresh_token"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("response leaked %q: %s", secret, body)
+		}
 	}
 }
 
