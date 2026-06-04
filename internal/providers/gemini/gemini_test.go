@@ -154,6 +154,112 @@ func TestParseGenerateContentResponse(t *testing.T) {
 	}
 }
 
+func TestChatCompletionStreamMapsGeminiSSEChunks(t *testing.T) {
+	var gotPath string
+	var gotQuery string
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: " + generateContentStreamTextChunkJSON + "\n\n"))
+		_, _ = w.Write([]byte("data: " + generateContentStreamToolChunkJSON + "\n\n"))
+		_, _ = w.Write([]byte("data: " + generateContentStreamUsageChunkJSON + "\n\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL)
+	chunks, err := provider.ChatCompletionStream(context.Background(), apiKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+	got := collectStreamChunks(chunks)
+
+	if gotPath != "/v1beta/models/gemini-2.5-flash:streamGenerateContent" {
+		t.Errorf("path = %q", gotPath)
+	}
+	if gotQuery != "alt=sse&key=gemini-key" && gotQuery != "key=gemini-key&alt=sse" {
+		t.Errorf("query = %q", gotQuery)
+	}
+	if gotAuth != "" {
+		t.Errorf("Authorization = %q", gotAuth)
+	}
+	if len(got) != 3 {
+		t.Fatalf("chunks = %+v", got)
+	}
+	if got[0].Object != "chat.completion.chunk" || got[0].Model != "gemini-2.5-flash" {
+		t.Fatalf("first chunk metadata = %+v", got[0])
+	}
+	if got[0].Choices[0].Delta.Content == nil || *got[0].Choices[0].Delta.Content != "hello" {
+		t.Fatalf("first chunk content = %+v", got[0].Choices[0].Delta.Content)
+	}
+	toolCalls := got[1].Choices[0].Delta.ToolCalls
+	if len(toolCalls) != 1 || toolCalls[0].ID != "gemini-call-1" || toolCalls[0].Function.Name != "weather" {
+		t.Fatalf("tool calls = %+v", toolCalls)
+	}
+	if toolCalls[0].Function.Arguments != `{"city":"Paris"}` {
+		t.Fatalf("tool call args = %q", toolCalls[0].Function.Arguments)
+	}
+	if got[2].Choices[0].FinishReason == nil || *got[2].Choices[0].FinishReason != "stop" {
+		t.Fatalf("finish reason = %+v", got[2].Choices[0].FinishReason)
+	}
+	if got[2].Usage == nil || got[2].Usage.TotalTokens != 14 {
+		t.Fatalf("usage = %+v", got[2].Usage)
+	}
+}
+
+func TestChatCompletionStreamWithOAuthUsesBearerAndAltSSE(t *testing.T) {
+	var gotQuery string
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: " + generateContentStreamTextChunkJSON + "\n\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL)
+	chunks, err := provider.ChatCompletionStream(context.Background(), oauthKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+	got := collectStreamChunks(chunks)
+
+	if gotQuery != "alt=sse" {
+		t.Errorf("query = %q", gotQuery)
+	}
+	if gotAuth != "Bearer oauth-token" {
+		t.Errorf("Authorization = %q", gotAuth)
+	}
+	if len(got) != 1 || got[0].Choices[0].Delta.Content == nil || *got[0].Choices[0].Delta.Content != "hello" {
+		t.Fatalf("chunks = %+v", got)
+	}
+}
+
+func TestChatCompletionStreamMalformedSSEEmitsErrorChunk(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {not-json}\n\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL)
+	chunks, err := provider.ChatCompletionStream(context.Background(), apiKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+	got := collectStreamChunks(chunks)
+
+	if len(got) != 1 || got[0].Error == nil {
+		t.Fatalf("chunks = %+v, want one error chunk", got)
+	}
+	if got[0].Error.Code != "upstream_stream_malformed" {
+		t.Fatalf("error code = %q", got[0].Error.Code)
+	}
+}
+
 func TestPreservesToolsAndToolMessages(t *testing.T) {
 	var gotRequest generateContentRequest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -320,6 +426,14 @@ func jsonServer(t *testing.T, status int, body string) *httptest.Server {
 	return server
 }
 
+func collectStreamChunks(chunks <-chan providers.StreamChunk) []providers.StreamChunk {
+	var got []providers.StreamChunk
+	for chunk := range chunks {
+		got = append(got, chunk)
+	}
+	return got
+}
+
 const generateContentResponseJSON = `{
 	"candidates": [{
 		"content": {"role": "model", "parts": [{"text": "hello back"}]},
@@ -349,3 +463,9 @@ const generateContentToolCallResponseJSON = `{
 		"totalTokenCount": 14
 	}
 }`
+
+const generateContentStreamTextChunkJSON = `{"candidates":[{"content":{"role":"model","parts":[{"text":"hello"}]}}]}`
+
+const generateContentStreamToolChunkJSON = `{"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"id":"gemini-call-1","name":"weather","args":{"city":"Paris"}}}]}}]}`
+
+const generateContentStreamUsageChunkJSON = `{"candidates":[{"content":{"role":"model","parts":[]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":5,"candidatesTokenCount":9,"totalTokenCount":14}}`

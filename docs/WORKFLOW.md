@@ -28,10 +28,10 @@
 ## Current State
 
 ```yaml
-project_status: COMPLETE
+project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.AT"
-last_updated: "2026-06-04T14:37:59Z"
+current_wave: "8.AU"
+last_updated: "2026-06-04T17:01:59Z"
 last_agent: "orchestrator"
 ```
 
@@ -1509,6 +1509,46 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AT records a full release-lock gate pass from the main checkout after fixing `make build` to install UI build tooling even when npm is configured to omit development dependencies. Generated artifacts from the gate were cleaned afterward; only protected local dirt remains in the worktree.
+
+---
+
+### Wave 8.AU — Gemini Streaming Parity
+
+```yaml
+wave: "8.AU"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/gemini ./internal/provider -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+completed_at: "2026-06-04T17:01:59Z"
+evaluator_prompt: "docs/evaluations/wave-8AU-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after Gemini native SSE streaming parity"
+gate_results:
+  - "go test ./internal/providers/gemini -run 'TestChatCompletionStreamMapsGeminiSSEChunks|TestChatCompletionStreamWithOAuthUsesBearerAndAltSSE' -count=1: RED before implementation, ChatCompletionStream returned gemini unsupported operation"
+  - "go test ./internal/providers/gemini -run 'TestChatCompletionStreamMapsGeminiSSEChunks|TestChatCompletionStreamWithOAuthUsesBearerAndAltSSE' -count=1: PASS"
+  - "go test ./internal/providers/gemini ./internal/provider -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+
+tasks:
+  - id: "8.AU.1"
+    name: "Implement native Gemini SSE streaming"
+    status: DONE
+    agent: "orchestrator"
+    commit: "841a507"
+    files_owned:
+      - internal/providers/gemini/gemini.go
+      - internal/providers/gemini/gemini_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AU-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AU removes a concrete provider parity gap by replacing Gemini's unsupported streaming stub with a native `streamGenerateContent?alt=sse` implementation. Tests prove API-key and OAuth request behavior against a local SSE server, text/tool-call/finish/usage chunk mapping, and updated provider matrix streaming capability.
 
 ---
 

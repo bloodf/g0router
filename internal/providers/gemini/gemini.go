@@ -1,10 +1,13 @@
 package gemini
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -38,8 +41,9 @@ func (e *RateLimitError) Is(target error) bool {
 }
 
 type GeminiProvider struct {
-	baseURL string
-	client  *fasthttp.Client
+	baseURL      string
+	client       *fasthttp.Client
+	streamClient *http.Client
 }
 
 func New(baseURL string) *GeminiProvider {
@@ -47,8 +51,9 @@ func New(baseURL string) *GeminiProvider {
 		baseURL = defaultBaseURL
 	}
 	return &GeminiProvider{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		client:  &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		baseURL:      strings.TrimRight(baseURL, "/"),
+		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
+		streamClient: &http.Client{},
 	}
 }
 
@@ -86,8 +91,38 @@ func (p *GeminiProvider) ChatCompletion(ctx context.Context, key providers.Key, 
 	return mapGenerateContentResponse(req.Model, decoded), nil
 }
 
-func (p *GeminiProvider) ChatCompletionStream(context.Context, providers.Key, *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	return nil, fmt.Errorf("%w: gemini streaming is not implemented", ErrUnsupported)
+func (p *GeminiProvider) ChatCompletionStream(ctx context.Context, key providers.Key, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	geminiReq, err := buildGenerateContentRequest(req)
+	if err != nil {
+		return nil, err
+	}
+
+	path := "/v1beta/models/" + url.PathEscape(req.Model) + ":streamGenerateContent"
+	httpReq, err := p.newHTTPJSONRequest(ctx, http.MethodPost, path, key, geminiReq, url.Values{"alt": []string{"sse"}})
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := p.streamClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("gemini stream generate content: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		defer resp.Body.Close()
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("read gemini error response: %w", readErr)
+		}
+		return nil, mapStatusError(resp.StatusCode, body)
+	}
+
+	chunks := make(chan providers.StreamChunk)
+	go func() {
+		defer close(chunks)
+		defer resp.Body.Close()
+		parseGeminiSSE(req.Model, resp.Body, chunks)
+	}()
+	return chunks, nil
 }
 
 func (p *GeminiProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
@@ -390,13 +425,47 @@ func (p *GeminiProvider) newJSONRequest(method, path string, key providers.Key, 
 	return req, nil
 }
 
-func (p *GeminiProvider) requestURI(path string, key providers.Key) string {
-	uri := p.baseURL + path
+func (p *GeminiProvider) newHTTPJSONRequest(ctx context.Context, method, path string, key providers.Key, body any, extraQuery url.Values) (*http.Request, error) {
+	var reader io.Reader
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("marshal gemini request: %w", err)
+		}
+		reader = strings.NewReader(string(data))
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, p.requestURIWithQuery(path, key, extraQuery), reader)
+	if err != nil {
+		return nil, fmt.Errorf("create gemini request: %w", err)
+	}
 	if key.AuthType == "oauth" {
+		req.Header.Set("Authorization", "Bearer "+key.Value)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	return req, nil
+}
+
+func (p *GeminiProvider) requestURI(path string, key providers.Key) string {
+	return p.requestURIWithQuery(path, key, nil)
+}
+
+func (p *GeminiProvider) requestURIWithQuery(path string, key providers.Key, extra url.Values) string {
+	uri := p.baseURL + path
+	values := url.Values{}
+	for name, entries := range extra {
+		for _, entry := range entries {
+			values.Add(name, entry)
+		}
+	}
+	if key.AuthType != "oauth" {
+		values.Set("key", key.Value)
+	}
+	if len(values) == 0 {
 		return uri
 	}
-	values := url.Values{}
-	values.Set("key", key.Value)
 	return uri + "?" + values.Encode()
 }
 
@@ -460,6 +529,122 @@ func mapGenerateContentResponse(model string, decoded generateContentResponse) *
 	return resp
 }
 
+func parseGeminiSSE(model string, body io.Reader, chunks chan<- providers.StreamChunk) {
+	scanner := bufio.NewScanner(body)
+	var dataLines []string
+
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			done, failed := handleGeminiSSEData(model, dataLines, chunks)
+			if done || failed {
+				return
+			}
+			dataLines = nil
+			continue
+		}
+		if strings.HasPrefix(line, "data:") {
+			dataLines = append(dataLines, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		}
+	}
+	if len(dataLines) > 0 {
+		_, failed := handleGeminiSSEData(model, dataLines, chunks)
+		if failed {
+			return
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		chunks <- geminiStreamErrorChunk("upstream_stream_error")
+	}
+}
+
+func handleGeminiSSEData(model string, dataLines []string, chunks chan<- providers.StreamChunk) (bool, bool) {
+	if len(dataLines) == 0 {
+		return false, false
+	}
+
+	data := strings.Join(dataLines, "\n")
+	if data == "[DONE]" {
+		return true, false
+	}
+
+	var decoded generateContentResponse
+	if err := json.Unmarshal([]byte(data), &decoded); err != nil {
+		chunks <- geminiStreamErrorChunk("upstream_stream_malformed")
+		return false, true
+	}
+	for _, chunk := range mapGenerateContentStreamChunks(model, decoded) {
+		chunks <- chunk
+	}
+	return false, false
+}
+
+func mapGenerateContentStreamChunks(model string, decoded generateContentResponse) []providers.StreamChunk {
+	chunks := make([]providers.StreamChunk, 0, len(decoded.Candidates))
+	usage := usageFromMetadata(decoded.UsageMetadata)
+	for i, candidate := range decoded.Candidates {
+		finishReason := mapFinishReason(candidate.FinishReason)
+		var finishReasonPtr *string
+		if candidate.FinishReason != "" {
+			finishReasonPtr = &finishReason
+		}
+		delta := providers.StreamDelta{}
+		if text := textFromParts(candidate.Content.Parts); text != "" {
+			delta.Content = &text
+		}
+		if toolCalls := toolCallsFromParts(candidate.Content.Parts); len(toolCalls) > 0 {
+			delta.ToolCalls = toolCalls
+			toolFinish := "tool_calls"
+			finishReasonPtr = &toolFinish
+		}
+		chunks = append(chunks, providers.StreamChunk{
+			Object:  "chat.completion.chunk",
+			Model:   model,
+			Created: time.Now().Unix(),
+			Choices: []providers.StreamChoice{{
+				Index:        i,
+				Delta:        delta,
+				FinishReason: finishReasonPtr,
+			}},
+			Usage: usage,
+		})
+	}
+	if len(chunks) == 0 && usage != nil {
+		chunks = append(chunks, providers.StreamChunk{
+			Object:  "chat.completion.chunk",
+			Model:   model,
+			Created: time.Now().Unix(),
+			Choices: []providers.StreamChoice{{
+				Index: 0,
+				Delta: providers.StreamDelta{},
+			}},
+			Usage: usage,
+		})
+	}
+	return chunks
+}
+
+func usageFromMetadata(metadata usageMetadata) *providers.Usage {
+	if metadata.PromptTokenCount == 0 && metadata.CandidatesTokenCount == 0 && metadata.TotalTokenCount == 0 {
+		return nil
+	}
+	return &providers.Usage{
+		PromptTokens:     metadata.PromptTokenCount,
+		CompletionTokens: metadata.CandidatesTokenCount,
+		TotalTokens:      metadata.TotalTokenCount,
+	}
+}
+
+func geminiStreamErrorChunk(code string) providers.StreamChunk {
+	return providers.StreamChunk{
+		Error: &providers.StreamError{
+			Message: "upstream provider stream error",
+			Type:    "server_error",
+			Code:    code,
+		},
+	}
+}
+
 func textFromParts(parts []part) string {
 	var builder strings.Builder
 	for _, part := range parts {
@@ -514,18 +699,22 @@ func mapFinishReason(reason string) string {
 }
 
 func mapError(resp *fasthttp.Response) error {
-	message := parseErrorMessage(resp.Body())
+	return mapStatusError(resp.StatusCode(), resp.Body())
+}
 
-	switch resp.StatusCode() {
+func mapStatusError(statusCode int, body []byte) error {
+	message := parseErrorMessage(body)
+
+	switch statusCode {
 	case fasthttp.StatusUnauthorized, fasthttp.StatusForbidden:
 		return fmt.Errorf("%w: %s", ErrAuth, message)
 	case fasthttp.StatusTooManyRequests:
 		return &RateLimitError{Message: message}
 	default:
-		if resp.StatusCode() >= 500 {
+		if statusCode >= 500 {
 			return fmt.Errorf("%w: %s", ErrServer, message)
 		}
-		return fmt.Errorf("gemini error status %d: %s", resp.StatusCode(), message)
+		return fmt.Errorf("gemini error status %d: %s", statusCode, message)
 	}
 }
 

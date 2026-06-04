@@ -33,7 +33,7 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 | `cursor` | `cursor` | `cursor` | `cursor` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Cursor inference adapter. |
 | `deepseek` | `deepseek` | `deepseek` | `deepseek` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `fireworks` | `fireworks` | `fireworks` | `fireworks` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
-| `gemini` | `gemini` | `gemini` | `gemini` | `supported` | API key, OAuth | yes | yes | yes | no | yes | yes | Cataloged Gemini model IDs route through the native Gemini adapter; streaming is not implemented yet. |
+| `gemini` | `gemini` | `gemini` | `gemini` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Cataloged Gemini model IDs route through the native Gemini adapter, including native SSE streaming. |
 | `github-copilot` | `github-copilot` | `github-copilot` | `github-copilot` | `auth_only` | OAuth | yes | no | no | no | no | no | Device-code OAuth exists; no Copilot inference adapter. |
 | `gitlab` | `gitlab` | `gitlab` | `gitlab` | `auth_only` | OAuth | yes | no | no | no | no | no | GitLab-style OAuth exists; no inference adapter. |
 | `groq` | `groq` | `groq` | `groq` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
