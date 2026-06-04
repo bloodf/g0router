@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.AO"
-last_updated: "2026-06-04T13:03:52Z"
+last_updated: "2026-06-04T13:09:36Z"
 last_agent: "orchestrator"
 ```
 
@@ -1282,7 +1282,7 @@ max_agents: 1
 gate: "npm --prefix ui test -- --run ProvidersPage ConnectionsAuthPage && npm --prefix ui run e2e -- --grep 'OAuth' && npm --prefix ui test -- --run && npm --prefix ui run build"
 completed_at: "2026-06-04T13:03:52Z"
 evaluator_prompt: "docs/evaluations/wave-8AO-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e92bd-04dd-7943-ab26-3c0b02c85544 with no blocking findings; evaluator prompt commit refs clarified in 7d2c5c0"
 gate_results:
   - "npm --prefix ui test -- --run ProvidersPage ConnectionsAuthPage: PASS on main, 13 tests"
   - "npm --prefix ui run e2e -- --grep 'OAuth': PASS on main, 4 tests"
