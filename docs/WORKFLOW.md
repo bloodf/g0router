@@ -715,7 +715,7 @@ tasks:
     name: "Remediate Wave 8.W and 8.X evaluator findings"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "db4eda5"
     files_owned:
       - ui/src/pages/ModelsPage.test.tsx
       - docs/PLAN.md
