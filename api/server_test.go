@@ -27,10 +27,7 @@ import (
 
 func TestHealthz(t *testing.T) {
 	srv := NewServer(ServerConfig{Port: 0, Version: "test-version"})
-	ln := srv.listener()
-	if ln == nil {
-		t.Fatal("listener failed")
-	}
+	ln := apiTestListener(t)
 
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Stop() })
@@ -64,10 +61,7 @@ func TestHealthz(t *testing.T) {
 
 func TestUnknownRoute(t *testing.T) {
 	srv := NewServer(ServerConfig{Port: 0, Version: "test"})
-	ln := srv.listener()
-	if ln == nil {
-		t.Fatal("listener failed")
-	}
+	ln := apiTestListener(t)
 
 	go func() { _ = srv.Serve(ln) }()
 	t.Cleanup(func() { _ = srv.Stop() })
@@ -1067,6 +1061,19 @@ func TestHTTPClientUsesIsolatedTransport(t *testing.T) {
 	}
 }
 
+func TestAPITestListenerBindsIPv4Loopback(t *testing.T) {
+	ln := apiTestListener(t)
+	defer ln.Close()
+
+	tcpAddr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("listener addr is %T, want *net.TCPAddr", ln.Addr())
+	}
+	if !tcpAddr.IP.Equal(net.IPv4(127, 0, 0, 1)) {
+		t.Fatalf("listener address = %s, want IPv4 loopback", tcpAddr.IP)
+	}
+}
+
 func localhostAddr(t *testing.T, ln net.Listener) string {
 	t.Helper()
 
@@ -1075,6 +1082,16 @@ func localhostAddr(t *testing.T, ln net.Listener) string {
 		t.Fatalf("listener addr is %T, want *net.TCPAddr", ln.Addr())
 	}
 	return net.JoinHostPort("127.0.0.1", strconv.Itoa(tcpAddr.Port))
+}
+
+func apiTestListener(t *testing.T) net.Listener {
+	t.Helper()
+
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen on IPv4 loopback: %v", err)
+	}
+	return ln
 }
 
 func firstUIAssetPath(t *testing.T, content string) string {
