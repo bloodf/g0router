@@ -9,7 +9,7 @@ Status meanings:
 - `auth_only`: credential capture exists, but no inference adapter is wired.
 - `unsupported`: explicitly not implemented; do not advertise as usable.
 
-Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `deepseek`, `fireworks`, `groq`, `mistral`, `minimax`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
+Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, `deepseek`, `fireworks`, `gemini`, `groq`, `mistral`, `minimax`, `ollama`, `openrouter`, `perplexity`, `qwen`, `together`, and `xai`. Adapter-only providers with matrix `Inference=true` may be reached only through explicit aliases or `combo/*` routes; providers with `Inference=false`, including `bedrock`, cannot be routed.
 
 ## Public Surfaces
 
@@ -33,7 +33,7 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 | `cursor` | `cursor` | `cursor` | `cursor` | `auth_only` | OAuth | yes | no | no | no | no | no | OAuth exists; no Cursor inference adapter. |
 | `deepseek` | `deepseek` | `deepseek` | `deepseek` | `supported` | API key, OAuth | yes | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
 | `fireworks` | `fireworks` | `fireworks` | `fireworks` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
-| `gemini` | `gemini` | `gemini` | `gemini` | `adapter_only` | API key, OAuth | yes | yes | no | no | no | yes | Gemini adapter exists; no streaming or public routing yet. |
+| `gemini` | `gemini` | `gemini` | `gemini` | `supported` | API key, OAuth | yes | yes | yes | no | yes | yes | Cataloged Gemini model IDs route through the native Gemini adapter; streaming is not implemented yet. |
 | `github-copilot` | `github-copilot` | `github-copilot` | `github-copilot` | `auth_only` | OAuth | yes | no | no | no | no | no | Device-code OAuth exists; no Copilot inference adapter. |
 | `gitlab` | `gitlab` | `gitlab` | `gitlab` | `auth_only` | OAuth | yes | no | no | no | no | no | GitLab-style OAuth exists; no inference adapter. |
 | `groq` | `groq` | `groq` | `groq` | `supported` | API key | no | yes | yes | yes | yes | yes | Cataloged model IDs route through the OpenAI-compatible adapter; quota fetcher is not implemented. |
@@ -68,4 +68,4 @@ Current public direct-dispatch providers are `openai`, `anthropic`, `cerebras`, 
 
 ## Model Routing Caveat
 
-Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, Cerebras, DeepSeek, Fireworks, Groq, Mistral, MiniMax, Ollama, OpenRouter, Perplexity, Qwen, Together, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.
+Current dispatch resolves stored model aliases first, then exact model catalog matches, then legacy `gpt-*` and `claude-*` prefixes. Exact catalog matches provide public routing for OpenAI, Anthropic, Cerebras, DeepSeek, Fireworks, Gemini, Groq, Mistral, MiniMax, Ollama, OpenRouter, Perplexity, Qwen, Together, and xAI model IDs when a matching active connection exists. Explicit aliases can target registered adapter providers only when the provider matrix marks inference capability true, `combo/*` routes use the same dispatch path, and request logging uses dispatch metadata when available. Broader provider capability routing and expanded quota/cost coverage remain Wave 7.I work.

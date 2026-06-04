@@ -48,7 +48,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		adapterOnlyProvider("cohere", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("deepseek", "deepseek", true, true, true, false, "api_key", "oauth"),
 		catalogRoutableProvider("fireworks", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("gemini", "gemini", true, false, true, false, "api_key", "oauth"),
+		catalogRoutableProvider("gemini", "gemini", true, false, true, false, "api_key", "oauth"),
 		catalogRoutableProvider("groq", "", false, true, true, false, "api_key"),
 		adapterOnlyProvider("huggingface", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("mistral", "", false, true, true, false, "api_key"),

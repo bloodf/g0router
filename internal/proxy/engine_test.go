@@ -348,6 +348,38 @@ func TestDispatchUsesCatalogForOllamaNoAuthProvider(t *testing.T) {
 	}
 }
 
+func TestDispatchUsesCatalogForGeminiProvider(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "gemini", "gemini-key")
+
+	gemini := &fakeProvider{
+		name: providers.ProviderGemini,
+		response: &providers.ChatResponse{
+			ID:    "chatcmpl-gemini",
+			Model: "gemini-2.5-flash",
+		},
+	}
+	engine := NewEngine(s)
+	engine.Register(gemini)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gemini-2.5-flash"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if !gemini.called {
+		t.Fatal("gemini provider was not called")
+	}
+	if gemini.receivedKey.Provider != providers.ProviderGemini {
+		t.Fatalf("key provider = %q, want gemini", gemini.receivedKey.Provider)
+	}
+	if gemini.receivedKey.AuthType != string(store.AuthTypeAPIKey) {
+		t.Fatalf("auth type = %q, want api_key", gemini.receivedKey.AuthType)
+	}
+	if resp.Provider != providers.ProviderGemini {
+		t.Fatalf("response provider = %q, want gemini", resp.Provider)
+	}
+}
+
 func TestDispatchBlocksAliasToProviderWithoutInference(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "bedrock", "bedrock-key")

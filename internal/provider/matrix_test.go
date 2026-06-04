@@ -78,7 +78,7 @@ func TestProviderMatrixMarksAuthOnlyProvidersExplicitly(t *testing.T) {
 
 func TestProviderMatrixMarksRegisteredButUnroutableAdaptersAsAdapterOnly(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"gemini", "azure", "vertex", "bedrock", "cohere", "replicate", "nebius"} {
+	for _, id := range []string{"azure", "vertex", "bedrock", "cohere", "replicate", "nebius"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -147,6 +147,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"cerebras":   true,
 		"deepseek":   true,
 		"fireworks":  true,
+		"gemini":     true,
 		"groq":       true,
 		"mistral":    true,
 		"minimax":    true,
@@ -206,6 +207,28 @@ func TestPublicOpenAICompatibleProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if entry.Quota {
 			t.Fatalf("%s should not claim quota support until a real quota fetcher exists", id)
 		}
+	}
+}
+
+func TestPublicNativeProvidersCanBeNonStreaming(t *testing.T) {
+	entry, ok := ProviderMatrix().Provider("gemini")
+	if !ok {
+		t.Fatal("provider matrix missing gemini")
+	}
+	if entry.PublicStatus != ProviderStatusSupported {
+		t.Fatalf("gemini status = %q, want supported", entry.PublicStatus)
+	}
+	if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
+		t.Fatalf("gemini supported surface is incomplete: %+v", entry)
+	}
+	if entry.Streaming {
+		t.Fatalf("gemini streaming = true, want false until streaming is implemented")
+	}
+	if !entry.ModelCatalog || !entry.ListModels {
+		t.Fatalf("gemini should expose catalog and ListModels: %+v", entry)
+	}
+	if entry.Quota {
+		t.Fatal("gemini should not claim quota support until a real quota fetcher exists")
 	}
 }
 
