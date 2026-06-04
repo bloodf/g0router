@@ -171,13 +171,16 @@ func TestOAuthEngineUsesSelectedInstanceAccountLabel(t *testing.T) {
 
 func TestOAuthEngineRequiresRealTokenEndpoint(t *testing.T) {
 	store := newFakeOAuthStore()
-	engine := NewOAuthEngine(store, OAuthHTTPClient(nil))
+	authServer := httptest.NewServer(http.NotFoundHandler())
+	defer authServer.Close()
+
+	engine := NewOAuthEngine(store, authServer.Client())
 	if err := store.CreateFlow(OAuthFlow{
 		InstanceID:         "inst-1",
 		State:              "state-1",
 		CodeVerifierSecret: "verifier",
 		RedirectURI:        "http://localhost/callback?instance_id=inst-1",
-		AuthorizationURL:   "https://auth.example/login",
+		AuthorizationURL:   authServer.URL + "/login",
 		ResourceURI:        "https://mcp.example",
 		ExpiresAt:          time.Now().Add(time.Hour),
 	}); err != nil {
@@ -191,6 +194,61 @@ func TestOAuthEngineRequiresRealTokenEndpoint(t *testing.T) {
 	}
 	if len(store.accounts) != 0 {
 		t.Fatalf("stored accounts = %+v, want none", store.accounts)
+	}
+}
+
+func TestOAuthEngineDiscoversTokenEndpointFromAuthorizationServerMetadata(t *testing.T) {
+	store := newFakeOAuthStore()
+	var tokenForm url.Values
+	var tokenEndpoint string
+	authServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/.well-known/oauth-authorization-server":
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]string{"token_endpoint": tokenEndpoint}); err != nil {
+				t.Fatalf("Encode metadata: %v", err)
+			}
+		case "/oauth/token":
+			if err := r.ParseForm(); err != nil {
+				t.Fatalf("ParseForm: %v", err)
+			}
+			tokenForm = r.PostForm
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "metadata-access-token",
+				"expires_in":   3600,
+			}); err != nil {
+				t.Fatalf("Encode token: %v", err)
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer authServer.Close()
+	tokenEndpoint = authServer.URL + "/oauth/token"
+
+	engine := NewOAuthEngine(store, authServer.Client())
+	if err := store.CreateFlow(OAuthFlow{
+		InstanceID:         "inst-1",
+		State:              "state-1",
+		CodeVerifierSecret: "verifier-from-store",
+		RedirectURI:        "http://localhost/callback?instance_id=inst-1",
+		AuthorizationURL:   authServer.URL + "/login",
+		ResourceURI:        "https://mcp.example",
+		ExpiresAt:          time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateFlow: %v", err)
+	}
+
+	account, err := engine.CompleteCallback(context.Background(), "inst-1", "https://callback.example?code=ok&state=state-1")
+	if err != nil {
+		t.Fatalf("CompleteCallback: %v", err)
+	}
+	if account.AccessToken != "metadata-access-token" || account.AuthMetadata["token_endpoint"] != tokenEndpoint {
+		t.Fatalf("account = %+v, want metadata token endpoint and access token", account)
+	}
+	if tokenForm.Get("code_verifier") != "verifier-from-store" || tokenForm.Get("resource") != "https://mcp.example" {
+		t.Fatalf("token form = %+v, want stored verifier and resource", tokenForm)
 	}
 }
 

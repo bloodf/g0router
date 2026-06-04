@@ -90,6 +90,10 @@ type tokenResponse struct {
 	Iss          string `json:"iss"`
 }
 
+type authorizationServerMetadata struct {
+	TokenEndpoint string `json:"token_endpoint"`
+}
+
 func NewOAuthEngine(store OAuthStore, client OAuthHTTPClient) *OAuthEngine {
 	return &OAuthEngine{store: store, http: noRedirectOAuthClient(client)}
 }
@@ -167,7 +171,7 @@ func (e *OAuthEngine) CompleteCallback(ctx context.Context, instanceID, callback
 		return OAuthAccount{}, ErrReauthRequired
 	}
 
-	tokenEndpoint, err := tokenEndpointForFlow(flow)
+	tokenEndpoint, err := e.tokenEndpointForFlow(ctx, flow)
 	if err != nil {
 		return OAuthAccount{}, err
 	}
@@ -319,21 +323,65 @@ func StdioCredentialEnv(account OAuthAccount) CredentialEnv {
 	}
 }
 
-func tokenEndpointForFlow(flow OAuthFlow) (string, error) {
+func (e *OAuthEngine) tokenEndpointForFlow(ctx context.Context, flow OAuthFlow) (string, error) {
+	if tokenEndpoint, ok := derivedTokenEndpointForFlow(flow); ok {
+		return tokenEndpoint, nil
+	}
+	return e.discoverTokenEndpoint(ctx, flow.AuthorizationURL)
+}
+
+func derivedTokenEndpointForFlow(flow OAuthFlow) (string, bool) {
 	parsed, err := url.Parse(flow.AuthorizationURL)
 	if err != nil {
-		return "", fmt.Errorf("parse authorization url: %w", err)
+		return "", false
 	}
 	if parsed.Path == "" || parsed.Path == "/" {
-		return "", errOAuthTokenEndpointUnavailable
+		return "", false
 	}
 	if strings.HasSuffix(parsed.Path, "/authorize") {
 		parsed.Path = strings.TrimSuffix(parsed.Path, "/authorize") + "/token"
 		parsed.RawQuery = ""
 		parsed.Fragment = ""
-		return parsed.String(), nil
+		return parsed.String(), true
 	}
-	return "", errOAuthTokenEndpointUnavailable
+	return "", false
+}
+
+func (e *OAuthEngine) discoverTokenEndpoint(ctx context.Context, authorizationURL string) (string, error) {
+	parsed, err := url.Parse(authorizationURL)
+	if err != nil {
+		return "", fmt.Errorf("parse authorization url: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", errOAuthTokenEndpointUnavailable
+	}
+	metadataURL := url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: "/.well-known/oauth-authorization-server"}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, metadataURL.String(), nil)
+	if err != nil {
+		return "", fmt.Errorf("create authorization metadata request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := e.http.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("get authorization metadata: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+		return "", errOAuthTokenEndpointUnavailable
+	}
+	var metadata authorizationServerMetadata
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 8192)).Decode(&metadata); err != nil {
+		return "", fmt.Errorf("decode authorization metadata: %w", err)
+	}
+	tokenEndpoint := strings.TrimSpace(metadata.TokenEndpoint)
+	if tokenEndpoint == "" {
+		return "", errOAuthTokenEndpointUnavailable
+	}
+	if _, err := url.ParseRequestURI(tokenEndpoint); err != nil {
+		return "", errOAuthTokenEndpointUnavailable
+	}
+	return tokenEndpoint, nil
 }
 
 func redirectWithInstanceID(rawURL, instanceID string) (string, error) {
