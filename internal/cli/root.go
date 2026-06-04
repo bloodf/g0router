@@ -72,7 +72,7 @@ func newRootCommand(config rootConfig) *cobra.Command {
 	cmd.AddCommand(newLogoutCommand(&dataDir))
 	cmd.AddCommand(newKeysCommand(&dataDir))
 	cmd.AddCommand(newMCPCommand(&dataDir))
-	cmd.AddCommand(newProvidersCommand())
+	cmd.AddCommand(newProvidersCommand(&dataDir))
 	cmd.AddCommand(newStatusCommand(&dataDir))
 	cmd.AddCommand(newHealthcheckCommand())
 	cmd.AddCommand(newVersionCommand(config.Version))
@@ -486,13 +486,13 @@ func newKeysRemoveCommand(dataDir *string) *cobra.Command {
 	}
 }
 
-func newProvidersCommand() *cobra.Command {
+func newProvidersCommand(dataDir *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "providers",
 		Short: "Inspect providers",
 	}
 	cmd.AddCommand(newProvidersListCommand())
-	cmd.AddCommand(newProvidersTestCommand())
+	cmd.AddCommand(newProvidersTestCommand(dataDir))
 	return cmd
 }
 
@@ -509,19 +509,38 @@ func newProvidersListCommand() *cobra.Command {
 	}
 }
 
-func newProvidersTestCommand() *cobra.Command {
+func newProvidersTestCommand(dataDir *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "test <provider>",
 		Short: "Validate provider support",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			for _, provider := range knownProviderNames() {
-				if provider == args[0] {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s: configured\n", args[0])
-					return nil
-				}
+			providerID := providerinfo.CanonicalProviderID(args[0])
+			entry, ok := providerinfo.ProviderMatrix().Provider(providerID)
+			if !ok {
+				return fmt.Errorf("unknown provider: %s", args[0])
 			}
-			return fmt.Errorf("unknown provider: %s", args[0])
+			if !entry.PublicInference || !entry.DirectDispatch {
+				return fmt.Errorf("%s is %s; public inference unavailable", entry.G0RouterID, entry.PublicStatus)
+			}
+			if authTypesInclude(entry.AuthTypes, "noauth") {
+				fmt.Fprintf(cmd.OutOrStdout(), "%s: no credentials required\n", entry.G0RouterID)
+				return nil
+			}
+			s, err := openCLIStore(*dataDir)
+			if err != nil {
+				return err
+			}
+			defer s.Close()
+			connections, err := s.GetActiveConnections(entry.G0RouterID)
+			if err != nil {
+				return fmt.Errorf("load provider connections: %w", err)
+			}
+			if len(connections) == 0 {
+				return fmt.Errorf("no active connection for provider: %s", entry.G0RouterID)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s: active connection\n", entry.G0RouterID)
+			return nil
 		},
 	}
 }

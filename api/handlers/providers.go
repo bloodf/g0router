@@ -43,6 +43,16 @@ func Providers(ctx *fasthttp.RequestCtx, source ManagementModelSource, providerI
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[providerResponse]{Data: knownProviders()})
 		return
 	}
+	providerID = providerinfo.CanonicalProviderID(providerID)
+	entry, ok := providerinfo.ProviderMatrix().Provider(providerID)
+	if !ok {
+		writeError(ctx, fasthttp.StatusNotFound, "provider not found")
+		return
+	}
+	if !entry.PublicInference || !entry.DirectDispatch {
+		writeError(ctx, fasthttp.StatusNotFound, "provider inference unavailable")
+		return
+	}
 
 	if source == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "model source unavailable")

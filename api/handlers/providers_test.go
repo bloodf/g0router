@@ -181,6 +181,42 @@ func TestProvidersListModelsForProvider(t *testing.T) {
 	}
 }
 
+func TestProvidersListModelsCanonicalizesProviderAlias(t *testing.T) {
+	source := handlerModelSource{models: []providers.Model{
+		{ID: "gpt-4o", Object: "model", Created: 1, OwnedBy: "openai", Provider: providers.ProviderOpenAI},
+		{ID: "claude-sonnet-4", Object: "model", Created: 2, OwnedBy: "anthropic", Provider: providers.ProviderAnthropic},
+	}}
+
+	ctx, body := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		Providers(ctx, source, "codex")
+	})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+
+	var decoded struct {
+		Data []providers.Model `json:"data"`
+	}
+	decodeJSON(t, body, &decoded)
+	if len(decoded.Data) != 1 || decoded.Data[0].ID != "gpt-4o" {
+		t.Fatalf("models = %+v, want codex alias to return OpenAI models", decoded.Data)
+	}
+}
+
+func TestProvidersListModelsRejectsAuthOnlyProvider(t *testing.T) {
+	ctx, body := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		Providers(ctx, handlerModelSource{}, "github")
+	})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%s", ctx.Response.StatusCode(), body)
+	}
+	if !strings.Contains(string(body), "provider inference unavailable") {
+		t.Fatalf("body = %s, want provider inference unavailable", body)
+	}
+}
+
 func newHandlerStore(t *testing.T) *store.Store {
 	t.Helper()
 
