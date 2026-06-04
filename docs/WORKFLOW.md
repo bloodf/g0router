@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AI"
-last_updated: "2026-06-04T11:43:48Z"
+current_wave: "8.AJ"
+last_updated: "2026-06-04T11:50:04Z"
 last_agent: "orchestrator"
 ```
 
@@ -1085,6 +1085,38 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AI lets catalog-supported no-auth providers such as Ollama dispatch direct and streaming requests without requiring a persisted provider connection, while preserving stored no-auth connection behavior and continuing to reject providers that require credentials when no active connection exists.
+
+### Wave 8.AJ — MCP OAuth Selected Account Label Binding
+
+```yaml
+wave: "8.AJ"
+status: DONE
+max_agents: 1
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+completed_at: "2026-06-04T11:50:04Z"
+evaluator_prompt: "docs/evaluations/wave-8AJ-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./internal/mcp -run 'TestOAuthEnginePrefersSelectedInstanceAccountLabelOverTokenAccountLabel|TestOAuthEngineUsesSelectedInstanceAccountLabel' -count=1: FAIL before implementation with account label token-work, want selected-work"
+  - "go test ./internal/mcp -run 'TestOAuthEnginePrefersSelectedInstanceAccountLabelOverTokenAccountLabel|TestOAuthEngineUsesSelectedInstanceAccountLabel' -count=1: PASS"
+  - "go test ./internal/mcp -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+
+tasks:
+  - id: "8.AJ.1"
+    name: "Bind MCP OAuth completion to selected instance account label"
+    status: DONE
+    agent: "019e9272-f0e3-76b3-ae4c-5210c3978311"
+    commit: "3b8aa81"
+    files_owned:
+      - internal/mcp/oauth.go
+      - internal/mcp/oauth_test.go
+      - api/server_integration_test.go
+```
+
+**Checkpoint**: Wave 8.AJ makes an MCP instance-selected account label authoritative during OAuth completion, so token endpoint `account_label` values cannot orphan persisted accounts from runtime account selection. Existing token-derived fallback labels still apply when no selected instance label exists.
 
 ---
 
