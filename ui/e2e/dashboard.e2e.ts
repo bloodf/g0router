@@ -141,14 +141,79 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("Settings saved")).toBeVisible();
     await expect(page.getByLabel("Proxy URL")).toHaveValue("http://127.0.0.1:9090");
   });
+
+  test("renders empty states for every dashboard section with mocked API data", async ({ page }) => {
+    await mockAPI(page, { mode: "empty" });
+
+    await page.goto("/");
+    await expect(page.getByText("No overview data yet")).toBeVisible();
+
+    await navigateTo(page, "Endpoint");
+    await expect(page.getByText("No API keys")).toBeVisible();
+
+    await navigateTo(page, "Providers");
+    await expect(page.getByText("No provider records")).toBeVisible();
+
+    await navigateTo(page, "Aliases");
+    await expect(page.getByText("No model aliases")).toBeVisible();
+
+    await navigateTo(page, "Pricing");
+    await expect(page.getByText("No pricing overrides")).toBeVisible();
+
+    await navigateTo(page, "Usage");
+    await expect(page.getByText("No usage or logs yet")).toBeVisible();
+
+    await navigateTo(page, "Logs");
+    await expect(page.getByText("No request logs")).toBeVisible();
+
+    await navigateTo(page, "Quota");
+    await expect(page.getByText("No quota-capable providers")).toBeVisible();
+
+    await navigateTo(page, "Combos");
+    await expect(page.getByText("No combo routes configured")).toBeVisible();
+
+    await navigateTo(page, "MCP");
+    await expect(page.getByText("No MCP data")).toBeVisible();
+
+    await navigateTo(page, "Settings");
+    await expect(page.getByText("No runtime settings returned")).toBeVisible();
+
+    await navigateTo(page, "Diagnostics");
+    await expect(page.getByText("No diagnostics data")).toBeVisible();
+  });
+
+  test("renders auth-expired states from protected mocked API responses", async ({ page }) => {
+    await mockAPI(page, { mode: "auth-expired" });
+
+    await page.goto("/");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
+    await navigateTo(page, "Endpoint");
+    await expect(page.getByText("Authentication expired")).toBeVisible();
+
+    await navigateTo(page, "Providers");
+    await expect(page.getByText("Authentication expired")).toBeVisible();
+
+    await navigateTo(page, "Aliases");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
+    await navigateTo(page, "Combos");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
+    await navigateTo(page, "MCP");
+    await expect(page.getByText("MCP session expired")).toBeVisible();
+  });
 });
 
 async function navigateTo(page: Page, label: string) {
   await page.getByRole("button", { name: label }).click();
 }
 
-async function mockAPI(page: Page) {
+type MockMode = "normal" | "empty" | "auth-expired";
+
+async function mockAPI(page: Page, options: { mode?: MockMode } = {}) {
   const apiRequests: RecordedAPIRequest[] = [];
+  const mode = options.mode ?? "normal";
   const state = {
     apiKeys: [...apiKeys],
     aliases: [...aliases],
@@ -164,7 +229,7 @@ async function mockAPI(page: Page) {
 
     if (url.origin === "http://127.0.0.1:5173" && url.pathname.startsWith("/api/")) {
       apiRequests.push(recordAPIRequest(request, url));
-      const response = apiResponse(state, url.pathname, request.method(), request.postDataJSON());
+      const response = apiResponse(state, url.pathname, request.method(), request.postDataJSON(), mode);
       await route.fulfill({
         contentType: "application/json",
         status: response.status,
@@ -192,7 +257,15 @@ function recordAPIRequest(request: Request, url: URL): RecordedAPIRequest {
   };
 }
 
-function apiResponse(state: MockAPIState, path: string, method: string, body: unknown): MockAPIResponse {
+function apiResponse(state: MockAPIState, path: string, method: string, body: unknown, mode: MockMode): MockAPIResponse {
+  if (mode === "auth-expired") {
+    return { status: 401, body: { error: "control-plane auth required" } };
+  }
+
+  if (mode === "empty" && method === "GET") {
+    return emptyAPIResponse(path);
+  }
+
   if (method === "POST" && path === "/api/keys") {
     const request = body as { name?: string };
     const key = {
@@ -348,6 +421,32 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
       return { status: 200, body: state.settings };
     default:
       return { status: 404, body: { error: `No E2E API fixture for ${path}` } };
+  }
+}
+
+function emptyAPIResponse(path: string): MockAPIResponse {
+  switch (path) {
+    case "/api/providers":
+    case "/api/connections":
+    case "/api/keys":
+    case "/api/aliases":
+    case "/api/pricing":
+    case "/api/combos":
+    case "/api/mcp/clients":
+    case "/api/mcp/instances":
+    case "/api/mcp/instances/mcp-1/accounts":
+    case "/api/mcp/instances/mcp-created/accounts":
+    case "/api/mcp/tools":
+      return { status: 200, body: { data: [] } };
+    case "/api/usage":
+    case "/api/logs":
+      return { status: 200, body: { object: "list", data: [], limit: 25, offset: 0 } };
+    case "/api/usage/summary":
+      return { status: 200, body: { request_count: 0, total_tokens: 0, total_cost_usd: 0 } };
+    case "/api/settings":
+      return { status: 200, body: null };
+    default:
+      return { status: 404, body: { error: `No empty E2E API fixture for ${path}` } };
   }
 }
 
