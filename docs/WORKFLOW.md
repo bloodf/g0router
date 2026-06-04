@@ -1167,7 +1167,7 @@ max_agents: 1
 gate: "npm --prefix ui test -- --run McpSplitPages && npm --prefix ui run e2e -- --grep \"MCP\" && npm --prefix ui test -- --run && npm --prefix ui run build"
 completed_at: "2026-06-04T12:28:00Z"
 evaluator_prompt: "docs/evaluations/wave-8AL-evaluator-prompt.md"
-evaluation: "PENDING"
+evaluation: "PASS external evaluator thread 019e9288-03af-7012-96f3-438cf4382954 after npm ci dependency setup"
 gate_results:
   - "npm --prefix ui test -- --run McpSplitPages: PASS"
   - "npm --prefix ui run e2e -- --grep \"MCP\": PASS"
