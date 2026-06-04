@@ -31,7 +31,7 @@
 project_status: RELEASE_LOCK_VERIFICATION
 current_stage: 8
 current_wave: "8.AT"
-last_updated: "2026-06-04T13:58:54Z"
+last_updated: "2026-06-04T14:27:56Z"
 last_agent: "orchestrator"
 ```
 
@@ -1483,6 +1483,8 @@ gate_results:
   - "artifact cleanup after release gates: PASS, generated binary, UI dist rewrites, and Playwright test-results removed/restored"
   - "secret scan for leaked MiniMax/API token patterns, excluding the evaluator prompt that contains the scan expression itself: PASS"
   - "unmerged branch audit: PASS with known stale conflicting branch codex/wave-8an-dashboard-mcp-oauth-resource-discovery intentionally unmerged"
+  - "git diff --check: PASS"
+  - "git status --short: PASS, only protected local dirt .DS_Store, docs/.DS_Store, .pi/, and AGENTS.md"
 
 tasks:
   - id: "8.AT.1"
@@ -1499,7 +1501,7 @@ tasks:
     name: "Fix clean npm install release build gate"
     status: DONE
     agent: "orchestrator"
-    commit: "self: phase-8/task-release: fix make build clean install"
+    commit: "3b11b46"
     files_owned:
       - Makefile
       - docs/WORKFLOW.md
