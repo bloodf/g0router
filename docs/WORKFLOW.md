@@ -1575,7 +1575,7 @@ tasks:
     name: "Implement native Vertex SSE streaming"
     status: DONE
     agent: "orchestrator"
-    commit: "TBD"
+    commit: "8be47fd"
     files_owned:
       - internal/providers/vertex/vertex.go
       - internal/providers/vertex/vertex_test.go
