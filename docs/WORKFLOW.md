@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AR"
-last_updated: "2026-06-04T13:30:32Z"
+current_wave: "8.AS"
+last_updated: "2026-06-04T13:38:25Z"
 last_agent: "orchestrator"
 ```
 
@@ -1425,6 +1425,39 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AR removes the unreachable MCP fallback client that silently returned no tools and tool-not-found for unknown launch transports. The connector now rejects unsupported launcher transports with `mcp.ErrInvalidClientConfig` and closes any launched process before returning the error.
+
+---
+
+### Wave 8.AS — Phase 12 Completed Data Model Wording
+
+```yaml
+wave: "8.AS"
+status: DONE
+max_agents: 1
+gate: "rg -n 'Data Model Plan|Phase 12 should add or migrate' docs/phases/phase-12-advanced-mcp-gateway.md && false || true; rg -n -- '- \\[ \\]' docs/phases docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/README.md && false || true"
+completed_at: "2026-06-04T13:38:25Z"
+evaluator_prompt: "docs/evaluations/wave-8AS-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "rg -n 'Data Model Plan|Phase 12 should add or migrate' docs/phases/phase-12-advanced-mcp-gateway.md: PASS, no matches"
+  - "rg -n -- '- \\[ \\]' docs/phases docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/README.md: PASS, no matches"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.AS.1"
+    name: "Reconcile Phase 12 completed data model wording"
+    status: DONE
+    agent: "orchestrator"
+    commit: "wave-docs-commit"
+    files_owned:
+      - docs/phases/phase-12-advanced-mcp-gateway.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AS-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AS removes the last future-facing Phase 12 data model heading and wording so the completed phase document no longer describes the instance-oriented MCP schema as future work.
 
 ---
 

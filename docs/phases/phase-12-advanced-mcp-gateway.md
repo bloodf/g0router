@@ -62,9 +62,9 @@ This phase also adds proper OAuth account handling for MCP servers:
 
 ---
 
-## Data Model Plan
+## Implemented Data Model
 
-Phase 12 should add or migrate toward explicit instance-oriented tables. Exact DDL can be adjusted during implementation, but the implementation must preserve these concepts:
+Phase 12 added instance-oriented storage. Exact DDL may differ from this planning sketch, but the implemented contract preserves these concepts:
 
 ```sql
 -- One row per configured MCP server instance.
