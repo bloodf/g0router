@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.AZ"
-last_updated: "2026-06-04T18:53:35Z"
+last_updated: "2026-06-04T19:00:48Z"
 last_agent: "orchestrator"
 ```
 
@@ -1775,7 +1775,7 @@ max_agents: 1
 gate: "go test ./internal/proxy ./internal/provider ./api/handlers ./internal/cli -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T18:53:35Z"
 evaluator_prompt: "docs/evaluations/wave-8AZ-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS subagent evaluator 019e93cf-c0d7-7942-b5af-ee590191ff16 at commit f7c0cbd; no blocking findings"
 gate_results:
   - "go test ./internal/proxy -run 'TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|TestDispatchPrefersExactCatalogBeforeProviderQualifiedDynamicRoute' -count=1: RED before implementation, provider-qualified dynamic models returned provider not found"
   - "go test ./internal/provider -run 'TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalogs' -count=1: RED before implementation, deployment-defined adapters remained adapter_only"
@@ -1791,6 +1791,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 20 tests"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "subagent evaluator 019e93cf-c0d7-7942-b5af-ee590191ff16 at commit f7c0cbd: PASS with no blocking findings; only protected local dirt noted"
 
 tasks:
   - id: "8.AZ.1"
