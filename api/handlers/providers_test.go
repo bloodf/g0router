@@ -155,10 +155,10 @@ func TestProvidersListKnownProviders(t *testing.T) {
 			break
 		}
 	}
-	if bedrock.PublicStatus != "adapter_only" || !bedrock.RegisteredAdapter || bedrock.PublicInference || bedrock.DirectDispatch || bedrock.Inference || bedrock.Streaming || bedrock.ModelCatalog || bedrock.ListModels || bedrock.Quota {
-		t.Fatalf("bedrock provider = %+v, want registered adapter without public capabilities", bedrock)
+	if bedrock.PublicStatus != "adapter_only" || !bedrock.RegisteredAdapter || bedrock.PublicInference || bedrock.DirectDispatch || bedrock.Inference || bedrock.Streaming || bedrock.ModelCatalog || !bedrock.ListModels || bedrock.Quota {
+		t.Fatalf("bedrock provider = %+v, want registered adapter with list models but without public dispatch capabilities", bedrock)
 	}
-	if !strings.Contains(strings.ToLower(bedrock.Notes), "converse") || strings.Contains(strings.ToLower(bedrock.Notes), "wave 7.f") {
+	if !strings.Contains(strings.ToLower(bedrock.Notes), "converse") || !strings.Contains(strings.ToLower(bedrock.Notes), "list") || strings.Contains(strings.ToLower(bedrock.Notes), "wave 7.f") {
 		t.Fatalf("bedrock notes = %q, want explicit non-Converse status without Wave 7.F TODO", bedrock.Notes)
 	}
 }

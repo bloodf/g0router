@@ -44,6 +44,16 @@ type credentials struct {
 	sessionToken string
 }
 
+type listModelsResponse struct {
+	ModelSummaries []modelSummary `json:"modelSummaries"`
+}
+
+type modelSummary struct {
+	ModelID      string `json:"modelId"`
+	ModelName    string `json:"modelName"`
+	ProviderName string `json:"providerName"`
+}
+
 func New(baseURL string) *BedrockProvider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
@@ -96,8 +106,48 @@ func (p *BedrockProvider) ChatCompletionStream(context.Context, providers.Key, *
 	return nil, fmt.Errorf("bedrock chat completion stream: unsupported")
 }
 
-func (p *BedrockProvider) ListModels(context.Context, providers.Key) ([]providers.Model, error) {
-	return nil, fmt.Errorf("bedrock list models: unsupported")
+func (p *BedrockProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
+	creds, err := parseCredentials(key.Value)
+	if err != nil {
+		return nil, fmt.Errorf("parse bedrock credentials: %w", err)
+	}
+
+	req, err := p.newListModelsRequest(ctx, creds)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("bedrock list models: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read bedrock models response: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, mapError(resp.StatusCode, body)
+	}
+
+	var decoded listModelsResponse
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return nil, fmt.Errorf("parse bedrock models response: %w", err)
+	}
+	models := make([]providers.Model, 0, len(decoded.ModelSummaries))
+	for _, summary := range decoded.ModelSummaries {
+		if summary.ModelID == "" {
+			continue
+		}
+		models = append(models, providers.Model{
+			ID:       summary.ModelID,
+			Object:   "model",
+			OwnedBy:  summary.ProviderName,
+			Provider: providers.ProviderBedrock,
+		})
+	}
+	return models, nil
 }
 
 func (p *BedrockProvider) newInvokeRequest(ctx context.Context, creds credentials, chatReq *providers.ChatRequest) (*http.Request, error) {
@@ -119,6 +169,18 @@ func (p *BedrockProvider) newInvokeRequest(ctx context.Context, creds credential
 
 	if err := p.sign(req, creds, body); err != nil {
 		return nil, fmt.Errorf("sign bedrock request: %w", err)
+	}
+	return req, nil
+}
+
+func (p *BedrockProvider) newListModelsRequest(ctx context.Context, creds credentials) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/foundation-models", nil)
+	if err != nil {
+		return nil, fmt.Errorf("create bedrock list models request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if err := p.sign(req, creds, nil); err != nil {
+		return nil, fmt.Errorf("sign bedrock list models request: %w", err)
 	}
 	return req, nil
 }

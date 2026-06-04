@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.AV"
-last_updated: "2026-06-04T17:21:02Z"
+current_wave: "8.AW"
+last_updated: "2026-06-04T17:26:04Z"
 last_agent: "orchestrator"
 ```
 
@@ -1590,6 +1590,44 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AV removes Vertex's unsupported streaming stub and adds native Vertex `streamGenerateContent?alt=sse` support for configured project/location routing. Tests prove bearer-auth request behavior against a local SSE server, text/finish/usage chunk mapping, malformed stream error chunks, and updated provider matrix streaming capability.
+
+---
+
+### Wave 8.AW — Bedrock Model Listing Parity
+
+```yaml
+wave: "8.AW"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/bedrock ./internal/provider ./api/handlers -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+completed_at: "2026-06-04T17:26:04Z"
+evaluator_prompt: "docs/evaluations/wave-8AW-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after Bedrock signed model listing parity"
+gate_results:
+  - "go test ./internal/providers/bedrock -run TestListModelsSignsAndParsesFoundationModels -count=1: RED before implementation, ListModels returned bedrock list models: unsupported"
+  - "go test ./internal/providers/bedrock -run TestListModelsSignsAndParsesFoundationModels -count=1: PASS"
+  - "go test ./internal/providers/bedrock ./internal/provider ./api/handlers -count=1: PASS"
+
+tasks:
+  - id: "8.AW.1"
+    name: "Implement signed Bedrock foundation model listing"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - internal/providers/bedrock/bedrock.go
+      - internal/providers/bedrock/bedrock_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8AW-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AW removes one Bedrock adapter gap by replacing the unsupported `ListModels` stub with a signed `GET /foundation-models` implementation. Tests prove SigV4 headers, session-token propagation, response parsing, and provider matrix/API exposure while keeping Bedrock non-public for Converse, streaming, catalog routing, quota, and direct dispatch.
 
 ---
 

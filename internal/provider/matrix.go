@@ -43,7 +43,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		supportedProvider("openai", "codex", true, true, true, "api_key", "oauth"),
 		supportedProvider("anthropic", "anthropic", true, true, true, "api_key", "oauth"),
 		adapterOnlyProvider("azure", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("bedrock", "", false, false, false, false, "api_key"),
+		adapterOnlyProvider("bedrock", "", false, false, true, false, "api_key"),
 		catalogRoutableProvider("cerebras", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("cohere", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("deepseek", "deepseek", true, true, true, false, "api_key", "oauth"),
@@ -171,7 +171,7 @@ func adapterOnlyProvider(id string, oauthProvider string, refresh, streaming, li
 	entry.Notes = "Adapter is registered in normal startup, but public routing remains limited by model catalog and capability coverage."
 	if id == "bedrock" {
 		entry.Inference = false
-		entry.Notes = "Adapter is registered, but it does not implement Bedrock Converse, streaming, model catalog/ListModels, quota, or public direct dispatch."
+		entry.Notes = "Adapter is registered and can list Bedrock foundation models, but it does not implement Bedrock Converse, streaming, model catalog, quota, or public direct dispatch."
 	}
 	return entry
 }

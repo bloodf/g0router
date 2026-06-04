@@ -163,14 +163,66 @@ func TestChatCompletionValidatesCredentials(t *testing.T) {
 	}
 }
 
+func TestListModelsSignsAndParsesFoundationModels(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotAuth string
+	var gotDate string
+	var gotHash string
+	var gotToken string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.RequestURI
+		gotAuth = r.Header.Get("Authorization")
+		gotDate = r.Header.Get("X-Amz-Date")
+		gotHash = r.Header.Get("X-Amz-Content-Sha256")
+		gotToken = r.Header.Get("X-Amz-Security-Token")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(bedrockModelsResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL)
+	models, err := provider.ListModels(context.Background(), testKey())
+	if err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+
+	if gotMethod != http.MethodGet {
+		t.Errorf("method = %q", gotMethod)
+	}
+	if gotPath != "/foundation-models" {
+		t.Errorf("path = %q", gotPath)
+	}
+	emptyHash := sha256.Sum256(nil)
+	if gotHash != hex.EncodeToString(emptyHash[:]) {
+		t.Errorf("X-Amz-Content-Sha256 = %q", gotHash)
+	}
+	if gotToken != "token" {
+		t.Errorf("X-Amz-Security-Token = %q", gotToken)
+	}
+	if _, err := time.Parse("20060102T150405Z", gotDate); err != nil {
+		t.Errorf("X-Amz-Date = %q: %v", gotDate, err)
+	}
+	assertAuthorizationHeader(t, gotAuth, gotDate)
+
+	if len(models) != 2 {
+		t.Fatalf("models len = %d", len(models))
+	}
+	if models[0].ID != "anthropic.claude-3-haiku-20240307-v1:0" || models[0].OwnedBy != "Anthropic" || models[0].Provider != providers.ProviderBedrock {
+		t.Errorf("model[0] = %+v", models[0])
+	}
+	if models[1].ID != "amazon.titan-text-lite-v1" || models[1].Object != "model" {
+		t.Errorf("model[1] = %+v", models[1])
+	}
+}
+
 func TestUnsupportedMethodsReturnErrors(t *testing.T) {
 	provider := New("http://127.0.0.1")
 
 	if _, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest()); err == nil {
 		t.Fatal("expected stream error")
-	}
-	if _, err := provider.ListModels(context.Background(), testKey()); err == nil {
-		t.Fatal("expected list models error")
 	}
 }
 
@@ -229,4 +281,19 @@ const bedrockResponseJSON = `{
 	"content": [{"type": "text", "text": "hello from bedrock"}],
 	"stop_reason": "stop",
 	"usage": {"input_tokens": 5, "output_tokens": 7}
+}`
+
+const bedrockModelsResponseJSON = `{
+	"modelSummaries": [
+		{
+			"modelId": "anthropic.claude-3-haiku-20240307-v1:0",
+			"providerName": "Anthropic",
+			"modelName": "Claude 3 Haiku"
+		},
+		{
+			"modelId": "amazon.titan-text-lite-v1",
+			"providerName": "Amazon",
+			"modelName": "Titan Text Lite"
+		}
+	]
 }`

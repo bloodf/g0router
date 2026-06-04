@@ -292,8 +292,8 @@ Wave: {wave_id}
 | 5 | 2 | 3 | 5 |
 | 6 | 1 | 1 | 6 |
 | 7 | 13 | 8 | remediation Waves 7.A–7.M |
-| 8 | 37 | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.AV |
-| **Total** | **63 waves** | — | **77 original tasks + remediation + completion hardening** |
+| 8 | 38 | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.AW |
+| **Total** | **64 waves** | — | **77 original tasks + remediation + completion hardening** |
 
 With 8 agents, the original 77 tasks compressed into ~13 sequential merge
 points instead of 77. Stage 7 then ran the principal-engineer remediation, and
@@ -306,7 +306,8 @@ MCP initialize params, dashboard MCP OAuth resource discovery, dashboard
 provider OAuth connect flows, dashboard Quotas label reconciliation, phase
 documentation completion wording, MCP unsupported launch transport guarding,
 Phase 12 completed-data-model wording, release-lock verification, Gemini native
-SSE streaming parity, and Vertex native SSE streaming parity through Wave 8.AV.
+SSE streaming parity, Vertex native SSE streaming parity, and Bedrock signed
+model listing parity through Wave 8.AW.
 Stage 8 has earlier conceptual plan labels in historical prompts,
 but `docs/WORKFLOW.md` tracks the committed implementation waves from 8.L
-through 8.AV.
+through 8.AW.
