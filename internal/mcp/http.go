@@ -46,7 +46,11 @@ func (t *HTTPTransport) InitializeSSE(ctx context.Context, url string, headers m
 }
 
 func (t *HTTPTransport) legacyInitializeStreamable(ctx context.Context, url string, headers map[string]string) (string, int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBufferString(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`))
+	encoded, err := marshalJSONRPCRequest(1, "initialize", initializeParams())
+	if err != nil {
+		return "", 0, fmt.Errorf("marshal mcp initialize request: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(encoded))
 	if err != nil {
 		return "", 0, fmt.Errorf("build mcp initialize request: %w", err)
 	}
