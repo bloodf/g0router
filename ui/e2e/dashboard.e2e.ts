@@ -275,6 +275,28 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("e2e-env-secret")).not.toBeVisible();
   });
 
+  test("starts MCP OAuth with Resource URI discovery and blank Authorization URL", async ({ page }) => {
+    const apiRequests = await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "MCP Accounts");
+    await page.getByRole("combobox", { name: /^Instance/ }).selectOption("mcp-1");
+    await expect(page.getByLabel("Authorization URL")).not.toHaveAttribute("required", "");
+    await page.getByLabel("Resource URI").fill("https://mcp.discovery.example.test");
+    await page.getByRole("button", { name: "Start OAuth" }).click();
+
+    await expect(page.getByRole("link", { name: "Open authorization URL" })).toHaveAttribute(
+      "href",
+      "https://auth.example.test/authorize?state=e2e"
+    );
+    await expect
+      .poll(() => apiRequests.find((request) => request.method === "POST" && request.path === "/api/mcp/instances/mcp-1/auth/start")?.body)
+      .toMatchObject({
+        authorization_url: "",
+        resource_uri: "https://mcp.discovery.example.test"
+      });
+  });
+
   test("handles endpoint copy, destructive cancellation, and mutation failure states", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:5173" });
     await mockAPI(page);

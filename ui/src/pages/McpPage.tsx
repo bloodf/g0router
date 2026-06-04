@@ -196,15 +196,21 @@ export function McpPage({ view = "all" }: { view?: MCPView }) {
       setOAuthError("Select an MCP instance before starting OAuth.");
       return;
     }
+    const authorizationURL = oauthForm.authorizationURL.trim();
+    const resourceURI = oauthForm.resourceURI.trim();
+    if (authorizationURL === "" && resourceURI === "") {
+      setOAuthError("Authorization URL or Resource URI is required.");
+      return;
+    }
 
     setIsStartingOAuth(true);
     try {
       const response = await apiFetch<OAuthStartResponse>(`${getMcpServersPath()}/${encodeURIComponent(instanceID)}/auth/start`, {
         method: "POST",
         body: {
-          authorization_url: oauthForm.authorizationURL.trim(),
+          authorization_url: authorizationURL,
           redirect_uri: oauthForm.redirectURI.trim(),
-          resource_uri: oauthForm.resourceURI.trim()
+          resource_uri: resourceURI
         }
       });
       setOAuthForm((current) => ({
@@ -511,13 +517,11 @@ function OAuthFormView({
         </label>
         <TextField
           label="Authorization URL"
-          required
           value={form.authorizationURL}
           onChange={(authorizationURL) => onChange({ ...form, authorizationURL })}
         />
         <TextField
           label="Resource URI"
-          required
           value={form.resourceURI}
           onChange={(resourceURI) => onChange({ ...form, resourceURI })}
         />
