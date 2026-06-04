@@ -31,7 +31,7 @@
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
 current_wave: "8.AF"
-last_updated: "2026-06-04T10:59:19Z"
+last_updated: "2026-06-04T11:06:15Z"
 last_agent: "orchestrator"
 ```
 
@@ -942,7 +942,7 @@ max_agents: 1
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T10:59:19Z"
 evaluator_prompt: "docs/evaluations/wave-8AF-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e924a-8c74-7373-b0a3-d22ee5fa7428 at commit d26d69f"
 gate_results:
   - "go test ./api -run TestIntegrationAuthenticatedAPIServerWithFakeUpstream -count=1: PASS"
   - "go test ./... -count=1: PASS"
