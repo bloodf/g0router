@@ -3,6 +3,7 @@ package mcp
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -90,11 +91,23 @@ func TestLauncherCapturesStderrDiagnostics(t *testing.T) {
 
 func TestHTTPLauncherStoresStreamableSessionID(t *testing.T) {
 	var gotProtocol string
+	var initializeRequest map[string]any
+	var methods []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		method, _ := req["method"].(string)
+		methods = append(methods, method)
+		if method == "notifications/initialized" {
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
 		gotProtocol = r.Header.Get("MCP-Protocol-Version")
+		initializeRequest = req
 		w.Header().Set("Mcp-Session-Id", "session-123")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","result":{}}`))
+		writeRPCResult(t, w, req["id"], map[string]any{"protocolVersion": protocolVersion})
 	}))
 	defer server.Close()
 
@@ -113,6 +126,30 @@ func TestHTTPLauncherStoresStreamableSessionID(t *testing.T) {
 	}
 	if gotProtocol == "" {
 		t.Fatal("MCP protocol version header should be sent")
+	}
+	if initializeRequest["method"] != "initialize" {
+		t.Fatalf("method = %q, want initialize", initializeRequest["method"])
+	}
+	params, ok := initializeRequest["params"].(map[string]any)
+	if !ok {
+		t.Fatalf("params = %#v, want object", initializeRequest["params"])
+	}
+	if params["protocolVersion"] != protocolVersion {
+		t.Fatalf("params.protocolVersion = %q, want %q", params["protocolVersion"], protocolVersion)
+	}
+	if _, ok := params["capabilities"].(map[string]any); !ok {
+		t.Fatalf("params.capabilities = %#v, want object", params["capabilities"])
+	}
+	clientInfo, ok := params["clientInfo"].(map[string]any)
+	if !ok {
+		t.Fatalf("params.clientInfo = %#v, want object", params["clientInfo"])
+	}
+	if clientInfo["name"] != "g0router" {
+		t.Fatalf("params.clientInfo.name = %q, want g0router", clientInfo["name"])
+	}
+	wantMethods := []string{"initialize", "notifications/initialized"}
+	if !stringSlicesEqual(methods, wantMethods) {
+		t.Fatalf("methods = %#v, want %#v", methods, wantMethods)
 	}
 }
 
