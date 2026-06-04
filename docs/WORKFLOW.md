@@ -110,7 +110,7 @@ max_agents: 8
 gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T08:35:02Z"
 evaluator_prompt: "docs/evaluations/wave-8N-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator thread 019e91bf-e9d8-7ca1-a054-b4b674de04ad at commit 66818e8"
 gate_results:
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
@@ -259,7 +259,7 @@ tasks:
       - api/handlers/mcpoauth_test.go
 ```
 
-**Checkpoint**: Wave 8.N deterministic gates passed from `main` at `2026-06-04T08:35:02Z` after MCP OAuth sanitization commit `36c2463`; external evaluation remains pending and release readiness is not claimed until that evaluator returns PASS.
+**Checkpoint**: Wave 8.N deterministic gates passed from `main` at `2026-06-04T08:35:02Z` after MCP OAuth sanitization commit `36c2463`; external evaluator thread `019e91bf-e9d8-7ca1-a054-b4b674de04ad` returned PASS at commit `66818e8` with no blocking findings.
 
 ---
 
