@@ -20,10 +20,12 @@ Review:
 
 Important commit:
 - Implementation commit: `d088f8f phase-8/task-provider: implement bedrock model listing`
+- Endpoint fix commit: `498ffaa phase-8/task-provider: fix bedrock model endpoint`
 
 Check:
 - Bedrock `ListModels` no longer returns the unsupported stub.
 - `ListModels` signs `GET /foundation-models` with the existing SigV4 path and propagates session tokens.
+- Default `ListModels` uses the Bedrock control-plane endpoint `bedrock.us-east-1.amazonaws.com`, not the runtime endpoint `bedrock-runtime.us-east-1.amazonaws.com`.
 - Tests use a local HTTP server, not mocks or external network.
 - Parsed Bedrock foundation model summaries return `providers.Model` values with provider `bedrock`.
 - Provider matrix and `/api/providers` expose Bedrock `ListModels=true` while keeping public inference, direct dispatch, inference, streaming, catalog routing, and quota false.
@@ -33,6 +35,7 @@ Check:
 
 Run:
 - `go test ./internal/providers/bedrock -run TestListModelsSignsAndParsesFoundationModels -count=1`
+- `go test ./internal/providers/bedrock -run TestListModelsUsesBedrockControlPlaneEndpointByDefault -count=1`
 - `go test ./internal/providers/bedrock -count=1`
 - `go test ./internal/provider -count=1`
 - `go test ./api/handlers -run 'TestProvidersMatrixExposesCapabilityStatus|TestProvidersListModelsForProvider' -count=1`

@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.AW"
-last_updated: "2026-06-04T17:26:04Z"
+last_updated: "2026-06-04T17:36:53Z"
 last_agent: "orchestrator"
 ```
 
@@ -1606,6 +1606,8 @@ evaluation: "PENDING external evaluator after Bedrock signed model listing parit
 gate_results:
   - "go test ./internal/providers/bedrock -run TestListModelsSignsAndParsesFoundationModels -count=1: RED before implementation, ListModels returned bedrock list models: unsupported"
   - "go test ./internal/providers/bedrock -run TestListModelsSignsAndParsesFoundationModels -count=1: PASS"
+  - "go test ./internal/providers/bedrock -run TestListModelsUsesBedrockControlPlaneEndpointByDefault -count=1: RED before endpoint fix, default ListModels used bedrock-runtime instead of bedrock control-plane endpoint"
+  - "go test ./internal/providers/bedrock -run 'TestListModelsUsesBedrockControlPlaneEndpointByDefault|TestListModelsSignsAndParsesFoundationModels' -count=1: PASS"
   - "go test ./internal/providers/bedrock ./internal/provider ./api/handlers -count=1: PASS"
   - "go test ./... -count=1: PASS"
   - "go vet ./...: PASS"
@@ -1621,6 +1623,7 @@ tasks:
     status: DONE
     agent: "orchestrator"
     commit: "d088f8f"
+    fix_commit: "498ffaa"
     files_owned:
       - internal/providers/bedrock/bedrock.go
       - internal/providers/bedrock/bedrock_test.go
