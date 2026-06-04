@@ -297,6 +297,36 @@ test.describe("dashboard control plane", () => {
       });
   });
 
+  test("connects provider OAuth on Connections/Auth with mocked exchange", async ({ page }) => {
+    const apiRequests = await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "Connections/Auth");
+    await page.getByRole("combobox", { name: "OAuth provider" }).selectOption("openai");
+    await page.getByLabel("OAuth account label").fill("OpenAI OAuth e2e");
+    await page.getByRole("button", { name: "Start OAuth" }).click();
+    await expect(page.getByRole("link", { name: "Open authorization URL" })).toHaveAttribute(
+      "href",
+      "https://auth.openai.example.test/authorize?state=provider-oauth-e2e"
+    );
+
+    await page
+      .getByLabel("Callback URL or code")
+      .fill("http://127.0.0.1:5173/api/oauth/callback?provider=openai&state=provider-oauth-e2e&code=provider-e2e-code");
+    await page.getByRole("button", { name: "Complete OAuth" }).click();
+
+    await expect(page.getByText("OAuth connected OpenAI OAuth e2e")).toBeVisible();
+    await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("OpenAI OAuth e2e");
+    await expect(page.getByText("provider-e2e-access")).not.toBeVisible();
+    await expect(page.getByText("provider-e2e-refresh")).not.toBeVisible();
+    await expect
+      .poll(() => apiRequests.find((request) => request.method === "POST" && request.path === "/api/oauth/openai/authorize")?.body)
+      .toMatchObject({ account_label: "OpenAI OAuth e2e" });
+    await expect
+      .poll(() => apiRequests.find((request) => request.method === "POST" && request.path === "/api/oauth/openai/exchange")?.body)
+      .toMatchObject({ state: "provider-oauth-e2e", code: "provider-e2e-code" });
+  });
+
   test("handles endpoint copy, destructive cancellation, and mutation failure states", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:5173" });
     await mockAPI(page);
@@ -590,6 +620,50 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     return { status: 200, body: { ok: true, provider: "openai", name: "OpenAI e2e" } };
   }
 
+  if (method === "POST" && path === "/api/oauth/openai/authorize") {
+    return {
+      status: 200,
+      body: {
+        provider: "openai",
+        auth_url: "https://auth.openai.example.test/authorize?state=provider-oauth-e2e",
+        session_id: "provider-oauth-e2e",
+        user_code: "OPENAI-E2E",
+        verification: "https://auth.openai.example.test/device"
+      }
+    };
+  }
+
+  if (method === "POST" && path === "/api/oauth/openai/exchange") {
+    const request = body as { state?: string };
+    const connection = {
+      ID: "conn-provider-oauth",
+      Provider: "openai",
+      Name: "OpenAI OAuth e2e",
+      AuthType: "oauth",
+      IsActive: true,
+      AccountID: null,
+      Email: null,
+      BackoffLevel: 0,
+      CreatedAt: "2026-06-04T11:00:00Z",
+      UpdatedAt: "2026-06-04T11:00:00Z",
+      AccessToken: "provider-e2e-access",
+      RefreshToken: "provider-e2e-refresh"
+    };
+    if (request.state === "provider-oauth-e2e") {
+      state.connections = [...state.connections, connection];
+    }
+    return {
+      status: 200,
+      body: {
+        id: connection.ID,
+        provider: connection.Provider,
+        name: connection.Name,
+        auth_type: connection.AuthType,
+        scopes: ["read"]
+      }
+    };
+  }
+
   if (method === "DELETE" && path.startsWith("/api/connections/")) {
     const id = decodeURIComponent(path.slice("/api/connections/".length));
     state.connections = state.connections.filter((connection) => connection.ID !== id);
@@ -830,7 +904,7 @@ const providers = [
     omp_id: "openai",
     router9_id: "openai",
     bifrost_id: "openai",
-    auth_types: ["api_key"],
+    auth_types: ["oauth", "api_key"],
     refresh: false,
     registered_adapter: true,
     public_inference: true,
