@@ -52,6 +52,8 @@ type OAuthStartResponse = {
   expires_at: string;
 };
 
+type MCPView = "all" | "instances" | "accounts" | "tools";
+
 const emptyData: MCPData = {
   accountsByInstance: {},
   clients: [],
@@ -70,7 +72,7 @@ const defaultInstanceForm: InstanceForm = {
   url: ""
 };
 
-export function McpPage() {
+export function McpPage({ view = "all" }: { view?: MCPView }) {
   const [state, setState] = useState<AsyncState<MCPData>>({ status: "loading" });
   const [instanceForm, setInstanceForm] = useState<InstanceForm>(defaultInstanceForm);
   const [oauthForm, setOAuthForm] = useState<OAuthForm>({
@@ -123,6 +125,9 @@ export function McpPage() {
     () => Object.values(data.accountsByInstance).reduce((count, accounts) => count + accounts.length, 0),
     [data.accountsByInstance]
   );
+  const showInstances = view === "all" || view === "instances";
+  const showAccounts = view === "all" || view === "accounts";
+  const showTools = view === "all" || view === "tools";
 
   async function handleCreateInstance(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -261,7 +266,7 @@ export function McpPage() {
   }
 
   return (
-    <Panel title="MCP gateway" description="Configured MCP instances, accounts, health, and compact tool manifests.">
+    <Panel title={mcpPanelTitle(view)} description={mcpPanelDescription(view)}>
       <div className="space-y-5">
         {state.status === "loading" ? <LoadingState label="Loading MCP data" /> : null}
         {state.status === "auth-expired" ? (
@@ -272,40 +277,48 @@ export function McpPage() {
         ) : null}
         {state.status === "success" || state.status === "empty" ? (
           <>
-            <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-              <InstanceFormView
-                error={createError}
-                form={instanceForm}
-                isSubmitting={isCreating}
-                onChange={setInstanceForm}
-                onSubmit={handleCreateInstance}
+            {showInstances || showAccounts ? (
+              <div className={showInstances && showAccounts ? "grid gap-4 xl:grid-cols-[1.2fr_0.8fr]" : "grid gap-4"}>
+                {showInstances ? (
+                  <InstanceFormView
+                    error={createError}
+                    form={instanceForm}
+                    isSubmitting={isCreating}
+                    onChange={setInstanceForm}
+                    onSubmit={handleCreateInstance}
+                  />
+                ) : null}
+                {showAccounts ? (
+                  <OAuthFormView
+                    authURL={startedAuthURL}
+                    callbackURL={callbackURL}
+                    completeMessage={oauthSuccess}
+                    error={oauthError}
+                    form={oauthForm}
+                    instances={data.instances}
+                    isCompleting={isCompletingOAuth}
+                    isSubmitting={isStartingOAuth}
+                    onCallbackURLChange={setCallbackURL}
+                    onChange={setOAuthForm}
+                    onComplete={() => void handleCompleteOAuth()}
+                    onSubmit={handleStartOAuth}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+            {showTools ? (
+              <ToolExecutionForm
+                args={toolArguments}
+                error={toolError}
+                isSubmitting={isExecutingTool}
+                onArgsChange={setToolArguments}
+                onSubmit={handleExecuteTool}
+                onToolChange={setToolName}
+                result={toolResult}
+                toolName={toolName}
+                tools={data.tools}
               />
-              <OAuthFormView
-                authURL={startedAuthURL}
-                callbackURL={callbackURL}
-                completeMessage={oauthSuccess}
-                error={oauthError}
-                form={oauthForm}
-                instances={data.instances}
-                isCompleting={isCompletingOAuth}
-                isSubmitting={isStartingOAuth}
-                onCallbackURLChange={setCallbackURL}
-                onChange={setOAuthForm}
-                onComplete={() => void handleCompleteOAuth()}
-                onSubmit={handleStartOAuth}
-              />
-            </div>
-            <ToolExecutionForm
-              args={toolArguments}
-              error={toolError}
-              isSubmitting={isExecutingTool}
-              onArgsChange={setToolArguments}
-              onSubmit={handleExecuteTool}
-              onToolChange={setToolName}
-              result={toolResult}
-              toolName={toolName}
-              tools={data.tools}
-            />
+            ) : null}
             {deleteError ? <p className="text-sm font-medium text-rose-700">{deleteError}</p> : null}
 
             {state.status === "empty" ? (
@@ -315,6 +328,10 @@ export function McpPage() {
                 busyInstanceID={busyInstanceID}
                 data={data}
                 onDeleteInstance={handleDeleteInstance}
+                showAccounts={showAccounts}
+                showClients={view === "all"}
+                showInstances={showInstances}
+                showTools={showTools}
                 totalAccounts={totalAccounts}
               />
             )}
@@ -565,11 +582,19 @@ function MCPDashboard({
   busyInstanceID,
   data,
   onDeleteInstance,
+  showAccounts,
+  showClients,
+  showInstances,
+  showTools,
   totalAccounts
 }: {
   busyInstanceID: string;
   data: MCPData;
   onDeleteInstance: (instance: MCPInstanceResponse) => void;
+  showAccounts: boolean;
+  showClients: boolean;
+  showInstances: boolean;
+  showTools: boolean;
   totalAccounts: number;
 }) {
   return (
@@ -581,7 +606,8 @@ function MCPDashboard({
         <SummaryItem label="Accounts" value={totalAccounts} />
       </div>
 
-      <div className="overflow-x-auto rounded-md border border-zinc-200">
+      {showInstances ? (
+        <div className="overflow-x-auto rounded-md border border-zinc-200">
         <table aria-label="MCP instances" className="w-full min-w-[760px] text-left text-sm">
           <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
             <tr>
@@ -627,9 +653,12 @@ function MCPDashboard({
             ))}
           </tbody>
         </table>
-      </div>
+        </div>
+      ) : null}
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      {showClients || showAccounts ? (
+        <div className={showClients && showAccounts ? "grid gap-4 xl:grid-cols-2" : "grid gap-4"}>
+        {showClients ? (
         <DataTable title="Clients">
           {data.clients.length === 0 ? (
             <p className="px-4 py-3 text-sm text-zinc-500">No legacy MCP clients.</p>
@@ -662,7 +691,9 @@ function MCPDashboard({
             </table>
           )}
         </DataTable>
+        ) : null}
 
+        {showAccounts ? (
         <DataTable title="Accounts">
           {totalAccounts === 0 ? (
             <p className="px-4 py-3 text-sm text-zinc-500">No OAuth accounts.</p>
@@ -691,8 +722,11 @@ function MCPDashboard({
             </table>
           )}
         </DataTable>
-      </div>
+        ) : null}
+        </div>
+      ) : null}
 
+      {showTools ? (
       <DataTable title="Tools">
         {data.tools.length === 0 ? (
           <p className="px-4 py-3 text-sm text-zinc-500">No discovered tools.</p>
@@ -715,8 +749,35 @@ function MCPDashboard({
           </table>
         )}
       </DataTable>
+      ) : null}
     </>
   );
+}
+
+function mcpPanelTitle(view: MCPView) {
+  switch (view) {
+    case "instances":
+      return "MCP instances";
+    case "accounts":
+      return "MCP accounts";
+    case "tools":
+      return "MCP tools";
+    case "all":
+      return "MCP gateway";
+  }
+}
+
+function mcpPanelDescription(view: MCPView) {
+  switch (view) {
+    case "instances":
+      return "Configured MCP runtime instances, launch settings, health, and credential redaction.";
+    case "accounts":
+      return "OAuth account labels and callback completion for configured MCP instances.";
+    case "tools":
+      return "Discovered MCP tools and execution results from the runtime tool manager.";
+    case "all":
+      return "Configured MCP instances, accounts, health, and compact tool manifests.";
+  }
 }
 
 function TextField({

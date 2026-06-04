@@ -9,7 +9,10 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { EndpointPage } from "./pages/EndpointPage";
 import { LogsPage } from "./pages/LogsPage";
+import { McpAccountsPage } from "./pages/McpAccountsPage";
+import { McpInstancesPage } from "./pages/McpInstancesPage";
 import { McpPage } from "./pages/McpPage";
+import { McpToolsPage } from "./pages/McpToolsPage";
 import { ModelsPage } from "./pages/ModelsPage";
 import { PricingPage } from "./pages/PricingPage";
 import { ProvidersPage } from "./pages/ProvidersPage";
@@ -110,6 +113,27 @@ const pages = [
     Component: McpPage
   },
   {
+    id: "mcp-instances",
+    label: "MCP Instances",
+    title: "MCP Instances",
+    description: "Runtime instance launch settings, health, and redacted credential metadata.",
+    Component: McpInstancesPage
+  },
+  {
+    id: "mcp-accounts",
+    label: "MCP Accounts",
+    title: "MCP Accounts",
+    description: "OAuth account labels and callback completion for MCP instances.",
+    Component: McpAccountsPage
+  },
+  {
+    id: "mcp-tools",
+    label: "MCP Tools",
+    title: "MCP Tools",
+    description: "Discovered runtime tools and execution results.",
+    Component: McpToolsPage
+  },
+  {
     id: "settings",
     label: "Settings",
     title: "Settings",
@@ -150,7 +174,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-950">
-      <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-zinc-200 bg-white px-5 py-6 lg:block">
+      <aside className="fixed inset-y-0 left-0 hidden w-64 overflow-y-auto border-r border-zinc-200 bg-white px-5 py-6 lg:block">
         <h1 className="text-xl font-semibold tracking-normal">g0router</h1>
         <p className="mt-1 text-sm text-zinc-500">Control plane</p>
 

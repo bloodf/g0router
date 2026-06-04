@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AA"
-last_updated: "2026-06-04T10:21:41Z"
+current_wave: "8.AB"
+last_updated: "2026-06-04T10:30:05Z"
 last_agent: "orchestrator"
 ```
 
@@ -767,6 +767,50 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AA separates provider account and auth management into a dedicated Connections/Auth dashboard route while keeping provider matrix contract details on the Providers route.
+
+### Wave 8.AB — Dashboard MCP Split Pages
+
+```yaml
+wave: "8.AB"
+status: DONE
+max_agents: 2
+gate: "go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
+completed_at: "2026-06-04T10:30:05Z"
+evaluator_prompt: "docs/evaluations/wave-8AB-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "npm --prefix ui test -- --run McpSplitPages McpPage App: PASS"
+  - "npm --prefix ui run e2e -- dashboard.e2e.ts: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS"
+  - "make build: PASS"
+
+tasks:
+  - id: "8.AB.1"
+    name: "Add dedicated dashboard MCP instance, account, and tool pages"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - ui/src/App.tsx
+      - ui/src/App.test.tsx
+      - ui/src/pages/McpPage.tsx
+      - ui/src/pages/McpInstancesPage.tsx
+      - ui/src/pages/McpAccountsPage.tsx
+      - ui/src/pages/McpToolsPage.tsx
+      - ui/src/pages/McpSplitPages.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8AB-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.AB splits the dashboard MCP surface into dedicated Instances, Accounts, and Tools routes while preserving the combined MCP route and credential redaction.
 
 ---
 

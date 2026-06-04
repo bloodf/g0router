@@ -87,6 +87,23 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByRole("table", { name: "MCP instances" })).toContainText("linear-tools");
     await expect(page.getByRole("heading", { name: "Tools" })).toBeVisible();
 
+    await navigateTo(page, "MCP Instances");
+    await expect(page.getByRole("heading", { exact: true, name: "MCP Instances" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "MCP instances" })).toContainText("linear-tools");
+    await expect(page.getByRole("heading", { name: "Start OAuth" })).not.toBeVisible();
+
+    await navigateTo(page, "MCP Accounts");
+    await expect(page.getByRole("heading", { exact: true, name: "MCP Accounts" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Start OAuth" })).toBeVisible();
+    await expect(page.getByText("mcp@example.test")).toBeVisible();
+    await expect(page.getByRole("table", { name: "MCP instances" })).not.toBeVisible();
+
+    await navigateTo(page, "MCP Tools");
+    await expect(page.getByRole("heading", { exact: true, name: "MCP Tools" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Execute tool" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "mcp-1__linear-search" })).toBeVisible();
+    await expect(page.getByRole("table", { name: "MCP instances" })).not.toBeVisible();
+
     await navigateTo(page, "Settings");
     await expect(page.getByRole("heading", { exact: true, name: "Settings" })).toBeVisible();
     await expect(page.getByLabel("Proxy URL")).toHaveValue("http://127.0.0.1:8080");
@@ -185,6 +202,29 @@ test.describe("dashboard control plane", () => {
       page.getByRole("button", { name: "Delete github-tools" }).click()
     );
     await expect(page.getByRole("table", { name: "MCP instances" })).not.toContainText("github-tools");
+
+    await navigateTo(page, "MCP Instances");
+    await page.getByLabel("Instance name").fill("github-tools");
+    await page.getByLabel("Server key").fill("github");
+    await page.getByRole("textbox", { exact: true, name: "URL" }).fill("https://mcp.github.example.test");
+    await page.getByRole("button", { name: "Create instance" }).click();
+    await expect(page.getByRole("table", { name: "MCP instances" })).toContainText("github-tools");
+
+    await navigateTo(page, "MCP Accounts");
+    await page.getByRole("combobox", { name: /^Instance/ }).selectOption("mcp-created");
+    await page.getByLabel("Authorization URL").fill("https://auth.example.test/authorize");
+    await page.getByLabel("Resource URI").fill("https://mcp.github.example.test");
+    await page.getByRole("button", { name: "Start OAuth" }).click();
+    await expect(page.getByRole("link", { name: "Open authorization URL" })).toHaveAttribute(
+      "href",
+      "https://auth.example.test/authorize?state=e2e"
+    );
+
+    await navigateTo(page, "MCP Tools");
+    await page.getByRole("combobox", { name: "Tool" }).selectOption("mcp-1__linear-search");
+    await page.getByLabel("Arguments JSON").fill("{\"query\":\"release\"}");
+    await page.getByRole("button", { name: "Execute tool" }).click();
+    await expect(page.getByText(/linear issue found/i)).toBeVisible();
 
     await navigateTo(page, "Settings");
     await page.getByLabel("Proxy URL").fill("http://127.0.0.1:9090");
@@ -301,6 +341,15 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "MCP");
     await expect(page.getByText("No MCP data")).toBeVisible();
 
+    await navigateTo(page, "MCP Instances");
+    await expect(page.getByText("No MCP data")).toBeVisible();
+
+    await navigateTo(page, "MCP Accounts");
+    await expect(page.getByText("No MCP data")).toBeVisible();
+
+    await navigateTo(page, "MCP Tools");
+    await expect(page.getByText("No MCP data")).toBeVisible();
+
     await navigateTo(page, "Settings");
     await expect(page.getByText("No runtime settings returned")).toBeVisible();
 
@@ -334,11 +383,20 @@ test.describe("dashboard control plane", () => {
 
     await navigateTo(page, "MCP");
     await expect(page.getByText("MCP session expired")).toBeVisible();
+
+    await navigateTo(page, "MCP Instances");
+    await expect(page.getByText("MCP session expired")).toBeVisible();
+
+    await navigateTo(page, "MCP Accounts");
+    await expect(page.getByText("MCP session expired")).toBeVisible();
+
+    await navigateTo(page, "MCP Tools");
+    await expect(page.getByText("MCP session expired")).toBeVisible();
   });
 });
 
 async function navigateTo(page: Page, label: string) {
-  await page.getByRole("button", { name: label }).click();
+  await page.getByRole("button", { exact: true, name: label }).click();
 }
 
 type MockMode = "normal" | "empty" | "auth-expired" | "mutation-failure";

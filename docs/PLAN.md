@@ -47,7 +47,7 @@ STAGE 5 ─┬─ Wave 5.A [3 tasks]  ──► Makefile, systemd, Docker
           └─ Wave 5.B [2 tasks]  ──► README polish, E2E tests
 STAGE 6 ─── Wave 6.A [6 tasks]   ──► advanced MCP instances, OAuth, callbacks
 STAGE 7 ─── Waves 7.A–7.M        ──► remediation, release hardening, docs reconciliation
-STAGE 8 ─── Waves 8.A–8.AA       ──► completion hardening, E2E/API integration, audit fixes
+STAGE 8 ─── Waves 8.A–8.AB       ──► completion hardening, E2E/API integration, audit fixes
 ```
 
 ## Phase Index

@@ -41,6 +41,9 @@ describe("App", () => {
       "Quota",
       "Combos",
       "MCP",
+      "MCP Instances",
+      "MCP Accounts",
+      "MCP Tools",
       "Settings",
       "Diagnostics"
     ]) {
