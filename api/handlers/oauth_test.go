@@ -547,8 +547,8 @@ func TestOAuthExchangeRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestOAuthHandlersReturnFlowErrors(t *testing.T) {
-	flow := &fakeOAuthFlow{provider: oauth.ProviderID("codex"), pollErr: errors.New("poll failed")}
+func TestOAuthHandlersSanitizePollFlowErrors(t *testing.T) {
+	flow := &fakeOAuthFlow{provider: oauth.ProviderID("codex"), pollErr: errors.New("poll failed access_token=access-token refresh_token=refresh-token code=callback-code verifier=cursor-verifier")}
 	ctx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/codex/poll?session_id=device-123", nil)
 
 	OAuthPoll(ctx, openHandlerTestStore(t), OAuthFlows{flow.ProviderID(): flow})
@@ -556,8 +556,14 @@ func TestOAuthHandlersReturnFlowErrors(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
 	}
-	if !strings.Contains(string(ctx.Response.Body()), "poll failed") {
-		t.Fatalf("body = %s, want poll error", ctx.Response.Body())
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "oauth poll failed") {
+		t.Fatalf("body = %s, want sanitized poll error", ctx.Response.Body())
+	}
+	for _, secret := range []string{"access-token", "refresh-token", "callback-code", "cursor-verifier"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("body leaked %q: %s", secret, body)
+		}
 	}
 }
 

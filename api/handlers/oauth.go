@@ -97,7 +97,7 @@ func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 
 	result, err := flow.Poll(requestContext(ctx), authSession)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("poll oauth: %v", err))
+		writeError(ctx, fasthttp.StatusInternalServerError, "oauth poll failed")
 		return
 	}
 

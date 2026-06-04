@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BC"
-last_updated: "2026-06-04T20:48:00Z"
+current_wave: "8.BD"
+last_updated: "2026-06-04T21:18:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1882,7 +1882,7 @@ max_agents: 1
 gate: "go test ./internal/provider/oauth -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T20:12:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BB-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "FAIL external evaluator thread 019e9425-54b8-7861-9a92-ba1349918371; OAuthPoll could not restore the stored Cursor PKCE verifier from the public session id, remediated in Wave 8.BC"
 gate_results:
   - "go test ./internal/provider/oauth -run 'TestCursorFlow(StartBuildsOMPLoginDeepControlURL|PollPendingOn404|PollCompleteStoresAccessRefreshAndExpiry|RefreshUsesOMPExchangeUserAPIKey|ExchangeUnsupported)' -count=1: RED before implementation, CursorConfig lacked LoginURL/PollURL/RefreshURL/NewUUID and Poll was unsupported"
   - "go test ./internal/provider/oauth -run 'TestCursorFlow(StartBuildsOMPLoginDeepControlURL|PollPendingOn404|PollCompleteStoresAccessRefreshAndExpiry|RefreshUsesOMPExchangeUserAPIKey|ExchangeUnsupported)' -count=1: PASS"
@@ -1926,7 +1926,7 @@ max_agents: 1
 gate: "go test ./internal/store ./api/handlers -run 'TestOAuthSessionCanBeReadBeforeSingleUseConsume|TestOAuthPollUsesStoredVerifierAndAccountLabel|TestOAuthPollUsesSessionFromQuery|TestOAuthPollAcceptsGitHubAlias' -count=1 && npm --prefix ui test -- --run src/api.test.ts src/pages/ProvidersPage.test.tsx && npm --prefix ui run e2e -- --grep 'provider OAuth' && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build"
 completed_at: "2026-06-04T20:48:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BC-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "FAIL external evaluator agent 019e946b-f591-7790-9306-108ca36743ae; OAuthPoll serialized raw poll errors that could contain tokens or PKCE verifier material, remediated in Wave 8.BD"
 gate_results:
   - "external evaluator thread 019e9425-54b8-7861-9a92-ba1349918371 identified that OAuthStart returned only the public Cursor uuid/session state, while OAuthPoll needed the stored PKCE verifier to call the Cursor flow"
   - "go test ./internal/store -run TestOAuthSessionCanBeReadBeforeSingleUseConsume -count=1: PASS"
@@ -1964,6 +1964,44 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BC fixes the Cursor OAuth completion path exposed by Wave 8.BB. Provider OAuth poll now looks up the stored verifier without consuming pending sessions, restores `state.verifier` before calling the provider flow, consumes the stored session only after a complete poll, and persists the account label into the resulting connection. The dashboard can now complete device/poll provider OAuth sessions with a `Poll OAuth` action while still supporting callback exchange flows.
+
+---
+
+### Wave 8.BD — OAuth Poll Error Sanitization
+
+```yaml
+wave: "8.BD"
+status: DONE
+max_agents: 1
+gate: "go test ./api/handlers -run 'TestOAuthPoll|TestOAuthHandlers' -count=1 && go test ./internal/store -run TestOAuthSessionCanBeReadBeforeSingleUseConsume -count=1 && go test ./api/handlers -run 'TestOAuthPollUsesStoredVerifierAndAccountLabel|TestOAuthPollUsesSessionFromQuery|TestOAuthPollAcceptsGitHubAlias' -count=1 && go test ./... -count=1 && go vet ./... && git diff --check"
+completed_at: "2026-06-04T21:18:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BD-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./api/handlers -run TestOAuthHandlersSanitizePollFlowErrors -count=1: RED before implementation, response serialized raw poll error containing access-token, refresh-token, callback-code, and cursor-verifier"
+  - "go test ./api/handlers -run 'TestOAuthPoll|TestOAuthHandlers' -count=1: PASS"
+  - "go test ./internal/store -run TestOAuthSessionCanBeReadBeforeSingleUseConsume -count=1: PASS"
+  - "go test ./api/handlers -run 'TestOAuthPollUsesStoredVerifierAndAccountLabel|TestOAuthPollUsesSessionFromQuery|TestOAuthPollAcceptsGitHubAlias' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BD.1"
+    name: "Sanitize provider OAuth poll errors"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - api/handlers/oauth.go
+      - api/handlers/oauth_test.go
+      - docs/WORKFLOW.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/evaluations/wave-8BD-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BD fixes the Wave 8.BC evaluator-found leak by returning a stable `oauth poll failed` response when provider polling fails. Regression coverage proves access tokens, refresh tokens, callback codes, and Cursor PKCE verifier material from raw poll errors are not serialized to API/UI clients.
 
 ---
 
