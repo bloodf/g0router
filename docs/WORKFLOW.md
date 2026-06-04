@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.AV"
-last_updated: "2026-06-04T17:12:53Z"
+last_updated: "2026-06-04T17:21:02Z"
 last_agent: "orchestrator"
 ```
 
@@ -1561,7 +1561,7 @@ max_agents: 1
 gate: "go test ./internal/providers/vertex ./internal/provider -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
 completed_at: "2026-06-04T17:12:53Z"
 evaluator_prompt: "docs/evaluations/wave-8AV-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after Vertex native SSE streaming parity"
+evaluation: "PASS external evaluator thread 019e93a2-ce23-7f22-a974-07f393f52bad; no blocking findings"
 gate_results:
   - "go test ./internal/providers/vertex -run 'TestChatCompletionStreamMapsVertexSSEChunks|TestChatCompletionStreamMalformedSSEEmitsErrorChunk' -count=1: RED before implementation, ChatCompletionStream returned vertex unsupported operation"
   - "go test ./internal/providers/vertex -run 'TestChatCompletionStreamMapsVertexSSEChunks|TestChatCompletionStreamMalformedSSEEmitsErrorChunk' -count=1: PASS"
