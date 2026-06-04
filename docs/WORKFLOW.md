@@ -30,8 +30,8 @@
 ```yaml
 project_status: ACTIVE_REMEDIATION
 current_stage: 8
-current_wave: "8.AL"
-last_updated: "2026-06-04T12:28:00Z"
+current_wave: "8.AM"
+last_updated: "2026-06-04T12:40:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -1189,6 +1189,37 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.AL adds dashboard form support for MCP instance `args`, `headers`, `env`, and `cwd`, validates JSON before POST, omits empty values, keeps secret values out of rendered instance rows, and proves the flow in both unit and mocked Playwright E2E coverage.
+
+### Wave 8.AM — Streamable HTTP MCP Initialize Params
+
+```yaml
+wave: "8.AM"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/mcp -run 'TestHTTPLauncherStoresStreamableSessionID|TestHTTPTransportStreamableInitializeSendsClientInfo|TestStreamableHTTPClientListsAndCallsTools' -count=1 && go test ./internal/mcp -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router"
+completed_at: "2026-06-04T12:40:00Z"
+evaluator_prompt: "docs/evaluations/wave-8AM-evaluator-prompt.md"
+evaluation: "PENDING"
+gate_results:
+  - "go test ./internal/mcp -run 'TestHTTPLauncherStoresStreamableSessionID|TestHTTPTransportStreamableInitializeSendsClientInfo|TestStreamableHTTPClientListsAndCallsTools' -count=1: PASS"
+  - "go test ./internal/mcp -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+
+tasks:
+  - id: "8.AM.1"
+    name: "Streamable HTTP launcher initialize params"
+    status: DONE
+    agent: "subagent 019e928c-61f2-7882-a108-f54251c29863"
+    commit: "ba401d8"
+    merge_commit: "f98302a"
+    files_owned:
+      - internal/mcp/http.go
+      - internal/mcp/launcher_test.go
+```
+
+**Checkpoint**: Wave 8.AM makes the legacy streamable HTTP launcher send MCP `initialize` params with protocol version, capabilities, and `clientInfo`, matching the runtime streamable HTTP client while preserving protocol headers, session capture, and initialized notification behavior.
 
 ---
 

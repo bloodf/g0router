@@ -292,8 +292,8 @@ Wave: {wave_id}
 | 5 | 2 | 3 | 5 |
 | 6 | 1 | 1 | 6 |
 | 7 | 13 | 8 | remediation Waves 7.A–7.M |
-| 8 | 38 | 8 | completion hardening Waves 8.A–8.AL |
-| **Total** | **64 waves** | — | **77 original tasks + remediation + completion hardening** |
+| 8 | 39 | 8 | completion hardening Waves 8.A–8.AM |
+| **Total** | **65 waves** | — | **77 original tasks + remediation + completion hardening** |
 
 With 8 agents, the original 77 tasks compressed into ~13 sequential merge
 points instead of 77. Stage 7 then ran the principal-engineer remediation, and
@@ -301,5 +301,5 @@ Stage 8 records completion hardening, integration coverage, optional live smoke,
 follow-up audit remediation, dashboard route hardening, public route integration
 coverage, MCP OAuth parity, connection mutation integration, no-auth provider
 runtime dispatch, selected MCP OAuth account binding, MCP OAuth client
-credential propagation, and dashboard MCP instance launch fields through Wave
-8.AL.
+credential propagation, dashboard MCP instance launch fields, and streamable
+HTTP MCP initialize params through Wave 8.AM.
