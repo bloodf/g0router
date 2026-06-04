@@ -99,6 +99,25 @@ export type ConnectionTestResponse = {
   name: string;
 };
 
+export type ProviderOAuthStartResponse = {
+  provider: string;
+  auth_url?: string;
+  session_id?: string;
+  user_code?: string;
+  verification?: string;
+  expires_in?: number;
+  poll_interval?: number;
+};
+
+export type ProviderOAuthConnectionResponse = {
+  id: string;
+  provider: string;
+  name: string;
+  auth_type: string;
+  expires_at?: number | null;
+  scopes?: string[];
+};
+
 export type APIKeyResponse = {
   ID: string;
   Name: string;
@@ -354,6 +373,14 @@ export function getConnectionsPath() {
   return apiPaths.connections;
 }
 
+export function getProviderOAuthAuthorizePath(provider: string) {
+  return `/api/oauth/${encodeURIComponent(provider)}/authorize`;
+}
+
+export function getProviderOAuthExchangePath(provider: string) {
+  return `/api/oauth/${encodeURIComponent(provider)}/exchange`;
+}
+
 export function getApiKeysPath() {
   return apiPaths.apiKeys;
 }
@@ -474,6 +501,20 @@ export function deleteConnection(id: string) {
 
 export function testConnection(id: string) {
   return apiFetch<ConnectionTestResponse>(`${getConnectionsPath()}/${encodeURIComponent(id)}/test`, { method: "POST" });
+}
+
+export function startProviderOAuth(provider: string, accountLabel: string) {
+  return apiFetch<ProviderOAuthStartResponse>(getProviderOAuthAuthorizePath(provider), {
+    method: "POST",
+    body: { account_label: accountLabel }
+  });
+}
+
+export function exchangeProviderOAuth(provider: string, state: string, code: string) {
+  return apiFetch<ProviderOAuthConnectionResponse>(getProviderOAuthExchangePath(provider), {
+    method: "POST",
+    body: { state, code }
+  });
 }
 
 export function listAPIKeys() {

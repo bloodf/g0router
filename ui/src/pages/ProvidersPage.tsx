@@ -4,11 +4,14 @@ import {
   asyncError,
   createConnection,
   deleteConnection,
+  exchangeProviderOAuth,
   listConnections,
   listProviders,
+  startProviderOAuth,
   testConnection,
   type AsyncState,
   type ConnectionResponse,
+  type ProviderOAuthStartResponse,
   type ProviderMatrixEntry
 } from "../api";
 import { EmptyState, ErrorState, LoadingState, Panel, StatusPill } from "../components/Primitives";
@@ -41,8 +44,10 @@ export function ProvidersPage() {
 export function ProviderConnectionsControlPlane({ showProviderContract = false }: { showProviderContract?: boolean }) {
   const [state, setState] = useState<AsyncState<ProviderData>>({ status: "loading" });
 
-  const loadProviders = useCallback(async () => {
-    setState({ status: "loading" });
+  const loadProviders = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setState({ status: "loading" });
+    }
     try {
       const [providers, connections] = await Promise.all([listProviders(), listConnections()]);
       const data = { providers, connections };
@@ -67,15 +72,17 @@ export function ProviderConnectionsControlPlane({ showProviderContract = false }
     >
       {state.status === "loading" || state.status === "idle" ? <LoadingState label="Loading providers" /> : null}
       {state.status === "auth-expired" ? (
-        <ErrorState title="Authentication expired" message={state.error.message} onRetry={loadProviders} />
+        <ErrorState title="Authentication expired" message={state.error.message} onRetry={() => void loadProviders()} />
       ) : null}
       {state.status === "error" ? (
-        <ErrorState title="Could not load providers" message={state.error.message} onRetry={loadProviders} />
+        <ErrorState title="Could not load providers" message={state.error.message} onRetry={() => void loadProviders()} />
       ) : null}
       {state.status === "empty" ? (
         <EmptyState title="No provider records" description="The management API returned no providers or connections." />
       ) : null}
-      {state.status === "success" ? <ProviderTables data={state.data} onReload={loadProviders} showProviderContract={showProviderContract} /> : null}
+      {state.status === "success" ? (
+        <ProviderTables data={state.data} onReload={() => loadProviders(false)} showProviderContract={showProviderContract} />
+      ) : null}
     </Panel>
   );
 }
@@ -90,15 +97,23 @@ function ProviderTables({
   showProviderContract: boolean;
 }) {
   const apiKeyProviders = data.providers.filter((provider) => provider.auth_types?.includes("api_key"));
+  const oauthProviders = data.providers.filter((provider) => provider.auth_types?.includes("oauth"));
   const [provider, setProvider] = useState(apiKeyProviders[0]?.id ?? "");
+  const [oauthProvider, setOAuthProvider] = useState(oauthProviders[0]?.id ?? "");
+  const [oauthAccountLabel, setOAuthAccountLabel] = useState("");
+  const [oauthCallback, setOAuthCallback] = useState("");
+  const [oauthSession, setOAuthSession] = useState<ProviderOAuthStartResponse | null>(null);
   const [name, setName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isStartingOAuth, setIsStartingOAuth] = useState(false);
+  const [isExchangingOAuth, setIsExchangingOAuth] = useState(false);
   const [busyConnectionID, setBusyConnectionID] = useState("");
   const [mutationError, setMutationError] = useState("");
   const [mutationMessage, setMutationMessage] = useState("");
 
   const selectedProvider = provider || apiKeyProviders[0]?.id || "";
+  const selectedOAuthProvider = oauthProvider || oauthProviders[0]?.id || "";
 
   async function handleCreateConnection(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -126,6 +141,59 @@ function ProviderTables({
       setMutationError(toApiError(error).message);
     } finally {
       setIsCreating(false);
+    }
+  }
+
+  async function handleStartOAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedOAuthProvider) {
+      setMutationError("OAuth provider is required.");
+      setMutationMessage("");
+      return;
+    }
+    setIsStartingOAuth(true);
+    setMutationError("");
+    setMutationMessage("");
+    setOAuthSession(null);
+    try {
+      const session = await startProviderOAuth(selectedOAuthProvider, oauthAccountLabel.trim());
+      setOAuthSession(session);
+      setOAuthCallback("");
+      setMutationMessage(`OAuth started for ${selectedOAuthProvider}`);
+    } catch (error) {
+      setMutationError(toApiError(error).message);
+    } finally {
+      setIsStartingOAuth(false);
+    }
+  }
+
+  async function handleExchangeOAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedOAuthProvider) {
+      setMutationError("OAuth provider is required.");
+      setMutationMessage("");
+      return;
+    }
+    const callback = oauthCallback.trim();
+    const parsed = parseOAuthCallback(callback, oauthSession?.session_id ?? "");
+    if (!parsed.code || !parsed.state) {
+      setMutationError("OAuth callback code and state are required.");
+      setMutationMessage("");
+      return;
+    }
+    setIsExchangingOAuth(true);
+    setMutationError("");
+    setMutationMessage("");
+    try {
+      const connection = await exchangeProviderOAuth(selectedOAuthProvider, parsed.state, parsed.code);
+      setOAuthCallback("");
+      setOAuthSession(null);
+      setMutationMessage(`OAuth connected ${connection.name || connection.id}`);
+      await onReload();
+    } catch (error) {
+      setMutationError(toApiError(error).message);
+    } finally {
+      setIsExchangingOAuth(false);
     }
   }
 
@@ -205,6 +273,78 @@ function ProviderTables({
             className="h-10 self-end rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
           >
             Add connection
+          </button>
+        </form>
+      ) : null}
+      {oauthProviders.length > 0 ? (
+        <form onSubmit={handleStartOAuth} className="grid gap-3 rounded-md border border-zinc-200 bg-zinc-50 p-4 md:grid-cols-[1fr_1.5fr_auto]">
+          <label className="grid gap-1 text-sm font-medium text-zinc-700">
+            OAuth provider
+            <select
+              value={selectedOAuthProvider}
+              onChange={(event) => {
+                setOAuthProvider(event.target.value);
+                setOAuthSession(null);
+                setOAuthCallback("");
+              }}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
+            >
+              {oauthProviders.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {entry.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-medium text-zinc-700">
+            OAuth account label
+            <input
+              value={oauthAccountLabel}
+              onChange={(event) => setOAuthAccountLabel(event.target.value)}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
+              type="text"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={isStartingOAuth}
+            className="h-10 self-end rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+          >
+            Start OAuth
+          </button>
+        </form>
+      ) : null}
+      {oauthSession ? (
+        <form onSubmit={handleExchangeOAuth} className="grid gap-3 rounded-md border border-zinc-200 bg-white p-4 md:grid-cols-[1fr_auto]">
+          <div className="space-y-2 md:col-span-2">
+            {oauthSession.auth_url ? (
+              <a className="text-sm font-semibold text-zinc-950 underline" href={oauthSession.auth_url} target="_blank" rel="noreferrer">
+                Open authorization URL
+              </a>
+            ) : null}
+            {oauthSession.session_id ? <p className="text-sm text-zinc-600">Session state: {oauthSession.session_id}</p> : null}
+            {oauthSession.user_code ? <p className="text-sm text-zinc-600">Device code: {oauthSession.user_code}</p> : null}
+            {oauthSession.verification ? (
+              <a className="text-sm text-zinc-600 underline" href={oauthSession.verification} target="_blank" rel="noreferrer">
+                Verification URL
+              </a>
+            ) : null}
+          </div>
+          <label className="grid gap-1 text-sm font-medium text-zinc-700">
+            Callback URL or code
+            <input
+              value={oauthCallback}
+              onChange={(event) => setOAuthCallback(event.target.value)}
+              className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-950"
+              type="text"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={isExchangingOAuth}
+            className="h-10 self-end rounded-md bg-zinc-950 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-400"
+          >
+            Complete OAuth
           </button>
         </form>
       ) : null}
@@ -346,6 +486,21 @@ function formatCapabilities(provider: ProviderMatrixEntry) {
 
 function formatList(values?: string[] | null) {
   return values == null || values.length === 0 ? "none" : values.join(", ");
+}
+
+function parseOAuthCallback(value: string, fallbackState: string) {
+  if (!value) {
+    return { code: "", state: fallbackState };
+  }
+  try {
+    const parsed = new URL(value);
+    return {
+      code: parsed.searchParams.get("code")?.trim() ?? "",
+      state: parsed.searchParams.get("state")?.trim() || fallbackState
+    };
+  } catch {
+    return { code: value, state: fallbackState };
+  }
 }
 
 function toApiError(error: unknown) {

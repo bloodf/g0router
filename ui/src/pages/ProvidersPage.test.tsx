@@ -168,6 +168,168 @@ describe("ProvidersPage", () => {
     expect(window.confirm).toHaveBeenCalledWith("Delete provider connection created?");
   });
 
+  it("renders OAuth-capable provider controls separately from API-key creation", async () => {
+    const fetch = vi.fn(async (path: string) => {
+      if (path === "/api/providers") {
+        return jsonResponse({
+          data: [
+            providerEntry,
+            { ...providerEntry, id: "ollama", auth_types: ["noauth"], public_status: "supported" }
+          ]
+        });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: [] });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    await screen.findByRole("combobox", { name: "Provider" });
+    expect(screen.getByRole("combobox", { name: "OAuth provider" })).toBeInTheDocument();
+    expect(screen.getByLabelText("OAuth account label")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start OAuth" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add connection" })).toBeInTheDocument();
+    expect(within(screen.getByRole("combobox", { name: "OAuth provider" })).queryByRole("option", { name: "ollama" })).not.toBeInTheDocument();
+  });
+
+  it("starts provider OAuth with an account label and renders only redacted session details", async () => {
+    const fetch = vi.fn(async (path: string, options?: RequestInit) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [providerEntry] });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: [] });
+      }
+      if (path === "/api/oauth/openai/authorize" && options?.method === "POST") {
+        expect(options.body).toBe(JSON.stringify({ account_label: "work-oauth" }));
+        return jsonResponse({
+          provider: "openai",
+          auth_url: "https://auth.example.test/authorize?state=oauth-state",
+          session_id: "oauth-state",
+          user_code: "ABCD-EFGH",
+          verification: "https://auth.example.test/device",
+          expires_in: 600,
+          access_token: "should-not-render",
+          refresh_token: "should-not-render"
+        });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    await screen.findByRole("combobox", { name: "OAuth provider" });
+    fireEvent.change(screen.getByLabelText("OAuth account label"), { target: { value: "work-oauth" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start OAuth" }));
+
+    expect(await screen.findByRole("link", { name: "Open authorization URL" })).toHaveAttribute(
+      "href",
+      "https://auth.example.test/authorize?state=oauth-state"
+    );
+    expect(screen.getByText("Session state: oauth-state")).toBeInTheDocument();
+    expect(screen.getByText("Device code: ABCD-EFGH")).toBeInTheDocument();
+    expect(screen.queryByText(/should-not-render|access_token|refresh_token/i)).not.toBeInTheDocument();
+  });
+
+  it("exchanges a provider OAuth callback, reloads the redacted connection, and does not render secrets", async () => {
+    const connections: unknown[] = [];
+    const fetch = vi.fn(async (path: string, options?: RequestInit) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [providerEntry] });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: connections });
+      }
+      if (path === "/api/oauth/openai/authorize" && options?.method === "POST") {
+        return jsonResponse({
+          provider: "openai",
+          auth_url: "https://auth.example.test/authorize?state=oauth-state",
+          session_id: "oauth-state"
+        });
+      }
+      if (path === "/api/oauth/openai/exchange" && options?.method === "POST") {
+        expect(options.body).toBe(JSON.stringify({ state: "oauth-state", code: "callback-code" }));
+        connections.push({
+          ID: "conn-oauth",
+          Provider: "openai",
+          Name: "work-oauth",
+          AuthType: "oauth",
+          IsActive: true,
+          AccountID: null,
+          Email: null,
+          BackoffLevel: 0,
+          CreatedAt: "2026-06-04T00:00:00Z",
+          UpdatedAt: "2026-06-04T00:00:00Z",
+          AccessToken: "returned-access-token",
+          RefreshToken: "returned-refresh-token"
+        });
+        return jsonResponse({
+          id: "conn-oauth",
+          provider: "openai",
+          name: "work-oauth",
+          auth_type: "oauth",
+          scopes: ["read"]
+        });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    await screen.findByRole("combobox", { name: "OAuth provider" });
+    fireEvent.change(screen.getByLabelText("OAuth account label"), { target: { value: "work-oauth" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start OAuth" }));
+    await screen.findByRole("link", { name: "Open authorization URL" });
+    fireEvent.change(screen.getByLabelText("Callback URL or code"), {
+      target: { value: "http://127.0.0.1:8080/api/oauth/callback?state=oauth-state&code=callback-code" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Complete OAuth" }));
+
+    expect(await screen.findByText("OAuth connected work-oauth")).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /work-oauth openai local oauth active/i })).toBeInTheDocument();
+    expect(screen.queryByText(/returned-access-token|returned-refresh-token|callback-code/i)).not.toBeInTheDocument();
+  });
+
+  it("handles provider OAuth exchange failures without leaking callback secrets", async () => {
+    const fetch = vi.fn(async (path: string, options?: RequestInit) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [providerEntry] });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: [] });
+      }
+      if (path === "/api/oauth/openai/authorize" && options?.method === "POST") {
+        return jsonResponse({
+          provider: "openai",
+          auth_url: "https://auth.example.test/authorize?state=oauth-state",
+          session_id: "oauth-state"
+        });
+      }
+      if (path === "/api/oauth/openai/exchange" && options?.method === "POST") {
+        return jsonResponse({ error: "oauth exchange failed" }, { status: 502 });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    await screen.findByRole("combobox", { name: "OAuth provider" });
+    fireEvent.click(screen.getByRole("button", { name: "Start OAuth" }));
+    await screen.findByRole("link", { name: "Open authorization URL" });
+    fireEvent.change(screen.getByLabelText("Callback URL or code"), { target: { value: "callback-secret-code" } });
+    fireEvent.click(screen.getByRole("button", { name: "Complete OAuth" }));
+
+    expect(await screen.findByText("oauth exchange failed")).toBeInTheDocument();
+    expect(screen.queryByText("callback-secret-code")).not.toBeInTheDocument();
+    expect(screen.queryByText(/access_token|refresh_token/i)).not.toBeInTheDocument();
+  });
+
   it("renders providers with null auth_types from the live provider matrix as none", async () => {
     const fetch = vi.fn(async (path: string) => {
       if (path === "/api/providers") {

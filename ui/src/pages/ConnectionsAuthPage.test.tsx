@@ -69,4 +69,39 @@ describe("ConnectionsAuthPage", () => {
     expect(screen.queryByRole("table", { name: "Provider contract" })).not.toBeInTheDocument();
     expect(screen.queryByText(/top-secret|provider-access-token|provider-api-key/i)).not.toBeInTheDocument();
   });
+
+  it("exposes provider OAuth controls on the dedicated Connections/Auth route", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === "/api/providers") {
+          return jsonResponse({
+            data: [
+              {
+                id: "openai",
+                auth_types: ["oauth", "api_key"],
+                model_catalog: true,
+                list_models: true,
+                public_inference: true,
+                public_status: "supported"
+              }
+            ]
+          });
+        }
+        if (path === "/api/connections") {
+          return jsonResponse({ data: [] });
+        }
+        return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+      })
+    );
+
+    render(<ConnectionsAuthPage />);
+
+    expect(await screen.findByRole("combobox", { name: "OAuth provider" })).toBeInTheDocument();
+    expect(screen.getByLabelText("OAuth account label")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start OAuth" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add connection" })).toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "Provider contract" })).not.toBeInTheDocument();
+  });
 });
