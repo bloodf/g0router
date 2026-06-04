@@ -1973,7 +1973,7 @@ tasks:
 wave: "8.BD"
 status: DONE
 max_agents: 1
-gate: "go test ./api/handlers -run 'TestOAuthPoll|TestOAuthHandlers' -count=1 && go test ./internal/store -run TestOAuthSessionCanBeReadBeforeSingleUseConsume -count=1 && go test ./api/handlers -run 'TestOAuthPollUsesStoredVerifierAndAccountLabel|TestOAuthPollUsesSessionFromQuery|TestOAuthPollAcceptsGitHubAlias' -count=1 && go test ./... -count=1 && go vet ./... && git diff --check"
+gate: "go test ./api/handlers -run 'TestOAuthPoll|TestOAuthHandlers' -count=1 && go test ./internal/store -run TestOAuthSessionCanBeReadBeforeSingleUseConsume -count=1 && go test ./api/handlers -run 'TestOAuthPollUsesStoredVerifierAndAccountLabel|TestOAuthPollUsesSessionFromQuery|TestOAuthPollAcceptsGitHubAlias' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && git diff --check"
 completed_at: "2026-06-04T21:18:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BD-evaluator-prompt.md"
 evaluation: "PENDING external evaluator"
