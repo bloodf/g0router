@@ -94,8 +94,8 @@ const pages = [
   },
   {
     id: "quota",
-    label: "Quota",
-    title: "Quota",
+    label: "Quotas",
+    title: "Quotas",
     description: "Provider limit usage and reset windows.",
     Component: QuotaPage
   },

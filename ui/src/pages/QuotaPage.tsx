@@ -62,7 +62,7 @@ export function QuotaPage() {
   }, []);
 
   return (
-    <Panel title="Quota monitor" description="Provider limit usage returned by quota-capable API contracts.">
+    <Panel title="Quotas monitor" description="Provider limit usage returned by quota-capable API contracts.">
       {renderQuotaContent(state)}
     </Panel>
   );
