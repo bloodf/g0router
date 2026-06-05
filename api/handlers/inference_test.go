@@ -225,6 +225,9 @@ func TestResponsesStreamingTranslatesChatStream(t *testing.T) {
 	if !strings.Contains(bodyText, `event: response.output_text.delta`) || !strings.Contains(bodyText, `"delta":"hello"`) {
 		t.Fatalf("stream body missing response text delta: %s", bodyText)
 	}
+	if !strings.Contains(bodyText, `event: response.output_text.done`) || !strings.Contains(bodyText, `"text":"hello"`) {
+		t.Fatalf("stream body missing response text done: %s", bodyText)
+	}
 	if !strings.Contains(bodyText, `event: response.completed`) || !strings.Contains(bodyText, `"output_text":"hello"`) {
 		t.Fatalf("stream body missing completed response: %s", bodyText)
 	}

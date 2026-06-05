@@ -2900,7 +2900,7 @@ max_agents: 1
 gate: "go test ./api/handlers -run 'TestResponsesStreamingTranslatesChatStream|Test(StreamInference|Responses|Inference)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T05:10:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BX-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator subagent 019e9580-a5ce-7f93-a936-5547d594bf15 at commit 87a4767"
 gate_results:
   - "go test ./api/handlers -run TestResponsesStreamingTranslatesChatStream -count=1: RED before implementation, /v1/responses stream:true returned 501 responses streaming unavailable"
   - "go test ./api/handlers -run 'Test(StreamInference|ResponsesStreamingTranslatesChatStream|Responses|Inference)' -count=1: PASS"
@@ -2912,6 +2912,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e9580-a5ce-7f93-a936-5547d594bf15: PASS, no blocking findings; non-blocking coverage note addressed by adding response.output_text.done assertion"
 
 tasks:
   - id: "8.BX.1"
