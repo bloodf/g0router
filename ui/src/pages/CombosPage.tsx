@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ApiError, asyncError, asyncSuccess, createCombo, deleteCombo, listCombos, updateCombo, type AsyncState, type ComboResponse } from "../api";
+import { ApiError, asyncError, asyncSuccess, createCombo, deleteCombo, listCombos, updateCombo, type AsyncState, type ComboResponse, type ComboStepResponse } from "../api";
 import { EmptyState, ErrorState, LoadingState, Panel, StatusPill } from "../components/Primitives";
 
 type ComboForm = {
   isActive: boolean;
-  model: string;
   name: string;
-  provider: string;
+  steps: ComboStepResponse[];
 };
+
+const emptyStep: ComboStepResponse = { provider: "", model: "" };
 
 const emptyForm: ComboForm = {
   isActive: true,
-  model: "",
   name: "",
-  provider: ""
+  steps: [{ ...emptyStep }]
 };
 
 export function CombosPage() {
@@ -43,7 +43,7 @@ export function CombosPage() {
     setMutationError(null);
     setIsSaving(true);
     const name = form.name.trim();
-    const steps = [{ provider: form.provider.trim(), model: form.model.trim() }];
+    const steps = form.steps.map((s) => ({ provider: s.provider.trim(), model: s.model.trim() }));
     try {
       if (editingComboID) {
         await updateCombo(editingComboID, name, steps, form.isActive);
@@ -61,10 +61,41 @@ export function CombosPage() {
   }
 
   function handleEdit(combo: ComboResponse) {
-    const firstStep = combo.Steps[0] ?? { model: "", provider: "" };
     setMutationError(null);
     setEditingComboID(combo.ID);
-    setForm({ isActive: combo.IsActive, model: firstStep.model, name: combo.Name, provider: firstStep.provider });
+    setForm({
+      isActive: combo.IsActive,
+      name: combo.Name,
+      steps: combo.Steps.length > 0 ? combo.Steps.map((s) => ({ ...s })) : [{ ...emptyStep }]
+    });
+  }
+
+  function handleStepChange(index: number, field: keyof ComboStepResponse, value: string) {
+    setForm((current) => ({
+      ...current,
+      steps: current.steps.map((s, i) => (i === index ? { ...s, [field]: value } : s))
+    }));
+  }
+
+  function handleAddStep() {
+    setForm((current) => ({ ...current, steps: [...current.steps, { ...emptyStep }] }));
+  }
+
+  function handleRemoveStep(index: number) {
+    setForm((current) => ({
+      ...current,
+      steps: current.steps.length > 1 ? current.steps.filter((_, i) => i !== index) : current.steps
+    }));
+  }
+
+  function handleMoveStep(index: number, direction: -1 | 1) {
+    const next = index + direction;
+    setForm((current) => {
+      if (next < 0 || next >= current.steps.length) return current;
+      const steps = current.steps.map((s) => ({ ...s }));
+      [steps[index], steps[next]] = [steps[next], steps[index]];
+      return { ...current, steps };
+    });
   }
 
   function handleCancelEdit() {
@@ -90,35 +121,24 @@ export function CombosPage() {
     }
   }
 
-  const canSave = form.name.trim() !== "" && form.provider.trim() !== "" && form.model.trim() !== "" && !isSaving;
+  const canSave =
+    form.name.trim() !== "" &&
+    form.steps.length > 0 &&
+    form.steps.every((s) => s.provider.trim() !== "" && s.model.trim() !== "") &&
+    !isSaving;
 
   return (
     <Panel title="Combo routing" description="Reusable routing chains for fallback, round-robin, and account selection.">
       <div className="space-y-5">
         <form className="rounded-md border border-zinc-200 p-4" onSubmit={handleSubmit}>
-          <div className="grid gap-3 lg:grid-cols-[1.1fr_1fr_1.3fr_auto]">
+          <div className="mb-3 grid gap-3 lg:grid-cols-[1.1fr_auto]">
             <label className="text-sm font-medium text-zinc-700">
               Combo name
               <input
+                aria-label="Combo name"
                 className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
                 value={form.name}
                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-              />
-            </label>
-            <label className="text-sm font-medium text-zinc-700">
-              Step provider
-              <input
-                className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
-                value={form.provider}
-                onChange={(event) => setForm((current) => ({ ...current, provider: event.target.value }))}
-              />
-            </label>
-            <label className="text-sm font-medium text-zinc-700">
-              Step model
-              <input
-                className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
-                value={form.model}
-                onChange={(event) => setForm((current) => ({ ...current, model: event.target.value }))}
               />
             </label>
             <div className="flex items-end gap-3">
@@ -144,6 +164,69 @@ export function CombosPage() {
                 </button>
               ) : null}
             </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase text-zinc-500">Steps (ordered)</p>
+            {form.steps.map((step, index) => (
+              <div key={index} className="grid gap-2 lg:grid-cols-[1fr_1.3fr_auto]">
+                <label className="text-sm font-medium text-zinc-700">
+                  {index === 0 ? "Provider" : ""}
+                  <input
+                    aria-label={`Step ${index + 1} provider`}
+                    className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+                    placeholder="provider"
+                    value={step.provider}
+                    onChange={(event) => handleStepChange(index, "provider", event.target.value)}
+                  />
+                </label>
+                <label className="text-sm font-medium text-zinc-700">
+                  {index === 0 ? "Model" : ""}
+                  <input
+                    aria-label={`Step ${index + 1} model`}
+                    className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+                    placeholder="model"
+                    value={step.model}
+                    onChange={(event) => handleStepChange(index, "model", event.target.value)}
+                  />
+                </label>
+                <div className="flex items-end gap-1">
+                  <button
+                    aria-label={`Move step ${index + 1} up`}
+                    className="min-h-10 rounded-md border border-zinc-200 px-2 py-2 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-300"
+                    disabled={index === 0}
+                    type="button"
+                    onClick={() => handleMoveStep(index, -1)}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    aria-label={`Move step ${index + 1} down`}
+                    className="min-h-10 rounded-md border border-zinc-200 px-2 py-2 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-300"
+                    disabled={index === form.steps.length - 1}
+                    type="button"
+                    onClick={() => handleMoveStep(index, 1)}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    aria-label={`Remove step ${index + 1}`}
+                    className="min-h-10 rounded-md border border-zinc-200 px-2 py-2 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-300"
+                    disabled={form.steps.length === 1}
+                    type="button"
+                    onClick={() => handleRemoveStep(index)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+            <button
+              className="mt-1 rounded-md border border-zinc-200 px-3 py-1.5 text-sm font-semibold text-zinc-700"
+              type="button"
+              onClick={handleAddStep}
+            >
+              + Add step
+            </button>
           </div>
         </form>
 

@@ -88,7 +88,7 @@ export function APIKeysControlPlane({ showEndpointControls = false }: { showEndp
   }
 
   async function handleCopyEndpoint(path: string) {
-    const endpoint = `http://127.0.0.1:8080${path}`;
+    const endpoint = `${window.location.origin}${path}`;
     await navigator.clipboard.writeText(endpoint);
     setCopiedEndpoint(endpoint);
   }

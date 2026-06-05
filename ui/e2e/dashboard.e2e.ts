@@ -163,13 +163,13 @@ test.describe("dashboard control plane", () => {
 
     await navigateTo(page, "Combos/Routing");
     await page.getByLabel("Combo name").fill("fast-fallback");
-    await page.getByLabel("Step provider").fill("openai");
-    await page.getByLabel("Step model").fill("gpt-5-mini");
+    await page.getByLabel("Step 1 provider").fill("openai");
+    await page.getByLabel("Step 1 model").fill("gpt-5-mini");
     await page.getByRole("button", { name: "Create combo" }).click();
     await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("fast-fallback");
     await page.getByRole("button", { name: "Edit fast-fallback" }).click();
     await page.getByLabel("Combo name").fill("fast-updated");
-    await page.getByLabel("Step model").fill("gpt-4o");
+    await page.getByLabel("Step 1 model").fill("gpt-4o");
     await page.getByLabel("Active").uncheck();
     await page.getByRole("button", { name: "Update combo" }).click();
     await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("fast-updated");
@@ -391,7 +391,9 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Endpoint Setup");
     await page.getByRole("button", { name: "Copy chat completions endpoint" }).click();
     await expect(page.getByText("Endpoint copied")).toBeVisible();
-    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe("http://127.0.0.1:8080/v1/chat/completions");
+    await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(
+      `${new URL(page.url()).origin}/v1/chat/completions`
+    );
 
     await page.getByLabel("Key name").fill("temporary-client");
     await page.getByRole("button", { name: "Create key" }).click();
@@ -419,8 +421,8 @@ test.describe("dashboard control plane", () => {
 
     await navigateTo(page, "Combos/Routing");
     await page.getByLabel("Combo name").fill("broken-combo");
-    await page.getByLabel("Step provider").fill("openai");
-    await page.getByLabel("Step model").fill("gpt-5-mini");
+    await page.getByLabel("Step 1 provider").fill("openai");
+    await page.getByLabel("Step 1 model").fill("gpt-5-mini");
     await page.getByRole("button", { name: "Create combo" }).click();
     await expect(page.getByText("Could not change combo")).toBeVisible();
 

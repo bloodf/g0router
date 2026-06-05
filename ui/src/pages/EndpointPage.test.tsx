@@ -55,6 +55,24 @@ describe("EndpointPage", () => {
     await screen.findByText("No API keys");
   });
 
+  it("copies endpoint URL using window.location.origin as base", async () => {
+    const fetch = vi.fn(async () => jsonResponse({ data: [] }));
+    vi.stubGlobal("fetch", fetch);
+    const written: string[] = [];
+    vi.stubGlobal("navigator", {
+      clipboard: { writeText: vi.fn(async (text: string) => { written.push(text); }) }
+    });
+
+    render(<EndpointPage />);
+    await screen.findByText("No API keys");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy chat completions endpoint" }));
+
+    await waitFor(() => expect(written.length).toBe(1));
+    expect(written[0]).toBe(`${window.location.origin}/v1/chat/completions`);
+    expect(await screen.findByText("Endpoint copied")).toBeInTheDocument();
+  });
+
   it("renders stored API keys from /api/keys without displaying raw key material", async () => {
     const fetch = vi.fn(async (path: string) => {
       if (path === "/api/keys") {
