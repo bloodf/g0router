@@ -706,23 +706,51 @@ export function pollProviderOAuth(provider: string, sessionID: string) {
   return apiFetch<ProviderOAuthPollResponse>(getProviderOAuthPollPath(provider, sessionID), { method: "GET" });
 }
 
-export function listAPIKeys() {
-  return apiList<APIKeyResponse>(getApiKeysPath());
+// normalizeAPIKey adapts the gateway's API-key JSON (snake_case: id, name,
+// prefix, is_active, last_used_at, created_at) to the PascalCase fields the
+// dashboard renders. It tolerates either casing so both the real server and
+// fixtures resolve to the same shape.
+function normalizeAPIKey(raw: Record<string, unknown>): APIKeyResponse {
+  const pick = <T>(snake: string, pascal: string): T | undefined =>
+    (raw[snake] ?? raw[pascal]) as T | undefined;
+  return {
+    ID: pick<string>("id", "ID") ?? "",
+    Name: pick<string>("name", "Name") ?? "",
+    Prefix: pick<string>("prefix", "Prefix") ?? "",
+    IsActive: pick<boolean>("is_active", "IsActive") ?? false,
+    LastUsedAt: pick<string | null>("last_used_at", "LastUsedAt") ?? null,
+    CreatedAt: pick<string>("created_at", "CreatedAt") ?? "",
+    expires_at: (raw.expires_at as number | null | undefined) ?? null,
+    scopes: (raw.scopes as string[] | null | undefined) ?? null,
+    rate_limit_rpm: (raw.rate_limit_rpm as number | null | undefined) ?? null,
+    rate_limit_tpm: (raw.rate_limit_tpm as number | null | undefined) ?? null,
+    daily_spend_cap_usd: (raw.daily_spend_cap_usd as number | null | undefined) ?? null
+  };
 }
 
-export function createAPIKey(name: string, policy?: APIKeyPolicy) {
-  return apiFetch<CreateAPIKeyResponse>(getApiKeysPath(), { method: "POST", body: { name, ...policy } });
+export async function listAPIKeys() {
+  const keys = await apiList<Record<string, unknown>>(getApiKeysPath());
+  return keys.map(normalizeAPIKey);
+}
+
+export async function createAPIKey(name: string, policy?: APIKeyPolicy): Promise<CreateAPIKeyResponse> {
+  const response = await apiFetch<{ key: Record<string, unknown>; raw: string }>(getApiKeysPath(), {
+    method: "POST",
+    body: { name, ...policy }
+  });
+  return { key: normalizeAPIKey(response.key), raw: response.raw };
 }
 
 export function deleteAPIKey(id: string) {
   return apiFetch<void>(`${getApiKeysPath()}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export function updateAPIKeyPolicy(id: string, policy: APIKeyPolicy) {
-  return apiFetch<CreateAPIKeyResponse>(`${getApiKeysPath()}/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    body: policy
-  });
+export async function updateAPIKeyPolicy(id: string, policy: APIKeyPolicy): Promise<CreateAPIKeyResponse> {
+  const response = await apiFetch<{ key: Record<string, unknown>; raw: string }>(
+    `${getApiKeysPath()}/${encodeURIComponent(id)}`,
+    { method: "PUT", body: policy }
+  );
+  return { key: normalizeAPIKey(response.key), raw: response.raw };
 }
 
 export function listAliases() {

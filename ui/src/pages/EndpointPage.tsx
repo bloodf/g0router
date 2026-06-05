@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Fragment, useCallback, useEffect, useState, type FormEvent } from "react";
 import {
   ApiError,
   asyncError,
@@ -252,8 +252,8 @@ function KeysTable({ deletingID, editingPolicyKey, keys, onCancelPolicy, onDelet
         </thead>
         <tbody className="divide-y divide-zinc-200">
           {keys.map((key) => (
-            <>
-              <tr key={key.ID}>
+            <Fragment key={key.ID}>
+              <tr>
                 <td className="px-4 py-3 font-medium text-zinc-950">{key.Name}</td>
                 <td className="px-4 py-3 font-mono text-xs text-zinc-600">{key.Prefix}</td>
                 <td className="px-4 py-3">
@@ -285,13 +285,13 @@ function KeysTable({ deletingID, editingPolicyKey, keys, onCancelPolicy, onDelet
                 </td>
               </tr>
               {editingPolicyKey?.ID === key.ID ? (
-                <tr key={`${key.ID}-policy`}>
+                <tr>
                   <td colSpan={6} className="px-4 py-3">
-                    <PolicyForm key={key.ID} apiKey={key} onSave={onSavePolicy} onCancel={onCancelPolicy} />
+                    <PolicyForm apiKey={key} onSave={onSavePolicy} onCancel={onCancelPolicy} />
                   </td>
                 </tr>
               ) : null}
-            </>
+            </Fragment>
           ))}
         </tbody>
       </table>
