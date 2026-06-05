@@ -205,3 +205,10 @@ func TestNewBrokerNonPositiveRingSizeDefaultsToOne(t *testing.T) {
 		t.Fatalf("negative ring: Recent len = %d, want 1", len(got))
 	}
 }
+
+func TestRecentEmptyReturnsNil(t *testing.T) {
+	b := NewBroker(8)
+	if got := b.Recent(); got != nil {
+		t.Fatalf("Recent() on empty broker = %v, want nil", got)
+	}
+}

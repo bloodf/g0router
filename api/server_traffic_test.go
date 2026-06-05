@@ -10,6 +10,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/traffic"
+	"github.com/valyala/fasthttp"
 )
 
 // sseConnect opens a GET /api/traffic/stream connection and returns the
@@ -215,4 +216,57 @@ func TestInferencePublishesToTrafficBroker(t *testing.T) {
 
 	// Anchor the store import.
 	var _ *store.Store = s
+}
+
+// TestTrafficStreamNilBrokerUnavailable covers the guard returning 503 when the
+// server has no traffic broker configured.
+func TestTrafficStreamNilBrokerUnavailable(t *testing.T) {
+	srv := &Server{}
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(fasthttp.MethodGet)
+	srv.handleTrafficStream(&ctx)
+	if ctx.Response.StatusCode() != fasthttp.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", ctx.Response.StatusCode())
+	}
+}
+
+// TestTrafficStreamStopEndsStream covers the stopCh branch: stopping the server
+// signals the streaming goroutine to exit, closing the SSE response.
+func TestTrafficStreamStopEndsStream(t *testing.T) {
+	s := newAPITestStore(t)
+	srv, baseURL := startTestServer(t, ServerConfig{
+		Port:       0,
+		Version:    "test",
+		Store:      s,
+		UsageStore: s,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	resp := sseConnect(t, baseURL, ctx)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	// Let the streaming goroutine reach its select, then signal shutdown.
+	time.Sleep(30 * time.Millisecond)
+
+	done := make(chan struct{})
+	go func() {
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+		}
+		close(done)
+	}()
+
+	if err := srv.Stop(); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("SSE stream did not end after Stop()")
+	}
 }
