@@ -50,6 +50,17 @@ func TestSettingsRejectsNegativeRetention(t *testing.T) {
 	}
 }
 
+func TestSettingsRejectsRetentionOverCap(t *testing.T) {
+	s := newHandlerStore(t)
+
+	ctx, body := runHandler(t, fasthttp.MethodPut, `{"log_retention_days":99999}`, func(ctx *fasthttp.RequestCtx) {
+		Settings(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)
+	}
+}
+
 func TestSettingsInvalidJSON(t *testing.T) {
 	s := newHandlerStore(t)
 

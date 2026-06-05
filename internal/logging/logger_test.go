@@ -126,6 +126,31 @@ func TestLoggerStoresNilOptionalMetadata(t *testing.T) {
 	}
 }
 
+func TestLoggerMapsCacheWriteTokens(t *testing.T) {
+	sink := &fakeRequestLogStore{}
+	logger := NewLogger(sink)
+
+	err := logger.Log(RequestLog{
+		RequestID: "req-cw",
+		Provider:  "anthropic",
+		Model:     "claude-sonnet-4",
+		AuthType:  "api_key",
+		Usage: &usage.Usage{
+			InputTokens:      100,
+			OutputTokens:     50,
+			CacheWriteTokens: 75,
+			TotalTokens:      150,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+	got := sink.entries[0]
+	if got.CacheWriteTokens == nil || *got.CacheWriteTokens != 75 {
+		t.Fatalf("cache_write_tokens = %v, want 75", got.CacheWriteTokens)
+	}
+}
+
 func TestLoggerWrapsStoreError(t *testing.T) {
 	storeErr := errors.New("database unavailable")
 	logger := NewLogger(&fakeRequestLogStore{err: storeErr})

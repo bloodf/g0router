@@ -53,6 +53,7 @@ func (l RequestLog) Entry() store.RequestLogEntry {
 		entry.InputTokens = intValue(l.Usage.InputTokens)
 		entry.OutputTokens = intValue(l.Usage.OutputTokens)
 		entry.CacheReadTokens = intValue(l.Usage.CacheReadTokens)
+		entry.CacheWriteTokens = intValue(l.Usage.CacheWriteTokens)
 		entry.TotalTokens = intValue(l.Usage.TotalTokens)
 	}
 	if l.Latency > 0 {

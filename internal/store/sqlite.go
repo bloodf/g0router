@@ -140,6 +140,9 @@ func (s *Store) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_request_log_provider ON request_log(provider)`,
 		`CREATE INDEX IF NOT EXISTS idx_request_log_model ON request_log(model)`,
 		`CREATE INDEX IF NOT EXISTS idx_request_log_auth ON request_log(auth_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_request_log_status_code ON request_log(status_code)`,
+		`CREATE INDEX IF NOT EXISTS idx_request_log_source_format ON request_log(source_format)`,
+		`CREATE INDEX IF NOT EXISTS idx_request_log_provider_model_ts ON request_log(provider, model, timestamp)`,
 		`CREATE TABLE IF NOT EXISTS mcp_clients (
 			id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
 			name TEXT NOT NULL UNIQUE,

@@ -237,25 +237,27 @@ func usageWhere(filter UsageFilter) (string, []any) {
 		clauses = append(clauses, "status_code >= 500")
 	}
 	if filter.Search != "" {
-		clauses = append(clauses, "(LOWER(request_id) LIKE ? OR LOWER(model) LIKE ? OR LOWER(COALESCE(error, '')) LIKE ?)")
-		pattern := "%" + strings.ToLower(filter.Search) + "%"
+		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.ToLower(filter.Search))
+		pattern := "%" + escaped + "%"
+		clauses = append(clauses, "(LOWER(request_id) LIKE ? ESCAPE '\\' OR LOWER(model) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(error, '')) LIKE ? ESCAPE '\\')")
 		args = append(args, pattern, pattern, pattern)
 	}
-	if filter.From != nil {
+	// from/to are aliases for start/end; prefer start/end when both are set.
+	start := filter.Start
+	if start == nil {
+		start = filter.From
+	}
+	end := filter.End
+	if end == nil {
+		end = filter.To
+	}
+	if start != nil {
 		clauses = append(clauses, "timestamp >= ?")
-		args = append(args, filter.From.Format(time.RFC3339))
+		args = append(args, start.Format(time.RFC3339))
 	}
-	if filter.To != nil {
+	if end != nil {
 		clauses = append(clauses, "timestamp <= ?")
-		args = append(args, filter.To.Format(time.RFC3339))
-	}
-	if filter.Start != nil {
-		clauses = append(clauses, "timestamp >= ?")
-		args = append(args, filter.Start.Format(time.RFC3339))
-	}
-	if filter.End != nil {
-		clauses = append(clauses, "timestamp <= ?")
-		args = append(args, filter.End.Format(time.RFC3339))
+		args = append(args, end.Format(time.RFC3339))
 	}
 	if len(clauses) == 0 {
 		return "", args

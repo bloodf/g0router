@@ -382,6 +382,74 @@ func intPtr(value int) *int {
 	return &value
 }
 
+func TestGetUsageSearchLiteralPercent(t *testing.T) {
+	s := openTestStore(t)
+	base := time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC)
+	a := minimalUsageEntry("req-percent", "openai", "gpt-4o", base)
+	a.Error = stringPtr("rate%limit exceeded")
+	b := minimalUsageEntry("req-other", "openai", "gpt-4o", base.Add(time.Minute))
+	b.Error = stringPtr("connection refused")
+	logUsageEntries(t, s, []RequestLogEntry{a, b})
+
+	// Searching for literal "%" must not act as a wildcard — only req-percent matches.
+	entries, err := s.GetUsage(UsageFilter{Search: "%"})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 || entries[0].RequestID != "req-percent" {
+		t.Fatalf("entries = %+v, want only req-percent", entries)
+	}
+}
+
+func TestGetUsageFromToAliasesStartEnd(t *testing.T) {
+	s := openTestStore(t)
+	base := time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC)
+	logUsageEntries(t, s, []RequestLogEntry{
+		minimalUsageEntry("before", "openai", "gpt-4o", base.Add(-time.Hour)),
+		minimalUsageEntry("inside", "openai", "gpt-4o", base),
+		minimalUsageEntry("after", "openai", "gpt-4o", base.Add(time.Hour)),
+	})
+
+	window := base.Add(-time.Minute)
+	windowEnd := base.Add(time.Minute)
+
+	// from/to should behave identically to start/end.
+	byFromTo, err := s.GetUsage(UsageFilter{From: &window, To: &windowEnd})
+	if err != nil {
+		t.Fatalf("GetUsage from/to: %v", err)
+	}
+	byStartEnd, err := s.GetUsage(UsageFilter{Start: &window, End: &windowEnd})
+	if err != nil {
+		t.Fatalf("GetUsage start/end: %v", err)
+	}
+	if len(byFromTo) != 1 || byFromTo[0].RequestID != "inside" {
+		t.Fatalf("from/to entries = %+v, want only inside", byFromTo)
+	}
+	if len(byStartEnd) != len(byFromTo) || byStartEnd[0].RequestID != byFromTo[0].RequestID {
+		t.Fatalf("start/end = %+v, from/to = %+v, want identical", byStartEnd, byFromTo)
+	}
+}
+
+func TestMigrateCreatesRequestLogIndexes(t *testing.T) {
+	s := openTestStore(t)
+
+	wantIndexes := []string{
+		"idx_request_log_timestamp",
+		"idx_request_log_status_code",
+		"idx_request_log_source_format",
+		"idx_request_log_provider_model_ts",
+	}
+	for _, idx := range wantIndexes {
+		var name string
+		err := s.db.QueryRow(
+			"SELECT name FROM sqlite_master WHERE type='index' AND name=?", idx,
+		).Scan(&name)
+		if err != nil {
+			t.Errorf("index %q missing: %v", idx, err)
+		}
+	}
+}
+
 func minimalUsageEntry(requestID, provider, model string, timestamp time.Time) RequestLogEntry {
 	return RequestLogEntry{
 		RequestID: requestID,
