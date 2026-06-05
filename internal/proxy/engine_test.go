@@ -1081,6 +1081,28 @@ func TestDispatchExplicitZeroRemainingQuotaBlocksProviderCall(t *testing.T) {
 	}
 }
 
+func TestDispatchUnlimitedQuotaAllowsProviderCall(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openrouter", "openrouter-key")
+	openRouter := &fakeProvider{name: providers.ProviderOpenRouter, response: &providers.ChatResponse{ID: "chatcmpl-openrouter"}}
+	quota := &fakeQuotaFetcher{quota: usage.Quota{
+		Provider:  providers.ProviderOpenRouter,
+		Unlimited: true,
+		Remaining: 0,
+	}}
+	engine := NewEngine(s)
+	engine.Register(openRouter)
+	engine.RegisterQuotaFetcher(providers.ProviderOpenRouter, quota)
+
+	resp, err := engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "openai/gpt-4o-mini"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "chatcmpl-openrouter" || !openRouter.called {
+		t.Fatalf("provider response = %+v called=%v, want provider call", resp, openRouter.called)
+	}
+}
+
 func TestDispatchPrefixModelQuotaExhaustionBlocksProviderCall(t *testing.T) {
 	s := openProxyTestStore(t)
 	createProxyConnection(t, s, "openai", "openai-key")

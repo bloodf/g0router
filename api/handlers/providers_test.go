@@ -92,7 +92,11 @@ func TestProvidersListKnownProviders(t *testing.T) {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported inference provider", id, byID[id])
 		}
-		if byID[id].Quota {
+		if id == "openrouter" {
+			if !byID[id].Quota {
+				t.Fatalf("%s provider = %+v, should expose real quota support", id, byID[id])
+			}
+		} else if byID[id].Quota {
 			t.Fatalf("%s provider = %+v, should not claim quota support", id, byID[id])
 		}
 	}

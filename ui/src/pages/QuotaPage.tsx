@@ -88,7 +88,9 @@ function QuotaList({ quotas }: { quotas: ProviderQuota[] }) {
     <div className="space-y-5">
       {quotas.map(({ provider, quota }) => {
         const providerID = quota.Provider || provider.id;
-        const percent = quota.Limit > 0 ? Math.round((quota.Used / quota.Limit) * 100) : 0;
+        const unlimited = Boolean(quota.Unlimited);
+        const unit = quota.Unit || "quota";
+        const percent = !unlimited && quota.Limit > 0 ? Math.round((quota.Used / quota.Limit) * 100) : 0;
         const clampedPercent = Math.max(0, Math.min(percent, 100));
 
         return (
@@ -97,14 +99,16 @@ function QuotaList({ quotas }: { quotas: ProviderQuota[] }) {
               <div>
                 <h4 className="font-semibold text-zinc-950">{providerID}</h4>
                 <p className="mt-1 text-sm text-zinc-500">
-                  {quota.Used.toLocaleString()} of {quota.Limit.toLocaleString()} used
+                  {unlimited
+                    ? `${quota.Used.toLocaleString()} ${unit} used`
+                    : `${quota.Used.toLocaleString()} of ${quota.Limit.toLocaleString()} used`}
                 </p>
               </div>
-              <StatusPill tone={quota.Remaining <= 0 ? "bad" : clampedPercent >= 85 ? "warn" : "good"}>
-                {quota.Remaining.toLocaleString()} remaining
+              <StatusPill tone={unlimited ? "good" : quota.Remaining <= 0 ? "bad" : clampedPercent >= 85 ? "warn" : "good"}>
+                {unlimited ? "Unlimited" : `${quota.Remaining.toLocaleString()} remaining`}
               </StatusPill>
             </div>
-            <ProgressBar label="Quota used" value={clampedPercent} />
+            {!unlimited ? <ProgressBar label="Quota used" value={clampedPercent} /> : null}
           </article>
         );
       })}

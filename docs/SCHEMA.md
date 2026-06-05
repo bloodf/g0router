@@ -256,7 +256,7 @@ DELETE /api/keys/:id                 — Delete API key
 
 GET    /api/usage                    — Usage log (filtered, paginated)
 GET    /api/usage/summary            — Aggregated usage summary
-GET    /api/usage/quota/:provider    — Capability-gated provider quota/limits; providers without real fetchers return unsupported
+GET    /api/usage/quota/:provider    — Capability-gated provider quota/limits; providers without real fetchers return unsupported. Responses include provider, limit, used, remaining, and may include unlimited/unit metadata for providers such as OpenRouter.
 
 GET    /api/mcp/clients              — List MCP clients
 POST   /api/mcp/clients              — Add MCP client

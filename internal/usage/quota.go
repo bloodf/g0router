@@ -16,9 +16,11 @@ var ErrQuotaUnsupported = errors.New("usage: quota unsupported")
 
 type Quota struct {
 	Provider  providers.ModelProvider
-	Limit     int64
-	Used      int64
-	Remaining int64
+	Limit     float64
+	Used      float64
+	Remaining float64
+	Unlimited bool   `json:",omitempty"`
+	Unit      string `json:",omitempty"`
 }
 
 type QuotaFetcher interface {
@@ -121,6 +123,76 @@ func (f *HTTPQuotaFetcher) FetchQuota(ctx context.Context, key providers.Key) (Q
 	quota.Provider = f.provider
 
 	return quota, nil
+}
+
+type OpenRouterQuotaFetcher struct {
+	endpoint string
+	client   *http.Client
+}
+
+func NewOpenRouterQuotaFetcher(endpoint string, client *http.Client) *OpenRouterQuotaFetcher {
+	if endpoint == "" {
+		endpoint = "https://openrouter.ai/api/v1/key"
+	}
+	if client == nil {
+		client = http.DefaultClient
+	}
+	return &OpenRouterQuotaFetcher{endpoint: endpoint, client: client}
+}
+
+func (f *OpenRouterQuotaFetcher) FetchQuota(ctx context.Context, key providers.Key) (Quota, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.endpoint, nil)
+	if err != nil {
+		return Quota{}, fmt.Errorf("create openrouter quota request: %w", err)
+	}
+	if key.Value != "" {
+		req.Header.Set("Authorization", "Bearer "+key.Value)
+	}
+
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return Quota{}, fmt.Errorf("fetch openrouter quota: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return Quota{}, fmt.Errorf("fetch openrouter quota: provider returned %s", resp.Status)
+	}
+
+	var decoded struct {
+		Data struct {
+			Limit          *float64 `json:"limit"`
+			LimitRemaining *float64 `json:"limit_remaining"`
+			Usage          float64  `json:"usage"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+		return Quota{}, fmt.Errorf("decode openrouter quota: %w", err)
+	}
+
+	quota := Quota{
+		Provider: providers.ProviderOpenRouter,
+		Used:     decoded.Data.Usage,
+		Unit:     "credits",
+	}
+	if decoded.Data.Limit == nil || decoded.Data.LimitRemaining == nil {
+		quota.Unlimited = true
+		return quota, nil
+	}
+	quota.Limit = *decoded.Data.Limit
+	quota.Remaining = *decoded.Data.LimitRemaining
+	return quota, nil
+}
+
+func IsOpenRouterQuotaFetcher(fetcher QuotaFetcher) bool {
+	switch f := fetcher.(type) {
+	case *OpenRouterQuotaFetcher:
+		return true
+	case *CachingQuotaFetcher:
+		return IsOpenRouterQuotaFetcher(f.fetcher)
+	default:
+		return false
+	}
 }
 
 type UnsupportedQuotaFetcher struct {

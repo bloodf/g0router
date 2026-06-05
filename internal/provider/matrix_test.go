@@ -266,7 +266,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 	}
 }
 
-func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
+func TestPublicProvidersOnlyClaimImplementedQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
 	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "ollama-cloud", "opencode", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
@@ -300,7 +300,11 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		} else if !entry.Streaming {
 			t.Fatalf("%s should expose streaming: %+v", id, entry)
 		}
-		if entry.Quota {
+		if id == "openrouter" {
+			if !entry.Quota {
+				t.Fatalf("%s should claim quota support after real fetcher implementation", id)
+			}
+		} else if entry.Quota {
 			t.Fatalf("%s should not claim quota support until a real quota fetcher exists", id)
 		}
 	}

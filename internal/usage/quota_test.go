@@ -54,6 +54,69 @@ func TestHTTPQuotaFetcherReturnsErrorForProviderFailure(t *testing.T) {
 	}
 }
 
+func TestOpenRouterQuotaFetcherFetchesDecimalCredits(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s, want GET", r.Method)
+		}
+		if r.URL.Path != "/api/v1/key" {
+			t.Fatalf("path = %s, want /api/v1/key", r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer sk-or-test" {
+			t.Fatalf("authorization = %q, want bearer token", got)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"limit":100,"limit_remaining":74.5,"usage":25.5}}`))
+	}))
+	defer server.Close()
+
+	fetcher := NewOpenRouterQuotaFetcher(server.URL+"/api/v1/key", server.Client())
+	got, err := fetcher.FetchQuota(context.Background(), providers.Key{
+		Value:    "sk-or-test",
+		Provider: providers.ProviderOpenRouter,
+	})
+	if err != nil {
+		t.Fatalf("FetchQuota: %v", err)
+	}
+	if got.Provider != providers.ProviderOpenRouter {
+		t.Fatalf("provider = %s, want openrouter", got.Provider)
+	}
+	if got.Limit != 100 || got.Used != 25.5 || got.Remaining != 74.5 || got.Unlimited {
+		t.Fatalf("quota = %+v, want 100/25.5/74.5 finite", got)
+	}
+}
+
+func TestOpenRouterQuotaFetcherHandlesUnlimitedCredits(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"limit":null,"limit_remaining":null,"usage":12.25}}`))
+	}))
+	defer server.Close()
+
+	fetcher := NewOpenRouterQuotaFetcher(server.URL+"/api/v1/key", server.Client())
+	got, err := fetcher.FetchQuota(context.Background(), providers.Key{Value: "sk-or-test"})
+	if err != nil {
+		t.Fatalf("FetchQuota: %v", err)
+	}
+	if !got.Unlimited || got.Used != 12.25 || got.Limit != 0 || got.Remaining != 0 {
+		t.Fatalf("quota = %+v, want unlimited usage-only quota", got)
+	}
+}
+
+func TestOpenRouterQuotaFetcherReturnsErrorForProviderFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "nope", http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	fetcher := NewOpenRouterQuotaFetcher(server.URL+"/api/v1/key", server.Client())
+	_, err := fetcher.FetchQuota(context.Background(), providers.Key{Value: "sk-or-test"})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
 func TestUnsupportedQuotaFetcherReturnsExplicitError(t *testing.T) {
 	fetcher := NewUnsupportedQuotaFetcher(providers.ProviderOllama)
 	_, err := fetcher.FetchQuota(context.Background(), providers.Key{Provider: providers.ProviderOllama})
@@ -117,7 +180,7 @@ func TestCachingQuotaFetcherRefreshesAfterTTL(t *testing.T) {
 		t.Fatalf("inner calls = %d, want 2", inner.calls)
 	}
 	if got.Remaining != 100 {
-		t.Fatalf("remaining = %d, want refreshed quota", got.Remaining)
+		t.Fatalf("remaining = %v, want refreshed quota", got.Remaining)
 	}
 }
 
@@ -145,7 +208,7 @@ func TestCachingQuotaFetcherDoesNotCacheErrors(t *testing.T) {
 		t.Fatalf("inner calls = %d, want retry after error", inner.calls)
 	}
 	if got.Remaining != 800 {
-		t.Fatalf("remaining = %d, want successful retry quota", got.Remaining)
+		t.Fatalf("remaining = %v, want successful retry quota", got.Remaining)
 	}
 }
 

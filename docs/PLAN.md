@@ -30,7 +30,8 @@ dashboard, MCP, provider, and documentation gaps found by review. Stage 8 adds
 completion hardening, E2E/API integration coverage, optional live smoke gates,
 follow-up audit remediation, provider runtime parity, built-in MCP search
 tools, Responses/Messages streaming translation, unsupported-streaming
-error hardening, and quota capability truth hardening through Wave 8.CA.
+error hardening, quota capability truth hardening, and OpenRouter quota support
+through Wave 8.CB.
 
 ## Stage → Wave → Task Map
 
@@ -49,7 +50,7 @@ STAGE 5 ─┬─ Wave 5.A [3 tasks]  ──► Makefile, systemd, Docker
           └─ Wave 5.B [2 tasks]  ──► README polish, E2E tests
 STAGE 6 ─── Wave 6.A [6 tasks]   ──► advanced MCP instances, OAuth, callbacks
 STAGE 7 ─── Waves 7.A–7.M        ──► remediation, release hardening, docs reconciliation
-STAGE 8 ─── Waves 8.L–8.CA       ──► tracked completion hardening, E2E/API integration, audit fixes, provider parity, search/streaming/quota hardening
+STAGE 8 ─── Waves 8.L–8.CB       ──► tracked completion hardening, E2E/API integration, audit fixes, provider parity, search/streaming/quota hardening
 ```
 
 ## Phase Index

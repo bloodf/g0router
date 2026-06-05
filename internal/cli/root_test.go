@@ -375,6 +375,20 @@ func TestDefaultServerConfigWrapsDefaultQuotaFetchersWithCache(t *testing.T) {
 	}
 }
 
+func TestDefaultServerConfigRegistersOpenRouterQuotaFetcher(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s)
+	fetcher := cfg.QuotaFetchers[providers.ProviderOpenRouter]
+	if fetcher == nil {
+		t.Fatal("openrouter quota fetcher should be wired")
+	}
+	if !usage.IsOpenRouterQuotaFetcher(fetcher) {
+		t.Fatalf("openrouter quota fetcher is %T, want OpenRouter quota fetcher", fetcher)
+	}
+}
+
 func TestDefaultQuotaFetchersReturnUnsupportedForQuotaFalseProviders(t *testing.T) {
 	fetchers := defaultQuotaFetchers()
 	matrix := providermatrix.ProviderMatrix()

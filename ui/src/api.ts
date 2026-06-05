@@ -193,6 +193,8 @@ export type QuotaResponse = {
   Limit: number;
   Used: number;
   Remaining: number;
+  Unlimited?: boolean;
+  Unit?: string;
 };
 
 export type ComboStepResponse = {

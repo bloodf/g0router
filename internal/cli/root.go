@@ -627,6 +627,10 @@ func defaultQuotaFetchers() map[providers.ModelProvider]usage.QuotaFetcher {
 	fetchers := make(map[providers.ModelProvider]usage.QuotaFetcher)
 	for _, provider := range knownProviderNames() {
 		modelProvider := providers.ModelProvider(provider)
+		if modelProvider == providers.ProviderOpenRouter {
+			fetchers[modelProvider] = usage.NewCachingQuotaFetcher(usage.NewOpenRouterQuotaFetcher("", nil), 5*time.Minute)
+			continue
+		}
 		fetchers[modelProvider] = usage.NewCachingQuotaFetcher(usage.NewUnsupportedQuotaFetcher(modelProvider), 5*time.Minute)
 	}
 	return fetchers

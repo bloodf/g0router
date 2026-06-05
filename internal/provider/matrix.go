@@ -55,7 +55,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		catalogRoutableProvider("nebius", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("nvidia", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("ollama", "", false, true, true, false, "noauth"),
-		catalogRoutableProvider("openrouter", "", false, true, true, false, "api_key"),
+		catalogRoutableProvider("openrouter", "", false, true, true, true, "api_key"),
 		catalogRoutableProvider("perplexity", "", false, true, true, false, "api_key"),
 		replicateProvider(),
 		catalogRoutableProvider("together", "", false, true, true, false, "api_key"),
@@ -156,6 +156,9 @@ func catalogRoutableProvider(id string, oauthProvider string, refresh, streaming
 	}
 	if id == "bedrock" {
 		entry.Notes = "Public direct dispatch works through catalog-backed non-streaming Bedrock Converse routing; streaming and quota are not implemented yet."
+	}
+	if id == "openrouter" {
+		entry.Notes = "Public direct dispatch works through catalog routing; quota fetcher uses OpenRouter's current API key credits endpoint."
 	}
 	return entry
 }

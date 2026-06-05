@@ -70,6 +70,28 @@ describe("QuotaPage", () => {
     });
   });
 
+  it("renders unlimited quota responses without a fake limit", async () => {
+    stubFetch({
+      "/api/providers": jsonResponse({
+        data: [{ id: "openrouter", quota: true, public_status: "supported", auth_types: ["api_key"] }]
+      }),
+      "/api/usage/quota/openrouter": jsonResponse({
+        Provider: "openrouter",
+        Limit: 0,
+        Used: 12.25,
+        Remaining: 0,
+        Unlimited: true,
+        Unit: "credits"
+      })
+    });
+
+    render(<QuotaPage />);
+
+    const row = await screen.findByRole("article", { name: /openrouter/i });
+    expect(within(row).getByText("12.25 credits used")).toBeInTheDocument();
+    expect(within(row).getByText("Unlimited")).toBeInTheDocument();
+  });
+
   it("shows loading while provider quota discovery is pending", () => {
     vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
 

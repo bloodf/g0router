@@ -480,6 +480,9 @@ func (e *Engine) checkQuota(ctx context.Context, key providers.Key) error {
 }
 
 func quotaExhausted(quota usage.Quota) bool {
+	if quota.Unlimited {
+		return false
+	}
 	return quota.Remaining <= 0
 }
 

@@ -183,6 +183,7 @@ phase-8/task-3: cost calculation
 - [x] Write `internal/usage/quota_test.go` — test FIRST
 - [x] Implement quota fetcher contract and 5-minute cache wrapper; providers without real quota APIs return explicit unsupported errors instead of fabricated quotas
 - [x] Keep `/api/usage/quota/:provider` capability-gated through the provider matrix; default startup fetchers for public inference providers return `usage.ErrQuotaUnsupported` until a provider-specific fetcher is implemented
+- [x] Implement the OpenRouter quota fetcher against the current API key credits endpoint, including decimal credit values and upstream unlimited/null limit responses
 - [x] Commit: `phase-8/task-4: provider quota fetchers`
 
 ### Pre-conditions
