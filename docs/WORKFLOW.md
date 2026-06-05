@@ -32,7 +32,7 @@ project_status: COMPLETE
 current_stage: 8
 current_wave: "COMPLETE"
 last_completed_wave: "8.CH"
-last_updated: "2026-06-05T04:25:40Z"
+last_updated: "2026-06-05T04:30:38Z"
 last_agent: "orchestrator"
 ```
 
@@ -3323,9 +3323,11 @@ max_agents: 1
 gate: "rg -n 'remains active|next PENDING|PENDING task|current wave|find IN_PROGRESS task|not yet implemented' docs/README.md docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/phases --glob '*.md' | rg -v 'gate:|fresh completion audit' && false || true; git diff --check"
 completed_at: "2026-06-05T04:25:40Z"
 evaluator_prompt: "docs/evaluations/wave-8CH-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS re-evaluator thread 019e960b-4215-7721-bcfe-afbbf25f015b at commit f329eee; initial evaluator 019e9609-6b02-7a30-9aea-5d1762c79830 failed on stale README 8.CG wording before fix"
 gate_results:
   - "fresh completion audit after Wave 8.CG: FAIL before implementation, docs/WORKFLOW.md still said Stage 8 remains active and PLAN/WORKFLOW navigation still pointed agents to current-wave pending tasks"
+  - "initial external evaluator 019e9609-6b02-7a30-9aea-5d1762c79830: FAIL, docs/README.md still said complete through Stage 8.CG while WORKFLOW had 8.CH"
+  - "re-evaluator 019e960b-4215-7721-bcfe-afbbf25f015b: PASS, completion metadata gate PASS, stale active-work language scan PASS, Stage 8 range gate PASS, git diff --check PASS, README says Wave 8.CH"
 
 tasks:
   - id: "8.CH.1"
