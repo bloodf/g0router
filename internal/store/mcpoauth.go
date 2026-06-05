@@ -75,6 +75,10 @@ func (s *Store) ConsumeMCPOAuthFlow(instanceID, state string) (*MCPOAuthFlow, er
 	if err != nil {
 		return nil, err
 	}
+	if !flow.ExpiresAt.IsZero() && time.Now().After(flow.ExpiresAt) {
+		_, _ = tx.Exec("DELETE FROM mcp_oauth_flows WHERE id = ?", flow.ID)
+		return nil, ErrNotFound
+	}
 	if _, err := tx.Exec("DELETE FROM mcp_oauth_flows WHERE id = ?", flow.ID); err != nil {
 		return nil, fmt.Errorf("delete mcp oauth flow: %w", err)
 	}

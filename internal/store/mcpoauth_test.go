@@ -157,6 +157,62 @@ func TestMCPOAuthValidAccountRejectsExpiredOrWrongResource(t *testing.T) {
 	}
 }
 
+func TestConsumeMCPOAuthFlowRejectsExpired(t *testing.T) {
+	s := openTestStore(t)
+	instance := createOAuthTestInstance(t, s, "linear-expired")
+
+	flow := &MCPOAuthFlow{
+		InstanceID:         instance.ID,
+		State:              "state-expired",
+		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost/callback",
+		AuthorizationURL:   "https://auth.example/authorize",
+		ResourceURI:        "https://mcp.example",
+		ClientID:           "client-123",
+		ClientSecret:       "client-secret",
+		ExpiresAt:          time.Now().Add(-time.Minute),
+	}
+	if err := s.CreateMCPOAuthFlow(flow); err != nil {
+		t.Fatalf("CreateMCPOAuthFlow: %v", err)
+	}
+	_, err := s.ConsumeMCPOAuthFlow(instance.ID, "state-expired")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expired flow err = %v, want ErrNotFound", err)
+	}
+	// Row must be deleted — second attempt also returns not-found.
+	_, err = s.ConsumeMCPOAuthFlow(instance.ID, "state-expired")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("post-expiry second consume err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestConsumeMCPOAuthFlowAcceptsFresh(t *testing.T) {
+	s := openTestStore(t)
+	instance := createOAuthTestInstance(t, s, "linear-fresh")
+
+	flow := &MCPOAuthFlow{
+		InstanceID:         instance.ID,
+		State:              "state-fresh",
+		CodeVerifierSecret: "verifier",
+		RedirectURI:        "http://localhost/callback",
+		AuthorizationURL:   "https://auth.example/authorize",
+		ResourceURI:        "https://mcp.example",
+		ClientID:           "client-123",
+		ClientSecret:       "client-secret",
+		ExpiresAt:          time.Now().Add(time.Hour),
+	}
+	if err := s.CreateMCPOAuthFlow(flow); err != nil {
+		t.Fatalf("CreateMCPOAuthFlow: %v", err)
+	}
+	consumed, err := s.ConsumeMCPOAuthFlow(instance.ID, "state-fresh")
+	if err != nil {
+		t.Fatalf("ConsumeMCPOAuthFlow fresh: %v", err)
+	}
+	if consumed.CodeVerifierSecret != "verifier" {
+		t.Fatalf("verifier = %q, want verifier", consumed.CodeVerifierSecret)
+	}
+}
+
 func createOAuthTestInstance(t *testing.T, s *Store, name string) *MCPInstance {
 	t.Helper()
 	instance := &MCPInstance{

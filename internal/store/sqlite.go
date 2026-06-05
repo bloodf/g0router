@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	_ "modernc.org/sqlite"
 )
@@ -239,7 +240,15 @@ func (s *Store) migrate() error {
 	return nil
 }
 
+var validIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 func (s *Store) ensureColumn(table, column, definition string) error {
+	if !validIdentifier.MatchString(table) {
+		return fmt.Errorf("ensureColumn: invalid table identifier %q", table)
+	}
+	if !validIdentifier.MatchString(column) {
+		return fmt.Errorf("ensureColumn: invalid column identifier %q", column)
+	}
 	rows, err := s.db.Query("PRAGMA table_info(" + table + ")")
 	if err != nil {
 		return fmt.Errorf("read %s columns: %w", table, err)

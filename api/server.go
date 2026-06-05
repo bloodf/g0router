@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"log"
 	"mime"
 	"net"
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bloodf/g0router"
@@ -49,6 +51,23 @@ type Server struct {
 	server *fasthttp.Server
 	uiFS   fs.FS
 	uiErr  error
+
+	settingsMu    sync.RWMutex
+	settingsCache *store.Settings
+}
+
+// UpdateSettings writes settings to the store and invalidates the cache.
+func (s *Server) UpdateSettings(settings store.Settings) error {
+	if s.config.Store == nil {
+		return fmt.Errorf("store unavailable")
+	}
+	if err := s.config.Store.UpdateSettings(settings); err != nil {
+		return err
+	}
+	s.settingsMu.Lock()
+	s.settingsCache = &settings
+	s.settingsMu.Unlock()
+	return nil
 }
 
 func NewServer(config ServerConfig) *Server {
@@ -238,7 +257,9 @@ func (s *Server) writeInferenceLog(usageStore logging.RequestStore, metadata req
 		RTKEnabled:     boolPtr(settings.RTKEnabled),
 		CavemanEnabled: boolPtr(settings.CavemanEnabled),
 	}
-	_ = logging.NewLogger(usageStore).Log(entry)
+	if err := logging.NewLogger(usageStore).Log(entry); err != nil {
+		log.Printf("write inference log: %v", err)
+	}
 }
 
 type preprocessingInferenceEngine struct {
@@ -338,20 +359,22 @@ func (s *Server) requestLogsEnabled() bool {
 	if s.config.EnableRequestLogs {
 		return true
 	}
-	if s.config.Store == nil {
-		return false
-	}
-	settings, err := s.config.Store.GetSettings()
-	if err != nil {
-		return false
-	}
-	return settings.EnableRequestLogs
+	return s.runtimeSettings().EnableRequestLogs
 }
 
 func (s *Server) runtimeSettings() store.Settings {
+	s.settingsMu.RLock()
+	cached := s.settingsCache
+	s.settingsMu.RUnlock()
+	if cached != nil {
+		return *cached
+	}
 	if s.config.Store != nil {
 		settings, err := s.config.Store.GetSettings()
 		if err == nil {
+			s.settingsMu.Lock()
+			s.settingsCache = &settings
+			s.settingsMu.Unlock()
 			return settings
 		}
 	}

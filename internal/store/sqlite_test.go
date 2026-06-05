@@ -207,3 +207,23 @@ func TestNewStoreEnablesWAL(t *testing.T) {
 func TestStoreImplementsCloser(t *testing.T) {
 	var _ interface{ Close() error } = (*Store)(nil)
 }
+
+func TestEnsureColumnRejectsInvalidIdentifier(t *testing.T) {
+	s := openTestStore(t)
+
+	cases := []struct {
+		table, column string
+	}{
+		{"bad table", "col"},
+		{"tbl", "bad column"},
+		{"1bad", "col"},
+		{"tbl", "1bad"},
+		{"tbl; DROP TABLE tbl--", "col"},
+		{"tbl", "col; DROP TABLE tbl--"},
+	}
+	for _, tc := range cases {
+		if err := s.ensureColumn(tc.table, tc.column, "TEXT"); err == nil {
+			t.Errorf("ensureColumn(%q, %q) = nil, want error", tc.table, tc.column)
+		}
+	}
+}
