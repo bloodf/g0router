@@ -884,6 +884,215 @@ func TestComboDispatchConcurrentStrategiesRaceFree(t *testing.T) {
 	}
 }
 
+func TestComboDispatchFastestPicksLowestLatencyStep(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+
+	// Seed telemetry: openai is faster (50ms), groq is slower (200ms).
+	latencyGroq := 200
+	latencyOpenAI := 50
+	status200 := 200
+	now := time.Now().UTC()
+	_ = s.LogRequest(&store.RequestLogEntry{
+		RequestID:  "t1",
+		Timestamp:  now.Add(-1 * time.Hour),
+		Provider:   "groq",
+		Model:      "llama-3.3-70b-versatile",
+		LatencyMS:  &latencyGroq,
+		StatusCode: &status200,
+		AuthType:   "api_key",
+	})
+	_ = s.LogRequest(&store.RequestLogEntry{
+		RequestID:  "t2",
+		Timestamp:  now.Add(-1 * time.Hour),
+		Provider:   "openai",
+		Model:      "gpt-4o-mini",
+		LatencyMS:  &latencyOpenAI,
+		StatusCode: &status200,
+		AuthType:   "api_key",
+	})
+
+	if err := s.CreateCombo(&store.Combo{
+		Name:     "fastest-combo",
+		Strategy: store.ComboStrategyFastest,
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "groq"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "openai"}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+
+	resp, err := NewComboResolver(s).Dispatch(context.Background(), engine, "fastest-combo", &providers.ChatRequest{Model: "combo/fastest-combo"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	// openai has lower latency so must be tried first and succeed.
+	if resp.ID != "openai" {
+		t.Fatalf("fastest pick = %q, want openai (lower latency)", resp.ID)
+	}
+	if groq.called {
+		t.Fatal("groq should not be called when openai is fastest and succeeds")
+	}
+}
+
+func TestComboDispatchCheapestPicksLowestCostStep(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+
+	// Seed telemetry: groq is cheaper.
+	costGroq := 0.0001
+	costOpenAI := 0.002
+	status200 := 200
+	now := time.Now().UTC()
+	_ = s.LogRequest(&store.RequestLogEntry{
+		RequestID:  "c1",
+		Timestamp:  now.Add(-1 * time.Hour),
+		Provider:   "groq",
+		Model:      "llama-3.3-70b-versatile",
+		CostUSD:    &costGroq,
+		StatusCode: &status200,
+		AuthType:   "api_key",
+	})
+	_ = s.LogRequest(&store.RequestLogEntry{
+		RequestID:  "c2",
+		Timestamp:  now.Add(-1 * time.Hour),
+		Provider:   "openai",
+		Model:      "gpt-4o-mini",
+		CostUSD:    &costOpenAI,
+		StatusCode: &status200,
+		AuthType:   "api_key",
+	})
+
+	if err := s.CreateCombo(&store.Combo{
+		Name:     "cheapest-combo",
+		Strategy: store.ComboStrategyCheapest,
+		Steps: []store.ComboStep{
+			{Provider: "openai", Model: "gpt-4o-mini"},
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "groq"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "openai"}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+
+	resp, err := NewComboResolver(s).Dispatch(context.Background(), engine, "cheapest-combo", &providers.ChatRequest{Model: "combo/cheapest-combo"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	// groq is cheaper so must be tried first despite being second in stored order.
+	if resp.ID != "groq" {
+		t.Fatalf("cheapest pick = %q, want groq (lower cost)", resp.ID)
+	}
+	if openAI.called {
+		t.Fatal("openai should not be called when groq is cheapest and succeeds")
+	}
+}
+
+func TestComboDispatchFastestFallsBackOnQueryError(t *testing.T) {
+	// When telemetry is unavailable (empty store, no rows) the strategy falls
+	// back to stored step order and still succeeds.
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+
+	if err := s.CreateCombo(&store.Combo{
+		Name:     "fastest-empty",
+		Strategy: store.ComboStrategyFastest,
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "groq"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "openai"}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+
+	resp, err := NewComboResolver(s).Dispatch(context.Background(), engine, "fastest-empty", &providers.ChatRequest{Model: "combo/fastest-empty"})
+	if err != nil {
+		t.Fatalf("Dispatch with no telemetry: %v", err)
+	}
+	// No telemetry → stored order → groq first.
+	if resp.ID != "groq" {
+		t.Fatalf("no-telemetry fastest = %q, want groq (stored first)", resp.ID)
+	}
+}
+
+func TestComboDispatchFastestFallsBackToNextStepOnError(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+
+	latencyGroq := 200
+	latencyOpenAI := 50
+	status200 := 200
+	now := time.Now().UTC()
+	_ = s.LogRequest(&store.RequestLogEntry{
+		RequestID: "fb1", Timestamp: now.Add(-30 * time.Minute),
+		Provider: "groq", Model: "llama-3.3-70b-versatile",
+		LatencyMS: &latencyGroq, StatusCode: &status200, AuthType: "api_key",
+	})
+	_ = s.LogRequest(&store.RequestLogEntry{
+		RequestID: "fb2", Timestamp: now.Add(-30 * time.Minute),
+		Provider: "openai", Model: "gpt-4o-mini",
+		LatencyMS: &latencyOpenAI, StatusCode: &status200, AuthType: "api_key",
+	})
+
+	if err := s.CreateCombo(&store.Combo{
+		Name:     "fastest-fallback",
+		Strategy: store.ComboStrategyFastest,
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	// openai is fastest but errors; groq should be the fallback.
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "groq"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, err: errors.New("unavailable")}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+
+	resp, err := NewComboResolver(s).Dispatch(context.Background(), engine, "fastest-fallback", &providers.ChatRequest{Model: "combo/fastest-fallback"})
+	if err != nil {
+		t.Fatalf("Dispatch: %v", err)
+	}
+	if resp.ID != "groq" {
+		t.Fatalf("fallback pick = %q, want groq", resp.ID)
+	}
+	if !openAI.called {
+		t.Fatal("fastest step (openai) must be called first")
+	}
+	if !groq.called {
+		t.Fatal("fallback step (groq) must be called after openai errors")
+	}
+}
+
 func createProxyConnection(t *testing.T, s *store.Store, provider string, key string) {
 	t.Helper()
 

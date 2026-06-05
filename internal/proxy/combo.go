@@ -70,10 +70,16 @@ func (r *ComboResolver) resolveWithStrategy(name string) ([]ComboStep, string, e
 // steps to try. The original order is always fully represented so remaining
 // steps act as fallbacks.
 func (r *ComboResolver) orderComboSteps(name, strategy string, steps []ComboStep, req *providers.ChatRequest) []ComboStep {
+	return r.orderComboStepsWithStats(name, strategy, steps, req, nil)
+}
+
+// orderComboStepsWithStats is the same as orderComboSteps but accepts
+// pre-fetched telemetry stats so fastest/cheapest avoid a redundant query.
+func (r *ComboResolver) orderComboStepsWithStats(name, strategy string, steps []ComboStep, req *providers.ChatRequest, stats map[string]store.ModelStat) []ComboStep {
 	if strategy == store.ComboStrategyFallback {
 		return steps
 	}
-	ordered, _ := r.selectorFor(name).orderedSteps(strategy, steps, req)
+	ordered, _ := r.selectorFor(name).orderedStepsWithStats(strategy, steps, req, stats)
 	return ordered
 }
 
@@ -85,7 +91,11 @@ func (r *ComboResolver) Dispatch(ctx context.Context, engine *Engine, name strin
 	if len(steps) == 0 {
 		return nil, ErrNoComboSteps
 	}
-	steps = r.orderComboSteps(name, strategy, steps, req)
+	var stats map[string]store.ModelStat
+	if strategy == store.ComboStrategyFastest || strategy == store.ComboStrategyCheapest {
+		stats = fetchTelemetryStats(r.store)
+	}
+	steps = r.orderComboStepsWithStats(name, strategy, steps, req, stats)
 
 	var lastErr error
 	for _, step := range steps {
@@ -110,7 +120,11 @@ func (r *ComboResolver) DispatchStream(ctx context.Context, engine *Engine, name
 	if len(steps) == 0 {
 		return nil, ErrNoComboSteps
 	}
-	steps = r.orderComboSteps(name, strategy, steps, req)
+	var stats map[string]store.ModelStat
+	if strategy == store.ComboStrategyFastest || strategy == store.ComboStrategyCheapest {
+		stats = fetchTelemetryStats(r.store)
+	}
+	steps = r.orderComboStepsWithStats(name, strategy, steps, req, stats)
 
 	var lastErr error
 	for _, step := range steps {

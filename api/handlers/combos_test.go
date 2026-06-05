@@ -92,6 +92,26 @@ func TestCombosStrategyDefaultsToFallback(t *testing.T) {
 	}
 }
 
+func TestCombosNewStrategiesAccepted(t *testing.T) {
+	for _, strategy := range []string{"fastest", "cheapest"} {
+		t.Run(strategy, func(t *testing.T) {
+			s := newHandlerStore(t)
+			body := `{"name":"` + strategy + `-combo","steps":[{"provider":"openai","model":"gpt-4o"}],"strategy":"` + strategy + `","is_active":true}`
+			ctx, respBody := runHandler(t, fasthttp.MethodPost, body, func(ctx *fasthttp.RequestCtx) {
+				Combos(ctx, s, "")
+			})
+			if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+				t.Fatalf("create %s status = %d, want 201; body=%s", strategy, ctx.Response.StatusCode(), respBody)
+			}
+			var created store.Combo
+			decodeJSON(t, respBody, &created)
+			if created.Strategy != strategy {
+				t.Fatalf("created strategy = %q, want %q", created.Strategy, strategy)
+			}
+		})
+	}
+}
+
 func TestCombosInvalidStrategyReturnsBadRequest(t *testing.T) {
 	s := newHandlerStore(t)
 

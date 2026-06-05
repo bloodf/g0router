@@ -5,10 +5,15 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
+
+// telemetryWindow is the lookback duration used when fetching provider/model
+// stats for the "fastest" and "cheapest" strategies.
+const telemetryWindow = 24 * time.Hour
 
 // autoHeavyContextThreshold is the approximate character count across all
 // request messages above which the "auto" strategy treats a request as heavy
@@ -47,6 +52,13 @@ type comboSelector struct {
 // original steps slice whose usage count should be incremented once dispatched
 // (used by least_used); -1 means no count tracking applies.
 func (s *comboSelector) orderedSteps(strategy string, steps []ComboStep, req *providers.ChatRequest) ([]ComboStep, int) {
+	return s.orderedStepsWithStats(strategy, steps, req, nil)
+}
+
+// orderedStepsWithStats is the same as orderedSteps but accepts pre-fetched
+// telemetry stats so the caller can pass a single query result for all steps.
+// A nil stats map causes fastest/cheapest to fall back to the stored order.
+func (s *comboSelector) orderedStepsWithStats(strategy string, steps []ComboStep, req *providers.ChatRequest, stats map[string]store.ModelStat) ([]ComboStep, int) {
 	switch strategy {
 	case store.ComboStrategyRoundRobin:
 		return s.roundRobinOrder(steps)
@@ -54,9 +66,64 @@ func (s *comboSelector) orderedSteps(strategy string, steps []ComboStep, req *pr
 		return s.leastUsedOrder(steps)
 	case store.ComboStrategyAuto:
 		return autoOrder(steps, req), -1
+	case store.ComboStrategyFastest:
+		return telemetryOrder(steps, stats, func(st store.ModelStat) float64 { return st.AvgLatencyMS }), -1
+	case store.ComboStrategyCheapest:
+		return telemetryOrder(steps, stats, func(st store.ModelStat) float64 { return st.AvgCostUSD }), -1
 	default:
 		return steps, -1
 	}
+}
+
+// telemetryOrder sorts steps ascending by the metric extracted by scoreFn.
+// Steps with no telemetry entry sort last. Ties preserve original order
+// (sort.SliceStable). The full step list is always returned so remaining
+// steps act as fallbacks.
+//
+// Telemetry key: "provider/model". A ComboStep carries Provider (a
+// providers.ModelProvider) and Model; we join them as-is. When the step's
+// provider is empty the key falls back to "/model", which will simply miss in
+// the map and sort the step last — the same safe behaviour as unknown.
+func telemetryOrder(steps []ComboStep, stats map[string]store.ModelStat, scoreFn func(store.ModelStat) float64) []ComboStep {
+	ordered := make([]ComboStep, len(steps))
+	copy(ordered, steps)
+
+	sort.SliceStable(ordered, func(i, j int) bool {
+		si, iOK := stats[telemetryKey(ordered[i])]
+		sj, jOK := stats[telemetryKey(ordered[j])]
+		if !iOK && !jOK {
+			return false // both unknown, preserve order
+		}
+		if !iOK {
+			return false // i unknown, j known → j first
+		}
+		if !jOK {
+			return true // i known, j unknown → i first
+		}
+		return scoreFn(si) < scoreFn(sj)
+	})
+	return ordered
+}
+
+// telemetryKey builds the "provider/model" map key for a combo step.
+// It uses the string value of the ModelProvider directly (e.g. "groq",
+// "openai") which matches how LogRequest stores the provider column.
+func telemetryKey(step ComboStep) string {
+	return string(step.Provider) + "/" + step.Model
+}
+
+// fetchTelemetryStats fetches provider/model stats from the store for the
+// standard telemetryWindow. On error it returns a nil map and logs nothing —
+// callers fall back to stored step order.
+func fetchTelemetryStats(s *store.Store) map[string]store.ModelStat {
+	if s == nil {
+		return nil
+	}
+	stats, err := s.ProviderModelStats(time.Now().Add(-telemetryWindow))
+	if err != nil {
+		return nil
+	}
+	return stats
 }
 
 func (s *comboSelector) roundRobinOrder(steps []ComboStep) ([]ComboStep, int) {

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/store"
 )
 
 func msgReq(content any) *providers.ChatRequest {
@@ -110,5 +111,123 @@ func TestSelectAutoStepIndexRouting(t *testing.T) {
 				t.Fatalf("selectAutoStepIndex = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+// helpers for telemetry strategy tests.
+
+var (
+	stepGroq      = ComboStep{Provider: providers.ProviderGroq, Model: "llama-3.3-70b-versatile"}
+	stepOpenAI    = ComboStep{Provider: providers.ProviderOpenAI, Model: "gpt-4o-mini"}
+	stepAnthropic = ComboStep{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4"}
+)
+
+func makeStats(entries map[ComboStep]store.ModelStat) map[string]store.ModelStat {
+	m := make(map[string]store.ModelStat, len(entries))
+	for step, stat := range entries {
+		m[telemetryKey(step)] = stat
+	}
+	return m
+}
+
+func TestTelemetryOrderFastestSortsByLatency(t *testing.T) {
+	steps := []ComboStep{stepAnthropic, stepGroq, stepOpenAI}
+	stats := makeStats(map[ComboStep]store.ModelStat{
+		stepAnthropic: {AvgLatencyMS: 300, Requests: 10},
+		stepGroq:      {AvgLatencyMS: 80, Requests: 10},
+		stepOpenAI:    {AvgLatencyMS: 150, Requests: 10},
+	})
+
+	ordered := telemetryOrder(steps, stats, func(s store.ModelStat) float64 { return s.AvgLatencyMS })
+
+	if ordered[0] != stepGroq {
+		t.Fatalf("fastest[0] = %v, want groq (lowest latency 80ms)", ordered[0])
+	}
+	if ordered[1] != stepOpenAI {
+		t.Fatalf("fastest[1] = %v, want openai (150ms)", ordered[1])
+	}
+	if ordered[2] != stepAnthropic {
+		t.Fatalf("fastest[2] = %v, want anthropic (300ms)", ordered[2])
+	}
+}
+
+func TestTelemetryOrderCheapestSortsByCost(t *testing.T) {
+	steps := []ComboStep{stepAnthropic, stepGroq, stepOpenAI}
+	stats := makeStats(map[ComboStep]store.ModelStat{
+		stepAnthropic: {AvgCostUSD: 0.003, Requests: 5},
+		stepGroq:      {AvgCostUSD: 0.0001, Requests: 5},
+		stepOpenAI:    {AvgCostUSD: 0.001, Requests: 5},
+	})
+
+	ordered := telemetryOrder(steps, stats, func(s store.ModelStat) float64 { return s.AvgCostUSD })
+
+	if ordered[0] != stepGroq {
+		t.Fatalf("cheapest[0] = %v, want groq (lowest cost)", ordered[0])
+	}
+	if ordered[1] != stepOpenAI {
+		t.Fatalf("cheapest[1] = %v, want openai", ordered[1])
+	}
+	if ordered[2] != stepAnthropic {
+		t.Fatalf("cheapest[2] = %v, want anthropic (most expensive)", ordered[2])
+	}
+}
+
+func TestTelemetryOrderUnknownStepsSortLast(t *testing.T) {
+	steps := []ComboStep{stepAnthropic, stepGroq, stepOpenAI}
+	// Only groq has telemetry; the other two are unknown.
+	stats := makeStats(map[ComboStep]store.ModelStat{
+		stepGroq: {AvgLatencyMS: 80, Requests: 3},
+	})
+
+	ordered := telemetryOrder(steps, stats, func(s store.ModelStat) float64 { return s.AvgLatencyMS })
+
+	if ordered[0] != stepGroq {
+		t.Fatalf("first should be groq (only known step), got %v", ordered[0])
+	}
+	// The two unknown steps follow in their original relative order (stable sort).
+	if ordered[1] != stepAnthropic || ordered[2] != stepOpenAI {
+		t.Fatalf("unknown steps should preserve original order: got %v %v", ordered[1], ordered[2])
+	}
+}
+
+func TestTelemetryOrderAllUnknownPreservesOriginalOrder(t *testing.T) {
+	steps := []ComboStep{stepAnthropic, stepGroq, stepOpenAI}
+	ordered := telemetryOrder(steps, nil, func(s store.ModelStat) float64 { return s.AvgLatencyMS })
+
+	for i, want := range steps {
+		if ordered[i] != want {
+			t.Fatalf("ordered[%d] = %v, want %v (original order preserved)", i, ordered[i], want)
+		}
+	}
+}
+
+func TestTelemetryOrderNilStatsFallsBackToStoredOrder(t *testing.T) {
+	steps := []ComboStep{stepGroq, stepOpenAI, stepAnthropic}
+	sel := &comboSelector{}
+
+	ordered, _ := sel.orderedStepsWithStats(store.ComboStrategyFastest, steps, nil, nil)
+
+	for i, want := range steps {
+		if ordered[i] != want {
+			t.Fatalf("nil stats fastest[%d] = %v, want %v", i, ordered[i], want)
+		}
+	}
+}
+
+func TestTelemetryOrderTiesPreserveOriginalOrder(t *testing.T) {
+	steps := []ComboStep{stepAnthropic, stepGroq, stepOpenAI}
+	// All identical latency — stable sort must preserve input order.
+	stats := makeStats(map[ComboStep]store.ModelStat{
+		stepAnthropic: {AvgLatencyMS: 100, Requests: 1},
+		stepGroq:      {AvgLatencyMS: 100, Requests: 1},
+		stepOpenAI:    {AvgLatencyMS: 100, Requests: 1},
+	})
+
+	ordered := telemetryOrder(steps, stats, func(s store.ModelStat) float64 { return s.AvgLatencyMS })
+
+	for i, want := range steps {
+		if ordered[i] != want {
+			t.Fatalf("tie case: ordered[%d] = %v, want %v", i, ordered[i], want)
+		}
 	}
 }
