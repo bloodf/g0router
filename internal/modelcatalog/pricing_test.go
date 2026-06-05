@@ -51,6 +51,14 @@ func TestCatalogLookupUnknownModel(t *testing.T) {
 	}
 }
 
+func TestCatalogLookupUnknownProvider(t *testing.T) {
+	catalog := NewCatalog()
+
+	if _, ok := catalog.Lookup(providers.ModelProvider("does-not-exist"), "gpt-4o"); ok {
+		t.Fatal("expected miss for unknown provider")
+	}
+}
+
 func TestCatalogProviderForModel(t *testing.T) {
 	catalog := NewCatalog()
 
