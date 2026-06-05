@@ -3,11 +3,12 @@ package usage
 import "github.com/bloodf/g0router/internal/providers"
 
 type Usage struct {
-	InputTokens     int
-	OutputTokens    int
-	TotalTokens     int
-	CacheReadTokens int
-	ReasoningTokens int
+	InputTokens      int
+	OutputTokens     int
+	TotalTokens      int
+	CacheReadTokens  int
+	CacheWriteTokens int // populated when provider reports cache-creation tokens; zero if provider does not expose them
+	ReasoningTokens  int
 }
 
 func FromChatResponse(resp providers.ChatResponse) (Usage, bool) {
@@ -40,6 +41,7 @@ func fromProviderUsage(providerUsage *providers.Usage) (Usage, bool) {
 	}
 	if providerUsage.PromptTokensDetails != nil {
 		result.CacheReadTokens = providerUsage.PromptTokensDetails.CachedTokens
+		result.CacheWriteTokens = providerUsage.PromptTokensDetails.CacheWriteTokens
 	}
 	if providerUsage.CompletionTokensDetails != nil {
 		result.ReasoningTokens = providerUsage.CompletionTokensDetails.ReasoningTokens

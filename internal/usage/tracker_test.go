@@ -43,6 +43,29 @@ func TestFromChatResponseExtractsUsage(t *testing.T) {
 	}
 }
 
+func TestFromChatResponseExtractsCacheWriteTokens(t *testing.T) {
+	resp := providers.ChatResponse{
+		Model: "gpt-4o",
+		Usage: &providers.Usage{
+			PromptTokens:     100,
+			CompletionTokens: 50,
+			TotalTokens:      150,
+			PromptTokensDetails: &providers.PromptTokensDetails{
+				CachedTokens:      30,
+				CacheWriteTokens: 20,
+			},
+		},
+	}
+
+	got, ok := FromChatResponse(resp)
+	if !ok {
+		t.Fatal("expected usage")
+	}
+	if got.CacheWriteTokens != 20 {
+		t.Fatalf("cache write tokens = %d, want 20", got.CacheWriteTokens)
+	}
+}
+
 func TestFromChatResponseWithoutUsage(t *testing.T) {
 	_, ok := FromChatResponse(providers.ChatResponse{Model: "gpt-4o"})
 	if ok {

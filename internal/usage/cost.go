@@ -41,8 +41,17 @@ func CalculateCostUSDWithOverrides(catalog modelcatalog.Catalog, overrides Prici
 		return 0, fmt.Errorf("lookup pricing for %s/%s: %w", provider, model, errors.New("usage: pricing not found"))
 	}
 
+	// Convention: InputTokens is inclusive of cache reads; we subtract to get the
+	// non-cached portion. Some providers report InputTokens exclusive of cache reads,
+	// which would underflow. Clamp both values to defend against that.
 	cachedInputTokens := usage.CacheReadTokens
+	if cachedInputTokens < 0 {
+		cachedInputTokens = 0
+	}
 	inputTokens := usage.InputTokens - cachedInputTokens
+	if inputTokens < 0 {
+		inputTokens = 0
+	}
 
 	inputCost := float64(inputTokens) * price.InputPerMillionUSD / 1_000_000
 	cachedInputCost := float64(cachedInputTokens) * price.CachedInputPerMillionUSD / 1_000_000

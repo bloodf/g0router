@@ -103,6 +103,32 @@ func TestCalculateCostUSDMissingPricingReturnsError(t *testing.T) {
 	}
 }
 
+// TestCalculateCostUSDCacheReadExceedsInput guards against providers that report
+// InputTokens exclusive of cache reads (underflow => negative cost).
+func TestCalculateCostUSDCacheReadExceedsInput(t *testing.T) {
+	// CacheReadTokens > InputTokens: simulates a provider reporting exclusive counts.
+	u := Usage{
+		InputTokens:     50,
+		OutputTokens:    100,
+		TotalTokens:     150,
+		CacheReadTokens: 200, // exceeds InputTokens intentionally
+	}
+	got, err := CalculateCostUSD(modelcatalog.NewCatalog(), providers.ProviderOpenAI, "gpt-4o", &u)
+	if err != nil {
+		t.Fatalf("CalculateCostUSD: %v", err)
+	}
+	if got < 0 {
+		t.Fatalf("cost = %f, must be >= 0", got)
+	}
+	// With clamped inputTokens=0: cost = cachedInputCost + outputCost only.
+	catalog := modelcatalog.NewCatalog()
+	price, _ := catalog.Lookup(providers.ProviderOpenAI, "gpt-4o")
+	want := float64(200)*price.CachedInputPerMillionUSD/1_000_000 + float64(100)*price.OutputPerMillionUSD/1_000_000
+	if got != want {
+		t.Fatalf("cost = %f, want %f", got, want)
+	}
+}
+
 type fakePricingOverrides map[string]PricingOverride
 
 func (f fakePricingOverrides) PricingOverride(provider, model string) (PricingOverride, bool, error) {
