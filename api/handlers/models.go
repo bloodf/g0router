@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/valyala/fasthttp"
@@ -27,7 +27,8 @@ func Models(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 
 	models, err := engine.ListModels(requestContext(ctx))
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list models: %v", err))
+		log.Printf("list models: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to list models")
 		return
 	}
 

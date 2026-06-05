@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
@@ -27,7 +27,8 @@ func APIKeys(ctx *fasthttp.RequestCtx, s *store.Store, secret, id string) {
 	case fasthttp.MethodGet:
 		keys, err := s.ListAPIKeys()
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list api keys: %v", err))
+			log.Printf("list api keys: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list api keys")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[store.APIKey]{Data: keys})
@@ -39,7 +40,8 @@ func APIKeys(ctx *fasthttp.RequestCtx, s *store.Store, secret, id string) {
 		}
 		key, raw, err := s.CreateAPIKey(req.Name, secret)
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create api key: %v", err))
+			log.Printf("create api key: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to create api key")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusCreated, createAPIKeyResponse{Key: key, Raw: raw})
@@ -49,7 +51,8 @@ func APIKeys(ctx *fasthttp.RequestCtx, s *store.Store, secret, id string) {
 			return
 		}
 		if err := s.DeleteAPIKey(id); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("delete api key: %v", err))
+			log.Printf("delete api key: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to delete api key")
 			return
 		}
 		ctx.SetStatusCode(fasthttp.StatusNoContent)

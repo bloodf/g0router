@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
@@ -24,7 +24,8 @@ func Combos(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 	case fasthttp.MethodGet:
 		combos, err := s.ListCombos()
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list combos: %v", err))
+			log.Printf("list combos: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list combos")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[*store.Combo]{Data: combos})
@@ -34,7 +35,8 @@ func Combos(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 			return
 		}
 		if err := s.CreateCombo(combo); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create combo: %v", err))
+			log.Printf("create combo: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to create combo")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusCreated, combo)

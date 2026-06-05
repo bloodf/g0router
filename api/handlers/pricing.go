@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
@@ -25,7 +25,8 @@ func Pricing(ctx *fasthttp.RequestCtx, s *store.Store, provider, model string) {
 	case fasthttp.MethodGet:
 		overrides, err := s.ListPricingOverrides()
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list pricing overrides: %v", err))
+			log.Printf("list pricing overrides: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list pricing overrides")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[store.PricingOverride]{Data: overrides})
@@ -35,7 +36,8 @@ func Pricing(ctx *fasthttp.RequestCtx, s *store.Store, provider, model string) {
 			return
 		}
 		if err := s.SetPricingOverride(override); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("set pricing override: %v", err))
+			log.Printf("set pricing override (create): %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to set pricing override")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusCreated, override)
@@ -49,7 +51,8 @@ func Pricing(ctx *fasthttp.RequestCtx, s *store.Store, provider, model string) {
 			return
 		}
 		if err := s.SetPricingOverride(override); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("set pricing override: %v", err))
+			log.Printf("set pricing override (update): %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to set pricing override")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, override)

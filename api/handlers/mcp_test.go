@@ -702,3 +702,60 @@ func openMCPHandlerStore(t *testing.T) *store.Store {
 	})
 	return s
 }
+
+func TestMCPStoreFailureDoesNotLeakInternals(t *testing.T) {
+	s := openMCPHandlerStore(t)
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close store: %v", err)
+	}
+
+	t.Run("list instances", func(t *testing.T) {
+		ctx := newHandlerCtx(fasthttp.MethodGet, "/api/mcp/instances")
+		MCPInstances(ctx, s, &fakeMCPInstanceRuntime{}, "")
+		if ctx.Response.StatusCode() < 500 {
+			t.Fatalf("status = %d, want 5xx; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+		}
+		assertNoInternalDetail(t, ctx.Response.Body())
+	})
+
+	t.Run("list clients", func(t *testing.T) {
+		ctx := newHandlerCtx(fasthttp.MethodGet, "/api/mcp/clients")
+		MCPClients(ctx, s, mcp.NewClientManager(&fakeMCPConnector{}), mcp.NewToolManager(), "")
+		if ctx.Response.StatusCode() < 500 {
+			t.Fatalf("status = %d, want 5xx; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+		}
+		assertNoInternalDetail(t, ctx.Response.Body())
+	})
+
+	t.Run("list oauth accounts", func(t *testing.T) {
+		ctx := newHandlerCtx(fasthttp.MethodGet, "/api/mcp/instances/some-id/accounts")
+		MCPOAuthAccounts(ctx, s, "some-id")
+		if ctx.Response.StatusCode() < 500 {
+			t.Fatalf("status = %d, want 5xx; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+		}
+		assertNoInternalDetail(t, ctx.Response.Body())
+	})
+}
+
+func TestMCPOAuthStartStoreFailureDoesNotLeakInternals(t *testing.T) {
+	// Create instance in good store, then close store before the oauth flow store write.
+	s := openMCPHandlerStore(t)
+	instance := createHandlerMCPInstance(t, s, "linear", "acct")
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close store: %v", err)
+	}
+
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances/"+instance.ID+"/auth/start")
+	ctx.Request.SetBodyString(`{"authorization_url":"https://auth.example/authorize","resource_uri":"https://mcp.example/mcp","redirect_uri":"http://localhost:3000/callback","client_id":"cid","client_secret":"supersecret"}`)
+	MCPOAuthStart(ctx, s, instance.ID)
+
+	if ctx.Response.StatusCode() < 500 {
+		t.Fatalf("status = %d, want 5xx; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	body := ctx.Response.Body()
+	assertNoInternalDetail(t, body)
+	// ClientSecret must not appear in any error response.
+	if strings.Contains(string(body), "supersecret") {
+		t.Fatalf("response leaked client secret: %s", body)
+	}
+}

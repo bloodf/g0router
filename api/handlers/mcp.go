@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -88,7 +88,8 @@ func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, runtime MCPInstanceR
 	case fasthttp.MethodGet:
 		instances, err := s.ListMCPInstances()
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list mcp instances: %v", err))
+			log.Printf("list mcp instances: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list mcp instances")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[*store.MCPInstance]{Data: instances})
@@ -98,7 +99,8 @@ func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, runtime MCPInstanceR
 			return
 		}
 		if err := s.CreateMCPInstance(instance); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create mcp instance: %v", err))
+			log.Printf("create mcp instance: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to create mcp instance")
 			return
 		}
 		if instance.IsActive {
@@ -110,13 +112,15 @@ func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, runtime MCPInstanceR
 			manifest, err := runtime.RegisterInstance(requestContext(ctx), instance)
 			if err != nil {
 				_ = s.DeleteMCPInstance(instance.ID)
-				writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("register mcp instance: %v", err))
+				log.Printf("register mcp instance: %v", err)
+			writeError(ctx, fasthttp.StatusBadGateway, "failed to register mcp instance")
 				return
 			}
 			if err := s.UpdateMCPInstanceManifest(instance.ID, manifest); err != nil {
 				_ = runtime.CloseInstance(instance.ID)
 				_ = s.DeleteMCPInstance(instance.ID)
-				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("cache mcp manifest: %v", err))
+				log.Printf("cache mcp manifest (instance): %v", err)
+				writeError(ctx, fasthttp.StatusInternalServerError, "failed to cache mcp manifest")
 				return
 			}
 			got, err := s.GetMCPInstance(instance.ID)
@@ -198,7 +202,8 @@ func MCPOAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) 
 		ClientSecret:       flow.ClientSecret,
 		ExpiresAt:          flow.ExpiresAt,
 	}); err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create mcp oauth flow: %v", err))
+		log.Printf("create mcp oauth flow: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to create mcp oauth flow")
 		return
 	}
 	writeJSON(ctx, fasthttp.StatusCreated, mcpOAuthStartResponse{AuthorizationURL: flow.AuthorizationURL, ExpiresAt: flow.ExpiresAt.Format(time.RFC3339)})
@@ -215,7 +220,8 @@ func MCPOAuthAccounts(ctx *fasthttp.RequestCtx, s *store.Store, instanceID strin
 	}
 	accounts, err := s.ListMCPOAuthAccounts(instanceID)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list mcp oauth accounts: %v", err))
+		log.Printf("list mcp oauth accounts: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to list mcp oauth accounts")
 		return
 	}
 	responses := make([]mcpOAuthAccountResponse, 0, len(accounts))
@@ -247,7 +253,8 @@ func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientMan
 	case fasthttp.MethodGet:
 		list, err := s.ListMCPClients()
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list mcp clients: %v", err))
+			log.Printf("list mcp clients: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list mcp clients")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[*store.MCPClient]{Data: redactedMCPClients(list)})
@@ -261,19 +268,22 @@ func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientMan
 			return
 		}
 		if err := s.CreateMCPClient(client); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create mcp client: %v", err))
+			log.Printf("create mcp client: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to create mcp client")
 			return
 		}
 		manifest, err := registerMCPClient(requestContext(ctx), clients, tools, client)
 		if err != nil {
 			_ = s.DeleteMCPClient(client.ID)
-			writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("register mcp client: %v", err))
+			log.Printf("register mcp client: %v", err)
+			writeError(ctx, fasthttp.StatusBadGateway, "failed to register mcp client")
 			return
 		}
 		if err := s.UpdateMCPClientManifest(client.ID, manifest); err != nil {
 			_ = clients.Close(client.ID)
 			_ = s.DeleteMCPClient(client.ID)
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("cache mcp manifest: %v", err))
+			log.Printf("cache mcp manifest (client): %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to cache mcp manifest")
 			return
 		}
 		got, err := s.GetMCPClient(client.ID)
@@ -289,7 +299,8 @@ func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientMan
 		}
 		if clients != nil {
 			if err := clients.Close(id); err != nil && !errors.Is(err, mcp.ErrClientNotFound) {
-				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("close mcp client: %v", err))
+				log.Printf("close mcp client: %v", err)
+				writeError(ctx, fasthttp.StatusInternalServerError, "failed to close mcp client")
 				return
 			}
 		}
@@ -314,7 +325,8 @@ func MCPTools(ctx *fasthttp.RequestCtx, s *store.Store, tools *mcp.ToolManager, 
 		allowedTools := allowedToolsFromRequest(ctx)
 		compact, err := compactToolList(mcpRequestContext(ctx, allowedTools), s, tools, instanceID, accountLabel, allowedTools)
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list mcp tools: %v", err))
+			log.Printf("list mcp tools: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list mcp tools")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[providers.Tool]{Data: compact})
@@ -533,11 +545,12 @@ func stringValue(value *string) string {
 func writeMCPToolError(ctx *fasthttp.RequestCtx, err error) {
 	switch {
 	case errors.Is(err, mcp.ErrToolNotFound), errors.Is(err, mcp.ErrClientNotFound):
-		writeError(ctx, fasthttp.StatusNotFound, err.Error())
+		writeError(ctx, fasthttp.StatusNotFound, "mcp tool not found")
 	case errors.Is(err, mcp.ErrInvalidToolArguments):
 		writeError(ctx, fasthttp.StatusBadRequest, err.Error())
 	default:
-		writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("execute mcp tool: %v", err))
+		log.Printf("execute mcp tool: %v", err)
+		writeError(ctx, fasthttp.StatusBadGateway, "failed to execute mcp tool")
 	}
 }
 

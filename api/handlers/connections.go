@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	providerids "github.com/bloodf/g0router/internal/provider"
@@ -59,7 +60,8 @@ func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 	case fasthttp.MethodGet:
 		connections, err := listConnections(s)
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list connections: %v", err))
+			log.Printf("list connections: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list connections")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[connectionResponse]{Data: redactConnections(connections)})
@@ -69,7 +71,8 @@ func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 			return
 		}
 		if err := s.CreateConnection(conn); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("create connection: %v", err))
+			log.Printf("create connection: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to create connection")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusCreated, redactConnection(conn))
@@ -245,5 +248,6 @@ func writeStoreError(ctx *fasthttp.RequestCtx, action string, err error) {
 		writeError(ctx, fasthttp.StatusNotFound, "not found")
 		return
 	}
-	writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("%s: %v", action, err))
+	log.Printf("%s: %v", action, err)
+	writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("failed to %s", action))
 }

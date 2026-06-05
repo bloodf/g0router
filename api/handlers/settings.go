@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
@@ -18,7 +18,8 @@ func Settings(ctx *fasthttp.RequestCtx, s *store.Store) {
 	case fasthttp.MethodGet:
 		settings, err := s.GetSettings()
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("get settings: %v", err))
+			log.Printf("get settings: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to get settings")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, settings)
@@ -29,7 +30,8 @@ func Settings(ctx *fasthttp.RequestCtx, s *store.Store) {
 			return
 		}
 		if err := s.UpdateSettings(settings); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("update settings: %v", err))
+			log.Printf("update settings: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to update settings")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, settings)

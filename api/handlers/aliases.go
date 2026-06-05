@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
@@ -24,7 +24,8 @@ func Aliases(ctx *fasthttp.RequestCtx, s *store.Store, aliasID string) {
 	case fasthttp.MethodGet:
 		aliases, err := s.ListModelAliases()
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list aliases: %v", err))
+			log.Printf("list aliases: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list aliases")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[store.ModelAlias]{Data: aliases})
@@ -34,7 +35,8 @@ func Aliases(ctx *fasthttp.RequestCtx, s *store.Store, aliasID string) {
 			return
 		}
 		if err := s.SetModelAlias(alias); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("set alias: %v", err))
+			log.Printf("set alias (create): %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to set alias")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusCreated, alias)
@@ -48,7 +50,8 @@ func Aliases(ctx *fasthttp.RequestCtx, s *store.Store, aliasID string) {
 			return
 		}
 		if err := s.SetModelAlias(alias); err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("set alias: %v", err))
+			log.Printf("set alias (update): %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to set alias")
 			return
 		}
 		writeJSON(ctx, fasthttp.StatusOK, alias)

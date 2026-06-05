@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/valyala/fasthttp"
 )
@@ -20,7 +20,8 @@ func Logs(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 
 	entries, err := usageStore.GetUsage(filter)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("get logs: %v", err))
+		log.Printf("get logs: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get logs")
 		return
 	}
 

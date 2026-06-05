@@ -283,3 +283,42 @@ func assertStoredCredentials(t *testing.T, s *store.Store, id, accessToken, refr
 		t.Fatalf("stored API key = %v, want %s", conn.APIKey, apiKey)
 	}
 }
+
+func TestConnectionsStoreFailureDoesNotLeakInternals(t *testing.T) {
+	s := newHandlerStore(t)
+	// Close store to force all operations to fail with a store error.
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	for _, tc := range []struct {
+		name   string
+		method string
+		body   string
+		id     string
+	}{
+		{"list", fasthttp.MethodGet, "", ""},
+		{"create", fasthttp.MethodPost, `{"provider":"openai","name":"x","auth_type":"api_key","api_key":"sk","is_active":true}`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, body := runHandler(t, tc.method, tc.body, func(ctx *fasthttp.RequestCtx) {
+				Connections(ctx, s, tc.id)
+			})
+			if ctx.Response.StatusCode() < 500 {
+				t.Fatalf("status = %d, want 5xx; body=%s", ctx.Response.StatusCode(), body)
+			}
+			assertNoInternalDetail(t, body)
+		})
+	}
+}
+
+// assertNoInternalDetail checks the response body does not contain
+// common internal error substrings that should never reach clients.
+func assertNoInternalDetail(t *testing.T, body []byte) {
+	t.Helper()
+	for _, banned := range []string{"sql", ".db", "sqlite", "/tmp", "/var", "database", "UNIQUE", "no such"} {
+		if bytes.Contains(bytes.ToLower(body), bytes.ToLower([]byte(banned))) {
+			t.Fatalf("response body leaked internal detail %q: %s", banned, body)
+		}
+	}
+}

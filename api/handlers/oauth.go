@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -57,7 +58,8 @@ func OAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 	}
 	session.Provider = runtimeProvider
 	if err := createOAuthSession(s, &session, req.AccountLabel); err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("store oauth session: %v", err))
+		log.Printf("store oauth session: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to store oauth session")
 		return
 	}
 
@@ -81,7 +83,8 @@ func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 	}
 	storedSession, err := getOAuthSession(s, sessionID)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("oauth session: %v", err))
+		log.Printf("get oauth session: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to retrieve oauth session")
 		return
 	}
 	if storedSession != nil {
@@ -107,14 +110,16 @@ func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 		if storedSession != nil {
 			consumed, err := consumeOAuthSession(s, sessionID)
 			if err != nil {
-				writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("oauth session: %v", err))
+				log.Printf("consume oauth session: %v", err)
+				writeError(ctx, fasthttp.StatusInternalServerError, "failed to consume oauth session")
 				return
 			}
 			accountLabel = consumed.AccountLabel
 		}
 		connection, err := persistOAuthConnection(s, *result.Token, accountLabel, runtimeProvider.String())
 		if err != nil {
-			writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("persist oauth connection: %v", err))
+			log.Printf("persist oauth connection: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to persist oauth connection")
 			return
 		}
 		response.Connection = connection
@@ -168,7 +173,8 @@ func OAuthExchange(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 
 	session, err := consumeOAuthSession(s, state)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("oauth session: %v", err))
+		log.Printf("consume oauth session (exchange): %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to consume oauth session")
 		return
 	}
 	if oauth.CanonicalFlowProviderID(oauth.ProviderID(session.Provider)) != flow.ProviderID() {
@@ -181,7 +187,8 @@ func OAuthExchange(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 func exchangeStoredOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows, state, code string) {
 	session, err := consumeOAuthSession(s, state)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("oauth session: %v", err))
+		log.Printf("consume oauth session (callback): %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to consume oauth session")
 		return
 	}
 	flow, ok := oauthFlow(ctx, flows, oauth.ProviderID(session.Provider))
@@ -208,7 +215,8 @@ func exchangeOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flow oauth.Flow, se
 
 	connection, err := persistOAuthConnection(s, token, session.AccountLabel, session.Provider)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("persist oauth connection: %v", err))
+		log.Printf("persist oauth connection (exchange): %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to persist oauth connection")
 		return
 	}
 	writeJSON(ctx, fasthttp.StatusOK, connection)

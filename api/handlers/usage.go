@@ -3,6 +3,7 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -72,7 +73,8 @@ func Usage(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 
 	entries, err := usageStore.GetUsage(filter)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("get usage: %v", err))
+		log.Printf("get usage: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get usage")
 		return
 	}
 
@@ -98,7 +100,8 @@ func UsageSummary(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 
 	summary, err := usageStore.GetUsageSummary(filter)
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("get usage summary: %v", err))
+		log.Printf("get usage summary: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get usage summary")
 		return
 	}
 
@@ -129,7 +132,8 @@ func UsageQuota(ctx *fasthttp.RequestCtx, s *store.Store, fetchers map[providers
 			writeError(ctx, fasthttp.StatusNotImplemented, err.Error())
 			return
 		}
-		writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("fetch quota: %v", err))
+		log.Printf("fetch quota: %v", err)
+		writeError(ctx, fasthttp.StatusBadGateway, "failed to fetch quota")
 		return
 	}
 

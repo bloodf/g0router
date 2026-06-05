@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"fmt"
+	"log"
 
 	providerinfo "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
@@ -58,7 +58,8 @@ func Providers(ctx *fasthttp.RequestCtx, source ManagementModelSource, providerI
 
 	models, err := source.ListModels(requestContext(ctx))
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("list models: %v", err))
+		log.Printf("list models (provider %s): %v", providerID, err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to list models")
 		return
 	}
 

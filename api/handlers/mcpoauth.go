@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 
@@ -79,12 +80,14 @@ func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, run
 			if s != nil {
 				_ = s.UpdateMCPInstanceHealth(instanceID, "unhealthy")
 			}
-			writeError(ctx, fasthttp.StatusBadGateway, fmt.Sprintf("reapply mcp credentials: %v", err))
+			log.Printf("reapply mcp credentials: %v", err)
+			writeError(ctx, fasthttp.StatusBadGateway, "failed to reapply mcp credentials")
 			return
 		}
 		if s != nil {
 			if err := s.UpdateMCPInstanceManifest(instanceID, manifest); err != nil {
-				writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("cache mcp manifest: %v", err))
+				log.Printf("cache mcp manifest (oauth): %v", err)
+				writeError(ctx, fasthttp.StatusInternalServerError, "failed to cache mcp manifest")
 				return
 			}
 			_ = s.UpdateMCPInstanceHealth(instanceID, "healthy")
