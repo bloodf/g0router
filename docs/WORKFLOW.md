@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.CC"
-last_updated: "2026-06-05T07:05:00Z"
+current_wave: "8.CD"
+last_updated: "2026-06-05T07:35:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -3150,6 +3150,45 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.CC makes quota capability explicit in the human provider matrix. `docs/PROVIDERS.md` now has a `Quota` column matching `internal/provider/matrix.go`, with OpenRouter as the only `yes` row, and a regression test keeps the docs table aligned with the provider matrix.
+
+---
+
+### Wave 8.CD — Clean-Checkout Release Gate Bootstrap
+
+```yaml
+wave: "8.CD"
+status: DONE
+max_agents: 1
+gate: "make verify"
+completed_at: "2026-06-05T07:35:00Z"
+evaluator_prompt: "docs/evaluations/wave-8CD-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "clean checkout raw npm --prefix ui test -- --run McpSplitPages before dependency bootstrap: FAIL, vitest command not found"
+  - "make build in clean checkout before implementation: PASS, but bootstraps after raw UI gates in historical gate order"
+  - "clean checkout npm --prefix ui test -- --run after make build bootstrap: PASS"
+  - "npm --prefix ui test -- --run McpSplitPages: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 88 tests"
+  - "focused provider/API/UI checks: PASS"
+  - "make verify: PASS; bootstrapped UI deps, passed go test, go vet, go build, UI unit/build/E2E, make build, and git diff --check"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.CD.1"
+    name: "Add bootstrapped clean-checkout release verification target"
+    status: DONE
+    agent: "orchestrator with audit subagents 019e95c8-6d0c-7c23-be7a-1f4f724b5c09, 019e95c8-a5d7-76b3-b264-59f1a87eeb37, 019e95c8-f512-7fe2-b08b-a7066c1a35f6"
+    commit: "PENDING"
+    files_owned:
+      - Makefile
+      - README.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8CD-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.CD fixes the clean-checkout release gate ordering found by the docs/release audit. `make verify` now installs UI development dependencies before raw UI unit/build/E2E gates, then runs the Go gates, binary build, `make build`, and whitespace check as one documented release verification command.
 
 ---
 

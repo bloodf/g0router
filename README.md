@@ -16,9 +16,8 @@ Single-binary Go LLM gateway that unifies multiple AI provider APIs behind one e
 ## Quick Start
 
 ```bash
-# Build and test
-make test
-make build
+# Clean-checkout verification
+make verify
 
 # Login to a provider
 ./g0router login anthropic    # Opens browser for OAuth
@@ -101,6 +100,7 @@ make test    # Run all tests
 make vet     # Run go vet
 make build   # Build binary
 make ui      # Build React dashboard
+make verify  # Bootstrap UI deps, run Go/UI/E2E gates, build
 make docker  # Build Docker image
 ```
 
