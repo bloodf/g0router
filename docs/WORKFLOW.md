@@ -2940,7 +2940,7 @@ max_agents: 1
 gate: "go test ./api/handlers -run 'TestMessagesStreamingTranslatesChatStream|TestMessagesResponsePreservesToolUseBlocks|TestResponsesStreamingTranslatesChatStream|TestStreamInferenceWritesSanitizedStreamError' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T05:30:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BY-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after commit"
+evaluation: "PASS external evaluator subagent 019e958c-36dd-71a2-bf94-6e899159d8ef at commit 17f0cb8"
 gate_results:
   - "go test ./api/handlers -run TestMessagesStreamingTranslatesChatStream -count=1: RED before implementation, /v1/messages stream:true returned 501 messages streaming unavailable"
   - "go test ./api/handlers -run 'TestMessagesStreamingTranslatesChatStream|TestMessagesResponsePreservesToolUseBlocks|TestResponsesStreamingTranslatesChatStream|TestStreamInferenceWritesSanitizedStreamError' -count=1: PASS"
@@ -2952,6 +2952,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e958c-36dd-71a2-bf94-6e899159d8ef: PASS, no blocking findings"
 
 tasks:
   - id: "8.BY.1"
