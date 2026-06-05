@@ -248,6 +248,21 @@ func (s *Store) migrate() error {
 	if err := s.ensureColumn("connections", "last_refresh_error", "TEXT"); err != nil {
 		return err
 	}
+	if err := s.ensureColumn("api_keys", "expires_at", "INTEGER"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("api_keys", "scopes", "TEXT"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("api_keys", "rate_limit_rpm", "INTEGER"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("api_keys", "rate_limit_tpm", "INTEGER"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("api_keys", "daily_spend_cap_usd", "REAL"); err != nil {
+		return err
+	}
 
 	return nil
 }

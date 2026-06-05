@@ -583,8 +583,8 @@ func assertAPIKeyManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
 	t.Helper()
 
 	var created struct {
-		Key store.APIKey `json:"key"`
-		Raw string       `json:"raw"`
+		Key apiKeyViewJSON `json:"key"`
+		Raw string         `json:"raw"`
 	}
 	createdBody := doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/keys", rawAPIKey, `{"name":"dashboard"}`, http.StatusCreated, &created)
 	if created.Key.ID == "" || created.Key.Name != "dashboard" {
@@ -602,20 +602,51 @@ func assertAPIKeyManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
 		t.Fatalf("api key list exposed raw key; body=%s", listBody)
 	}
 	var listed struct {
-		Data []store.APIKey `json:"data"`
+		Data []apiKeyViewJSON `json:"data"`
 	}
 	decodeIntegrationJSON(t, listBody, &listed)
-	if !containsAPIKey(listed.Data, created.Key.ID, "dashboard", created.Key.Prefix, true) {
+	if !containsAPIKeyView(listed.Data, created.Key.ID, "dashboard", created.Key.Prefix, true) {
 		t.Fatalf("api key list = %+v, want active dashboard key", listed.Data)
+	}
+
+	// Round-trip a per-key policy via the update endpoint.
+	var updated struct {
+		Key apiKeyViewJSON `json:"key"`
+	}
+	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/keys/"+created.Key.ID, rawAPIKey,
+		`{"scopes":["gpt-*"],"rate_limit_rpm":60,"daily_spend_cap_usd":2.5}`, http.StatusOK, &updated)
+	if len(updated.Key.Scopes) != 1 || updated.Key.Scopes[0] != "gpt-*" {
+		t.Fatalf("updated key scopes = %+v", updated.Key)
+	}
+	if updated.Key.RateLimitRPM == nil || *updated.Key.RateLimitRPM != 60 {
+		t.Fatalf("updated key rpm = %+v", updated.Key)
 	}
 
 	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/keys/"+created.Key.ID, rawAPIKey, "", http.StatusNoContent, nil)
 
 	listBody = assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/keys", http.StatusOK)
 	decodeIntegrationJSON(t, listBody, &listed)
-	if !containsAPIKey(listed.Data, created.Key.ID, "dashboard", created.Key.Prefix, false) {
+	if !containsAPIKeyView(listed.Data, created.Key.ID, "dashboard", created.Key.Prefix, false) {
 		t.Fatalf("api key list after delete = %+v, want inactive dashboard key", listed.Data)
 	}
+}
+
+type apiKeyViewJSON struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Prefix       string   `json:"prefix"`
+	IsActive     bool     `json:"is_active"`
+	Scopes       []string `json:"scopes"`
+	RateLimitRPM *int     `json:"rate_limit_rpm"`
+}
+
+func containsAPIKeyView(keys []apiKeyViewJSON, id, name, prefix string, active bool) bool {
+	for _, key := range keys {
+		if key.ID == id && key.Name == name && key.Prefix == prefix && key.IsActive == active {
+			return true
+		}
+	}
+	return false
 }
 
 func assertAliasManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
@@ -1168,15 +1199,6 @@ func decodeIntegrationJSON(t *testing.T, data []byte, into any) {
 	if err := json.Unmarshal(data, into); err != nil {
 		t.Fatalf("decode integration JSON: %v; body=%s", err, data)
 	}
-}
-
-func containsAPIKey(keys []store.APIKey, id, name, prefix string, active bool) bool {
-	for _, key := range keys {
-		if key.ID == id && key.Name == name && key.Prefix == prefix && key.IsActive == active {
-			return true
-		}
-	}
-	return false
 }
 
 func containsAlias(aliases []store.ModelAlias, want store.ModelAlias) bool {

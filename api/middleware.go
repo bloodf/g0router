@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/valyala/fasthttp"
 )
@@ -15,7 +16,17 @@ type APIKeyValidator interface {
 }
 
 type APIKeyIdentity struct {
-	ID string
+	ID               string
+	ExpiresAt        *int64
+	Scopes           []string
+	RateLimitRPM     *int
+	RateLimitTPM     *int
+	DailySpendCapUSD *float64
+}
+
+// Expired reports whether the key's expiry has passed relative to now.
+func (i APIKeyIdentity) Expired(now time.Time) bool {
+	return i.ExpiresAt != nil && now.Unix() >= *i.ExpiresAt
 }
 
 type APIKeyIdentityValidator interface {
@@ -24,9 +35,10 @@ type APIKeyIdentityValidator interface {
 
 const (
 	requestIDHeader       = "X-Request-ID"
-	requestAuthTypeKey    = "g0router.auth_type"
-	requestAPIKeyIDKey    = "g0router.api_key_id"
-	requestAuthTypeAPIKey = "api_key"
+	requestAuthTypeKey     = "g0router.auth_type"
+	requestAPIKeyIDKey     = "g0router.api_key_id"
+	requestAPIKeyPolicyKey = "g0router.api_key_policy"
+	requestAuthTypeAPIKey  = "api_key"
 )
 
 func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
@@ -186,9 +198,17 @@ func (s *Server) validAPIKey(ctx *fasthttp.RequestCtx) (bool, error) {
 			return false, fmt.Errorf("validate api key: %w", err)
 		}
 		if ok {
+			// Expired keys are rejected as if invalid: no auth context is set
+			// and the request is denied (401 via the caller).
+			if identity != nil && identity.Expired(time.Now()) {
+				return false, nil
+			}
 			ctx.SetUserValue(requestAuthTypeKey, requestAuthTypeAPIKey)
 			if identity != nil && identity.ID != "" {
 				ctx.SetUserValue(requestAPIKeyIDKey, identity.ID)
+			}
+			if identity != nil {
+				ctx.SetUserValue(requestAPIKeyPolicyKey, *identity)
 			}
 		}
 		return ok, nil

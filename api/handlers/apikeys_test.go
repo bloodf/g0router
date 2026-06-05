@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -18,8 +17,11 @@ func TestAPIKeysCreateListDelete(t *testing.T) {
 		t.Fatalf("create status = %d, want 201; body=%s", ctx.Response.StatusCode(), body)
 	}
 	var created struct {
-		Key store.APIKey `json:"key"`
-		Raw string       `json:"raw"`
+		Key struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		} `json:"key"`
+		Raw string `json:"raw"`
 	}
 	decodeJSON(t, body, &created)
 	if created.Key.ID == "" || created.Key.Name != "dashboard" {
@@ -39,7 +41,9 @@ func TestAPIKeysCreateListDelete(t *testing.T) {
 		t.Fatalf("list response exposes raw key: %s", body)
 	}
 	var listed struct {
-		Data []store.APIKey `json:"data"`
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
 	}
 	decodeJSON(t, body, &listed)
 	if len(listed.Data) != 1 || listed.Data[0].ID != created.Key.ID {

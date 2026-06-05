@@ -21,6 +21,7 @@ import (
 	"github.com/bloodf/g0router/internal/modelcatalog"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
+	"github.com/bloodf/g0router/internal/ratelimit"
 	"github.com/bloodf/g0router/internal/rtk"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
@@ -58,6 +59,8 @@ type Server struct {
 	settingsMu    sync.RWMutex
 	settingsCache *store.Settings
 
+	limiter *ratelimit.Limiter
+
 	logRetentionInterval time.Duration
 	// runRetention performs a single retention pass. It is a field so tests can
 	// inject a panicking pass and assert the loop survives; it defaults to
@@ -81,7 +84,7 @@ func (s *Server) UpdateSettings(settings store.Settings) error {
 
 func NewServer(config ServerConfig) *Server {
 	uiFS, err := g0router.UI()
-	srv := &Server{config: config, uiFS: uiFS, uiErr: err, logRetentionInterval: logRetentionInterval}
+	srv := &Server{config: config, uiFS: uiFS, uiErr: err, limiter: ratelimit.NewLimiter(), logRetentionInterval: logRetentionInterval}
 	srv.runRetention = srv.runLogRetentionOnce
 	srv.server = &fasthttp.Server{
 		Handler: srv.handle,
@@ -228,6 +231,9 @@ func (s *Server) handleResponses(ctx *fasthttp.RequestCtx) {
 }
 
 func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat string, handle func(*fasthttp.RequestCtx, handlers.InferenceEngine)) {
+	if !s.enforceKeyPolicy(ctx) {
+		return
+	}
 	started := time.Now()
 	engine := s.config.InferenceEngine
 	var captured *capturingInferenceEngine
@@ -246,6 +252,7 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 			base: engine,
 			onStreamComplete: func(req *providers.ChatRequest, model string, providerUsage *providers.Usage) {
 				s.logStreamingInferenceUsage(snapshot, started, sourceFormat, req, model, providerUsage)
+				s.recordKeyUsage(snapshot.apiKeyID, model, req, nil, providerUsage)
 			},
 		}
 		engine = captured
@@ -263,6 +270,7 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 		dispatchErr = captured.err
 	}
 	s.logInferenceUsage(ctx, started, sourceFormat, req, resp, dispatchErr, "", nil, ctx.Response.StatusCode())
+	s.recordKeyUsage(userValueStringPtr(ctx, requestAPIKeyIDKey), "", req, resp, nil)
 }
 
 func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, sourceFormat string, request *providers.ChatRequest, response *providers.ChatResponse, dispatchErr error, streamModel string, streamUsage *providers.Usage, statusCode int) {

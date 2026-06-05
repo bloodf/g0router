@@ -361,7 +361,14 @@ func (v storeAPIKeyValidator) ValidateAPIKeyIdentity(key, secret string) (*api.A
 	if err != nil || !ok {
 		return nil, ok, err
 	}
-	return &api.APIKeyIdentity{ID: storedKey.ID}, true, nil
+	return &api.APIKeyIdentity{
+		ID:               storedKey.ID,
+		ExpiresAt:        storedKey.ExpiresAt,
+		Scopes:           storedKey.Scopes,
+		RateLimitRPM:     storedKey.RateLimitRPM,
+		RateLimitTPM:     storedKey.RateLimitTPM,
+		DailySpendCapUSD: storedKey.DailySpendCapUSD,
+	}, true, nil
 }
 
 func expandServeDataDir(path string) (string, error) {
