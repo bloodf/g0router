@@ -118,14 +118,17 @@ func TestChatCompletionTimesOutPendingPrediction(t *testing.T) {
 	}
 }
 
-func TestChatCompletionStreamUnsupported(t *testing.T) {
+func TestChatCompletionStreamIsSupported(t *testing.T) {
 	provider := New(Config{BaseURL: "https://replicate.example"})
-	_, err := provider.ChatCompletionStream(context.Background(), testKey(), &providers.ChatRequest{Model: "owner/model"})
-	if err == nil || !strings.Contains(err.Error(), "streaming unsupported") {
-		t.Fatalf("error = %v, want streaming unsupported", err)
+	// Streaming is implemented now: a missing key must fail fast with a
+	// configuration error, never the ErrStreamingUnsupported capability
+	// sentinel.
+	_, err := provider.ChatCompletionStream(context.Background(), providers.Key{}, &providers.ChatRequest{Model: "owner/model"})
+	if err == nil {
+		t.Fatal("expected error for missing key")
 	}
-	if !errors.Is(err, providers.ErrStreamingUnsupported) {
-		t.Fatalf("error = %v, want ErrStreamingUnsupported", err)
+	if errors.Is(err, providers.ErrStreamingUnsupported) {
+		t.Fatalf("error = %v, streaming should be supported", err)
 	}
 }
 

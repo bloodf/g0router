@@ -281,13 +281,16 @@ func TestListModelsUsesBedrockControlPlaneEndpointByDefault(t *testing.T) {
 	}
 }
 
-func TestUnsupportedMethodsReturnErrors(t *testing.T) {
+func TestChatCompletionStreamIsSupported(t *testing.T) {
 	provider := New("http://127.0.0.1")
 
+	// Streaming is now implemented: a transport failure to an unreachable
+	// endpoint must surface as a real dispatch error, never the
+	// ErrStreamingUnsupported capability sentinel.
 	if _, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest()); err == nil {
-		t.Fatal("expected stream error")
-	} else if !errors.Is(err, providers.ErrStreamingUnsupported) {
-		t.Fatalf("error = %v, want ErrStreamingUnsupported", err)
+		t.Fatal("expected stream dispatch error against unreachable endpoint")
+	} else if errors.Is(err, providers.ErrStreamingUnsupported) {
+		t.Fatalf("error = %v, streaming should be supported", err)
 	}
 }
 

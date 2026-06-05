@@ -155,10 +155,10 @@ func TestProvidersListKnownProviders(t *testing.T) {
 			break
 		}
 	}
-	if bedrock.PublicStatus != "supported" || !bedrock.RegisteredAdapter || !bedrock.PublicInference || !bedrock.DirectDispatch || !bedrock.Inference || bedrock.Streaming || !bedrock.ModelCatalog || !bedrock.ListModels || bedrock.Quota {
-		t.Fatalf("bedrock provider = %+v, want supported non-streaming Converse catalog provider without quota", bedrock)
+	if bedrock.PublicStatus != "supported" || !bedrock.RegisteredAdapter || !bedrock.PublicInference || !bedrock.DirectDispatch || !bedrock.Inference || !bedrock.Streaming || !bedrock.ModelCatalog || !bedrock.ListModels || bedrock.Quota {
+		t.Fatalf("bedrock provider = %+v, want supported streaming Converse catalog provider without quota", bedrock)
 	}
-	if !strings.Contains(strings.ToLower(bedrock.Notes), "converse") || !strings.Contains(strings.ToLower(bedrock.Notes), "catalog") || !strings.Contains(strings.ToLower(bedrock.Notes), "non-streaming") {
+	if !strings.Contains(strings.ToLower(bedrock.Notes), "converse") || !strings.Contains(strings.ToLower(bedrock.Notes), "catalog") || !strings.Contains(strings.ToLower(bedrock.Notes), "streaming") {
 		t.Fatalf("bedrock notes = %q, want explicit Converse catalog status", bedrock.Notes)
 	}
 }

@@ -40,7 +40,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		supportedProvider("openai", "codex", true, true, true, "api_key", "oauth"),
 		supportedProvider("anthropic", "anthropic", true, true, true, "api_key", "oauth"),
 		dynamicRoutableProvider("azure", "", false, true, true, false, "api_key"),
-		catalogRoutableProvider("bedrock", "", false, false, true, false, "api_key"),
+		catalogRoutableProvider("bedrock", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("cerebras", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("cohere", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("deepseek", "deepseek", true, true, true, false, "api_key", "oauth"),
@@ -151,7 +151,7 @@ func catalogRoutableProvider(id string, oauthProvider string, refresh, streaming
 		entry.Notes = "Public direct dispatch works through catalog routing; quota fetcher is not implemented yet."
 	}
 	if id == "bedrock" {
-		entry.Notes = "Public direct dispatch works through catalog-backed non-streaming Bedrock Converse routing; streaming and quota are not implemented yet."
+		entry.Notes = "Public direct dispatch works through catalog-backed Bedrock Converse routing with native ConverseStream event-stream streaming; quota is not implemented yet."
 	}
 	if id == "openrouter" {
 		entry.Notes = "Public direct dispatch works through catalog routing; quota fetcher uses OpenRouter's current API key credits endpoint."
@@ -220,8 +220,8 @@ func gitLabDuoProvider() ProviderMatrixEntry {
 }
 
 func replicateProvider() ProviderMatrixEntry {
-	entry := dynamicRoutableProvider("replicate", "", false, false, false, false, "api_key")
-	entry.Notes = "Public non-streaming direct dispatch works through provider-qualified Replicate prediction model IDs; streaming, model listing, static catalog, and quota fetcher are not implemented."
+	entry := dynamicRoutableProvider("replicate", "", false, true, false, false, "api_key")
+	entry.Notes = "Public direct dispatch works through provider-qualified Replicate prediction model IDs with native SSE token streaming; model listing, static catalog, and quota fetcher are not implemented."
 	return entry
 }
 

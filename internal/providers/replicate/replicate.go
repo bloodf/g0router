@@ -34,8 +34,9 @@ type Provider struct {
 }
 
 type predictionCreateRequest struct {
-	Model string         `json:"model"`
-	Input map[string]any `json:"input"`
+	Model  string         `json:"model"`
+	Input  map[string]any `json:"input"`
+	Stream bool           `json:"stream,omitempty"`
 }
 
 type predictionResponse struct {
@@ -109,10 +110,6 @@ func (p *Provider) ChatCompletion(ctx context.Context, key providers.Key, req *p
 			FinishReason: &finish,
 		}},
 	}, nil
-}
-
-func (p *Provider) ChatCompletionStream(context.Context, providers.Key, *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	return nil, fmt.Errorf("replicate streaming: %w", providers.ErrStreamingUnsupported)
 }
 
 func (p *Provider) ListModels(context.Context, providers.Key) ([]providers.Model, error) {

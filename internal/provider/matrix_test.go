@@ -216,7 +216,7 @@ func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *te
 	}
 }
 
-func TestProviderMatrixMarksBedrockPublicNonStreamingAfterConverseSupport(t *testing.T) {
+func TestProviderMatrixMarksBedrockPublicStreamingAfterConverseSupport(t *testing.T) {
 	entry, ok := ProviderMatrix().Provider("bedrock")
 	if !ok {
 		t.Fatal("provider matrix missing bedrock")
@@ -230,18 +230,21 @@ func TestProviderMatrixMarksBedrockPublicNonStreamingAfterConverseSupport(t *tes
 	if !entry.PublicInference || !entry.DirectDispatch || !entry.ModelCatalog {
 		t.Fatalf("bedrock should expose catalog-backed public direct dispatch: %+v", entry)
 	}
-	if entry.Streaming || entry.Quota {
-		t.Fatalf("bedrock streaming/quota capabilities should stay false: %+v", entry)
+	if !entry.Streaming {
+		t.Fatalf("bedrock should advertise native ConverseStream streaming: %+v", entry)
+	}
+	if entry.Quota {
+		t.Fatalf("bedrock quota capability should stay false: %+v", entry)
 	}
 	if !entry.Inference {
-		t.Fatalf("bedrock should expose adapter-only non-streaming Converse inference: %+v", entry)
+		t.Fatalf("bedrock should expose Converse inference: %+v", entry)
 	}
 	if !entry.ListModels {
 		t.Fatalf("bedrock should expose signed foundation model listing: %+v", entry)
 	}
 	note := strings.ToLower(entry.Notes)
-	if !strings.Contains(note, "converse") || !strings.Contains(note, "catalog") || !strings.Contains(note, "non-streaming") {
-		t.Fatalf("bedrock notes = %q, want explicit Converse catalog status", entry.Notes)
+	if !strings.Contains(note, "converse") || !strings.Contains(note, "catalog") || !strings.Contains(note, "streaming") {
+		t.Fatalf("bedrock notes = %q, want explicit Converse catalog streaming status", entry.Notes)
 	}
 }
 
@@ -363,11 +366,7 @@ func TestPublicProvidersOnlyClaimImplementedQuotaSupport(t *testing.T) {
 		} else if !entry.ModelCatalog || !entry.ListModels {
 			t.Fatalf("%s should expose catalog and model APIs: %+v", id, entry)
 		}
-		if id == "bedrock" {
-			if entry.Streaming {
-				t.Fatalf("%s should not claim streaming until event-stream support exists: %+v", id, entry)
-			}
-		} else if !entry.Streaming {
+		if !entry.Streaming {
 			t.Fatalf("%s should expose streaming: %+v", id, entry)
 		}
 		if id == "openrouter" {
@@ -445,8 +444,11 @@ func TestReplicatePromotesToPredictionBackedInferenceProvider(t *testing.T) {
 	if !entry.RegisteredAdapter || !entry.Inference || !entry.PublicInference || !entry.DirectDispatch {
 		t.Fatalf("replicate should claim prediction-backed provider-qualified runtime support: %+v", entry)
 	}
-	if entry.Streaming || entry.ListModels || entry.ModelCatalog || entry.Quota {
-		t.Fatalf("replicate should not claim streaming, listing, catalog, or quota: %+v", entry)
+	if !entry.Streaming {
+		t.Fatalf("replicate should advertise native SSE token streaming: %+v", entry)
+	}
+	if entry.ListModels || entry.ModelCatalog || entry.Quota {
+		t.Fatalf("replicate should not claim listing, catalog, or quota: %+v", entry)
 	}
 }
 
