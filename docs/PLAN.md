@@ -32,8 +32,8 @@ follow-up audit remediation, provider runtime parity, built-in MCP search
 tools, Responses/Messages streaming translation, unsupported-streaming
 error hardening, quota capability truth hardening, OpenRouter quota support,
 provider quota matrix documentation, clean-checkout release gate bootstrap,
-dashboard update/state coverage, backend/docs audit contract hardening, and
-final docs/workflow closure through Wave 8.CG.
+dashboard update/state coverage, backend/docs audit contract hardening, final
+docs/workflow closure, and stale closure-language cleanup through Wave 8.CH.
 
 ## Stage → Wave → Task Map
 
@@ -52,7 +52,7 @@ STAGE 5 ─┬─ Wave 5.A [3 tasks]  ──► Makefile, systemd, Docker
           └─ Wave 5.B [2 tasks]  ──► README polish, E2E tests
 STAGE 6 ─── Wave 6.A [6 tasks]   ──► advanced MCP instances, OAuth, callbacks
 STAGE 7 ─── Waves 7.A–7.M        ──► remediation, release hardening, docs reconciliation
-STAGE 8 ─── Waves 8.L–8.CG       ──► tracked completion hardening, E2E/API integration, audit fixes, provider parity, search/streaming/quota/release-gate/dashboard/backend hardening, final closure
+STAGE 8 ─── Waves 8.L–8.CH       ──► tracked completion hardening, E2E/API integration, audit fixes, provider parity, search/streaming/quota/release-gate/dashboard/backend hardening, final closure
 ```
 
 ## Phase Index
@@ -90,12 +90,13 @@ STAGE 8 ─── Waves 8.L–8.CG       ──► tracked completion hardening,
 ## How to Start
 
 ### Single agent
-1. Read `CLAUDE.md` → `WORKFLOW.md` → pick next PENDING task in current wave
-2. Follow the phase doc's TDD process
-3. Commit, update WORKFLOW.md, move to next task
+1. Read `CLAUDE.md` → `WORKFLOW.md` for final status and gate evidence
+2. If new work is explicitly added later, create a new workflow wave first
+3. Follow the phase doc's TDD process
+4. Commit, update WORKFLOW.md, move to evaluator review
 
 ### Multi-agent orchestration
 1. Read `ORCHESTRATION.md` for the full parallel model
-2. Dispatch one agent per task in the current wave
+2. If new work is explicitly added later, dispatch one agent per task in the new wave
 3. Merge when all wave tasks report DONE
-4. Run gate verification, advance to next wave
+4. Run gate verification and evaluator review before any new advancement

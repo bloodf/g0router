@@ -4,14 +4,14 @@
 
 1. Read `CLAUDE.md` for behavioral rules.
 2. Read `docs/ORCHESTRATION.md` for the parallel execution model.
-3. Find current stage and wave below.
-4. Pick up the next `PENDING` task **in the current wave**.
-5. Update status to `IN_PROGRESS` with your agent ID.
-6. Complete the task following TDD.
-7. Run `go test ./... && go vet ./...`.
+3. Check the current state below before doing any work.
+4. If `project_status` is `COMPLETE`, do not infer a next task from old wave history.
+5. If new work is explicitly added later, create a new wave before implementation.
+6. Complete new tasks following TDD.
+7. Run the relevant gates before committing.
 8. Commit: `phase-N/task-M: <description>`.
 9. Update status to `DONE`.
-10. When ALL tasks in a wave are `DONE`, orchestrator merges and advances.
+10. When ALL tasks in a new wave are `DONE`, orchestrator merges, verifies, and records evaluator results.
 
 ## Status Values
 
@@ -31,8 +31,8 @@
 project_status: COMPLETE
 current_stage: 8
 current_wave: "COMPLETE"
-last_completed_wave: "8.CG"
-last_updated: "2026-06-05T04:22:03Z"
+last_completed_wave: "8.CH"
+last_updated: "2026-06-05T04:25:40Z"
 last_agent: "orchestrator"
 ```
 
@@ -77,7 +77,7 @@ tasks:
       - internal/cli/auth_test.go
 ```
 
-**Checkpoint**: Stage 8 remains active; continue auditing docs-defined gaps and run evaluator before release lock.
+**Checkpoint**: Wave 8.L is complete and retained as historical gate evidence.
 
 ### Wave 8.M — Optional Live Provider Smoke Gate
 
@@ -3314,6 +3314,36 @@ tasks:
 
 ---
 
+### Wave 8.CH — Stale Closure-Language Cleanup
+
+```yaml
+wave: "8.CH"
+status: DONE
+max_agents: 1
+gate: "rg -n 'remains active|next PENDING|PENDING task|current wave|find IN_PROGRESS task|not yet implemented' docs/README.md docs/WORKFLOW.md docs/PLAN.md docs/ORCHESTRATION.md docs/phases --glob '*.md' | rg -v 'gate:|fresh completion audit' && false || true; git diff --check"
+completed_at: "2026-06-05T04:25:40Z"
+evaluator_prompt: "docs/evaluations/wave-8CH-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "fresh completion audit after Wave 8.CG: FAIL before implementation, docs/WORKFLOW.md still said Stage 8 remains active and PLAN/WORKFLOW navigation still pointed agents to current-wave pending tasks"
+
+tasks:
+  - id: "8.CH.1"
+    name: "Remove stale current-wave and pending-task closure language"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8CH-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.CH removes the remaining stale completion-language blockers found after Wave 8.CG. Historical wave names that include "remaining" are left intact when they describe old batch contents, not current unfinished work.
+
+---
+
 ## STAGE 0 — Bootstrap
 
 ### Wave 0.A
@@ -5239,6 +5269,6 @@ If project is in a broken state:
 
 1. `go test ./...` → identify failures
 2. `git log --oneline -10` → last good commit
-3. Read WORKFLOW.md → find IN_PROGRESS task
+3. Read WORKFLOW.md → identify the active wave/task if one exists
 4. Fix failing tests before proceeding
 5. Never skip a broken test — fix or revert
