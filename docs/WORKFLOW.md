@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BZ"
-last_updated: "2026-06-05T05:50:00Z"
+current_wave: "8.CA"
+last_updated: "2026-06-05T06:10:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -3012,6 +3012,45 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BZ keeps Bedrock and Replicate streaming truthfully unsupported while making that unsupported capability machine-readable. Providers now wrap a shared `providers.ErrStreamingUnsupported` sentinel, and dispatch error classification maps it to the stable sanitized OpenAI-compatible `501 streaming_unsupported` response instead of a generic upstream failure.
+
+---
+
+### Wave 8.CA — Quota Capability Truth Hardening
+
+```yaml
+wave: "8.CA"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/cli -run TestDefaultQuotaFetchersReturnUnsupportedForQuotaFalseProviders -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T06:10:00Z"
+evaluator_prompt: "docs/evaluations/wave-8CA-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after commit"
+gate_results:
+  - "go test ./internal/cli -run TestDefaultQuotaFetchersReturnUnsupportedForQuotaFalseProviders -count=1: RED before final scope, auth-only providers do not register default quota fetchers"
+  - "go test ./internal/cli -run TestDefaultQuotaFetchersReturnUnsupportedForQuotaFalseProviders -count=1: PASS after scoping the contract to public inference providers"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.CA.1"
+    name: "Clarify quota endpoint capability gating and default unsupported behavior"
+    status: DONE
+    agent: "orchestrator with read-only scout 019e9590-82fd-7ea2-8861-b9e6514d6565"
+    files_owned:
+      - internal/cli/root_test.go
+      - docs/SCHEMA.md
+      - docs/phases/phase-08-usage-tracking-cost-logging.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8CA-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.CA makes the provider quota contract harder to misread. The API schema and Phase 8 docs now state that quota is capability-gated and unsupported by default unless a provider-specific fetcher exists, and startup has regression coverage that every public inference provider with `quota=false` returns `usage.ErrQuotaUnsupported` through its default cached quota fetcher.
 
 ---
 

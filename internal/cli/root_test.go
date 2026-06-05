@@ -17,6 +17,7 @@ import (
 
 	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/internal/mcp"
+	providermatrix "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/store"
@@ -371,6 +372,29 @@ func TestDefaultServerConfigWrapsDefaultQuotaFetchersWithCache(t *testing.T) {
 	_, err := fetcher.FetchQuota(context.Background(), providers.Key{Provider: providers.ProviderOpenAI})
 	if !errors.Is(err, usage.ErrQuotaUnsupported) {
 		t.Fatalf("error = %v, want ErrQuotaUnsupported", err)
+	}
+}
+
+func TestDefaultQuotaFetchersReturnUnsupportedForQuotaFalseProviders(t *testing.T) {
+	fetchers := defaultQuotaFetchers()
+	matrix := providermatrix.ProviderMatrix()
+
+	for _, entry := range matrix.Entries() {
+		if !entry.PublicInference {
+			continue
+		}
+		provider := providers.ModelProvider(entry.G0RouterID)
+		fetcher := fetchers[provider]
+		if fetcher == nil {
+			t.Fatalf("%s default quota fetcher missing", provider)
+		}
+		if entry.Quota {
+			continue
+		}
+		_, err := fetcher.FetchQuota(context.Background(), providers.Key{Provider: provider})
+		if !errors.Is(err, usage.ErrQuotaUnsupported) {
+			t.Fatalf("%s quota error = %v, want ErrQuotaUnsupported", provider, err)
+		}
 	}
 }
 
