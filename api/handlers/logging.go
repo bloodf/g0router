@@ -25,10 +25,18 @@ func Logs(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 		return
 	}
 
+	total, err := usageStore.CountUsage(filter)
+	if err != nil {
+		log.Printf("count logs: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get logs")
+		return
+	}
+
 	writeJSON(ctx, fasthttp.StatusOK, usageListResponse{
 		Object: "list",
 		Data:   usageLogResponses(entries),
 		Limit:  filter.Limit,
 		Offset: filter.Offset,
+		Total:  total,
 	})
 }

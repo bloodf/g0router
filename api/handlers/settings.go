@@ -29,6 +29,10 @@ func Settings(ctx *fasthttp.RequestCtx, s *store.Store) {
 			writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 			return
 		}
+		if settings.LogRetentionDays < 0 {
+			writeError(ctx, fasthttp.StatusBadRequest, "log_retention_days must be >= 0")
+			return
+		}
 		if err := s.UpdateSettings(settings); err != nil {
 			log.Printf("update settings: %v", err)
 			writeError(ctx, fasthttp.StatusInternalServerError, "failed to update settings")

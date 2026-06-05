@@ -221,6 +221,167 @@ func logUsageEntries(t *testing.T, s *Store, entries []RequestLogEntry) {
 	}
 }
 
+func TestDeleteRequestLogsOlderThan(t *testing.T) {
+	s := openTestStore(t)
+	now := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	logUsageEntries(t, s, []RequestLogEntry{
+		minimalUsageEntry("old-1", "openai", "gpt-4o", now.Add(-10*24*time.Hour)),
+		minimalUsageEntry("old-2", "openai", "gpt-4o", now.Add(-8*24*time.Hour)),
+		minimalUsageEntry("new-1", "openai", "gpt-4o", now.Add(-1*24*time.Hour)),
+	})
+
+	cutoff := now.Add(-7 * 24 * time.Hour)
+	deleted, err := s.DeleteRequestLogsOlderThan(cutoff)
+	if err != nil {
+		t.Fatalf("DeleteRequestLogsOlderThan: %v", err)
+	}
+	if deleted != 2 {
+		t.Fatalf("deleted = %d, want 2", deleted)
+	}
+
+	remaining, err := s.GetUsage(UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(remaining) != 1 || remaining[0].RequestID != "new-1" {
+		t.Fatalf("remaining = %+v, want only new-1", remaining)
+	}
+}
+
+func TestGetUsageFilterBySourceFormat(t *testing.T) {
+	s := openTestStore(t)
+	base := time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC)
+	a := minimalUsageEntry("req-a", "openai", "gpt-4o", base)
+	a.SourceFormat = stringPtr("anthropic")
+	b := minimalUsageEntry("req-b", "openai", "gpt-4o", base.Add(time.Minute))
+	b.SourceFormat = stringPtr("openai")
+	logUsageEntries(t, s, []RequestLogEntry{a, b})
+
+	entries, err := s.GetUsage(UsageFilter{SourceFormat: stringPtr("anthropic")})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 || entries[0].RequestID != "req-a" {
+		t.Fatalf("entries = %+v, want only req-a", entries)
+	}
+}
+
+func TestGetUsageFilterByAuthType(t *testing.T) {
+	s := openTestStore(t)
+	base := time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC)
+	a := minimalUsageEntry("req-a", "openai", "gpt-4o", base)
+	a.AuthType = "oauth"
+	b := minimalUsageEntry("req-b", "openai", "gpt-4o", base.Add(time.Minute))
+	b.AuthType = "api_key"
+	logUsageEntries(t, s, []RequestLogEntry{a, b})
+
+	entries, err := s.GetUsage(UsageFilter{AuthType: stringPtr("oauth")})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 || entries[0].RequestID != "req-a" {
+		t.Fatalf("entries = %+v, want only req-a", entries)
+	}
+}
+
+func TestGetUsageFilterByStatusClass(t *testing.T) {
+	s := openTestStore(t)
+	base := time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC)
+	ok := minimalUsageEntry("ok", "openai", "gpt-4o", base)
+	ok.StatusCode = intPtr(200)
+	client := minimalUsageEntry("client", "openai", "gpt-4o", base.Add(time.Minute))
+	client.StatusCode = intPtr(404)
+	server := minimalUsageEntry("server", "openai", "gpt-4o", base.Add(2*time.Minute))
+	server.StatusCode = intPtr(503)
+	logUsageEntries(t, s, []RequestLogEntry{ok, client, server})
+
+	cases := map[string]string{"success": "ok", "client_error": "client", "server_error": "server"}
+	for class, wantID := range cases {
+		entries, err := s.GetUsage(UsageFilter{StatusClass: class})
+		if err != nil {
+			t.Fatalf("GetUsage %s: %v", class, err)
+		}
+		if len(entries) != 1 || entries[0].RequestID != wantID {
+			t.Fatalf("status class %s = %+v, want %s", class, entries, wantID)
+		}
+	}
+}
+
+func TestGetUsageFilterBySearch(t *testing.T) {
+	s := openTestStore(t)
+	base := time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC)
+	a := minimalUsageEntry("alpha-request", "openai", "gpt-4o", base)
+	b := minimalUsageEntry("beta-request", "openai", "claude-sonnet", base.Add(time.Minute))
+	c := minimalUsageEntry("gamma-request", "openai", "gpt-4o", base.Add(2*time.Minute))
+	c.Error = stringPtr("rate_limit: too many requests")
+	logUsageEntries(t, s, []RequestLogEntry{a, b, c})
+
+	byID, err := s.GetUsage(UsageFilter{Search: "ALPHA"})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(byID) != 1 || byID[0].RequestID != "alpha-request" {
+		t.Fatalf("search by id = %+v, want alpha-request", byID)
+	}
+
+	byModel, err := s.GetUsage(UsageFilter{Search: "claude"})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(byModel) != 1 || byModel[0].RequestID != "beta-request" {
+		t.Fatalf("search by model = %+v, want beta-request", byModel)
+	}
+
+	byErr, err := s.GetUsage(UsageFilter{Search: "rate_limit"})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(byErr) != 1 || byErr[0].RequestID != "gamma-request" {
+		t.Fatalf("search by error = %+v, want gamma-request", byErr)
+	}
+}
+
+func TestGetUsageFilterByStartEnd(t *testing.T) {
+	s := openTestStore(t)
+	base := time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC)
+	logUsageEntries(t, s, []RequestLogEntry{
+		minimalUsageEntry("before", "openai", "gpt-4o", base.Add(-time.Hour)),
+		minimalUsageEntry("inside", "openai", "gpt-4o", base),
+		minimalUsageEntry("after", "openai", "gpt-4o", base.Add(time.Hour)),
+	})
+
+	entries, err := s.GetUsage(UsageFilter{Start: timePtr(base.Add(-time.Minute)), End: timePtr(base.Add(time.Minute))})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 || entries[0].RequestID != "inside" {
+		t.Fatalf("entries = %+v, want only inside", entries)
+	}
+}
+
+func TestCountUsageIgnoresLimitOffset(t *testing.T) {
+	s := openTestStore(t)
+	base := time.Date(2026, 6, 2, 10, 0, 0, 0, time.UTC)
+	var entries []RequestLogEntry
+	for i := 0; i < 5; i++ {
+		entries = append(entries, minimalUsageEntry("req-"+string(rune('0'+i)), "openai", "gpt-4o", base.Add(time.Duration(i)*time.Minute)))
+	}
+	entries = append(entries, minimalUsageEntry("other", "anthropic", "claude", base.Add(10*time.Minute)))
+	logUsageEntries(t, s, entries)
+
+	total, err := s.CountUsage(UsageFilter{Provider: stringPtr("openai"), Limit: 2, Offset: 1})
+	if err != nil {
+		t.Fatalf("CountUsage: %v", err)
+	}
+	if total != 5 {
+		t.Fatalf("count = %d, want 5 (ignoring limit/offset)", total)
+	}
+}
+
+func intPtr(value int) *int {
+	return &value
+}
+
 func minimalUsageEntry(requestID, provider, model string, timestamp time.Time) RequestLogEntry {
 	return RequestLogEntry{
 		RequestID: requestID,

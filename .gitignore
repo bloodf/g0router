@@ -26,3 +26,7 @@ ui/test-results/
 # OS
 .DS_Store
 Thumbs.db
+
+# Go coverage profiles
+coverage.out
+*.coverprofile

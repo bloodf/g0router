@@ -1269,6 +1269,10 @@ func (f failingRequestLogStore) GetUsageSummary(filter store.UsageFilter) (*stor
 	return &store.UsageSummary{}, nil
 }
 
+func (f failingRequestLogStore) CountUsage(filter store.UsageFilter) (int, error) {
+	return 0, nil
+}
+
 func (f failingRequestLogStore) LogRequest(entry *store.RequestLogEntry) error {
 	return f.err
 }

@@ -31,6 +31,55 @@ func TestGetSettingsDefaults(t *testing.T) {
 	if settings.DataDir != "" {
 		t.Errorf("DataDir = %q, want empty", settings.DataDir)
 	}
+	if settings.LogRetentionDays != 30 {
+		t.Errorf("LogRetentionDays = %d, want 30", settings.LogRetentionDays)
+	}
+}
+
+func TestUpdateSettingsLogRetentionRoundTrip(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.LogRetentionDays = 7
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	got, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if got.LogRetentionDays != 7 {
+		t.Fatalf("LogRetentionDays = %d, want 7", got.LogRetentionDays)
+	}
+
+	settings.LogRetentionDays = 0
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings zero: %v", err)
+	}
+	got, err = s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if got.LogRetentionDays != 0 {
+		t.Fatalf("LogRetentionDays = %d, want 0 (keep forever)", got.LogRetentionDays)
+	}
+}
+
+func TestUpdateSettingsRejectsNegativeRetention(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.LogRetentionDays = -1
+	if err := s.UpdateSettings(settings); err == nil {
+		t.Fatal("UpdateSettings should reject negative LogRetentionDays")
+	}
 }
 
 func TestUpdateAndGetSettings(t *testing.T) {

@@ -34,14 +34,31 @@ type RequestLogEntry struct {
 	ClientTool       *string
 }
 
+const (
+	defaultUsageLimit = 50
+	maxUsageLimit     = 200
+)
+
+// Status class filter values for UsageFilter.StatusClass.
+const (
+	StatusClassSuccess     = "success"
+	StatusClassClientError = "client_error"
+	StatusClassServerError = "server_error"
+)
+
 type UsageFilter struct {
-	Provider *string
-	Model    *string
-	AuthType *string
-	From     *time.Time
-	To       *time.Time
-	Limit    int
-	Offset   int
+	Provider     *string
+	Model        *string
+	AuthType     *string
+	SourceFormat *string
+	StatusClass  string
+	Search       string
+	From         *time.Time
+	To           *time.Time
+	Start        *time.Time
+	End          *time.Time
+	Limit        int
+	Offset       int
 }
 
 type UsageSummary struct {
@@ -95,6 +112,16 @@ func (s *Store) LogRequest(entry *RequestLogEntry) error {
 	return nil
 }
 
+func clampUsageLimit(limit int) int {
+	if limit <= 0 {
+		return defaultUsageLimit
+	}
+	if limit > maxUsageLimit {
+		return maxUsageLimit
+	}
+	return limit
+}
+
 func (s *Store) GetUsage(filter UsageFilter) ([]RequestLogEntry, error) {
 	where, args := usageWhere(filter)
 	query := `SELECT
@@ -104,10 +131,8 @@ func (s *Store) GetUsage(filter UsageFilter) ([]RequestLogEntry, error) {
 		source_format, target_format, rtk_enabled, rtk_bytes_saved,
 		caveman_enabled, combo_name, api_key_id, client_tool
 		FROM request_log` + where + ` ORDER BY timestamp DESC, id DESC`
-	if filter.Limit > 0 {
-		query += " LIMIT ?"
-		args = append(args, filter.Limit)
-	}
+	query += " LIMIT ?"
+	args = append(args, clampUsageLimit(filter.Limit))
 	if filter.Offset > 0 {
 		query += " OFFSET ?"
 		args = append(args, filter.Offset)
@@ -148,6 +173,41 @@ func (s *Store) GetUsageSummary(filter UsageFilter) (*UsageSummary, error) {
 	return &summary, nil
 }
 
+// CountUsage returns the total number of rows matching the filter, ignoring
+// the filter's Limit and Offset (used for pagination totals).
+func (s *Store) CountUsage(filter UsageFilter) (int, error) {
+	where, args := usageWhere(filter)
+
+	var count int
+	if err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM request_log`+where,
+		args...,
+	).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count usage: %w", err)
+	}
+
+	return count, nil
+}
+
+// DeleteRequestLogsOlderThan deletes request_log rows whose timestamp is
+// strictly older than cutoff and returns the number of rows removed.
+func (s *Store) DeleteRequestLogsOlderThan(cutoff time.Time) (int64, error) {
+	result, err := s.db.Exec(
+		"DELETE FROM request_log WHERE timestamp < ?",
+		cutoff.UTC().Format(time.RFC3339),
+	)
+	if err != nil {
+		return 0, fmt.Errorf("delete request logs older than %s: %w", cutoff.Format(time.RFC3339), err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("rows affected: %w", err)
+	}
+
+	return affected, nil
+}
+
 func usageWhere(filter UsageFilter) (string, []any) {
 	var clauses []string
 	var args []any
@@ -164,6 +224,23 @@ func usageWhere(filter UsageFilter) (string, []any) {
 		clauses = append(clauses, "auth_type = ?")
 		args = append(args, *filter.AuthType)
 	}
+	if filter.SourceFormat != nil {
+		clauses = append(clauses, "source_format = ?")
+		args = append(args, *filter.SourceFormat)
+	}
+	switch filter.StatusClass {
+	case StatusClassSuccess:
+		clauses = append(clauses, "status_code < 400")
+	case StatusClassClientError:
+		clauses = append(clauses, "status_code >= 400 AND status_code < 500")
+	case StatusClassServerError:
+		clauses = append(clauses, "status_code >= 500")
+	}
+	if filter.Search != "" {
+		clauses = append(clauses, "(LOWER(request_id) LIKE ? OR LOWER(model) LIKE ? OR LOWER(COALESCE(error, '')) LIKE ?)")
+		pattern := "%" + strings.ToLower(filter.Search) + "%"
+		args = append(args, pattern, pattern, pattern)
+	}
 	if filter.From != nil {
 		clauses = append(clauses, "timestamp >= ?")
 		args = append(args, filter.From.Format(time.RFC3339))
@@ -171,6 +248,14 @@ func usageWhere(filter UsageFilter) (string, []any) {
 	if filter.To != nil {
 		clauses = append(clauses, "timestamp <= ?")
 		args = append(args, filter.To.Format(time.RFC3339))
+	}
+	if filter.Start != nil {
+		clauses = append(clauses, "timestamp >= ?")
+		args = append(args, filter.Start.Format(time.RFC3339))
+	}
+	if filter.End != nil {
+		clauses = append(clauses, "timestamp <= ?")
+		args = append(args, filter.End.Format(time.RFC3339))
 	}
 	if len(clauses) == 0 {
 		return "", args

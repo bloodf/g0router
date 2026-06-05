@@ -17,6 +17,7 @@ import (
 type UsageStore interface {
 	GetUsage(filter store.UsageFilter) ([]store.RequestLogEntry, error)
 	GetUsageSummary(filter store.UsageFilter) (*store.UsageSummary, error)
+	CountUsage(filter store.UsageFilter) (int, error)
 }
 
 type usageListResponse struct {
@@ -24,6 +25,13 @@ type usageListResponse struct {
 	Data   []usageLogResponse `json:"data"`
 	Limit  int                `json:"limit"`
 	Offset int                `json:"offset"`
+	Total  int                `json:"total"`
+}
+
+var allowedStatusClasses = map[string]struct{}{
+	store.StatusClassSuccess:     {},
+	store.StatusClassClientError: {},
+	store.StatusClassServerError: {},
 }
 
 type usageSummaryResponse struct {
@@ -78,11 +86,19 @@ func Usage(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 		return
 	}
 
+	total, err := usageStore.CountUsage(filter)
+	if err != nil {
+		log.Printf("count usage: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get usage")
+		return
+	}
+
 	writeJSON(ctx, fasthttp.StatusOK, usageListResponse{
 		Object: "list",
 		Data:   usageLogResponses(entries),
 		Limit:  filter.Limit,
 		Offset: filter.Offset,
+		Total:  total,
 	})
 }
 
@@ -178,15 +194,31 @@ func quotaKeyFromConnection(provider providers.ModelProvider, conn *store.Connec
 func parseUsageFilter(ctx *fasthttp.RequestCtx) (store.UsageFilter, error) {
 	args := ctx.QueryArgs()
 	filter := store.UsageFilter{
-		Provider: queryString(args, "provider"),
-		Model:    queryString(args, "model"),
-		AuthType: queryString(args, "auth_type"),
+		Provider:     queryString(args, "provider"),
+		Model:        queryString(args, "model"),
+		AuthType:     queryString(args, "auth_type"),
+		SourceFormat: queryString(args, "source_format"),
+		Search:       string(args.Peek("search")),
+	}
+
+	statusClass := string(args.Peek("status_class"))
+	if statusClass != "" {
+		if _, ok := allowedStatusClasses[statusClass]; !ok {
+			return store.UsageFilter{}, fmt.Errorf("invalid status_class: %q", statusClass)
+		}
+		filter.StatusClass = statusClass
 	}
 
 	if err := parseTimeArg(args, "from", &filter.From); err != nil {
 		return store.UsageFilter{}, err
 	}
 	if err := parseTimeArg(args, "to", &filter.To); err != nil {
+		return store.UsageFilter{}, err
+	}
+	if err := parseTimeArg(args, "start", &filter.Start); err != nil {
+		return store.UsageFilter{}, err
+	}
+	if err := parseTimeArg(args, "end", &filter.End); err != nil {
 		return store.UsageFilter{}, err
 	}
 

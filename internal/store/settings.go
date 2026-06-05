@@ -2,16 +2,18 @@ package store
 
 import (
 	"fmt"
+	"strconv"
 )
 
 type Settings struct {
-	RequireAPIKey     bool
-	RTKEnabled        bool
-	CavemanEnabled    bool
-	CavemanLevel      string
-	EnableRequestLogs bool
-	ProxyURL          string
-	DataDir           string
+	RequireAPIKey     bool   `json:"require_api_key"`
+	RTKEnabled        bool   `json:"rtk_enabled"`
+	CavemanEnabled    bool   `json:"caveman_enabled"`
+	CavemanLevel      string `json:"caveman_level"`
+	EnableRequestLogs bool   `json:"enable_request_logs"`
+	ProxyURL          string `json:"proxy_url"`
+	DataDir           string `json:"data_dir"`
+	LogRetentionDays  int    `json:"log_retention_days"`
 }
 
 func (s *Store) GetSettings() (Settings, error) {
@@ -38,6 +40,10 @@ func (s *Store) GetSettings() (Settings, error) {
 }
 
 func (s *Store) UpdateSettings(settings Settings) error {
+	if settings.LogRetentionDays < 0 {
+		return fmt.Errorf("update settings: log_retention_days must be >= 0, got %d", settings.LogRetentionDays)
+	}
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin settings update: %w", err)
@@ -52,6 +58,7 @@ func (s *Store) UpdateSettings(settings Settings) error {
 		"enable_request_logs": boolString(settings.EnableRequestLogs),
 		"proxy_url":           settings.ProxyURL,
 		"data_dir":            settings.DataDir,
+		"log_retention_days":  strconv.Itoa(settings.LogRetentionDays),
 	}
 
 	for key, value := range values {
@@ -80,6 +87,7 @@ func defaultSettings() Settings {
 		EnableRequestLogs: false,
 		ProxyURL:          "",
 		DataDir:           "",
+		LogRetentionDays:  30,
 	}
 }
 
@@ -99,6 +107,10 @@ func applySetting(settings *Settings, key, value string) {
 		settings.ProxyURL = value
 	case "data_dir":
 		settings.DataDir = value
+	case "log_retention_days":
+		if parsed, err := strconv.Atoi(value); err == nil {
+			settings.LogRetentionDays = parsed
+		}
 	}
 }
 

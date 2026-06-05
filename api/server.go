@@ -46,6 +46,9 @@ type ServerConfig struct {
 	MCPInstanceRuntime handlers.MCPInstanceRuntime
 }
 
+// logRetentionInterval is how often the background cleanup job runs.
+const logRetentionInterval = time.Hour
+
 type Server struct {
 	config ServerConfig
 	server *fasthttp.Server
@@ -54,6 +57,8 @@ type Server struct {
 
 	settingsMu    sync.RWMutex
 	settingsCache *store.Settings
+
+	logRetentionInterval time.Duration
 }
 
 // UpdateSettings writes settings to the store and invalidates the cache.
@@ -72,11 +77,59 @@ func (s *Server) UpdateSettings(settings store.Settings) error {
 
 func NewServer(config ServerConfig) *Server {
 	uiFS, err := g0router.UI()
-	srv := &Server{config: config, uiFS: uiFS, uiErr: err}
+	srv := &Server{config: config, uiFS: uiFS, uiErr: err, logRetentionInterval: logRetentionInterval}
 	srv.server = &fasthttp.Server{
 		Handler: srv.handle,
 	}
 	return srv
+}
+
+// StartLogRetention launches the background request-log cleanup job. It runs
+// once immediately, then on every logRetentionInterval tick, and stops when ctx
+// is cancelled. Safe to call once during server startup.
+func (s *Server) StartLogRetention(ctx context.Context) {
+	if s.config.Store == nil {
+		return
+	}
+	interval := s.logRetentionInterval
+	if interval <= 0 {
+		interval = logRetentionInterval
+	}
+	go func() {
+		s.runLogRetentionOnce(time.Now().UTC())
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.runLogRetentionOnce(time.Now().UTC())
+			}
+		}
+	}()
+}
+
+// runLogRetentionOnce performs a single retention pass: it reads the current
+// retention setting and, when it is positive, deletes logs older than
+// now-retention. A retention of 0 keeps logs forever.
+func (s *Server) runLogRetentionOnce(now time.Time) {
+	if s.config.Store == nil {
+		return
+	}
+	retentionDays := s.runtimeSettings().LogRetentionDays
+	if retentionDays <= 0 {
+		return
+	}
+	cutoff := now.Add(-time.Duration(retentionDays) * 24 * time.Hour)
+	deleted, err := s.config.Store.DeleteRequestLogsOlderThan(cutoff)
+	if err != nil {
+		log.Printf("log retention cleanup: %v", err)
+		return
+	}
+	if deleted > 0 {
+		log.Printf("log retention: deleted %d request log(s) older than %s", deleted, cutoff.Format(time.RFC3339))
+	}
 }
 
 func (s *Server) Serve(ln net.Listener) error {
@@ -219,6 +272,7 @@ func (s *Server) logStreamingInferenceUsage(snapshot streamLogSnapshot, started 
 		return
 	}
 	metadata := inferenceLogMetadataWithAuth(request, nil, streamModel, snapshot.authType, snapshot.authTypeSet, snapshot.apiKeyID)
+	metadata.clientTool = snapshot.clientTool
 	s.writeInferenceLog(usageStore, metadata, snapshot.requestID, started, sourceFormat, request, nil, streamUsage, nil, fasthttp.StatusOK)
 }
 
@@ -255,7 +309,10 @@ func (s *Server) writeInferenceLog(usageStore logging.RequestStore, metadata req
 		SourceFormat:   stringPtrIfNotEmpty(sourceFormat),
 		TargetFormat:   stringPtrIfNotEmpty(metadata.provider),
 		RTKEnabled:     boolPtr(settings.RTKEnabled),
+		RTKBytesSaved:  rtkBytesSaved(settings, request),
 		CavemanEnabled: boolPtr(settings.CavemanEnabled),
+		ComboName:      s.comboNameForModel(request),
+		ClientTool:     metadata.clientTool,
 	}
 	if err := logging.NewLogger(usageStore).Log(entry); err != nil {
 		log.Printf("write inference log: %v", err)
@@ -391,6 +448,20 @@ type requestLogMetadata struct {
 	connectionID *string
 	authType     string
 	apiKeyID     *string
+	clientTool   *string
+}
+
+// clientToolFromCtx resolves the operational client-tool label for a request.
+// It prefers the explicit X-Client-Tool header and falls back to User-Agent.
+// It must be called on the request goroutine before the pooled ctx is recycled.
+func clientToolFromCtx(ctx *fasthttp.RequestCtx) *string {
+	if value := strings.TrimSpace(string(ctx.Request.Header.Peek("X-Client-Tool"))); value != "" {
+		return &value
+	}
+	if value := strings.TrimSpace(string(ctx.Request.Header.Peek("User-Agent"))); value != "" {
+		return &value
+	}
+	return nil
 }
 
 // streamLogSnapshot captures the request-scoped values needed to log a
@@ -403,12 +474,14 @@ type streamLogSnapshot struct {
 	authType    string
 	apiKeyID    *string
 	authTypeSet bool
+	clientTool  *string
 }
 
 func newStreamLogSnapshot(ctx *fasthttp.RequestCtx) streamLogSnapshot {
 	snapshot := streamLogSnapshot{
-		requestID: string(ctx.Response.Header.Peek(requestIDHeader)),
-		apiKeyID:  userValueStringPtr(ctx, requestAPIKeyIDKey),
+		requestID:  string(ctx.Response.Header.Peek(requestIDHeader)),
+		apiKeyID:   userValueStringPtr(ctx, requestAPIKeyIDKey),
+		clientTool: clientToolFromCtx(ctx),
 	}
 	if value, ok := ctx.UserValue(requestAuthTypeKey).(string); ok && value != "" {
 		snapshot.authType = value
@@ -424,7 +497,9 @@ func inferenceLogMetadata(ctx *fasthttp.RequestCtx, request *providers.ChatReque
 		authType = value
 		authTypeSet = true
 	}
-	return inferenceLogMetadataWithAuth(request, response, streamModel, authType, authTypeSet, userValueStringPtr(ctx, requestAPIKeyIDKey))
+	metadata := inferenceLogMetadataWithAuth(request, response, streamModel, authType, authTypeSet, userValueStringPtr(ctx, requestAPIKeyIDKey))
+	metadata.clientTool = clientToolFromCtx(ctx)
+	return metadata
 }
 
 func inferenceLogMetadataWithAuth(request *providers.ChatRequest, response *providers.ChatResponse, streamModel, snapshotAuthType string, snapshotAuthTypeSet bool, apiKeyID *string) requestLogMetadata {
@@ -561,6 +636,44 @@ func stringPtrIfNotEmpty(value string) *string {
 
 func boolPtr(value bool) *bool {
 	return &value
+}
+
+// rtkBytesSaved returns the JSON byte count saved by RTK compression for the
+// request, or nil when RTK is disabled, the request is absent, or no bytes were
+// saved. It recomputes from the original request so it never reads the pooled
+// fasthttp ctx.
+func rtkBytesSaved(settings store.Settings, request *providers.ChatRequest) *int {
+	if !settings.RTKEnabled || request == nil {
+		return nil
+	}
+	before, err := json.Marshal(request)
+	if err != nil {
+		return nil
+	}
+	compressed := rtk.CompressRequest(*request)
+	after, err := json.Marshal(&compressed)
+	if err != nil {
+		return nil
+	}
+	saved := len(before) - len(after)
+	if saved <= 0 {
+		return nil
+	}
+	return &saved
+}
+
+// comboNameForModel returns the active combo name when the requested model
+// matches a stored active combo, or nil otherwise.
+func (s *Server) comboNameForModel(request *providers.ChatRequest) *string {
+	if s.config.Store == nil || request == nil || request.Model == "" {
+		return nil
+	}
+	combo, err := s.config.Store.GetActiveCombo(request.Model)
+	if err != nil || combo == nil {
+		return nil
+	}
+	name := combo.Name
+	return &name
 }
 
 func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {

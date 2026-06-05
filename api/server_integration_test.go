@@ -848,7 +848,7 @@ func assertSettingsManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) 
 		DataDir:           "/tmp/g0router-integration",
 	}
 	var updated store.Settings
-	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/settings", rawAPIKey, `{"RequireAPIKey":true,"RTKEnabled":false,"CavemanEnabled":true,"CavemanLevel":"minimal","EnableRequestLogs":true,"ProxyURL":"http://127.0.0.1:9000","DataDir":"/tmp/g0router-integration"}`, http.StatusOK, &updated)
+	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/settings", rawAPIKey, `{"require_api_key":true,"rtk_enabled":false,"caveman_enabled":true,"caveman_level":"minimal","enable_request_logs":true,"proxy_url":"http://127.0.0.1:9000","data_dir":"/tmp/g0router-integration"}`, http.StatusOK, &updated)
 	if updated != want {
 		t.Fatalf("updated settings = %+v, want %+v", updated, want)
 	}
