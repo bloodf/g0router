@@ -238,10 +238,13 @@ export type ComboStepResponse = {
   model: string;
 };
 
+export type ComboStrategy = "fallback" | "round_robin" | "least_used" | "auto";
+
 export type ComboResponse = {
   ID: string;
   Name: string;
   Steps: ComboStepResponse[];
+  Strategy: ComboStrategy;
   IsActive: boolean;
   CreatedAt: string;
   UpdatedAt: string;
@@ -725,14 +728,14 @@ export function listCombos() {
   return apiList<ComboResponse>(getCombosPath());
 }
 
-export function createCombo(name: string, steps: ComboStepResponse[], isActive: boolean) {
-  return apiFetch<ComboResponse>(getCombosPath(), { method: "POST", body: { name, steps, is_active: isActive } });
+export function createCombo(name: string, steps: ComboStepResponse[], isActive: boolean, strategy: ComboStrategy = "fallback") {
+  return apiFetch<ComboResponse>(getCombosPath(), { method: "POST", body: { name, steps, is_active: isActive, strategy } });
 }
 
-export function updateCombo(id: string, name: string, steps: ComboStepResponse[], isActive: boolean) {
+export function updateCombo(id: string, name: string, steps: ComboStepResponse[], isActive: boolean, strategy: ComboStrategy = "fallback") {
   return apiFetch<ComboResponse>(`${getCombosPath()}/${encodeURIComponent(id)}`, {
     method: "PUT",
-    body: { name, steps, is_active: isActive }
+    body: { name, steps, is_active: isActive, strategy }
   });
 }
 

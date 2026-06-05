@@ -155,7 +155,7 @@ describe("apiFetch", () => {
       "/api/combos/combo%201",
       expect.objectContaining({
         method: "PUT",
-        body: JSON.stringify({ name: "fallback", steps: [{ provider: "openai", model: "gpt-4o" }], is_active: true })
+        body: JSON.stringify({ name: "fallback", steps: [{ provider: "openai", model: "gpt-4o" }], is_active: true, strategy: "fallback" })
       })
     );
     expect(fetch).toHaveBeenCalledWith(

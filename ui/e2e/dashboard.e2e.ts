@@ -165,15 +165,18 @@ test.describe("dashboard control plane", () => {
     await page.getByLabel("Combo name").fill("fast-fallback");
     await page.getByLabel("Step 1 provider").fill("openai");
     await page.getByLabel("Step 1 model").fill("gpt-5-mini");
+    await page.getByLabel("Strategy").selectOption("round_robin");
     await page.getByRole("button", { name: "Create combo" }).click();
     await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("fast-fallback");
+    await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("round_robin");
     await page.getByRole("button", { name: "Edit fast-fallback" }).click();
+    await expect(page.getByLabel("Strategy")).toHaveValue("round_robin");
     await page.getByLabel("Combo name").fill("fast-updated");
     await page.getByLabel("Step 1 model").fill("gpt-4o");
     await page.getByLabel("Active").uncheck();
     await page.getByRole("button", { name: "Update combo" }).click();
     await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("fast-updated");
-    await expect(page.getByRole("row", { name: /fast-updated openai \/ gpt-4o inactive/i })).toBeVisible();
+    await expect(page.getByRole("row", { name: /fast-updated openai \/ gpt-4o round_robin inactive/i })).toBeVisible();
     await clickWithConfirm(page, "Delete combo fast-updated?", () =>
       page.getByRole("button", { name: "Delete fast-updated" }).click()
     );
@@ -881,11 +884,12 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
   }
 
   if (method === "POST" && path === "/api/combos") {
-    const request = body as { is_active?: boolean; name?: string; steps?: Array<{ model: string; provider: string }> };
+    const request = body as { is_active?: boolean; name?: string; steps?: Array<{ model: string; provider: string }>; strategy?: string };
     const combo = {
       ID: "combo-created",
       Name: request.name ?? "created-combo",
       Steps: request.steps ?? [],
+      Strategy: request.strategy ?? "fallback",
       IsActive: request.is_active ?? true,
       CreatedAt: "2026-06-03T11:00:00Z",
       UpdatedAt: "2026-06-03T11:00:00Z"
@@ -896,13 +900,14 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
 
   if (method === "PUT" && path.startsWith("/api/combos/")) {
     const id = decodeURIComponent(path.slice("/api/combos/".length));
-    const request = body as { is_active?: boolean; name?: string; steps?: Array<{ model: string; provider: string }> };
+    const request = body as { is_active?: boolean; name?: string; steps?: Array<{ model: string; provider: string }>; strategy?: string };
     state.combos = state.combos.map((combo) =>
       combo.ID === id
         ? {
             ...combo,
             Name: request.name ?? combo.Name,
             Steps: request.steps ?? combo.Steps,
+            Strategy: request.strategy ?? combo.Strategy,
             IsActive: request.is_active ?? combo.IsActive,
             UpdatedAt: "2026-06-03T11:30:00Z"
           }
@@ -1354,6 +1359,7 @@ const combos = [
     ID: "combo-1",
     Name: "research-stack",
     Steps: [{ provider: "openai", model: "gpt-5-mini" }],
+    Strategy: "fallback",
     IsActive: true,
     CreatedAt: "2026-06-03T10:00:00Z",
     UpdatedAt: "2026-06-03T10:00:00Z"

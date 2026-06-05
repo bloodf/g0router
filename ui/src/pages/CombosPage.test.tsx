@@ -3,6 +3,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getCombosPath } from "../api";
 import { CombosPage } from "./CombosPage";
 
+function makeCombo(overrides: Record<string, unknown> = {}) {
+  return {
+    ID: "combo-1",
+    Name: "research-chain",
+    Steps: [{ provider: "anthropic", model: "claude-sonnet-4" }],
+    Strategy: "fallback" as const,
+    IsActive: true,
+    CreatedAt: "2026-06-03T05:00:00Z",
+    UpdatedAt: "2026-06-03T05:00:00Z",
+    ...overrides
+  };
+}
+
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
     headers: { "Content-Type": "application/json" },
@@ -52,6 +65,7 @@ describe("CombosPage", () => {
                 { provider: "anthropic", model: "claude-sonnet-4" },
                 { provider: "openai", model: "gpt-4o" }
               ],
+              Strategy: "round_robin",
               IsActive: true,
               CreatedAt: "2026-06-03T05:00:00Z",
               UpdatedAt: "2026-06-03T05:00:00Z"
@@ -104,6 +118,7 @@ describe("CombosPage", () => {
             ID: "combo-2",
             Name: "fast-fallback",
             Steps: [{ provider: "gemini", model: "gemini-2.5-pro" }],
+            Strategy: "fallback",
             IsActive: true,
             CreatedAt: "2026-06-03T05:10:00Z",
             UpdatedAt: "2026-06-03T05:10:00Z"
@@ -118,6 +133,7 @@ describe("CombosPage", () => {
               ID: "combo-2",
               Name: "fast-fallback",
               Steps: [{ provider: "gemini", model: "gemini-2.5-pro" }],
+              Strategy: "fallback",
               IsActive: true,
               CreatedAt: "2026-06-03T05:10:00Z",
               UpdatedAt: "2026-06-03T05:10:00Z"
@@ -144,7 +160,8 @@ describe("CombosPage", () => {
           body: JSON.stringify({
             name: "fast-fallback",
             steps: [{ provider: "gemini", model: "gemini-2.5-pro" }],
-            is_active: true
+            is_active: true,
+            strategy: "fallback"
           }),
           credentials: "same-origin",
           method: "POST"
@@ -160,6 +177,7 @@ describe("CombosPage", () => {
         ID: "combo-1",
         Name: "research-chain",
         Steps: [{ provider: "anthropic", model: "claude-sonnet-4" }],
+        Strategy: "fallback",
         IsActive: true,
         CreatedAt: "2026-06-03T05:00:00Z",
         UpdatedAt: "2026-06-03T05:00:00Z"
@@ -203,7 +221,8 @@ describe("CombosPage", () => {
           body: JSON.stringify({
             name: "research-fallback",
             steps: [{ provider: "openai", model: "gpt-4o" }],
-            is_active: false
+            is_active: false,
+            strategy: "fallback"
           }),
           credentials: "same-origin",
           method: "PUT"
@@ -224,6 +243,7 @@ describe("CombosPage", () => {
           { provider: "anthropic", model: "claude-sonnet-4" },
           { provider: "openai", model: "gpt-4o" }
         ],
+        Strategy: "round_robin",
         IsActive: true,
         CreatedAt: "2026-06-03T05:00:00Z",
         UpdatedAt: "2026-06-03T05:00:00Z"
@@ -267,7 +287,8 @@ describe("CombosPage", () => {
               { provider: "anthropic", model: "claude-sonnet-4" },
               { provider: "openai", model: "gpt-4o" }
             ],
-            is_active: true
+            is_active: true,
+            strategy: "round_robin"
           }),
           credentials: "same-origin",
           method: "PUT"
@@ -292,6 +313,7 @@ describe("CombosPage", () => {
               { provider: "anthropic", model: "claude-haiku-4" },
               { provider: "openai", model: "gpt-4o-mini" }
             ],
+            Strategy: "fallback",
             IsActive: true,
             CreatedAt: "2026-06-03T06:00:00Z",
             UpdatedAt: "2026-06-03T06:00:00Z"
@@ -309,6 +331,7 @@ describe("CombosPage", () => {
                 { provider: "anthropic", model: "claude-haiku-4" },
                 { provider: "openai", model: "gpt-4o-mini" }
               ],
+              Strategy: "fallback",
               IsActive: true,
               CreatedAt: "2026-06-03T06:00:00Z",
               UpdatedAt: "2026-06-03T06:00:00Z"
@@ -345,7 +368,8 @@ describe("CombosPage", () => {
               { provider: "anthropic", model: "claude-haiku-4" },
               { provider: "openai", model: "gpt-4o-mini" }
             ],
-            is_active: true
+            is_active: true,
+            strategy: "fallback"
           }),
           credentials: "same-origin",
           method: "POST"
@@ -355,6 +379,103 @@ describe("CombosPage", () => {
     const resultRow = await screen.findByRole("row", { name: /two-step/i });
     expect(within(resultRow).getByText("anthropic / claude-haiku-4")).toBeInTheDocument();
     expect(within(resultRow).getByText("openai / gpt-4o-mini")).toBeInTheDocument();
+  });
+
+  it("selecting a strategy submits it on create", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === getCombosPath() && method === "GET" && fetch.mock.calls.length === 1) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getCombosPath() && method === "POST") {
+        return jsonResponse(
+          { ID: "combo-rr", Name: "rr-combo", Steps: [{ provider: "openai", model: "gpt-4o" }], Strategy: "round_robin", IsActive: true, CreatedAt: "2026-06-05T00:00:00Z", UpdatedAt: "2026-06-05T00:00:00Z" },
+          { status: 201 }
+        );
+      }
+      if (path === getCombosPath() && method === "GET") {
+        return jsonResponse({ data: [{ ID: "combo-rr", Name: "rr-combo", Steps: [{ provider: "openai", model: "gpt-4o" }], Strategy: "round_robin", IsActive: true, CreatedAt: "2026-06-05T00:00:00Z", UpdatedAt: "2026-06-05T00:00:00Z" }] });
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CombosPage />);
+
+    await screen.findByText("No combo routes configured");
+    fireEvent.change(screen.getByLabelText("Combo name"), { target: { value: "rr-combo" } });
+    fireEvent.change(screen.getByLabelText("Step 1 provider"), { target: { value: "openai" } });
+    fireEvent.change(screen.getByLabelText("Step 1 model"), { target: { value: "gpt-4o" } });
+    fireEvent.change(screen.getByLabelText("Strategy"), { target: { value: "round_robin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create combo" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        getCombosPath(),
+        expect.objectContaining({
+          body: JSON.stringify({ name: "rr-combo", steps: [{ provider: "openai", model: "gpt-4o" }], is_active: true, strategy: "round_robin" }),
+          method: "POST"
+        })
+      );
+    });
+    const row = await screen.findByRole("row", { name: /rr-combo/i });
+    expect(within(row).getByText("round_robin")).toBeInTheDocument();
+  });
+
+  it("editing a combo preserves and loads its strategy", async () => {
+    const combo = makeCombo({ Strategy: "least_used" });
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === getCombosPath() && method === "GET") {
+        return jsonResponse({ data: [combo] });
+      }
+      if (path === `${getCombosPath()}/combo-1` && method === "PUT") {
+        return jsonResponse({ ...combo, Strategy: "least_used" });
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CombosPage />);
+
+    const row = await screen.findByRole("row", { name: /research-chain/i });
+    expect(within(row).getByText("least_used")).toBeInTheDocument();
+
+    fireEvent.click(within(row).getByRole("button", { name: "Edit research-chain" }));
+    expect(screen.getByLabelText("Strategy")).toHaveValue("least_used");
+
+    fireEvent.click(screen.getByRole("button", { name: "Update combo" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        `${getCombosPath()}/combo-1`,
+        expect.objectContaining({
+          body: JSON.stringify({ name: "research-chain", steps: [{ provider: "anthropic", model: "claude-sonnet-4" }], is_active: true, strategy: "least_used" }),
+          method: "PUT"
+        })
+      );
+    });
+  });
+
+  it("the list shows strategy for each combo", async () => {
+    const fetch = vi.fn(async () =>
+      jsonResponse({
+        data: [
+          makeCombo({ ID: "c1", Name: "chain-a", Strategy: "fallback" }),
+          makeCombo({ ID: "c2", Name: "chain-b", Strategy: "auto" })
+        ]
+      })
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CombosPage />);
+
+    const rowA = await screen.findByRole("row", { name: /chain-a/i });
+    const rowB = await screen.findByRole("row", { name: /chain-b/i });
+    expect(within(rowA).getByText("fallback")).toBeInTheDocument();
+    expect(within(rowB).getByText("auto")).toBeInTheDocument();
   });
 
   it("renders recoverable errors and auth-expired errors", async () => {

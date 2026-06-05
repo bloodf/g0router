@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ApiError, asyncError, asyncSuccess, createCombo, deleteCombo, listCombos, updateCombo, type AsyncState, type ComboResponse, type ComboStepResponse } from "../api";
+import { ApiError, asyncError, asyncSuccess, createCombo, deleteCombo, listCombos, updateCombo, type AsyncState, type ComboResponse, type ComboStepResponse, type ComboStrategy } from "../api";
 import { EmptyState, ErrorState, LoadingState, Panel, StatusPill } from "../components/Primitives";
 
 type ComboForm = {
   isActive: boolean;
   name: string;
   steps: ComboStepResponse[];
+  strategy: ComboStrategy;
 };
 
 const emptyStep: ComboStepResponse = { provider: "", model: "" };
@@ -13,8 +14,16 @@ const emptyStep: ComboStepResponse = { provider: "", model: "" };
 const emptyForm: ComboForm = {
   isActive: true,
   name: "",
-  steps: [{ ...emptyStep }]
+  steps: [{ ...emptyStep }],
+  strategy: "fallback"
 };
+
+const strategyOptions: { value: ComboStrategy; label: string; hint: string }[] = [
+  { value: "fallback", label: "Fallback", hint: "Try steps in order until one succeeds (default)" },
+  { value: "round_robin", label: "Round-robin", hint: "Rotate the starting step across calls to spread load" },
+  { value: "least_used", label: "Least-used", hint: "Start with the least-used step (by call count)" },
+  { value: "auto", label: "Auto", hint: "Pick the best step per request (capable model for tools/large context, cheaper otherwise)" }
+];
 
 export function CombosPage() {
   const [combosState, setCombosState] = useState<AsyncState<ComboResponse[]>>({ status: "loading" });
@@ -46,9 +55,9 @@ export function CombosPage() {
     const steps = form.steps.map((s) => ({ provider: s.provider.trim(), model: s.model.trim() }));
     try {
       if (editingComboID) {
-        await updateCombo(editingComboID, name, steps, form.isActive);
+        await updateCombo(editingComboID, name, steps, form.isActive, form.strategy);
       } else {
-        await createCombo(name, steps, form.isActive);
+        await createCombo(name, steps, form.isActive, form.strategy);
       }
       setForm(emptyForm);
       setEditingComboID("");
@@ -66,7 +75,8 @@ export function CombosPage() {
     setForm({
       isActive: combo.IsActive,
       name: combo.Name,
-      steps: combo.Steps.length > 0 ? combo.Steps.map((s) => ({ ...s })) : [{ ...emptyStep }]
+      steps: combo.Steps.length > 0 ? combo.Steps.map((s) => ({ ...s })) : [{ ...emptyStep }],
+      strategy: combo.Strategy ?? "fallback"
     });
   }
 
@@ -131,16 +141,34 @@ export function CombosPage() {
     <Panel title="Combo routing" description="Reusable routing chains for fallback, round-robin, and account selection.">
       <div className="space-y-5">
         <form className="rounded-md border border-zinc-200 p-4" onSubmit={handleSubmit}>
-          <div className="mb-3 grid gap-3 lg:grid-cols-[1.1fr_auto]">
-            <label className="text-sm font-medium text-zinc-700">
-              Combo name
-              <input
-                aria-label="Combo name"
-                className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
-                value={form.name}
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-              />
-            </label>
+          <div className="mb-3 space-y-3">
+            <div className="grid gap-3 lg:grid-cols-2">
+              <label className="text-sm font-medium text-zinc-700">
+                Combo name
+                <input
+                  aria-label="Combo name"
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+                  value={form.name}
+                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                />
+              </label>
+              <label className="text-sm font-medium text-zinc-700">
+                Strategy
+                <select
+                  aria-label="Strategy"
+                  className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+                  value={form.strategy}
+                  onChange={(event) => setForm((current) => ({ ...current, strategy: event.target.value as ComboStrategy }))}
+                >
+                  {strategyOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {strategyOptions.find((opt) => opt.value === form.strategy)?.hint}
+                </p>
+              </label>
+            </div>
             <div className="flex items-end gap-3">
               <label className="flex min-h-10 items-center gap-2 text-sm font-medium text-zinc-700">
                 <input
@@ -285,6 +313,7 @@ function CombosTable({
           <tr>
             <th className="px-4 py-3 font-semibold">Name</th>
             <th className="px-4 py-3 font-semibold">Steps</th>
+            <th className="px-4 py-3 font-semibold">Strategy</th>
             <th className="px-4 py-3 font-semibold">Status</th>
             <th className="px-4 py-3 font-semibold">Actions</th>
           </tr>
@@ -302,6 +331,7 @@ function CombosTable({
                   ))}
                 </div>
               </td>
+              <td className="px-4 py-3 text-zinc-600 text-sm">{combo.Strategy ?? "fallback"}</td>
               <td className="px-4 py-3">
                 <StatusPill tone={combo.IsActive ? "good" : "neutral"}>{combo.IsActive ? "active" : "inactive"}</StatusPill>
               </td>
