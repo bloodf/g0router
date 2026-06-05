@@ -63,7 +63,7 @@ describe("ConnectionsAuthPage", () => {
     render(<ConnectionsAuthPage />);
 
     expect(await screen.findByRole("heading", { level: 3, name: "Connections and auth" })).toBeInTheDocument();
-    const row = screen.getByRole("row", { name: /OpenAI primary openai operator@example.com oauth active/i });
+    const row = await screen.findByRole("row", { name: /OpenAI primary openai operator@example.com oauth active/i });
     expect(within(row).getByText("operator@example.com")).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "Provider connections" })).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Provider contract" })).not.toBeInTheDocument();
