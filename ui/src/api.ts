@@ -282,6 +282,16 @@ export type PricingOverrideResponse = {
   OutputCostPerToken: number;
 };
 
+export type TrafficEvent = {
+  timestamp: string;
+  key_id: string;
+  provider: string;
+  model: string;
+  status_class: string;
+  status_code: number;
+  latency_ms: number;
+};
+
 export type AuditLogEntry = {
   id: number;
   timestamp: string;
@@ -420,7 +430,8 @@ const apiPaths = {
   mcpServers: "/api/mcp/instances",
   mcpTools: "/api/mcp/tools",
   settings: "/api/settings",
-  audit: "/api/audit"
+  audit: "/api/audit",
+  trafficStream: "/api/traffic/stream"
 } as const;
 
 export function getControlPlaneKey() {
@@ -903,4 +914,101 @@ function redactConnectionMetadata(values: Record<string, unknown>): Record<strin
 function isSecretMetadataKey(key: string) {
   const normalized = key.toLowerCase();
   return ["token", "secret", "key", "authorization", "password"].some((marker) => normalized.includes(marker));
+}
+
+export function getTrafficStreamPath() {
+  return apiPaths.trafficStream;
+}
+
+export function streamTraffic(
+  onEvent: (event: TrafficEvent) => void,
+  onError: (error: ApiError) => void
+): () => void {
+  const controller = new AbortController();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  };
+  const savedKey = getControlPlaneKey();
+  if (savedKey) {
+    headers.Authorization = `Bearer ${savedKey}`;
+  }
+
+  (async () => {
+    let response: Response;
+    try {
+      response = await fetch(apiPaths.trafficStream, {
+        signal: controller.signal,
+        credentials: "same-origin",
+        headers
+      });
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      onError(new ApiError(0, err instanceof Error ? err.message : "Network error", err));
+      return;
+    }
+
+    if (!response.ok) {
+      const payload = await readResponsePayloadInternal(response);
+      onError(new ApiError(response.status, errorMessageInternal(response, payload), payload));
+      return;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      onError(new ApiError(0, "No response body", null));
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith(":")) continue;
+          if (trimmed.startsWith("data: ")) {
+            const json = trimmed.slice(6);
+            try {
+              const parsed = JSON.parse(json) as TrafficEvent;
+              onEvent(parsed);
+            } catch {
+              // Ignore malformed JSON frames.
+            }
+          }
+        }
+      }
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      onError(new ApiError(0, err instanceof Error ? err.message : "Stream error", err));
+    }
+  })();
+
+  return () => controller.abort();
+}
+
+async function readResponsePayloadInternal(response: Response): Promise<unknown> {
+  if (response.status === 204) return undefined;
+  const text = await response.text();
+  if (text === "") return undefined;
+  const contentType = response.headers.get("Content-Type") ?? "";
+  if (contentType.includes("json")) return JSON.parse(text);
+  return text;
+}
+
+function errorMessageInternal(response: Response, payload: unknown): string {
+  if (payload && typeof payload === "object") {
+    const body = payload as { error?: unknown; message?: unknown };
+    if (typeof body.error === "string" && body.error !== "") return body.error;
+    if (typeof body.message === "string" && body.message !== "") return body.message;
+  }
+  return response.statusText || `request failed: ${response.status}`;
 }

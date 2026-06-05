@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/metrics"
 	"github.com/bloodf/g0router/internal/modelcatalog"
+	"github.com/bloodf/g0router/internal/traffic"
 	"github.com/bloodf/g0router/internal/notify"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
@@ -78,6 +80,8 @@ type Server struct {
 
 	metrics *metrics.Collector
 
+	trafficBroker *traffic.Broker
+
 	logRetentionInterval time.Duration
 	// runRetention performs a single retention pass. It is a field so tests can
 	// inject a panicking pass and assert the loop survives; it defaults to
@@ -105,6 +109,12 @@ type Server struct {
 	responseCacheMu  sync.Mutex
 	responseCache    *cache.Cache
 	responseCacheTTL time.Duration
+
+	// stopCh is closed when Stop() is called. Long-running handlers such as the
+	// SSE traffic stream select on it so they can exit before the server
+	// drains its connection pool.
+	stopCh chan struct{}
+	stopOnce sync.Once
 }
 
 // UpdateSettings writes settings to the store and invalidates the cache.
@@ -129,9 +139,11 @@ func NewServer(config ServerConfig) *Server {
 		uiErr:                     err,
 		limiter:                   ratelimit.NewLimiter(),
 		metrics:                   metrics.NewCollector(),
+		trafficBroker:             traffic.NewBroker(256),
 		logRetentionInterval:      logRetentionInterval,
 		connectionRefreshInterval: connectionRefreshInterval,
 		notifiedStale:             make(map[string]bool),
+		stopCh:                    make(chan struct{}),
 	}
 	srv.runRetention = srv.runLogRetentionOnce
 	srv.runConnectionRefresh = srv.runConnectionRefreshOnce
@@ -311,6 +323,9 @@ func (s *Server) Serve(ln net.Listener) error {
 }
 
 func (s *Server) Stop() error {
+	// Signal long-running streaming handlers (e.g. SSE) to exit before the
+	// fasthttp shutdown drains the connection pool.
+	s.stopOnce.Do(func() { close(s.stopCh) })
 	if err := s.server.Shutdown(); err != nil {
 		return fmt.Errorf("stop server: %w", err)
 	}
@@ -567,6 +582,26 @@ func (s *Server) observeRequestMetric(metadata requestLogMetadata, extracted *us
 		cost = *costUSD
 	}
 	s.metrics.ObserveRequest(metadata.provider, metadata.model, statusClassFor(statusCode), inputTok, outputTok, cost, dur)
+
+	// Publish a live-traffic event for the dashboard topology stream.
+	// All values are snapshotted from local variables — never from ctx — so
+	// this is safe whether called from the request goroutine or the streaming
+	// capture goroutine.
+	if s.trafficBroker != nil {
+		keyID := ""
+		if metadata.apiKeyID != nil {
+			keyID = *metadata.apiKeyID
+		}
+		s.trafficBroker.Publish(traffic.Event{
+			Timestamp:   time.Now().UTC(),
+			KeyID:       keyID,
+			Provider:    metadata.provider,
+			Model:       metadata.model,
+			StatusClass: statusClassFor(statusCode),
+			StatusCode:  statusCode,
+			LatencyMS:   dur.Milliseconds(),
+		})
+	}
 }
 
 // statusClassFor maps an HTTP status code to a Prometheus-friendly class label.
@@ -1085,6 +1120,8 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		handlers.Logs(ctx, s.config.UsageStore)
 	case path == "/api/audit":
 		handlers.Audit(ctx, s.config.Store)
+	case path == "/api/traffic/stream":
+		s.handleTrafficStream(ctx)
 	case path == "/api/mcp/clients":
 		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, "")
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "clients":
@@ -1254,4 +1291,88 @@ func requireMethod(ctx *fasthttp.RequestCtx, method string) bool {
 	}
 	ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
 	return false
+}
+
+// handleTrafficStream serves GET /api/traffic/stream as a Server-Sent Events
+// feed. It replays the ring buffer for initial hydration, then delivers live
+// events as they are published. A 15-second heartbeat comment keeps idle
+// connections alive through proxies and load balancers.
+func (s *Server) handleTrafficStream(ctx *fasthttp.RequestCtx) {
+	if string(ctx.Method()) != fasthttp.MethodGet {
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+		return
+	}
+
+	broker := s.trafficBroker
+	if broker == nil {
+		ctx.SetStatusCode(fasthttp.StatusServiceUnavailable)
+		return
+	}
+
+	ctx.SetContentType("text/event-stream")
+	ctx.Response.Header.Set("Cache-Control", "no-cache")
+	ctx.Response.Header.Set("Connection", "keep-alive")
+	ctx.SetStatusCode(fasthttp.StatusOK)
+
+	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		subID, ch := broker.Subscribe()
+		defer broker.Unsubscribe(subID)
+
+		// Emit an opening comment so fasthttp flushes the HTTP response
+		// status line and headers to the client immediately. Without an
+		// initial write the client may block waiting for headers until the
+		// first real event arrives.
+		if _, err := fmt.Fprint(w, ": connected\n\n"); err != nil {
+			return
+		}
+		if err := w.Flush(); err != nil {
+			return
+		}
+
+		// Replay ring buffer for initial hydration.
+		for _, ev := range broker.Recent() {
+			data, err := json.Marshal(ev)
+			if err != nil {
+				continue
+			}
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+				return
+			}
+		}
+		if err := w.Flush(); err != nil {
+			return
+		}
+
+		heartbeat := time.NewTicker(15 * time.Second)
+		defer heartbeat.Stop()
+
+		stopCh := s.stopCh
+		for {
+			select {
+			case <-stopCh:
+				return
+			case ev, ok := <-ch:
+				if !ok {
+					return
+				}
+				data, err := json.Marshal(ev)
+				if err != nil {
+					continue
+				}
+				if _, err := fmt.Fprintf(w, "data: %s\n\n", data); err != nil {
+					return
+				}
+				if err := w.Flush(); err != nil {
+					return
+				}
+			case <-heartbeat.C:
+				if _, err := fmt.Fprint(w, ": ping\n\n"); err != nil {
+					return
+				}
+				if err := w.Flush(); err != nil {
+					return
+				}
+			}
+		}
+	})
 }

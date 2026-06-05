@@ -21,6 +21,7 @@ import { ProvidersPage } from "./pages/ProvidersPage";
 import { QuotaPage } from "./pages/QuotaPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SettingsSecurityPage } from "./pages/SettingsSecurityPage";
+import { TrafficPage } from "./pages/TrafficPage";
 import { UsagePage } from "./pages/UsagePage";
 
 const pages = [
@@ -170,6 +171,13 @@ const pages = [
     title: "Audit log",
     description: "Admin mutations recorded by the gateway control plane.",
     Component: AuditPage
+  },
+  {
+    id: "traffic",
+    label: "Traffic",
+    title: "Live traffic topology",
+    description: "Real-time key→gateway→provider flow visualised from the SSE event stream.",
+    Component: TrafficPage
   }
 ] as const;
 
