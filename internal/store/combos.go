@@ -17,6 +17,8 @@ const (
 	ComboStrategyRoundRobin = "round_robin"
 	ComboStrategyLeastUsed  = "least_used"
 	ComboStrategyAuto       = "auto"
+	ComboStrategyFastest    = "fastest"
+	ComboStrategyCheapest   = "cheapest"
 )
 
 type ComboStep struct {
@@ -40,7 +42,8 @@ func NormalizeComboStrategy(strategy string) (string, error) {
 	switch strategy {
 	case "":
 		return ComboStrategyFallback, nil
-	case ComboStrategyFallback, ComboStrategyRoundRobin, ComboStrategyLeastUsed, ComboStrategyAuto:
+	case ComboStrategyFallback, ComboStrategyRoundRobin, ComboStrategyLeastUsed, ComboStrategyAuto,
+		ComboStrategyFastest, ComboStrategyCheapest:
 		return strategy, nil
 	default:
 		return "", fmt.Errorf("%w: %q", ErrInvalidComboStrategy, strategy)

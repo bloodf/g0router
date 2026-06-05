@@ -90,3 +90,16 @@ func TestHandleUIHead(t *testing.T) {
 		t.Fatalf("HEAD should have empty body, got %q", ctx.Response.Body())
 	}
 }
+
+// TestHandleUIBothReadsFail exercises the L1007 path: when the FS has no
+// index.html either, both ReadFile calls fail and handleUI returns 500.
+func TestHandleUIBothReadsFail(t *testing.T) {
+	// Empty FS — neither the requested path nor index.html exists.
+	srv := &Server{uiFS: fstest.MapFS{}}
+	ctx := &fasthttp.RequestCtx{}
+	ctx.Request.SetRequestURI("/some/spa/route")
+	srv.handleUI(ctx)
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500 when FS is empty", ctx.Response.StatusCode())
+	}
+}
