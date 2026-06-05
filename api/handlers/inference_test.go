@@ -375,18 +375,29 @@ func TestStreamInferenceDispatchErrorIsSanitizedOpenAIError(t *testing.T) {
 }
 
 func TestStreamInferenceUnsupportedProviderUsesStableError(t *testing.T) {
-	engine := &fakeEngine{streamErr: fmt.Errorf("chat completion stream: %w", gemini.ErrUnsupported)}
-	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
-
-	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"hello"}],"stream":true}`, nil)
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{name: "gemini sentinel", err: gemini.ErrUnsupported},
+		{name: "shared provider sentinel", err: providers.ErrStreamingUnsupported},
 	}
-	assertOpenAIError(t, body, "streaming unsupported for provider", "invalid_request_error", "streaming_unsupported")
-	if strings.Contains(string(body), "gemini unsupported operation") || strings.Contains(string(body), "chat completion stream") {
-		t.Fatalf("response leaked provider unsupported detail: %s", body)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			engine := &fakeEngine{streamErr: fmt.Errorf("chat completion stream: %w", tc.err)}
+			_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+			resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gemini-2.5-flash","messages":[{"role":"user","content":"hello"}],"stream":true}`, nil)
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusNotImplemented {
+				t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+			}
+			assertOpenAIError(t, body, "streaming unsupported for provider", "invalid_request_error", "streaming_unsupported")
+			if strings.Contains(string(body), "gemini unsupported operation") || strings.Contains(string(body), "chat completion stream") {
+				t.Fatalf("response leaked provider unsupported detail: %s", body)
+			}
+		})
 	}
 }
 

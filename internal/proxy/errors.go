@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/anthropic"
 	"github.com/bloodf/g0router/internal/providers/azure"
 	"github.com/bloodf/g0router/internal/providers/bedrock"
@@ -45,7 +46,8 @@ func ClassifyDispatchError(err error) DispatchErrorClass {
 }
 
 func isStreamingUnsupportedError(err error) bool {
-	return errors.Is(err, gemini.ErrUnsupported) ||
+	return errors.Is(err, providers.ErrStreamingUnsupported) ||
+		errors.Is(err, gemini.ErrUnsupported) ||
 		errors.Is(err, vertex.ErrUnsupported)
 }
 

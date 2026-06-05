@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BY"
-last_updated: "2026-06-05T05:30:00Z"
+current_wave: "8.BZ"
+last_updated: "2026-06-05T05:50:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2968,6 +2968,49 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BY removes the hard 501 for `/v1/messages` streaming when the request can be represented by the existing OpenAI-compatible chat request shape. The handler now dispatches through `DispatchStream` and emits Anthropic-style SSE events (`message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, and `message_stop`) without an OpenAI `[DONE]` sentinel. Native Anthropic tool input/result blocks remain explicitly rejected before dispatch instead of being silently dropped.
+
+---
+
+### Wave 8.BZ — Unsupported Streaming Error Classification
+
+```yaml
+wave: "8.BZ"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/bedrock ./internal/providers/replicate ./api/handlers -run 'TestUnsupportedMethodsReturnErrors|TestChatCompletionStreamUnsupported|TestStreamInferenceUnsupportedProviderUsesStableError' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T05:50:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BZ-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after commit"
+gate_results:
+  - "go test ./internal/providers/bedrock ./internal/providers/replicate ./api/handlers -run 'TestUnsupportedMethodsReturnErrors|TestChatCompletionStreamUnsupported|TestStreamInferenceUnsupportedProviderUsesStableError' -count=1: RED before implementation, providers.ErrStreamingUnsupported was undefined"
+  - "go test ./internal/providers/bedrock ./internal/providers/replicate ./api/handlers -run 'TestUnsupportedMethodsReturnErrors|TestChatCompletionStreamUnsupported|TestStreamInferenceUnsupportedProviderUsesStableError' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BZ.1"
+    name: "Classify provider unsupported streaming through a shared sentinel"
+    status: DONE
+    agent: "orchestrator with read-only scout 019e9590-53de-7432-a8de-d711fafad853"
+    files_owned:
+      - api/handlers/inference_test.go
+      - internal/providers/types.go
+      - internal/providers/bedrock/bedrock.go
+      - internal/providers/bedrock/bedrock_test.go
+      - internal/providers/replicate/replicate.go
+      - internal/providers/replicate/replicate_test.go
+      - internal/proxy/errors.go
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BZ-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BZ keeps Bedrock and Replicate streaming truthfully unsupported while making that unsupported capability machine-readable. Providers now wrap a shared `providers.ErrStreamingUnsupported` sentinel, and dispatch error classification maps it to the stable sanitized OpenAI-compatible `501 streaming_unsupported` response instead of a generic upstream failure.
 
 ---
 

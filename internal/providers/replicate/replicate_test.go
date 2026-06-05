@@ -3,6 +3,7 @@ package replicate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -122,6 +123,9 @@ func TestChatCompletionStreamUnsupported(t *testing.T) {
 	_, err := provider.ChatCompletionStream(context.Background(), testKey(), &providers.ChatRequest{Model: "owner/model"})
 	if err == nil || !strings.Contains(err.Error(), "streaming unsupported") {
 		t.Fatalf("error = %v, want streaming unsupported", err)
+	}
+	if !errors.Is(err, providers.ErrStreamingUnsupported) {
+		t.Fatalf("error = %v, want ErrStreamingUnsupported", err)
 	}
 }
 

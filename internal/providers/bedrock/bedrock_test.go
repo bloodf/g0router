@@ -286,6 +286,8 @@ func TestUnsupportedMethodsReturnErrors(t *testing.T) {
 
 	if _, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest()); err == nil {
 		t.Fatal("expected stream error")
+	} else if !errors.Is(err, providers.ErrStreamingUnsupported) {
+		t.Fatalf("error = %v, want ErrStreamingUnsupported", err)
 	}
 }
 

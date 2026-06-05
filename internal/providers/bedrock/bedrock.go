@@ -107,7 +107,7 @@ func (p *BedrockProvider) ChatCompletion(ctx context.Context, key providers.Key,
 }
 
 func (p *BedrockProvider) ChatCompletionStream(context.Context, providers.Key, *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	return nil, fmt.Errorf("bedrock chat completion stream: unsupported")
+	return nil, fmt.Errorf("bedrock chat completion stream: %w", providers.ErrStreamingUnsupported)
 }
 
 func (p *BedrockProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {

@@ -1,6 +1,11 @@
 package providers
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+)
+
+var ErrStreamingUnsupported = errors.New("streaming unsupported")
 
 // ModelProvider identifies an upstream LLM provider.
 type ModelProvider string
