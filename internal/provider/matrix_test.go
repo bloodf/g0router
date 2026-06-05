@@ -248,6 +248,14 @@ func TestProviderMatrixMarksBedrockPublicStreamingAfterConverseSupport(t *testin
 	}
 }
 
+func TestProviderMatrixUnknownID(t *testing.T) {
+	matrix := ProviderMatrix()
+	_, ok := matrix.Provider("nonexistent-provider-xyz")
+	if ok {
+		t.Fatal("expected false for unknown provider id")
+	}
+}
+
 func TestProviderMatrixKeepsKiroAuthOnlyAndKiloSupportedDistinct(t *testing.T) {
 	matrix := ProviderMatrix()
 

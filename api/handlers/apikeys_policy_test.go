@@ -112,3 +112,33 @@ func TestAPIKeysUpdatePolicyInvalidJSON(t *testing.T) {
 		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)
 	}
 }
+
+func TestAPIKeysUpdateInvalidPolicyRejected(t *testing.T) {
+	s := newHandlerStore(t)
+	ctx, _ := runHandler(t, fasthttp.MethodPost, `{"name":"k"}`, func(ctx *fasthttp.RequestCtx) {
+		APIKeys(ctx, s, "test-secret", "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+		t.Fatalf("create failed: %d", ctx.Response.StatusCode())
+	}
+	var created struct {
+		Key struct{ ID string `json:"id"` } `json:"key"`
+	}
+	decodeJSON(t, ctx.Response.Body(), &created)
+	ctx, body := runHandler(t, fasthttp.MethodPut, `{"rate_limit_rpm":-5}`, func(ctx *fasthttp.RequestCtx) {
+		APIKeys(ctx, s, "test-secret", created.Key.ID)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)
+	}
+}
+
+func TestAPIKeysUpdateEmptyIDRejected(t *testing.T) {
+	s := newHandlerStore(t)
+	ctx, body := runHandler(t, fasthttp.MethodPut, `{"rate_limit_rpm":10}`, func(ctx *fasthttp.RequestCtx) {
+		APIKeys(ctx, s, "test-secret", "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)
+	}
+}

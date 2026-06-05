@@ -31,9 +31,38 @@
 project_status: COMPLETE
 current_stage: 9
 current_wave: "COMPLETE"
-last_completed_wave: "S1 (dashboard wiring + traffic topology + coverage gate)"
-last_updated: "2026-06-05T19:00:00Z"
-last_agent: "orchestrator"
+last_completed_wave: "S2 (full release-readiness audit)"
+last_updated: "2026-06-05T21:30:00Z"
+last_agent: "auditor"
+```
+
+---
+
+## Session S2 — Full release-readiness audit
+
+```yaml
+wave: S2
+status: DONE
+summary: "Adversarial full-project audit per FULL-PROJECT-REVIEW-HANDOFF.md. Verified all gates, fixed doc drift, tightened error redaction, coverage maintained at 95.0%."
+work:
+  - "Gate suite: go vet, gitleaks, go test ./..., go test -race ./..., coverage ≥95%, make verify, make e2e-binary, docker smoke"
+  - "Verified fixes from prior audit: B1-B6 (Anthropic streaming tools, refresh race, streaming success timing, bedrock/replicate streaming, /v1/models resilience, error redaction)"
+  - "Fixed PROVIDERS.md false advertising: bedrock + replicate streaming claims corrected"
+  - "Fixed SCHEMA.md: added 7 missing routes (embeddings, images, audio, metrics, audit, traffic)"
+  - "Fixed DEPLOYMENT.md: Dockerfile Go version aligned to go.mod (1.24)"
+  - "Fixed DIRECTORY_STRUCTURE.md: removed phantom files (deploy/docker-compose.yml, 11 filter files)"
+  - "Fixed ARCHITECTURE.md: removed phantom internal/cli/login.go reference"
+  - "Tightened error redaction: apikeys.go DB errors → 500 static; usage.go quota unsupported → static message"
+  - "Added store.ErrInvalidPolicy sentinel to distinguish validation (400) from DB (500) errors"
+  - "Added coverage tests for new error-handling branches"
+gates:
+  - { command: "gitleaks detect", status: PASS, notes: "no leaks, 476 commits" }
+  - { command: "go vet ./...", status: PASS }
+  - { command: "go test ./... -count=1", status: PASS, notes: "~2658 tests; coverage 95.0%" }
+  - { command: "go test -race ./...", status: PASS, notes: "41 packages, zero warnings" }
+  - { command: "go test -tags e2ebin -run TestE2EBinary", status: PASS }
+  - { command: "make verify", status: PASS, notes: "go+ui+playwright+git-diff green" }
+  - { command: "docker build + smoke", status: PASS, notes: "/healthz 200 OK" }
 ```
 
 ---

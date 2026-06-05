@@ -267,3 +267,13 @@ func (r *blockingRefresh) calls() int {
 	defer r.mu.Unlock()
 	return r.count
 }
+
+func TestRefreshManagerNilConnection(t *testing.T) {
+	manager := NewRefreshManager()
+	_, err := manager.Refresh(context.Background(), nil, func(_ context.Context, _ *store.Connection) (oauth.TokenResult, error) {
+		return oauth.TokenResult{}, nil
+	})
+	if !errors.Is(err, ErrRefreshConnectionRequired) {
+		t.Fatalf("err = %v, want ErrRefreshConnectionRequired", err)
+	}
+}

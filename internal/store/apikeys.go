@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -102,15 +103,18 @@ func (s *Store) UpdateAPIKeyPolicy(id string, policy APIKeyPolicy) error {
 	return nil
 }
 
+// ErrInvalidPolicy is returned when an API key policy fails validation.
+var ErrInvalidPolicy = errors.New("invalid api key policy")
+
 func validateAPIKeyPolicy(policy APIKeyPolicy) error {
 	if policy.RateLimitRPM != nil && *policy.RateLimitRPM < 0 {
-		return fmt.Errorf("rate_limit_rpm must be non-negative")
+		return fmt.Errorf("%w: rate_limit_rpm must be non-negative", ErrInvalidPolicy)
 	}
 	if policy.RateLimitTPM != nil && *policy.RateLimitTPM < 0 {
-		return fmt.Errorf("rate_limit_tpm must be non-negative")
+		return fmt.Errorf("%w: rate_limit_tpm must be non-negative", ErrInvalidPolicy)
 	}
 	if policy.DailySpendCapUSD != nil && *policy.DailySpendCapUSD < 0 {
-		return fmt.Errorf("daily_spend_cap_usd must be non-negative")
+		return fmt.Errorf("%w: daily_spend_cap_usd must be non-negative", ErrInvalidPolicy)
 	}
 	return nil
 }

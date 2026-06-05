@@ -165,7 +165,7 @@ Phase 4: Health
 
 ```
 CLI: g0router login anthropic
-  → internal/cli/login.go
+  → internal/cli/auth.go
   → internal/provider/oauth/anthropic.go::StartLogin()
   → Opens browser to claude.ai/oauth/authorize
   → Starts local callback server on :54545

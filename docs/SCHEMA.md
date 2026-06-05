@@ -215,6 +215,10 @@ CREATE INDEX idx_mcp_oauth_flows_instance ON mcp_oauth_flows(instance_id);
 POST /v1/chat/completions     — OpenAI chat format
 POST /v1/messages             — Anthropic messages format; streaming is translated from provider chat stream chunks into Anthropic SSE events
 POST /v1/responses            — OpenAI Responses API format; streaming is translated from provider chat stream chunks
+POST /v1/embeddings           — OpenAI embeddings format; returns 501 for providers without embedding support
+POST /v1/images/generations   — OpenAI images format; returns 501 for providers without image support
+POST /v1/audio/transcriptions — OpenAI audio transcription format; returns 501 for providers without STT support
+POST /v1/audio/speech         — OpenAI TTS format; returns 501 for providers without TTS support
 GET  /v1/models               — List available models
 ```
 
@@ -277,7 +281,10 @@ POST   /api/mcp/tools/:name/execute  — Execute tool
                                        `/api/search` route.
 
 GET    /api/logs                     — Query request/response logs
+GET    /api/audit                    — Admin mutation audit log (paginated)
+GET    /api/traffic/stream           — SSE live traffic topology event stream
 
+GET    /metrics                      — Prometheus metrics scrape endpoint (requires API key)
 GET    /healthz                      — Health check
 ```
 

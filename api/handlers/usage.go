@@ -149,7 +149,7 @@ func UsageQuota(ctx *fasthttp.RequestCtx, s *store.Store, fetchers map[providers
 	quota, err := fetcher.FetchQuota(requestContext(ctx), key)
 	if err != nil {
 		if errors.Is(err, usage.ErrQuotaUnsupported) {
-			writeError(ctx, fasthttp.StatusNotImplemented, err.Error())
+			writeError(ctx, fasthttp.StatusNotImplemented, "quota fetching is not supported for this provider")
 			return
 		}
 		log.Printf("fetch quota: %v", err)

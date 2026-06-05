@@ -147,18 +147,9 @@ g0router/
 │   │   ├── caveman_test.go
 │   │   ├── prompts.go                    # Caveman prompt text (lite/full/ultra)
 │   │   ├── constants.go                  # Thresholds, limits
-│   │   └── filters/                      # 11 compression filters
-│   │       ├── gitdiff.go + _test.go
-│   │       ├── gitstatus.go + _test.go
-│   │       ├── grep.go + _test.go
-│   │       ├── find.go + _test.go
-│   │       ├── ls.go + _test.go
-│   │       ├── tree.go + _test.go
-│   │       ├── buildoutput.go + _test.go
-│   │       ├── deduplog.go + _test.go
-│   │       ├── smarttruncate.go + _test.go
-│   │       ├── readnumbered.go + _test.go
-│   │       └── searchlist.go + _test.go
+│   │   └── filters/                      # Compression filters
+│   │       ├── filters.go                # All 11 filter implementations
+│   │       └── filters_test.go
 │   │
 │   ├── streaming/                        # Stream accumulation
 │   │   ├── accumulator.go               # Collects chunks → complete response
@@ -208,7 +199,7 @@ g0router/
 ├── deploy/                               # Deployment artifacts
 │   ├── g0router.service                  # systemd unit file
 │   ├── g0router.default                  # /etc/default/g0router env template
-│   └── docker-compose.yml
+│
 │
 ├── docs/                                 # All documentation
 │   ├── README.md                         # Documentation hub

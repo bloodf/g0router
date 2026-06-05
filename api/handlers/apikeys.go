@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 
 	"github.com/bloodf/g0router/internal/store"
@@ -112,7 +113,12 @@ func APIKeys(ctx *fasthttp.RequestCtx, s *store.Store, secret, id string) {
 		}
 		if hasPolicy(policy) {
 			if err := s.UpdateAPIKeyPolicy(key.ID, policy); err != nil {
-				writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+				if errors.Is(err, store.ErrInvalidPolicy) {
+					writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+					return
+				}
+				log.Printf("update api key policy: %v", err)
+				writeError(ctx, fasthttp.StatusInternalServerError, "failed to update api key policy")
 				return
 			}
 			updated, err := s.GetAPIKey(key.ID)
@@ -135,7 +141,12 @@ func APIKeys(ctx *fasthttp.RequestCtx, s *store.Store, secret, id string) {
 			return
 		}
 		if err := s.UpdateAPIKeyPolicy(id, req.toPolicy()); err != nil {
-			writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+			if errors.Is(err, store.ErrInvalidPolicy) {
+				writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+				return
+			}
+			log.Printf("update api key policy: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to update api key policy")
 			return
 		}
 		updated, err := s.GetAPIKey(id)
