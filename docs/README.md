@@ -12,7 +12,7 @@ Start here to understand the project, then dive into specific areas.
 
 ## Current Status
 
-Implementation and remediation waves through **Stage 8.CG** are complete and
+Implementation and remediation waves through **Wave 8.CH** are complete and
 merged. Use [WORKFLOW.md](WORKFLOW.md) as the source of truth for final gate
 results, evaluator prompts, and intentionally unsupported capability boundaries.
 Phase documents are retained as completed implementation guides.

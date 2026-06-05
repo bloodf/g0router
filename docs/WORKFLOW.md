@@ -3334,6 +3334,7 @@ tasks:
     agent: "orchestrator"
     commit: "1288133"
     files_owned:
+      - docs/README.md
       - docs/PLAN.md
       - docs/ORCHESTRATION.md
       - docs/WORKFLOW.md
