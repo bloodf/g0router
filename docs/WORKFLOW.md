@@ -3162,7 +3162,7 @@ max_agents: 1
 gate: "make verify"
 completed_at: "2026-06-05T07:35:00Z"
 evaluator_prompt: "docs/evaluations/wave-8CD-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e95d4-470f-7180-9a69-7e118eabecc1 at commit 37ab57d"
 gate_results:
   - "clean checkout raw npm --prefix ui test -- --run McpSplitPages before dependency bootstrap: FAIL, vitest command not found"
   - "make build in clean checkout before implementation: PASS, but bootstraps after raw UI gates in historical gate order"
@@ -3172,6 +3172,7 @@ gate_results:
   - "focused provider/API/UI checks: PASS"
   - "make verify: PASS; bootstrapped UI deps, passed go test, go vet, go build, UI unit/build/E2E, make build, and git diff --check"
   - "git diff --check: PASS"
+  - "external evaluator 019e95d4-470f-7180-9a69-7e118eabecc1: PASS, no blocking findings"
 
 tasks:
   - id: "8.CD.1"
