@@ -174,7 +174,7 @@ func TestAdvancedMCPDockerSpecWhenDockerAvailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildLaunchSpec: %v", err)
 	}
-	if spec.Command != "docker" || !containsAll(spec.Args, []string{"run", "--rm", "-i", "-e", "TOKEN", "mcp/server:latest"}) {
+	if spec.Command != "docker" || !containsAll(spec.Args, []string{"run", "--rm", "-i", "-e", "TOKEN=secret", "mcp/server:latest"}) {
 		t.Fatalf("spec = %+v, want docker run argv", spec)
 	}
 }

@@ -50,7 +50,7 @@ func BuildLaunchSpec(cfg InstanceConfig) (ProcessSpec, error) {
 		}
 		args := []string{"run", "--rm", "-i"}
 		for _, key := range sortedKeys(cfg.Env) {
-			args = append(args, "-e", key)
+			args = append(args, "-e", key+"="+cfg.Env[key])
 		}
 		args = append(args, cfg.Command)
 		args = append(args, cfg.Args...)

@@ -62,7 +62,7 @@ func TestLauncherBuildsDockerSpec(t *testing.T) {
 		t.Fatalf("BuildLaunchSpec: %v", err)
 	}
 
-	want := []string{"run", "--rm", "-i", "-e", "TOKEN", "mcp/server:latest", "--debug"}
+	want := []string{"run", "--rm", "-i", "-e", "TOKEN=secret", "mcp/server:latest", "--debug"}
 	if spec.Command != "docker" {
 		t.Fatalf("command = %q, want docker", spec.Command)
 	}
@@ -255,4 +255,32 @@ type nopWriteCloser struct {
 
 func (w nopWriteCloser) Close() error {
 	return nil
+}
+
+func TestLauncherDockerEnvArgsContainKeyValuePairs(t *testing.T) {
+	spec, err := BuildLaunchSpec(InstanceConfig{
+		LaunchType: LaunchDocker,
+		Transport:  TransportStdio,
+		Command:    "mcp/srv:latest",
+		Env:        map[string]string{"API_KEY": "abc123", "PORT": "8080"},
+	})
+	if err != nil {
+		t.Fatalf("BuildLaunchSpec: %v", err)
+	}
+	// collect -e values from args
+	var envArgs []string
+	for i := 0; i+1 < len(spec.Args); i++ {
+		if spec.Args[i] == "-e" {
+			envArgs = append(envArgs, spec.Args[i+1])
+			i++
+		}
+	}
+	for _, pair := range envArgs {
+		if !strings.Contains(pair, "=") {
+			t.Errorf("docker -e arg %q does not contain '='; want KEY=VALUE", pair)
+		}
+	}
+	if len(envArgs) != 2 {
+		t.Fatalf("expected 2 -e pairs, got %d", len(envArgs))
+	}
 }

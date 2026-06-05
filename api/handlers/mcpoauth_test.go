@@ -150,6 +150,30 @@ func TestMCPOAuthCompleteSanitizesCompletionErrors(t *testing.T) {
 	}
 }
 
+func TestMCPOAuthCompleteRejectsNonHTTPScheme(t *testing.T) {
+	completer := &fakeMCPOAuthCompleter{}
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances/inst-1/oauth/complete")
+	ctx.Request.SetBodyString(`{"callback_url":"javascript:alert(1)"}`)
+
+	MCPOAuthComplete(ctx, completer, nil, nil, "inst-1")
+
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+func TestMCPOAuthCompleteAcceptsHTTPSScheme(t *testing.T) {
+	completer := &fakeMCPOAuthCompleter{}
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/mcp/instances/inst-1/oauth/complete")
+	ctx.Request.SetBodyString(`{"callback_url":"https://app.example.com/callback?code=c1&state=s1"}`)
+
+	MCPOAuthComplete(ctx, completer, nil, nil, "inst-1")
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
 type fakeMCPOAuthCompleter struct {
 	instanceID  string
 	callbackURL string

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -493,6 +494,10 @@ func redactedMCPInstance(instance *store.MCPInstance) *store.MCPInstance {
 	redacted := *instance
 	redacted.Env = cfg.Env
 	redacted.Headers = cfg.Headers
+	if instance.URL != nil {
+		s := redactURL(*instance.URL)
+		redacted.URL = &s
+	}
 	return &redacted
 }
 
@@ -507,7 +512,30 @@ func redactedMCPClients(clients []*store.MCPClient) []*store.MCPClient {
 func redactedMCPClient(client *store.MCPClient) *store.MCPClient {
 	redacted := *client
 	redacted.Env = redactMCPSecretMap(client.Env)
+	if client.URL != nil {
+		s := redactURL(*client.URL)
+		redacted.URL = &s
+	}
 	return &redacted
+}
+
+func redactURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return mcp.RedactedValue
+	}
+	if parsed.RawQuery == "" && parsed.User == nil {
+		return raw
+	}
+	parsed.User = nil
+	q := parsed.Query()
+	for k := range q {
+		if isMCPSecretKey(k) {
+			q.Set(k, mcp.RedactedValue)
+		}
+	}
+	parsed.RawQuery = q.Encode()
+	return parsed.String()
 }
 
 func redactMCPSecretMap(values map[string]string) map[string]string {

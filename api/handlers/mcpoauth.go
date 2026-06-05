@@ -104,6 +104,10 @@ func validateCallbackURL(callbackURL string) error {
 	if err != nil {
 		return fmt.Errorf("parse callback url: %w", err)
 	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("callback url scheme %q not allowed", parsed.Scheme)
+	}
 	if parsed.Query().Get("code") == "" {
 		return fmt.Errorf("code is required")
 	}

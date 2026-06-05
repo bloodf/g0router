@@ -238,6 +238,59 @@ func TestParseSSEDataSkipsEndpointEvents(t *testing.T) {
 	}
 }
 
+type trackingReadCloser struct {
+	r      *strings.Reader
+	closed bool
+}
+
+func (t *trackingReadCloser) Read(p []byte) (int, error) { return t.r.Read(p) }
+func (t *trackingReadCloser) Close() error               { t.closed = true; return nil }
+
+func TestSSEClientClosesBodyOnEndpointReadFailure(t *testing.T) {
+	// Body contains only a data event (no "event: endpoint" line), so readSSEEndpoint returns EOF.
+	body := &trackingReadCloser{r: strings.NewReader("data: not-an-endpoint\n\n")}
+
+	// Patch ensureEndpoint by calling it via a minimal fake transport that returns our body.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("data: not-an-endpoint\n\n"))
+	}))
+	defer server.Close()
+
+	_ = body // used below via transport
+
+	// Use a custom transport that wraps the response body with our tracker.
+	tr := &injectBodyTransport{inner: server.Client().Transport, body: body}
+	httpClient := &http.Client{Transport: tr}
+
+	client := NewSSEClient(httpClient, server.URL, nil)
+	_, err := client.ListTools(context.Background())
+	if err == nil {
+		t.Fatal("ListTools error = nil, want endpoint read failure")
+	}
+	if !body.closed {
+		t.Fatal("response body was not closed after endpoint read failure")
+	}
+}
+
+type injectBodyTransport struct {
+	inner http.RoundTripper
+	body  *trackingReadCloser
+}
+
+func (t *injectBodyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	resp, err := t.inner.RoundTrip(req)
+	if err != nil || resp == nil {
+		return resp, err
+	}
+	// Drain and discard original body; substitute our tracking body.
+	resp.Body.Close()
+	t.body.r = strings.NewReader("data: not-an-endpoint\n\n")
+	resp.Body = t.body
+	return resp, nil
+}
+
 func writeRPCResult(t *testing.T, w http.ResponseWriter, id any, result any) {
 	t.Helper()
 	w.Header().Set("Content-Type", "application/json")

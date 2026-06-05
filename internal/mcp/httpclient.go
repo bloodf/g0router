@@ -280,12 +280,14 @@ func (c *SSEClient) ensureEndpoint(ctx context.Context) error {
 		defer resp.Body.Close()
 		return fmt.Errorf("connect sse mcp: status %d", resp.StatusCode)
 	}
-	c.body = resp.Body
-	c.reader = bufio.NewReader(resp.Body)
-	endpoint, err := readSSEEndpoint(c.reader)
+	reader := bufio.NewReader(resp.Body)
+	endpoint, err := readSSEEndpoint(reader)
 	if err != nil {
+		resp.Body.Close()
 		return err
 	}
+	c.body = resp.Body
+	c.reader = reader
 	c.endpoint = resolveEndpoint(c.baseURL, endpoint)
 	return nil
 }

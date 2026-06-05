@@ -133,3 +133,29 @@ func TestClientManagerCloseUnknownClient(t *testing.T) {
 		t.Fatalf("expected ErrClientNotFound, got %v", err)
 	}
 }
+
+func TestClientManagerConcurrentReads(t *testing.T) {
+	client := &fakeClient{tools: []Tool{{Name: "x", InputSchema: []byte(`{}`)}}}
+	manager := NewClientManager(fakeConnector{client: client})
+	if _, err := manager.Register(context.Background(), ClientConfig{ID: "c1", Name: "C1", Transport: TransportStdio}); err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	const n = 50
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func() {
+			_, ok := manager.Client("c1")
+			if !ok {
+				errs <- errors.New("client not found")
+				return
+			}
+			errs <- nil
+		}()
+	}
+	for i := 0; i < n; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent read: %v", err)
+		}
+	}
+}

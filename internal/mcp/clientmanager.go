@@ -65,7 +65,7 @@ type Connector interface {
 
 type ClientManager struct {
 	connector Connector
-	mu        sync.Mutex
+	mu        sync.RWMutex
 	clients   map[string]Client
 }
 
@@ -107,8 +107,8 @@ func (m *ClientManager) Register(ctx context.Context, cfg ClientConfig) (Manifes
 }
 
 func (m *ClientManager) Client(id string) (Client, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 
 	client, ok := m.clients[id]
 	return client, ok

@@ -759,3 +759,36 @@ func TestMCPOAuthStartStoreFailureDoesNotLeakInternals(t *testing.T) {
 		t.Fatalf("response leaked client secret: %s", body)
 	}
 }
+
+func TestRedactURLStripsSecretQueryParams(t *testing.T) {
+	cases := []struct {
+		raw  string
+		want string // substring that must NOT appear in result
+		keep string // substring that must appear in result
+	}{
+		{
+			raw:  "https://example.com/sse?token=supersecret&model=gpt4",
+			want: "supersecret",
+			keep: "model=gpt4",
+		},
+		{
+			raw:  "https://user:pass@example.com/api",
+			want: "pass",
+			keep: "example.com",
+		},
+		{
+			raw:  "https://example.com/plain",
+			want: "",
+			keep: "example.com/plain",
+		},
+	}
+	for _, tc := range cases {
+		got := redactURL(tc.raw)
+		if tc.want != "" && strings.Contains(got, tc.want) {
+			t.Errorf("redactURL(%q) = %q; leaked %q", tc.raw, got, tc.want)
+		}
+		if tc.keep != "" && !strings.Contains(got, tc.keep) {
+			t.Errorf("redactURL(%q) = %q; missing %q", tc.raw, got, tc.keep)
+		}
+	}
+}
