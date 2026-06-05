@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.CF"
-last_updated: "2026-06-05T04:04:11Z"
+last_updated: "2026-06-05T04:11:23Z"
 last_agent: "orchestrator"
 ```
 
@@ -3249,11 +3249,12 @@ max_agents: 1
 gate: "go test ./api/handlers ./internal/provider -run 'TestUsageQuotaRawJSONContract|TestProvidersListModelsForDynamicProvider|TestOAuthStartDoesNotLeakFlowErrorSecrets|TestOAuthPhaseDocsDescribeCursorOMPFlow' -count=1 && make verify"
 completed_at: "2026-06-05T04:04:11Z"
 evaluator_prompt: "docs/evaluations/wave-8CF-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS replacement external evaluator thread 019e95f8-117e-71b3-a762-6dcfbbce47b8 at commit 38e715c; original evaluator 019e95f6-64a0-7083-b15d-5c8dd4c07bf9 stalled before gate output and was archived"
 gate_results:
   - "focused backend/docs tests before implementation: RED, OAuthStart leaked raw flow error details, provider dynamic test asserted internal-only provider field, and phase-05 docs still described Cursor as PKCE OAuth"
   - "focused backend/docs tests after implementation: PASS"
   - "make verify: PASS; bootstrapped UI deps, passed go test, go vet, go build, UI unit/build/E2E, make build, and git diff --check"
+  - "replacement external evaluator 019e95f8-117e-71b3-a762-6dcfbbce47b8: targeted Go gate PASS, make verify PASS, standalone git diff --check PASS, no blocking findings"
 
 tasks:
   - id: "8.CF.1"
