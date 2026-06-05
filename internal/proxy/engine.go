@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -25,6 +26,9 @@ var (
 	ErrNoConnections                = errors.New("no active connections")
 	ErrQuotaExhausted               = errors.New("quota exhausted")
 )
+
+// tokenLikePattern matches long alphanumeric/base64 blobs that look like tokens.
+var tokenLikePattern = regexp.MustCompile(`[A-Za-z0-9+/\-_]{20,}`)
 
 const defaultRefreshWindow = 5 * time.Minute
 
@@ -591,9 +595,11 @@ func (e *Engine) refreshConnectionIfNeeded(ctx context.Context, provider provide
 		return refresher.Refresh(ctx, *conn.RefreshToken)
 	})
 	if err != nil {
+		_ = e.store.MarkConnectionRefreshFailure(conn.ID, sanitizeRefreshReason(err))
 		return nil, fmt.Errorf("refresh oauth credentials: %w", err)
 	}
 	if token.AccessToken == "" {
+		_ = e.store.MarkConnectionRefreshFailure(conn.ID, "refresh failed: empty access token")
 		return nil, errors.New("refresh oauth credentials: access token is required")
 	}
 
@@ -612,12 +618,32 @@ func (e *Engine) refreshConnectionIfNeeded(ctx context.Context, provider provide
 	if err := e.store.UpdateConnectionCredentials(conn.ID, &accessToken, refreshToken, expiresAt); err != nil {
 		return nil, fmt.Errorf("update refreshed credentials: %w", err)
 	}
+	_ = e.store.ClearConnectionRefreshFailure(conn.ID)
 
 	updated := *conn
 	updated.AccessToken = &accessToken
 	updated.RefreshToken = refreshToken
 	updated.ExpiresAt = expiresAt
+	updated.NeedsReauth = false
+	updated.LastRefreshError = nil
 	return &updated, nil
+}
+
+// sanitizeRefreshReason extracts a non-secret classification from a refresh
+// error. It strips anything that looks like a token (long alphanumeric blobs)
+// and returns at most the first 200 runes.
+func sanitizeRefreshReason(err error) string {
+	if err == nil {
+		return ""
+	}
+	msg := err.Error()
+	// Redact token-like substrings: 20+ char alphanumeric/base64 sequences.
+	msg = tokenLikePattern.ReplaceAllString(msg, "[redacted]")
+	r := []rune(msg)
+	if len(r) > 200 {
+		r = r[:200]
+	}
+	return string(r)
 }
 
 func (e *Engine) oauthProviderForConnection(runtimeProvider providers.ModelProvider, conn *store.Connection) oauth.ProviderID {

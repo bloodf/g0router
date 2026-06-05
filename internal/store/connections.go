@@ -30,6 +30,8 @@ type Connection struct {
 	UnavailableUntil     *int64
 	BackoffLevel         int
 	ModelLocks           map[string]int64
+	NeedsReauth          bool
+	LastRefreshError     *string
 	CreatedAt            string
 	UpdatedAt            string
 }
@@ -48,8 +50,9 @@ func (s *Store) CreateConnection(conn *Connection) error {
 		`INSERT INTO connections (
 			provider, name, auth_type, access_token, refresh_token, expires_at,
 			api_key, is_active, provider_specific_data, account_id, email,
-			unavailable_until, backoff_level, model_locks
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			unavailable_until, backoff_level, model_locks,
+			needs_reauth, last_refresh_error
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at, updated_at`,
 		conn.Provider,
 		conn.Name,
@@ -65,6 +68,8 @@ func (s *Store) CreateConnection(conn *Connection) error {
 		conn.UnavailableUntil,
 		conn.BackoffLevel,
 		modelLocks,
+		boolToInt(conn.NeedsReauth),
+		conn.LastRefreshError,
 	)
 	if err := row.Scan(&conn.ID, &conn.CreatedAt, &conn.UpdatedAt); err != nil {
 		return fmt.Errorf("insert connection: %w", err)
@@ -119,6 +124,8 @@ func (s *Store) UpdateConnection(conn *Connection) error {
 			unavailable_until = ?,
 			backoff_level = ?,
 			model_locks = ?,
+			needs_reauth = ?,
+			last_refresh_error = ?,
 			updated_at = datetime('now')
 		WHERE id = ?`,
 		conn.Provider,
@@ -135,6 +142,8 @@ func (s *Store) UpdateConnection(conn *Connection) error {
 		conn.UnavailableUntil,
 		conn.BackoffLevel,
 		modelLocks,
+		boolToInt(conn.NeedsReauth),
+		conn.LastRefreshError,
 		conn.ID,
 	)
 	if err != nil {
@@ -220,6 +229,8 @@ func scanConnection(scanner connectionScanner) (*Connection, error) {
 	var email sql.NullString
 	var unavailableUntil sql.NullInt64
 	var modelLocks sql.NullString
+	var needsReauth int
+	var lastRefreshError sql.NullString
 
 	err := scanner.Scan(
 		&conn.ID,
@@ -237,6 +248,8 @@ func scanConnection(scanner connectionScanner) (*Connection, error) {
 		&unavailableUntil,
 		&conn.BackoffLevel,
 		&modelLocks,
+		&needsReauth,
+		&lastRefreshError,
 		&conn.CreatedAt,
 		&conn.UpdatedAt,
 	)
@@ -255,6 +268,8 @@ func scanConnection(scanner connectionScanner) (*Connection, error) {
 	conn.AccountID = stringPtrFromNull(accountID)
 	conn.Email = stringPtrFromNull(email)
 	conn.UnavailableUntil = int64PtrFromNull(unavailableUntil)
+	conn.NeedsReauth = needsReauth != 0
+	conn.LastRefreshError = stringPtrFromNull(lastRefreshError)
 
 	if err := decodeJSON(providerData, &conn.ProviderSpecificData); err != nil {
 		return nil, fmt.Errorf("decode provider data: %w", err)
@@ -270,8 +285,59 @@ func connectionSelectSQL() string {
 	return `SELECT
 		id, provider, name, auth_type, access_token, refresh_token, expires_at,
 		api_key, is_active, provider_specific_data, account_id, email,
-		unavailable_until, backoff_level, model_locks, created_at, updated_at
+		unavailable_until, backoff_level, model_locks,
+		needs_reauth, last_refresh_error,
+		created_at, updated_at
 		FROM connections`
+}
+
+const maxRefreshErrorLen = 200
+
+// sanitizeRefreshError truncates reason to maxRefreshErrorLen chars. The
+// caller is responsible for passing a non-secret string; this is a last-resort
+// defence.
+func sanitizeRefreshError(reason string) string {
+	r := []rune(reason)
+	if len(r) > maxRefreshErrorLen {
+		return string(r[:maxRefreshErrorLen])
+	}
+	return reason
+}
+
+// MarkConnectionRefreshFailure sets needs_reauth=true and records a sanitized
+// error reason for the given connection.
+func (s *Store) MarkConnectionRefreshFailure(id string, reason string) error {
+	safe := sanitizeRefreshError(reason)
+	result, err := s.db.Exec(
+		`UPDATE connections SET
+			needs_reauth = 1,
+			last_refresh_error = ?,
+			updated_at = datetime('now')
+		WHERE id = ?`,
+		safe,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("mark connection refresh failure: %w", err)
+	}
+	return requireRowsAffected(result)
+}
+
+// ClearConnectionRefreshFailure clears the needs_reauth flag and error for
+// the given connection (e.g. after a successful refresh).
+func (s *Store) ClearConnectionRefreshFailure(id string) error {
+	result, err := s.db.Exec(
+		`UPDATE connections SET
+			needs_reauth = 0,
+			last_refresh_error = NULL,
+			updated_at = datetime('now')
+		WHERE id = ?`,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("clear connection refresh failure: %w", err)
+	}
+	return requireRowsAffected(result)
 }
 
 func requireRowsAffected(result sql.Result) error {

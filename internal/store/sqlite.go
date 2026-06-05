@@ -242,6 +242,12 @@ func (s *Store) migrate() error {
 	if err := s.ensureColumn("mcp_oauth_flows", "client_secret", "TEXT"); err != nil {
 		return err
 	}
+	if err := s.ensureColumn("connections", "needs_reauth", "INTEGER NOT NULL DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("connections", "last_refresh_error", "TEXT"); err != nil {
+		return err
+	}
 
 	return nil
 }

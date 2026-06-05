@@ -29,6 +29,8 @@ type connectionResponse struct {
 	UnavailableUntil     *int64
 	BackoffLevel         int
 	ModelLocks           map[string]int64
+	NeedsReauth          bool    `json:"needs_reauth"`
+	LastRefreshError     *string `json:"last_refresh_error,omitempty"`
 	CreatedAt            string
 	UpdatedAt            string
 }
@@ -182,6 +184,8 @@ func redactConnection(conn *store.Connection) connectionResponse {
 		UnavailableUntil:     conn.UnavailableUntil,
 		BackoffLevel:         conn.BackoffLevel,
 		ModelLocks:           conn.ModelLocks,
+		NeedsReauth:          conn.NeedsReauth,
+		LastRefreshError:     conn.LastRefreshError,
 		CreatedAt:            conn.CreatedAt,
 		UpdatedAt:            conn.UpdatedAt,
 	}
