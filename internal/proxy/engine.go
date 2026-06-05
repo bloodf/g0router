@@ -580,6 +580,7 @@ func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
 		providers.ProviderKimi,
 		providers.ProviderLiteLLM,
 		providers.ProviderLMStudio,
+		providers.ProviderOllamaCloud,
 		providers.ProviderOpenCode,
 		providers.ProviderQianfan,
 		providers.ProviderVLLM,

@@ -467,6 +467,17 @@ func TestDefaultInferenceEngineRegistersKiloProvider(t *testing.T) {
 	}
 }
 
+func TestDefaultInferenceEngineRegistersOllamaCloudProvider(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	engine := newDefaultInferenceEngine(s)
+
+	if !containsModelProvider(engine.RegisteredProviders(), providers.ProviderOllamaCloud) {
+		t.Fatalf("registered providers = %v, want ollama-cloud", engine.RegisteredProviders())
+	}
+}
+
 func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()

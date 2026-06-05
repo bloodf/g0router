@@ -630,6 +630,7 @@ func TestDispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders(
 		{name: "kimi", provider: providers.ProviderKimi, publicModel: "kimi/kimi-k2.6", upstream: "kimi-k2.6"},
 		{name: "litellm", provider: providers.ProviderLiteLLM, publicModel: "litellm/team/gpt-4o", upstream: "team/gpt-4o"},
 		{name: "lm-studio", provider: providers.ProviderLMStudio, publicModel: "lm-studio/local-model", upstream: "local-model"},
+		{name: "ollama-cloud", provider: providers.ProviderOllamaCloud, publicModel: "ollama-cloud/gpt-oss:120b", upstream: "gpt-oss:120b"},
 		{name: "opencode", provider: providers.ProviderOpenCode, publicModel: "opencode/anthropic/claude-sonnet-4", upstream: "anthropic/claude-sonnet-4"},
 		{name: "qianfan", provider: providers.ProviderQianfan, publicModel: "qianfan/deepseek-v3.1-250821", upstream: "deepseek-v3.1-250821"},
 		{name: "vllm", provider: providers.ProviderVLLM, publicModel: "vllm/meta-llama/Llama-3.1-8B-Instruct", upstream: "meta-llama/Llama-3.1-8B-Instruct"},

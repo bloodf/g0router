@@ -13,6 +13,7 @@ const (
 	ProviderCerebras      ModelProvider = "cerebras"
 	ProviderMistral       ModelProvider = "mistral"
 	ProviderOllama        ModelProvider = "ollama"
+	ProviderOllamaCloud   ModelProvider = "ollama-cloud"
 	ProviderBedrock       ModelProvider = "bedrock"
 	ProviderAzure         ModelProvider = "azure"
 	ProviderVertex        ModelProvider = "vertex"

@@ -100,7 +100,7 @@ func TestProviderMatrixMarksSearchCredentialsAuthOnly(t *testing.T) {
 
 func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kilo", "kimi", "litellm", "lm-studio", "opencode", "qianfan", "vllm", "xiaomi", "zhipu"} {
+	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kilo", "kimi", "litellm", "lm-studio", "ollama-cloud", "opencode", "qianfan", "vllm", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -208,6 +208,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"nebius":                true,
 		"nvidia":                true,
 		"ollama":                true,
+		"ollama-cloud":          true,
 		"opencode":              true,
 		"openrouter":            true,
 		"perplexity":            true,
@@ -245,7 +246,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "opencode", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "xiaomi", "zhipu"} {
+	for _, id := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "github-copilot", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "ollama-cloud", "opencode", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vllm", "xai", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -256,7 +257,7 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if !entry.PublicInference || !entry.DirectDispatch || !entry.RegisteredAdapter || !entry.Inference {
 			t.Fatalf("%s supported surface is incomplete: %+v", id, entry)
 		}
-		if id == "alibaba" || id == "azure" || id == "cloudflare-ai-gateway" || id == "github-copilot" || id == "kilo" || id == "kimi" || id == "litellm" || id == "lm-studio" || id == "opencode" || id == "qianfan" || id == "vllm" || id == "xiaomi" || id == "zhipu" {
+		if id == "alibaba" || id == "azure" || id == "cloudflare-ai-gateway" || id == "github-copilot" || id == "kilo" || id == "kimi" || id == "litellm" || id == "lm-studio" || id == "ollama-cloud" || id == "opencode" || id == "qianfan" || id == "vllm" || id == "xiaomi" || id == "zhipu" {
 			if entry.ModelCatalog {
 				t.Fatalf("%s should not claim static model catalog for deployment-defined routing: %+v", id, entry)
 			}
@@ -280,6 +281,29 @@ func TestPublicProvidersDoNotClaimQuotaSupport(t *testing.T) {
 		if entry.Quota {
 			t.Fatalf("%s should not claim quota support until a real quota fetcher exists", id)
 		}
+	}
+}
+
+func TestOllamaCloudPublicNativeProvider(t *testing.T) {
+	entry, ok := ProviderMatrix().Provider("ollama-cloud")
+	if !ok {
+		t.Fatal("provider matrix missing ollama-cloud")
+	}
+	if entry.PublicStatus != ProviderStatusSupported {
+		t.Fatalf("ollama-cloud status = %q, want supported", entry.PublicStatus)
+	}
+	if len(entry.AuthTypes) != 1 || entry.AuthTypes[0] != "api_key" {
+		t.Fatalf("ollama-cloud auth types = %+v, want api_key only", entry.AuthTypes)
+	}
+	if !entry.RegisteredAdapter || !entry.Inference || !entry.PublicInference || !entry.DirectDispatch || !entry.Streaming || !entry.ListModels {
+		t.Fatalf("ollama-cloud supported surface is incomplete: %+v", entry)
+	}
+	if entry.ModelCatalog || entry.Quota {
+		t.Fatalf("ollama-cloud should not claim static catalog or quota: %+v", entry)
+	}
+	note := strings.ToLower(entry.Notes)
+	if !strings.Contains(note, "native ollama") || !strings.Contains(note, "provider-qualified") {
+		t.Fatalf("ollama-cloud notes = %q, want native/provider-qualified caveat", entry.Notes)
 	}
 }
 

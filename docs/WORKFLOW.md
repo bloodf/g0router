@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BO"
-last_updated: "2026-06-05T01:10:00Z"
+current_wave: "8.BP"
+last_updated: "2026-06-05T01:28:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2489,7 +2489,7 @@ max_agents: 1
 gate: "go test ./internal/provider ./internal/cli ./api/handlers -run 'TestProviderMatrixMarksSearchCredentialsAuthOnly|TestAuthListShowsSupportedProviders|TestLoginCommandPersistsSearchProviderAPIKeyConnection|TestProvidersListKnownProviders' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-04T23:58:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BO-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e9508-1b01-72f0-b14b-2a0d1a64a739 at commit 6685aae"
 gate_results:
   - "focused Kagi/Tavily provider/API/CLI tests: RED before implementation, matrix status was unsupported, auth list omitted kagi/tavily, API-key login rejected them, and provider API reported unsupported"
   - "focused Kagi/Tavily provider/API/CLI tests: PASS"
@@ -2501,6 +2501,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e9508-1b01-72f0-b14b-2a0d1a64a739: PASS, no blocking findings; workflow pending marker replaced by Wave 8.BP docs update"
 
 tasks:
   - id: "8.BO.1"
@@ -2520,6 +2521,56 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BO removes the Kagi and Tavily `unsupported` credential gap only. They now appear in auth-capable provider surfaces and accept stored API-key connections for future search tooling. They remain `auth_only`: no inference adapter, public dispatch, web-search runtime endpoint, static catalog, model listing, streaming, pricing, or quota support is advertised.
+
+---
+
+### Wave 8.BP — Ollama Cloud Native Runtime Routing
+
+```yaml
+wave: "8.BP"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/ollamacloud ./internal/provider ./internal/cli ./api/handlers ./internal/proxy -run 'Test(ChatCompletionUsesNativeOllamaCloudChat|ListModelsUsesNativeTagsEndpoint|NewDefaultUsesOllamaCloudProvider|OllamaCloudPublicNativeProvider|ProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|PublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|PublicProvidersDoNotClaimQuotaSupport|ProvidersListShowsKnownProviders|DefaultInferenceEngineRegistersOllamaCloudProvider|ProvidersListKnownProviders|DispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T01:28:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BP-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused Ollama Cloud provider/matrix/proxy/CLI/API tests: RED before implementation, ollama-cloud provider package was missing, matrix remained unsupported, runtime registration omitted it, public lists omitted it, and provider-qualified dispatch did not route it"
+  - "focused Ollama Cloud provider/matrix/proxy/CLI/API tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BP.1"
+    name: "Promote Ollama Cloud to native provider-qualified runtime routing"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/providers/types.go
+      - internal/providers/ollamacloud/ollamacloud.go
+      - internal/providers/ollamacloud/ollamacloud_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/cli/root_test.go
+      - api/handlers/providers_test.go
+      - docs/PROVIDERS.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BP-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BP removes the Ollama Cloud `unsupported` runtime gap with a native Ollama `/api/chat` and `/api/tags` provider. Ollama Cloud now accepts API-key credentials, appears in public provider/API/CLI surfaces, registers in normal server startup, and routes provider-qualified models such as `ollama-cloud/gpt-oss:120b` upstream as `gpt-oss:120b`. Static catalog, pricing, and quota fetchers remain intentionally absent.
 
 ---
 

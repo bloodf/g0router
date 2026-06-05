@@ -76,7 +76,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		kiloProvider(),
 		dynamicRoutableProvider("litellm", "", false, true, true, false, "api_key"),
 		dynamicRoutableProvider("lm-studio", "", false, true, true, false, "api_key"),
-		unsupportedProvider("ollama-cloud", "Only local Ollama is implemented."),
+		ollamaCloudProvider(),
 		opencodeProvider(),
 		dynamicRoutableProvider("qianfan", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("qwen", "", false, true, true, false, "api_key"),
@@ -205,6 +205,12 @@ func opencodeProvider() ProviderMatrixEntry {
 func kiloProvider() ProviderMatrixEntry {
 	entry := dynamicRoutableProvider("kilo", "", false, true, false, false, "api_key")
 	entry.Notes = "Kilo Gateway is supported through provider-qualified OpenAI-compatible dynamic model IDs; no static model catalog, model listing, or quota fetcher is implemented."
+	return entry
+}
+
+func ollamaCloudProvider() ProviderMatrixEntry {
+	entry := dynamicRoutableProvider("ollama-cloud", "", false, true, true, false, "api_key")
+	entry.Notes = "Public direct dispatch works through provider-qualified native Ollama Cloud model IDs; native /api/tags model listing is supported, with no static catalog or quota fetcher."
 	return entry
 }
 
