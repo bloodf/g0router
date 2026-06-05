@@ -32,7 +32,7 @@ project_status: COMPLETE
 current_stage: 8
 current_wave: "COMPLETE"
 last_completed_wave: "8.CG"
-last_updated: "2026-06-05T04:18:07Z"
+last_updated: "2026-06-05T04:22:03Z"
 last_agent: "orchestrator"
 ```
 
@@ -3289,10 +3289,11 @@ max_agents: 1
 gate: "rg -n 'status: (PENDING|IN_PROGRESS|BLOCKED)|evaluation: \"PENDING|\\[ \\]|TODO|FIXME|implementation does not exist|implementation doesn''t exist' docs && false || true; git diff --check"
 completed_at: "2026-06-05T04:18:07Z"
 evaluator_prompt: "docs/evaluations/wave-8CG-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e9602-c8f2-7601-b681-13296280746a at commit 03685bc"
 gate_results:
   - "final docs/workflow completion audit 019e95fb-59d2-7352-8485-0a0247daff83: FAIL before implementation, README still said Stage 8 remained active and WORKFLOW front matter still reported PARITY_HARDENING/current 8.CF"
   - "final code/test gap audit 019e95fb-9beb-7a51-b9cb-bb88e33c4bed: PASS, go test ./... -count=1 PASS, npm --prefix ui run e2e PASS with 23 passed and 1 skipped, no code/test blockers"
+  - "external evaluator 019e9602-c8f2-7601-b681-13296280746a: PASS, completion-status rg PASS, stale README/Phase 0 rg PASS, Stage 8 range rg PASS, git diff --check PASS"
 
 tasks:
   - id: "8.CG.1"
