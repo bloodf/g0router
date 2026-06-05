@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.CB"
-last_updated: "2026-06-05T06:45:00Z"
+current_wave: "8.CC"
+last_updated: "2026-06-05T07:05:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -3108,6 +3108,47 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.CB promotes only OpenRouter to quota-capable status. The default server wiring uses the OpenRouter current API key credits endpoint with bearer auth, dashboard quota rendering understands unlimited credit responses, dispatch does not block explicit unlimited quota, and all other providers with `quota=false` remain explicitly unsupported by default fetchers.
+
+---
+
+### Wave 8.CC — Provider Matrix Quota Documentation
+
+```yaml
+wave: "8.CC"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/provider -run TestProviderDocsExposeQuotaColumnMatchingMatrix -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T07:05:00Z"
+evaluator_prompt: "docs/evaluations/wave-8CC-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "go test ./internal/provider -run TestProviderDocsExposeQuotaColumnMatchingMatrix -count=1: FAIL before docs update, missing explicit Quota column"
+  - "go test ./internal/provider -run TestProviderDocsExposeQuotaColumnMatchingMatrix -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 88 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.CC.1"
+    name: "Expose quota capability in provider matrix docs"
+    status: DONE
+    agent: "orchestrator"
+    commit: "fd80d7e"
+    files_owned:
+      - internal/provider/matrix_test.go
+      - docs/PROVIDERS.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8CC-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.CC makes quota capability explicit in the human provider matrix. `docs/PROVIDERS.md` now has a `Quota` column matching `internal/provider/matrix.go`, with OpenRouter as the only `yes` row, and a regression test keeps the docs table aligned with the provider matrix.
 
 ---
 
