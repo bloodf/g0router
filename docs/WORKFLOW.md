@@ -3253,13 +3253,14 @@ evaluation: "PENDING external evaluator"
 gate_results:
   - "focused backend/docs tests before implementation: RED, OAuthStart leaked raw flow error details, provider dynamic test asserted internal-only provider field, and phase-05 docs still described Cursor as PKCE OAuth"
   - "focused backend/docs tests after implementation: PASS"
+  - "make verify: PASS; bootstrapped UI deps, passed go test, go vet, go build, UI unit/build/E2E, make build, and git diff --check"
 
 tasks:
   - id: "8.CF.1"
     name: "Harden backend API contract coverage and Cursor OAuth docs truth"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "bff6624"
     files_owned:
       - api/handlers/oauth.go
       - api/handlers/oauth_test.go
