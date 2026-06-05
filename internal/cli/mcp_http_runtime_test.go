@@ -11,6 +11,11 @@ import (
 
 func TestMCPLauncherConnectorReturnsWorkingStreamableHTTPClient(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			// Streamable HTTP session termination on client Close; no body.
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
 		var req map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)

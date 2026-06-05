@@ -15,6 +15,16 @@ type StdioClient struct {
 	mu          sync.Mutex
 	nextID      int64
 	initialized bool
+
+	writeMu sync.Mutex
+	pending map[int64]chan readResult
+	pendMu  sync.Mutex
+	started bool
+}
+
+type readResult struct {
+	resp jsonrpcResponse
+	err  error
 }
 
 func NewStdioClient(process Process) *StdioClient {
@@ -22,6 +32,7 @@ func NewStdioClient(process Process) *StdioClient {
 		process: process,
 		reader:  bufio.NewReader(process.Stdout()),
 		writer:  bufio.NewWriter(process.Stdin()),
+		pending: make(map[int64]chan readResult),
 	}
 }
 
@@ -111,41 +122,103 @@ func (c *StdioClient) ensureInitialized(ctx context.Context) error {
 	return nil
 }
 
+// readLoop runs once, demultiplexing responses by id to waiting callers. It
+// holds no transport-wide lock so a blocked ReadBytes never stalls writers or
+// other bookkeeping.
+func (c *StdioClient) startReadLoop() {
+	c.pendMu.Lock()
+	if c.started {
+		c.pendMu.Unlock()
+		return
+	}
+	c.started = true
+	c.pendMu.Unlock()
+	go c.readLoop()
+}
+
+func (c *StdioClient) readLoop() {
+	for {
+		line, err := c.reader.ReadBytes('\n')
+		if err != nil {
+			c.failAllPending(err)
+			return
+		}
+		var resp jsonrpcResponse
+		if uerr := json.Unmarshal(line, &resp); uerr != nil {
+			// Undecodable line: surface to any waiter is impossible without an
+			// id, so drop and continue reading.
+			continue
+		}
+		c.pendMu.Lock()
+		ch, ok := c.pending[resp.ID]
+		if ok {
+			delete(c.pending, resp.ID)
+		}
+		c.pendMu.Unlock()
+		if ok {
+			ch <- readResult{resp: resp}
+		}
+	}
+}
+
+func (c *StdioClient) failAllPending(err error) {
+	c.pendMu.Lock()
+	pending := c.pending
+	c.pending = make(map[int64]chan readResult)
+	c.pendMu.Unlock()
+	for _, ch := range pending {
+		ch <- readResult{err: err}
+	}
+}
+
+func (c *StdioClient) register(id int64) chan readResult {
+	ch := make(chan readResult, 1)
+	c.pendMu.Lock()
+	c.pending[id] = ch
+	c.pendMu.Unlock()
+	return ch
+}
+
+func (c *StdioClient) unregister(id int64) {
+	c.pendMu.Lock()
+	delete(c.pending, id)
+	c.pendMu.Unlock()
+}
+
 func (c *StdioClient) callLocked(ctx context.Context, method string, params any, result any) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	c.startReadLoop()
 	c.nextID++
 	id := c.nextID
 	encoded, err := marshalJSONRPCRequest(id, method, params)
 	if err != nil {
 		return fmt.Errorf("marshal mcp %s request: %w", method, err)
 	}
+	ch := c.register(id)
 	if err := c.writeLineLocked(encoded); err != nil {
+		c.unregister(id)
 		return fmt.Errorf("write mcp %s request: %w", method, err)
 	}
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
+	select {
+	case <-ctx.Done():
+		c.unregister(id)
+		// Tell the server to abandon the in-flight request so its tool stops.
+		_ = c.notifyLocked("notifications/cancelled", map[string]any{
+			"requestId": id,
+			"reason":    ctx.Err().Error(),
+		})
+		return fmt.Errorf("mcp %s request: %w", method, ctx.Err())
+	case res := <-ch:
+		if res.err != nil {
+			return fmt.Errorf("read mcp %s response: %w", method, res.err)
 		}
-		line, err := c.reader.ReadBytes('\n')
-		if err != nil {
-			return fmt.Errorf("read mcp %s response: %w", method, err)
-		}
-		var resp jsonrpcResponse
-		if err := json.Unmarshal(line, &resp); err != nil {
-			return fmt.Errorf("decode mcp %s response: %w", method, err)
-		}
-		if resp.ID != id {
-			continue
-		}
+		resp := res.resp
 		if resp.Error != nil {
 			return resp.Error
 		}
-		if result == nil {
-			return nil
-		}
-		if len(resp.Result) == 0 {
+		if result == nil || len(resp.Result) == 0 {
 			return nil
 		}
 		if err := json.Unmarshal(resp.Result, result); err != nil {
@@ -167,6 +240,8 @@ func (c *StdioClient) notifyLocked(method string, params any) error {
 }
 
 func (c *StdioClient) writeLineLocked(encoded []byte) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	if _, err := c.writer.Write(encoded); err != nil {
 		return err
 	}

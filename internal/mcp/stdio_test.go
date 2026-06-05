@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestStdioClientInitializesAndListsTools(t *testing.T) {
@@ -111,6 +113,59 @@ func TestStdioClientReturnsJSONRPCError(t *testing.T) {
 	_, err := client.CallTool(context.Background(), CallRequest{Name: "search", Arguments: json.RawMessage(`{}`)})
 	if err == nil || !strings.Contains(err.Error(), "tool failed") {
 		t.Fatalf("CallTool error = %v, want json-rpc error", err)
+	}
+}
+
+func TestStdioClientContextCancelDoesNotDeadlock(t *testing.T) {
+	// A server that initializes but never answers tools/call.
+	hung, hungProc := newFakeStdioServer(t, func(req map[string]any) map[string]any {
+		switch req["method"] {
+		case "initialize":
+			return rpcResult(req["id"], map[string]any{"protocolVersion": protocolVersion})
+		case "tools/call":
+			return nil // never reply
+		default:
+			return rpcError(req["id"], -32601, "method not found")
+		}
+	})
+	defer hung.Close()
+
+	client := NewStdioClient(hungProc)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_, err := client.CallTool(ctx, CallRequest{Name: "search", Arguments: json.RawMessage(`{}`)})
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("CallTool error = %v, want deadline exceeded", err)
+	}
+
+	// notifications/cancelled must be emitted for the hung request.
+	deadline := time.Now().Add(time.Second)
+	for {
+		methods := hung.Methods()
+		if len(methods) > 0 && methods[len(methods)-1] == "notifications/cancelled" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("methods = %#v, want notifications/cancelled emitted", hung.Methods())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// A subsequent call on a responsive transport still works: no permanent deadlock.
+	ok, okProc := newFakeStdioServer(t, func(req map[string]any) map[string]any {
+		switch req["method"] {
+		case "initialize":
+			return rpcResult(req["id"], map[string]any{"protocolVersion": protocolVersion})
+		case "tools/call":
+			return rpcResult(req["id"], map[string]any{"content": []map[string]any{{"type": "text", "text": "ok"}}})
+		default:
+			return rpcError(req["id"], -32601, "method not found")
+		}
+	})
+	defer ok.Close()
+	okClient := NewStdioClient(okProc)
+	if _, err := okClient.CallTool(context.Background(), CallRequest{Name: "search", Arguments: json.RawMessage(`{}`)}); err != nil {
+		t.Fatalf("second CallTool on responsive transport: %v", err)
 	}
 }
 

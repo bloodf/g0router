@@ -29,13 +29,47 @@ type ToolManager struct {
 	tools   map[string]Tool
 	order   []string
 	clients map[string]Client
+
+	inflightMu sync.Mutex
+	inflight   map[string]int
+	inflightCh *sync.Cond
 }
 
 func NewToolManager() *ToolManager {
-	return &ToolManager{
-		tools:   make(map[string]Tool),
-		clients: make(map[string]Client),
+	m := &ToolManager{
+		tools:    make(map[string]Tool),
+		clients:  make(map[string]Client),
+		inflight: make(map[string]int),
 	}
+	m.inflightCh = sync.NewCond(&m.inflightMu)
+	return m
+}
+
+// acquireClient resolves the client for clientID and registers an in-flight
+// call against it under inflightMu, so UnregisterClient blocks until the call
+// finishes. It returns false if the client is not registered.
+func (m *ToolManager) acquireClient(clientID string) (Client, bool) {
+	m.inflightMu.Lock()
+	defer m.inflightMu.Unlock()
+	m.mu.RLock()
+	client, ok := m.clients[clientID]
+	m.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	m.inflight[clientID]++
+	return client, true
+}
+
+func (m *ToolManager) releaseClient(clientID string) {
+	m.inflightMu.Lock()
+	if n := m.inflight[clientID]; n <= 1 {
+		delete(m.inflight, clientID)
+	} else {
+		m.inflight[clientID] = n - 1
+	}
+	m.inflightCh.Broadcast()
+	m.inflightMu.Unlock()
 }
 
 func WithAllowedTools(ctx context.Context, names ...string) context.Context {
@@ -141,11 +175,18 @@ func (m *ToolManager) RegisterClient(clientID string, client Client) {
 }
 
 func (m *ToolManager) UnregisterClient(clientID string) {
+	// Remove from the registry first so no new call can acquire this client,
+	// then wait for in-flight calls to drain before returning so callers can
+	// safely Close the client without a use-after-close race.
+	m.inflightMu.Lock()
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	delete(m.clients, clientID)
 	m.removeClientToolsLocked(clientID)
+	m.mu.Unlock()
+	for m.inflight[clientID] > 0 {
+		m.inflightCh.Wait()
+	}
+	m.inflightMu.Unlock()
 }
 
 func (m *ToolManager) registerManifestLocked(manifest Manifest, fullNames []string) {
@@ -203,13 +244,15 @@ func (m *ToolManager) Call(ctx context.Context, name string, arguments json.RawM
 		return CallResult{}, ErrToolNotFound
 	}
 	tool = cloneTool(tool)
+	m.mu.RUnlock()
 
-	client, ok := m.clients[tool.ClientID]
+	// Acquire an in-flight reference so UnregisterClient/Close cannot tear the
+	// client down underneath this call.
+	client, ok := m.acquireClient(tool.ClientID)
 	if !ok {
-		m.mu.RUnlock()
 		return CallResult{}, ErrClientNotFound
 	}
-	m.mu.RUnlock()
+	defer m.releaseClient(tool.ClientID)
 
 	callArguments := append(json.RawMessage(nil), arguments...)
 	if len(bytes.TrimSpace(tool.InputSchema)) > 0 {

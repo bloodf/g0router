@@ -2,12 +2,14 @@ package mcp
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestStreamableHTTPClientListsAndCallsTools(t *testing.T) {
@@ -138,6 +140,90 @@ func TestSSEClientDiscoversEndpointAndCallsTools(t *testing.T) {
 	want := []string{"initialize", "notifications/initialized", "tools/list", "tools/call"}
 	if !stringSlicesEqual(got, want) {
 		t.Fatalf("methods = %#v, want %#v", got, want)
+	}
+}
+
+func TestStreamableHTTPClientSendsCancelledOnContextCancel(t *testing.T) {
+	cancelled := make(chan int64, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		method, _ := req["method"].(string)
+		switch method {
+		case "initialize":
+			w.Header().Set("Mcp-Session-Id", "sess-1")
+			writeRPCResult(t, w, req["id"], map[string]any{"protocolVersion": protocolVersion})
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		case "notifications/cancelled":
+			params, _ := req["params"].(map[string]any)
+			id, _ := params["requestId"].(float64)
+			cancelled <- int64(id)
+			w.WriteHeader(http.StatusAccepted)
+		case "tools/call":
+			<-r.Context().Done() // block until caller cancels
+		default:
+			writeRPCError(t, w, req["id"], -32601, "unknown")
+		}
+	}))
+	defer server.Close()
+
+	client := NewStreamableHTTPClient(server.Client(), server.URL, nil, "", false)
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		cancel()
+	}()
+	_, err := client.CallTool(ctx, CallRequest{Name: "search", Arguments: json.RawMessage(`{}`)})
+	if err == nil {
+		t.Fatal("CallTool error = nil, want context cancel error")
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("server never received notifications/cancelled")
+	}
+}
+
+func TestStreamableHTTPClientCloseTerminatesSession(t *testing.T) {
+	deleted := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			deleted <- r.Header.Get("Mcp-Session-Id")
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		var req map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		method, _ := req["method"].(string)
+		switch method {
+		case "initialize":
+			w.Header().Set("Mcp-Session-Id", "sess-9")
+			writeRPCResult(t, w, req["id"], map[string]any{"protocolVersion": protocolVersion})
+		case "notifications/initialized":
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			writeRPCError(t, w, req["id"], -32601, "unknown")
+		}
+	}))
+	defer server.Close()
+
+	client := NewStreamableHTTPClient(server.Client(), server.URL, nil, "", false)
+	if _, err := client.ListTools(context.Background()); err == nil {
+		// ListTools triggers initialize which sets the session id; tools/list
+		// returns an error here, which is fine -- we only need the session.
+		_ = err
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	select {
+	case got := <-deleted:
+		if got != "sess-9" {
+			t.Fatalf("DELETE session id = %q, want sess-9", got)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Close did not terminate the session via DELETE")
 	}
 }
 

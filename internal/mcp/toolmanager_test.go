@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
 )
@@ -313,6 +314,61 @@ func TestToolManagerOpenAIToolNameEscapesSeparator(t *testing.T) {
 
 func TestToolManagerCompactToolsUseProviderTypes(t *testing.T) {
 	var _ []providers.Tool = NewToolManager().CompactTools()
+}
+
+// closeTrackingClient panics if CallTool runs after Close, surfacing any
+// use-after-close under the race detector.
+type closeTrackingClient struct {
+	mu     sync.Mutex
+	closed bool
+}
+
+func (c *closeTrackingClient) ListTools(ctx context.Context) ([]Tool, error) { return nil, nil }
+
+func (c *closeTrackingClient) CallTool(ctx context.Context, req CallRequest) (CallResult, error) {
+	c.mu.Lock()
+	closed := c.closed
+	c.mu.Unlock()
+	if closed {
+		panic("CallTool invoked after Close")
+	}
+	time.Sleep(time.Millisecond)
+	return CallResult{Content: "ok"}, nil
+}
+
+func (c *closeTrackingClient) Close() error {
+	c.mu.Lock()
+	c.closed = true
+	c.mu.Unlock()
+	return nil
+}
+
+func TestToolManagerCallVsUnregisterRace(t *testing.T) {
+	for iter := 0; iter < 50; iter++ {
+		manager := NewToolManager()
+		if err := manager.RegisterManifest(Manifest{
+			ClientID: "docs",
+			Tools:    []Tool{{Name: "search", Description: "Search docs"}},
+		}); err != nil {
+			t.Fatalf("RegisterManifest: %v", err)
+		}
+		client := &closeTrackingClient{}
+		manager.RegisterClient("docs", client)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			_, _ = manager.Call(context.Background(), "docs__search", json.RawMessage(`{}`))
+		}()
+		go func() {
+			defer wg.Done()
+			manager.UnregisterClient("docs")
+			// Safe to close only after UnregisterClient drained in-flight calls.
+			_ = client.Close()
+		}()
+		wg.Wait()
+	}
 }
 
 type concurrentCallClient struct{}

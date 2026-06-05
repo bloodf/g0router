@@ -21,6 +21,8 @@ type StreamableHTTPClient struct {
 	mu          sync.Mutex
 	nextID      int64
 	initialized bool
+	lastBody    io.Closer
+	closed      bool
 }
 
 func NewStreamableHTTPClient(client HTTPDoer, url string, headers map[string]string, sessionID string, initialized bool) *StreamableHTTPClient {
@@ -68,7 +70,32 @@ func (c *StreamableHTTPClient) CallTool(ctx context.Context, req CallRequest) (C
 }
 
 func (c *StreamableHTTPClient) Close() error {
-	return nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	if c.lastBody != nil {
+		_ = c.lastBody.Close()
+		c.lastBody = nil
+	}
+	if c.sessionID == "" {
+		return nil
+	}
+	req, err := http.NewRequest(http.MethodDelete, c.url, nil)
+	if err != nil {
+		return fmt.Errorf("build streamable mcp session close: %w", err)
+	}
+	applyHTTPHeaders(req, c.headers)
+	req.Header.Set("Mcp-Session-Id", c.sessionID)
+	req.Header.Set("MCP-Protocol-Version", protocolVersion)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("terminate streamable mcp session: %w", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return resp.Body.Close()
 }
 
 func (c *StreamableHTTPClient) ensureInitialized(ctx context.Context) error {
@@ -96,6 +123,9 @@ func (c *StreamableHTTPClient) callLocked(ctx context.Context, method string, pa
 	}
 	resp, err := c.post(ctx, encoded)
 	if err != nil {
+		if ctx.Err() != nil {
+			c.sendCancelled(id, ctx.Err())
+		}
 		return err
 	}
 	defer resp.Body.Close()
@@ -126,6 +156,16 @@ func (c *StreamableHTTPClient) notifyLocked(ctx context.Context, method string, 
 		return fmt.Errorf("mcp %s notification: status %d", method, resp.StatusCode)
 	}
 	return nil
+}
+
+// sendCancelled notifies the server to abandon an in-flight request after the
+// caller's context was cancelled. It uses a detached context so the
+// notification itself is not cancelled.
+func (c *StreamableHTTPClient) sendCancelled(id int64, cause error) {
+	_ = c.notifyLocked(context.Background(), "notifications/cancelled", map[string]any{
+		"requestId": id,
+		"reason":    cause.Error(),
+	})
 }
 
 func (c *StreamableHTTPClient) post(ctx context.Context, encoded []byte) (*http.Response, error) {
