@@ -3332,7 +3332,7 @@ tasks:
     name: "Remove stale current-wave and pending-task closure language"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "1288133"
     files_owned:
       - docs/PLAN.md
       - docs/ORCHESTRATION.md
