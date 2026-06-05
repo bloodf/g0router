@@ -120,7 +120,7 @@ func Messages(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 		return
 	}
 	if req.Stream != nil && *req.Stream {
-		writeError(ctx, fasthttp.StatusNotImplemented, "messages streaming unavailable")
+		streamMessages(ctx, engine, &req)
 		return
 	}
 
@@ -130,6 +130,147 @@ func Messages(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 		return
 	}
 	writeJSON(ctx, fasthttp.StatusOK, anthropicMessageResponse(resp))
+}
+
+func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *providers.ChatRequest) {
+	stream, err := engine.DispatchStream(requestContext(ctx), req)
+	if err != nil {
+		writeDispatchError(ctx, err)
+		return
+	}
+
+	ctx.SetContentType("text/event-stream")
+	ctx.Response.Header.Set("Cache-Control", "no-cache")
+	ctx.Response.Header.Set("Connection", "keep-alive")
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		started := false
+		contentStarted := false
+		blockIndex := 0
+		message := anthropicMessageBody{Type: "message", Role: "assistant", Model: req.Model}
+		for chunk := range stream {
+			if chunk.Error != nil {
+				writeStreamError(w, chunk.Error)
+				return
+			}
+			updateAnthropicStreamMessage(&message, chunk)
+			if !started && shouldStartAnthropicMessage(chunk) {
+				writeAnthropicStreamEvent(w, "message_start", map[string]any{
+					"type":    "message_start",
+					"message": message,
+				})
+				started = true
+			}
+			for _, choice := range chunk.Choices {
+				if choice.Delta.Content != nil {
+					if !started {
+						writeAnthropicStreamEvent(w, "message_start", map[string]any{
+							"type":    "message_start",
+							"message": message,
+						})
+						started = true
+					}
+					if !contentStarted {
+						writeAnthropicStreamEvent(w, "content_block_start", map[string]any{
+							"type":  "content_block_start",
+							"index": blockIndex,
+							"content_block": map[string]string{
+								"type": "text",
+								"text": "",
+							},
+						})
+						contentStarted = true
+					}
+					if *choice.Delta.Content != "" {
+						writeAnthropicStreamEvent(w, "content_block_delta", map[string]any{
+							"type":  "content_block_delta",
+							"index": blockIndex,
+							"delta": map[string]string{
+								"type": "text_delta",
+								"text": *choice.Delta.Content,
+							},
+						})
+					}
+				}
+				if choice.FinishReason != nil {
+					if !started {
+						writeAnthropicStreamEvent(w, "message_start", map[string]any{
+							"type":    "message_start",
+							"message": message,
+						})
+						started = true
+					}
+					if contentStarted {
+						writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
+							"type":  "content_block_stop",
+							"index": blockIndex,
+						})
+					}
+					writeAnthropicStreamEvent(w, "message_delta", map[string]any{
+						"type": "message_delta",
+						"delta": map[string]any{
+							"stop_reason":   anthropicStreamStopReason(choice.FinishReason),
+							"stop_sequence": nil,
+						},
+						"usage": anthropicStreamUsage(chunk.Usage),
+					})
+					writeAnthropicStreamEvent(w, "message_stop", map[string]string{
+						"type": "message_stop",
+					})
+				}
+			}
+		}
+		_ = w.Flush()
+	})
+}
+
+func updateAnthropicStreamMessage(message *anthropicMessageBody, chunk providers.StreamChunk) {
+	if chunk.ID != "" {
+		message.ID = chunk.ID
+	}
+	if chunk.Model != "" {
+		message.Model = chunk.Model
+	}
+	if chunk.Usage != nil {
+		message.Usage = anthropicMessageUsage{
+			InputTokens:  chunk.Usage.PromptTokens,
+			OutputTokens: chunk.Usage.CompletionTokens,
+		}
+	}
+	for _, choice := range chunk.Choices {
+		if choice.Delta.Role != nil && *choice.Delta.Role != "" {
+			message.Role = *choice.Delta.Role
+		}
+	}
+}
+
+func shouldStartAnthropicMessage(chunk providers.StreamChunk) bool {
+	if chunk.ID != "" || chunk.Model != "" || chunk.Usage != nil {
+		return true
+	}
+	for _, choice := range chunk.Choices {
+		if choice.Delta.Role != nil || choice.Delta.Content != nil || choice.FinishReason != nil {
+			return true
+		}
+	}
+	return false
+}
+
+func writeAnthropicStreamEvent(w *bufio.Writer, eventType string, payload any) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "event: %s\n", eventType)
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+	_ = w.Flush()
+}
+
+func anthropicStreamUsage(usage *providers.Usage) map[string]int {
+	if usage == nil {
+		return map[string]int{"output_tokens": 0}
+	}
+	return map[string]int{"output_tokens": usage.CompletionTokens}
 }
 
 func Responses(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
@@ -421,6 +562,22 @@ func anthropicStopReason(reason *string) *string {
 		return &toolUse
 	}
 	return reason
+}
+
+func anthropicStreamStopReason(reason *string) string {
+	if reason == nil {
+		return ""
+	}
+	switch *reason {
+	case "stop":
+		return "end_turn"
+	case "length":
+		return "max_tokens"
+	case "tool_calls":
+		return "tool_use"
+	default:
+		return *reason
+	}
 }
 
 func toolCallInput(arguments string) json.RawMessage {

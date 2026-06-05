@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BX"
-last_updated: "2026-06-05T05:10:00Z"
+current_wave: "8.BY"
+last_updated: "2026-06-05T05:30:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2928,6 +2928,45 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BX removes the hard 501 for `/v1/responses` streaming when the request can be translated to the existing OpenAI-compatible chat request shape. The handler now dispatches through `DispatchStream`, emits Responses-style SSE events for `response.output_text.delta`, `response.output_text.done`, and `response.completed`, and preserves explicit rejection of unsupported native Responses input items. `/v1/messages` streaming and richer native Responses item support remain separate gaps.
+
+---
+
+### Wave 8.BY — Messages API Streaming Translation
+
+```yaml
+wave: "8.BY"
+status: DONE
+max_agents: 1
+gate: "go test ./api/handlers -run 'TestMessagesStreamingTranslatesChatStream|TestMessagesResponsePreservesToolUseBlocks|TestResponsesStreamingTranslatesChatStream|TestStreamInferenceWritesSanitizedStreamError' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T05:30:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BY-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after commit"
+gate_results:
+  - "go test ./api/handlers -run TestMessagesStreamingTranslatesChatStream -count=1: RED before implementation, /v1/messages stream:true returned 501 messages streaming unavailable"
+  - "go test ./api/handlers -run 'TestMessagesStreamingTranslatesChatStream|TestMessagesResponsePreservesToolUseBlocks|TestResponsesStreamingTranslatesChatStream|TestStreamInferenceWritesSanitizedStreamError' -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BY.1"
+    name: "Translate chat stream chunks into Anthropic Messages SSE events"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - api/handlers/inference.go
+      - api/handlers/inference_test.go
+      - docs/SCHEMA.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BY-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BY removes the hard 501 for `/v1/messages` streaming when the request can be represented by the existing OpenAI-compatible chat request shape. The handler now dispatches through `DispatchStream` and emits Anthropic-style SSE events (`message_start`, `content_block_start`, `content_block_delta`, `content_block_stop`, `message_delta`, and `message_stop`) without an OpenAI `[DONE]` sentinel. Native Anthropic tool input/result blocks remain explicitly rejected before dispatch instead of being silently dropped.
 
 ---
 

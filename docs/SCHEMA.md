@@ -213,7 +213,7 @@ CREATE INDEX idx_mcp_oauth_flows_instance ON mcp_oauth_flows(instance_id);
 ### Inference
 ```
 POST /v1/chat/completions     — OpenAI chat format
-POST /v1/messages             — Anthropic messages format
+POST /v1/messages             — Anthropic messages format; streaming is translated from provider chat stream chunks into Anthropic SSE events
 POST /v1/responses            — OpenAI Responses API format; streaming is translated from provider chat stream chunks
 GET  /v1/models               — List available models
 ```
