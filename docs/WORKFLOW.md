@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.CA"
-last_updated: "2026-06-05T06:10:00Z"
+current_wave: "8.CB"
+last_updated: "2026-06-05T06:45:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -3052,6 +3052,61 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.CA makes the provider quota contract harder to misread. The API schema and Phase 8 docs now state that quota is capability-gated and unsupported by default unless a provider-specific fetcher exists, and startup has regression coverage that every public inference provider with `quota=false` returns `usage.ErrQuotaUnsupported` through its default cached quota fetcher.
+
+---
+
+### Wave 8.CB — OpenRouter Quota Support
+
+```yaml
+wave: "8.CB"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/usage ./internal/cli ./internal/provider ./api/handlers ./internal/proxy -run 'TestOpenRouterQuotaFetcher|TestDefaultServerConfigRegistersOpenRouterQuotaFetcher|TestPublicProvidersOnlyClaimImplementedQuotaSupport|TestProvidersListKnownProviders|TestDispatchUnlimitedQuotaAllowsProviderCall' -count=1 && npm --prefix ui test -- --run QuotaPage && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T06:45:00Z"
+evaluator_prompt: "docs/evaluations/wave-8CB-evaluator-prompt.md"
+evaluation: "PENDING replacement evaluator after workflow record fix"
+gate_results:
+  - "go test ./internal/usage ./internal/cli ./internal/provider ./api/handlers ./internal/proxy -run 'TestOpenRouterQuotaFetcher|TestDefaultServerConfigRegistersOpenRouterQuotaFetcher|TestPublicProvidersOnlyClaimImplementedQuotaSupport|TestProvidersListKnownProviders|TestDispatchUnlimitedQuotaAllowsProviderCall' -count=1: PASS"
+  - "npm --prefix ui test -- --run QuotaPage: PASS, 1 file and 7 tests"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 88 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.CB.1"
+    name: "Implement real OpenRouter quota fetcher and unlimited quota UI"
+    status: DONE
+    agent: "orchestrator with evaluator 019e95b1-75e4-75e2-9efe-9e1378eed041"
+    commit: "ee96357"
+    files_owned:
+      - internal/usage/quota.go
+      - internal/usage/quota_test.go
+      - internal/cli/root.go
+      - internal/cli/root_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - api/handlers/providers_test.go
+      - ui/src/api.ts
+      - ui/src/pages/QuotaPage.tsx
+      - ui/src/pages/QuotaPage.test.tsx
+      - ui/dist/assets/index.js
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/PROVIDERS.md
+      - docs/SCHEMA.md
+      - docs/phases/phase-08-usage-tracking-cost-logging.md
+      - docs/evaluations/wave-8CB-evaluator-prompt.md
+      - docs/WORKFLOW.md
+```
+
+**Checkpoint**: Wave 8.CB promotes only OpenRouter to quota-capable status. The default server wiring uses the OpenRouter current API key credits endpoint with bearer auth, dashboard quota rendering understands unlimited credit responses, dispatch does not block explicit unlimited quota, and all other providers with `quota=false` remain explicitly unsupported by default fetchers.
 
 ---
 
