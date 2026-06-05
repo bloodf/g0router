@@ -142,10 +142,16 @@ func TestSanitizeRefreshReasonNilErr(t *testing.T) {
 }
 
 // TestSanitizeRefreshReasonTruncatesLong exercises the >200 rune truncation.
+// The string must survive tokenLikePattern redaction to stay >200 runes — use
+// space-separated short words so no 20+ char blob is present.
 func TestSanitizeRefreshReasonTruncatesLong(t *testing.T) {
-	long := strings.Repeat("e", 300)
+	// "err " × 60 = 240 chars, no 20+ char alphanumeric blob → survives redaction.
+	long := strings.Repeat("err ", 60)
 	got := sanitizeRefreshReason(fmt.Errorf("%s", long))
 	if len([]rune(got)) > 200 {
 		t.Errorf("sanitizeRefreshReason did not truncate: got len %d", len([]rune(got)))
+	}
+	if len([]rune(got)) == 0 {
+		t.Error("sanitizeRefreshReason should return non-empty string")
 	}
 }

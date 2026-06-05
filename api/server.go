@@ -335,6 +335,14 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 			return
 		}
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
+	case "/v1/embeddings":
+		s.handleExtra(ctx, handlers.Embeddings)
+	case "/v1/images/generations":
+		s.handleExtra(ctx, handlers.Images)
+	case "/v1/audio/transcriptions":
+		s.handleExtra(ctx, handlers.AudioTranscription)
+	case "/v1/audio/speech":
+		s.handleExtra(ctx, handlers.Speech)
 	case "/v1/models":
 		if string(ctx.Method()) == fasthttp.MethodGet {
 			handlers.Models(ctx, s.config.InferenceEngine)
@@ -352,6 +360,23 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 
 func (s *Server) handleInference(ctx *fasthttp.RequestCtx) {
 	s.handleLoggedInference(ctx, "openai", handlers.Inference)
+}
+
+// handleExtra serves the optional OpenAI-compatible endpoints (embeddings,
+// images, audio). They share the /v1/* auth and source policy enforced by
+// applyMiddleware plus the API-key policy gate. The inference engine is
+// type-asserted to handlers.ExtraEngine; a nil assertion yields a clean 501
+// through the handler's nil-engine path.
+func (s *Server) handleExtra(ctx *fasthttp.RequestCtx, handle func(*fasthttp.RequestCtx, handlers.ExtraEngine)) {
+	if string(ctx.Method()) != fasthttp.MethodPost {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		return
+	}
+	if !s.enforceKeyPolicy(ctx) {
+		return
+	}
+	engine, _ := s.config.InferenceEngine.(handlers.ExtraEngine)
+	handle(ctx, engine)
 }
 
 func (s *Server) handleMessages(ctx *fasthttp.RequestCtx) {

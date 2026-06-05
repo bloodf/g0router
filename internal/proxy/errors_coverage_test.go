@@ -23,6 +23,7 @@ func TestClassifyDispatchError(t *testing.T) {
 		{"inference unavailable", ErrProviderInferenceUnavailable, "provider_inference_unavailable", http.StatusNotFound},
 		{"no connections", ErrNoConnections, "no_active_connections", http.StatusServiceUnavailable},
 		{"quota exhausted", ErrQuotaExhausted, "quota_exhausted", http.StatusTooManyRequests},
+		{"capability unsupported", ErrCapabilityUnsupported, "capability_unsupported", http.StatusNotImplemented},
 		{"streaming unsupported", providers.ErrStreamingUnsupported, "streaming_unsupported", http.StatusNotImplemented},
 		{"gemini unsupported", gemini.ErrUnsupported, "streaming_unsupported", http.StatusNotImplemented},
 		{"upstream auth", anthropic.ErrAuth, "upstream_auth_error", http.StatusUnauthorized},

@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 )
@@ -194,4 +195,106 @@ type StreamDelta struct {
 	Role      *string    `json:"role,omitempty"`
 	Content   *string    `json:"content,omitempty"`
 	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
+}
+
+// EmbeddingsProvider is an optional capability. Adapters that proxy the OpenAI
+// /v1/embeddings endpoint implement it; the engine type-asserts before
+// dispatching and returns ErrCapabilityUnsupported otherwise. It is deliberately
+// kept off the base Provider interface so existing adapters are unaffected.
+type EmbeddingsProvider interface {
+	Embeddings(ctx context.Context, key Key, req *EmbeddingsRequest) (*EmbeddingsResponse, error)
+}
+
+// ImagesProvider is an optional capability for /v1/images/generations.
+type ImagesProvider interface {
+	GenerateImages(ctx context.Context, key Key, req *ImagesRequest) (*ImagesResponse, error)
+}
+
+// AudioTranscriptionProvider is an optional capability for
+// /v1/audio/transcriptions (multipart upload).
+type AudioTranscriptionProvider interface {
+	TranscribeAudio(ctx context.Context, key Key, req *AudioTranscriptionRequest) (*AudioResponse, error)
+}
+
+// SpeechProvider is an optional capability for /v1/audio/speech. It returns the
+// synthesized audio bytes and the upstream content type.
+type SpeechProvider interface {
+	Speech(ctx context.Context, key Key, req *SpeechRequest) ([]byte, string, error)
+}
+
+// EmbeddingsRequest mirrors the OpenAI /v1/embeddings request body. Input is
+// either a string or a []string.
+type EmbeddingsRequest struct {
+	Model          string `json:"model"`
+	Input          any    `json:"input"`
+	EncodingFormat string `json:"encoding_format,omitempty"`
+	Dimensions     *int   `json:"dimensions,omitempty"`
+	User           string `json:"user,omitempty"`
+}
+
+type EmbeddingsResponse struct {
+	Object string          `json:"object"`
+	Data   []EmbeddingData `json:"data"`
+	Model  string          `json:"model"`
+	Usage  *EmbeddingUsage `json:"usage,omitempty"`
+}
+
+type EmbeddingData struct {
+	Object    string    `json:"object"`
+	Index     int       `json:"index"`
+	Embedding []float64 `json:"embedding"`
+}
+
+type EmbeddingUsage struct {
+	PromptTokens int `json:"prompt_tokens"`
+	TotalTokens  int `json:"total_tokens"`
+}
+
+// ImagesRequest mirrors the OpenAI /v1/images/generations request body.
+type ImagesRequest struct {
+	Model          string `json:"model,omitempty"`
+	Prompt         string `json:"prompt"`
+	N              *int   `json:"n,omitempty"`
+	Size           string `json:"size,omitempty"`
+	ResponseFormat string `json:"response_format,omitempty"`
+	Quality        string `json:"quality,omitempty"`
+	Style          string `json:"style,omitempty"`
+	User           string `json:"user,omitempty"`
+}
+
+type ImagesResponse struct {
+	Created int64       `json:"created"`
+	Data    []ImageData `json:"data"`
+}
+
+type ImageData struct {
+	URL           string `json:"url,omitempty"`
+	B64JSON       string `json:"b64_json,omitempty"`
+	RevisedPrompt string `json:"revised_prompt,omitempty"`
+}
+
+// AudioTranscriptionRequest carries the multipart fields for
+// /v1/audio/transcriptions. File holds the raw audio bytes; Filename is sent as
+// the multipart file name so the upstream can infer the format.
+type AudioTranscriptionRequest struct {
+	Model          string
+	File           []byte
+	Filename       string
+	Language       string
+	Prompt         string
+	ResponseFormat string
+	Temperature    string
+}
+
+type AudioResponse struct {
+	Text string `json:"text"`
+}
+
+// SpeechRequest mirrors the OpenAI /v1/audio/speech request body.
+type SpeechRequest struct {
+	Model          string   `json:"model"`
+	Input          string   `json:"input"`
+	Voice          string   `json:"voice"`
+	ResponseFormat string   `json:"response_format,omitempty"`
+	Speed          *float64 `json:"speed,omitempty"`
 }

@@ -25,6 +25,9 @@ var (
 	ErrProviderInferenceUnavailable = errors.New("provider inference unavailable")
 	ErrNoConnections                = errors.New("no active connections")
 	ErrQuotaExhausted               = errors.New("quota exhausted")
+	// ErrCapabilityUnsupported is returned when the resolved provider does not
+	// implement the optional capability (embeddings, images, audio) requested.
+	ErrCapabilityUnsupported = errors.New("capability unsupported")
 )
 
 // tokenLikePattern matches long alphanumeric/base64 blobs that look like tokens.

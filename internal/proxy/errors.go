@@ -32,6 +32,8 @@ func ClassifyDispatchError(err error) DispatchErrorClass {
 		return DispatchErrorClass{StatusCode: http.StatusServiceUnavailable, Message: "no active provider connections", Type: "server_error", Code: "no_active_connections"}
 	case errors.Is(err, ErrQuotaExhausted):
 		return DispatchErrorClass{StatusCode: http.StatusTooManyRequests, Message: "quota exhausted", Type: "rate_limit_error", Code: "quota_exhausted"}
+	case errors.Is(err, ErrCapabilityUnsupported):
+		return DispatchErrorClass{StatusCode: http.StatusNotImplemented, Message: "capability unsupported for provider", Type: "invalid_request_error", Code: "capability_unsupported"}
 	case isStreamingUnsupportedError(err):
 		return DispatchErrorClass{StatusCode: http.StatusNotImplemented, Message: "streaming unsupported for provider", Type: "invalid_request_error", Code: "streaming_unsupported"}
 	case isUpstreamAuthError(err):
