@@ -22,7 +22,7 @@ Phase documents are retained as completed implementation guides.
 | Document | When to Read |
 |----------|-------------|
 | [WORKFLOW.md](WORKFLOW.md) | Before starting any implementation work — shows current status |
-| [REFERENCES.md](REFERENCES.md) | When porting code from bifrost, 9router, or oh-my-pi |
+| [REFERENCES.md](REFERENCES.md) | Historical source mapping (migration complete) |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | When packaging for production (systemd, Docker, nginx) |
 | [DIRECTORY_STRUCTURE.md](DIRECTORY_STRUCTURE.md) | When creating new files — shows where everything goes |
 

@@ -308,12 +308,12 @@ documentation completion wording, MCP unsupported launch transport guarding,
 Phase 12 completed-data-model wording, release-lock verification, Gemini native
 SSE streaming parity, Vertex native SSE streaming parity, Bedrock signed
 model listing parity, Bedrock Converse adapter parity, Bedrock catalog routing,
-provider-qualified dynamic adapter routing, GitHub Copilot OMP-style
-OpenAI-compatible runtime routing, Cursor OMP-style polling auth, Cursor OAuth
+provider-qualified dynamic adapter routing, GitHub Copilot
+OpenAI-compatible runtime routing, Cursor loginDeepControl polling auth, Cursor OAuth
 poll completion remediation, OAuth poll error sanitization, expanded
 real-server control-plane integration, real embedded-dashboard server E2E
 smoke, Cloudflare account-scoped gateway routing, Kimi dynamic routing, and
-Xiaomi OMP-style Anthropic-compatible runtime routing through Wave 8.BL,
+Xiaomi Anthropic-compatible runtime routing through Wave 8.BL,
 OpenCode Zen dynamic runtime routing through Wave 8.BM, Kilo Gateway
 dynamic runtime routing through Wave 8.BN, Kagi/Tavily API-key credential
 capture through Wave 8.BO, native Ollama Cloud runtime routing through

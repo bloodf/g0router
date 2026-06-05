@@ -95,7 +95,7 @@ CREATE TABLE request_log (
     input_tokens INTEGER,
     output_tokens INTEGER,
     cache_read_tokens INTEGER,
-    cache_write_tokens INTEGER,
+    cache_write_tokens INTEGER,          -- column exists but is never populated (always NULL)
     total_tokens INTEGER,
     cost_usd REAL,
     latency_ms INTEGER,
@@ -223,7 +223,7 @@ GET  /v1/models               — List available models
 GET    /api/providers                — List provider matrix entries with public_status/capability fields
 GET    /api/providers/:id/models     — List models for provider
 POST   /api/connections              — Create connection (OAuth or API key)
-GET    /api/connections              — List connections
+GET    /api/connections              — List connections; response items use PascalCase keys (ID, Provider, Name, AuthType, etc.) because connectionResponse has no json tags
 PUT    /api/connections/:id          — Update connection
 DELETE /api/connections/:id          — Delete connection
 POST   /api/connections/:id/test     — Test connection
@@ -256,7 +256,8 @@ DELETE /api/keys/:id                 — Delete API key
 
 GET    /api/usage                    — Usage log (filtered, paginated)
 GET    /api/usage/summary            — Aggregated usage summary
-GET    /api/usage/quota/:provider    — Capability-gated provider quota/limits; providers without real fetchers return unsupported. Responses include provider, limit, used, remaining, and may include unlimited/unit metadata for providers such as OpenRouter.
+GET    /api/usage/quota/:provider    — Capability-gated provider quota/limits; providers without real fetchers return unsupported. Response JSON uses PascalCase keys (Provider, Limit, Used, Remaining) matching the Go struct; Unlimited and Unit are omitted when zero/empty. OpenRouter populates all fields including Unlimited when upstream omits a finite limit.
+POST   /api/oauth/:provider/exchange — Exchange authorization code for tokens; accepts JSON body with code/verifier fields.
 
 GET    /api/mcp/clients              — List MCP clients
 POST   /api/mcp/clients              — Add MCP client

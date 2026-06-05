@@ -16,7 +16,7 @@
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Backoff strategy | Exponential: 1s → 2s → 4s → ... → max 4min | Standard; matches 9router behavior |
+| Backoff strategy | Exponential: 1s → 2s → 4s → ... → max 4min | Standard exponential backoff |
 | Per-model locks | Map in connection struct | Model A rate-limited doesn't block model B on same connection |
 | Cooldown recovery | Time-based expiry check | Simple; no background goroutine needed |
 | Fallback ordering | Round-robin with skip | Fair distribution; skips unavailable connections |

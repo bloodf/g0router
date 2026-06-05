@@ -17,11 +17,11 @@
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | CLI framework | cobra | Industry standard, subcommand support, built-in help |
-| OAuth callback server | Local HTTP on port 54545 (configurable) | Same port as oh-my-pi; avoids random port issues with pre-registered redirect URIs |
+| OAuth callback server | Local HTTP on port 54545 (configurable) | Fixed port avoids random port issues with pre-registered redirect URIs |
 | Browser opening | `open` (macOS), `xdg-open` (Linux), `start` (Windows) | Cross-platform, no dependency |
 | Token storage | SQLite `connections` table | Already built in Phase 1; encrypted at-rest possible later |
 | Device-code polling | Configurable interval (default 5s) | Respects provider `interval` field |
-| Client IDs | Hardcoded per provider | Same as 9router/oh-my-pi; these are public OAuth client IDs |
+| Client IDs | Hardcoded per provider | Public OAuth client IDs; provider-registered and immutable |
 
 ---
 
@@ -229,13 +229,13 @@ phase-5/task-4: github copilot oauth
 
 ---
 
-## Task 5.5: Cursor OMP loginDeepControl OAuth
+## Task 5.5: Cursor loginDeepControl OAuth
 
 ### Completed Work
 
 - [x] Write test FIRST
 - [x] Implement
-- [x] Commit: `phase-5/task-5: cursor omp oauth`
+- [x] Commit: `phase-5/task-5: cursor logindeepcontrol oauth`
 
 ### Pre-conditions
 
@@ -602,7 +602,7 @@ go build ./cmd/g0router   # Binary builds
 - [x] Task 5.2 complete (Anthropic OAuth (Claude Code))
 - [x] Task 5.3 complete (OpenAI Codex OAuth)
 - [x] Task 5.4 complete (GitHub Copilot OAuth)
-- [x] Task 5.5 complete (Cursor OMP loginDeepControl OAuth)
+- [x] Task 5.5 complete (Cursor loginDeepControl OAuth)
 - [x] Task 5.6 complete (Google OAuth (Gemini CLI, Antigravity))
 - [x] Task 5.7 complete (xAI, DeepSeek, GitLab, Kiro OAuth)
 - [x] Task 5.8 complete (Chinese Provider OAuth)

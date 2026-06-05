@@ -17,12 +17,12 @@
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| HTTP library | fasthttp | 10x throughput vs net/http for proxy workloads; bifrost uses it |
+| HTTP library | fasthttp | 10x throughput vs net/http for proxy workloads |
 | Router | Manual path matching | Only ~20 routes; no framework needed |
 | Request ID | UUID v4 | Unique, standard |
 | CORS | Allow all origins | Gateway is behind user's network |
 | Streaming | SSE via `text/event-stream` | OpenAI standard |
-| Object pooling | `sync.Pool` for req/resp | Reduce GC under load |
+| Provider pool | Map-based provider registry | Registered providers looked up by name |
 
 ---
 

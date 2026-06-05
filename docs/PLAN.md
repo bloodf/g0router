@@ -1,6 +1,6 @@
 # Master Implementation Plan
 
-> **g0router** — Go LLM gateway combining 9router + bifrost + oh-my-pi.
+> **g0router** — Single-binary Go LLM gateway with 43+ providers.
 > Each phase is a standalone implementation guide in `docs/phases/`.
 > Parallel execution is coordinated via `docs/ORCHESTRATION.md` and `docs/WORKFLOW.md`.
 
@@ -82,7 +82,7 @@ STAGE 8 ─── Waves 8.L–8.CI       ──► tracked completion hardening,
 | **[WORKFLOW.md](WORKFLOW.md)** | Live task status (YAML), agent assignments, wave progress |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System diagrams, request pipeline, key interfaces |
 | [SCHEMA.md](SCHEMA.md) | SQLite DDL, API contracts, CLI commands |
-| [REFERENCES.md](REFERENCES.md) | Source mapping from bifrost/9router/oh-my-pi |
+| [REFERENCES.md](REFERENCES.md) | Historical source mapping (migration complete) |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | systemd, Docker, nginx |
 | [CONFIG.md](CONFIG.md) | Environment variables, defaults, validation |
 | [PROVIDERS.md](PROVIDERS.md) | Provider catalog with auth details |

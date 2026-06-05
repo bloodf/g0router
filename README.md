@@ -78,7 +78,7 @@ Public direct-dispatch support is defined by the `supported` rows in [docs/PROVI
 | [docs/CONFIG.md](docs/CONFIG.md) | Environment variables reference |
 | [docs/PROVIDERS.md](docs/PROVIDERS.md) | Provider catalog with auth details |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | systemd, Docker, nginx |
-| [docs/REFERENCES.md](docs/REFERENCES.md) | Source mapping from 9router/bifrost/oh-my-pi |
+| [docs/REFERENCES.md](docs/REFERENCES.md) | Historical source mapping (migration complete) |
 | [docs/WORKFLOW.md](docs/WORKFLOW.md) | Development workflow + task status |
 
 ## Architecture
@@ -106,9 +106,3 @@ make docker  # Build Docker image
 
 See [CLAUDE.md](CLAUDE.md) for development rules (TDD, commit conventions, code style).
 
-## Lineage
-
-g0router combines patterns from three projects:
-- **[bifrost](https://github.com/maximhq/bifrost)** — Provider engine, fasthttp, object pooling, MCP
-- **[9router](https://github.com/decolua/9router)** — OAuth flows, RTK, caveman, cost tracking, combos, UI
-- **[oh-my-pi](https://github.com/can1357/oh-my-pi)** — OAuth catalog (50+ providers), credential storage

@@ -2,10 +2,7 @@
 
 ## Overview
 
-g0router is a single-binary Go LLM gateway that unifies:
-- **bifrost's** provider engine (23+ providers, fasthttp, object pooling, MCP gateway)
-- **9router's** OAuth flows, RTK compression, caveman, cost tracking, combo models, minimal UI
-- **oh-my-pi's** OAuth catalog (50+ providers) and credential storage patterns
+g0router is a single-binary Go LLM gateway with 43+ providers, fasthttp, OAuth flows, RTK compression, caveman, cost tracking, combo models, MCP gateway, and a React dashboard.
 
 ```
                     ┌─────────────────────────────────────┐
@@ -96,7 +93,7 @@ api/server.go
   │     ├── internal/usage/    (tracker, cost, quota)
   │     ├── internal/mcp/      (gateway, discovery)
   │     └── internal/provider/ (registry, oauth)
-  └── api/integrations/        (SDK compatibility)
+  └── api/handlers/            (HTTP handlers)
 
 internal/providers/            (provider implementations)
   ├── internal/providers/utils/ (shared HTTP, SSE)
@@ -107,7 +104,7 @@ internal/providers/            (provider implementations)
 
 ```go
 // Provider — the core abstraction. Each upstream (OpenAI, Anthropic, etc.)
-// implements this. Simplified from bifrost's 30+ methods to LLM essentials.
+// implements this. Simplified to LLM essentials.
 type Provider interface {
     Name() ModelProvider
     ChatCompletion(ctx context.Context, key Key, req *ChatRequest) (*ChatResponse, error)

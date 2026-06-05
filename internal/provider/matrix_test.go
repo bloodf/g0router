@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -430,6 +431,51 @@ func TestProviderMatrixSupportedEntriesHaveUsableSurface(t *testing.T) {
 			t.Fatalf("%s marked supported without auth type", entry.G0RouterID)
 		}
 	}
+}
+
+func TestProviderDocsQuotaColumnMatchesMatrix(t *testing.T) {
+	content, err := os.ReadFile("../../docs/PROVIDERS.md")
+	if err != nil {
+		t.Fatalf("read docs/PROVIDERS.md: %v", err)
+	}
+	text := string(content)
+	header := "| g0router ID | Status | Auth | Refresh | Adapter | Public inference | Streaming | Catalog | List models | Quota | Notes |"
+	if !strings.Contains(text, header) {
+		t.Fatalf("provider docs matrix header is missing or changed; want:\n%s", header)
+	}
+
+	matrix := ProviderMatrix()
+	for _, entry := range matrix.Entries() {
+		want := "no"
+		if entry.Quota {
+			want = "yes"
+		}
+		rowPrefix := "| `" + entry.G0RouterID + "` |"
+		row := lineWithPrefix(text, rowPrefix)
+		if row == "" {
+			t.Fatalf("provider docs missing row for %s", entry.G0RouterID)
+		}
+		cols := strings.Split(row, "|")
+		// cols[0] = "", cols[1] = " `id` ", cols[2]=Status, cols[3]=Auth, cols[4]=Refresh,
+		// cols[5]=Adapter, cols[6]=Public inference, cols[7]=Streaming, cols[8]=Catalog,
+		// cols[9]=List models, cols[10]=Quota, cols[11]=Notes, cols[12]=""
+		if len(cols) < 11 {
+			t.Fatalf("provider docs row for %s has too few columns: %q", entry.G0RouterID, row)
+		}
+		got := strings.TrimSpace(cols[10])
+		if got != want {
+			t.Fatalf("provider docs quota for %s = %q, matrix says %v (want %q)", entry.G0RouterID, got, entry.Quota, want)
+		}
+	}
+}
+
+func lineWithPrefix(text, prefix string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return line
+		}
+	}
+	return ""
 }
 
 func providerIDs(entries []ProviderMatrixEntry) map[string]bool {

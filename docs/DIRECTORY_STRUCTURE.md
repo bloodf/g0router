@@ -27,18 +27,10 @@ g0router/
 │   │   ├── usage.go                      # GET /api/usage, /api/usage/summary, /api/usage/quota
 │   │   ├── logging.go                    # GET /api/logs
 │   │   └── mcp.go                        # CRUD /api/mcp/clients, /api/mcp/tools
-│   └── integrations/
-│       └── openai.go                     # OpenAI SDK compatibility helpers
 │
 ├── internal/                             # Private packages
 │   ├── cli/                              # Cobra CLI commands
-│   │   ├── root.go                       # Root command + global flags (--port, --data-dir)
-│   │   ├── serve.go                      # `g0router serve` — start HTTP server
-│   │   ├── login.go                      # `g0router login <provider>` — interactive OAuth
-│   │   ├── logout.go                     # `g0router logout <provider>`
-│   │   ├── keys.go                       # `g0router keys add|list|rm`
-│   │   ├── providers.go                  # `g0router providers list|test`
-│   │   ├── status.go                     # `g0router status` — summary dashboard
+│   │   ├── root.go                       # All CLI commands (serve, login, logout, keys, providers, status, mcp, install, etc.)
 │   │   ├── install.go                    # `g0router install [--user]`
 │   │   └── install_test.go
 │   │
@@ -224,7 +216,7 @@ g0router/
 │   ├── PLAN.md                           # Master plan index
 │   ├── WORKFLOW.md                       # Agent handoff protocol + task status
 │   ├── SCHEMA.md                         # SQLite schema + API contracts
-│   ├── REFERENCES.md                     # Source file mapping (bifrost/9router/oh-my-pi)
+│   ├── REFERENCES.md                     # Historical source mapping (migration complete)
 │   ├── DEPLOYMENT.md                     # systemd, Docker, nginx
 │   ├── CONFIG.md                         # Environment variables reference
 │   ├── PROVIDERS.md                      # Provider catalog

@@ -1818,7 +1818,7 @@ tasks:
 
 ---
 
-### Wave 8.BA — GitHub Copilot OMP Runtime Routing
+### Wave 8.BA — GitHub Copilot Runtime Routing
 
 ```yaml
 wave: "8.BA"
@@ -1848,7 +1848,7 @@ gate_results:
 
 tasks:
   - id: "8.BA.1"
-    name: "Promote GitHub Copilot through OMP-style OpenAI-compatible runtime routing"
+    name: "Promote GitHub Copilot through OpenAI-compatible runtime routing"
     status: DONE
     agent: "orchestrator"
     files_owned:
@@ -1870,11 +1870,11 @@ tasks:
       - docs/evaluations/wave-8BA-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.BA promotes GitHub Copilot from auth-only to public provider-qualified runtime routing through the existing OpenAI-compatible adapter. The adapter sends the OMP Copilot `User-Agent: opencode/1.3.15`, strips `github-copilot/` before upstream dispatch, and keeps Copilot without a fake static model catalog or quota fetcher.
+**Checkpoint**: Wave 8.BA promotes GitHub Copilot from auth-only to public provider-qualified runtime routing through the existing OpenAI-compatible adapter. The adapter sends `User-Agent: opencode/1.3.15`, strips `github-copilot/` before upstream dispatch, and keeps Copilot without a fake static model catalog or quota fetcher.
 
 ---
 
-### Wave 8.BB — Cursor OMP Auth Parity
+### Wave 8.BB — Cursor Auth Parity
 
 ```yaml
 wave: "8.BB"
@@ -1900,7 +1900,7 @@ gate_results:
 
 tasks:
   - id: "8.BB.1"
-    name: "Align Cursor OAuth with OMP loginDeepControl polling"
+    name: "Align Cursor OAuth with loginDeepControl polling"
     status: DONE
     agent: "orchestrator"
     files_owned:
@@ -1914,7 +1914,7 @@ tasks:
       - docs/evaluations/wave-8BB-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.BB replaces the old Cursor callback-PKCE implementation with OMP-style `loginDeepControl` auth: start creates a PKCE challenge plus UUID login URL, poll checks `api2.cursor.sh/auth/poll` with UUID and verifier, 404 remains pending, complete polls persist access/refresh tokens, and refresh uses `api2.cursor.sh/auth/exchange_user_api_key`. Cursor remains `auth_only` until a real Cursor inference adapter is implemented.
+**Checkpoint**: Wave 8.BB replaces the old Cursor callback-PKCE implementation with `loginDeepControl` auth: start creates a PKCE challenge plus UUID login URL, poll checks `api2.cursor.sh/auth/poll` with UUID and verifier, 404 remains pending, complete polls persist access/refresh tokens, and refresh uses `api2.cursor.sh/auth/exchange_user_api_key`. Cursor remains `auth_only` until a real Cursor inference adapter is implemented.
 
 ---
 
@@ -2354,7 +2354,7 @@ gate_results:
 
 tasks:
   - id: "8.BL.1"
-    name: "Promote Xiaomi to OMP-style Anthropic-compatible dynamic runtime routing"
+    name: "Promote Xiaomi to Anthropic-compatible dynamic runtime routing"
     status: DONE
     agent: "orchestrator"
     files_owned:
@@ -2376,7 +2376,7 @@ tasks:
       - docs/evaluations/wave-8BL-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.BL removes the Xiaomi `auth_only` runtime gap. Xiaomi now registers as an Anthropic-compatible runtime provider, routes provider-qualified models such as `xiaomi/claude-sonnet-4` upstream as `claude-sonnet-4`, and selects the OMP token-plan endpoint for `tp-` keys. Static catalog, model listing, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
+**Checkpoint**: Wave 8.BL removes the Xiaomi `auth_only` runtime gap. Xiaomi now registers as an Anthropic-compatible runtime provider, routes provider-qualified models such as `xiaomi/claude-sonnet-4` upstream as `claude-sonnet-4`, and selects the token-plan endpoint for `tp-` keys. Static catalog, model listing, embedded pricing, and quota fetchers remain intentionally absent until those contracts are implemented.
 
 ---
 
@@ -2576,7 +2576,7 @@ tasks:
 
 ---
 
-### Wave 8.BQ — GitLab Duo OMP Auth Identity Normalization
+### Wave 8.BQ — GitLab Duo Auth Identity Normalization
 
 ```yaml
 wave: "8.BQ"
@@ -2601,7 +2601,7 @@ gate_results:
 
 tasks:
   - id: "8.BQ.1"
-    name: "Normalize GitLab OAuth identity to OMP GitLab Duo"
+    name: "Normalize GitLab OAuth identity to gitlab-duo"
     status: DONE
     agent: "orchestrator"
     files_owned:
@@ -2622,7 +2622,7 @@ tasks:
       - docs/evaluations/wave-8BQ-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.BQ aligns g0router's GitLab identity with OMP's canonical `gitlab-duo` provider before runtime work. Legacy `gitlab` auth/API aliases normalize to `gitlab-duo`, GitLab OAuth uses OMP-style bundled client defaults, scope `api`, and callback `http://localhost:8080/callback`, and persisted OAuth connections use runtime provider `gitlab-duo`. GitLab Duo remains `auth_only`; the direct-access token and GitLab AI Gateway runtime adapter are intentionally deferred.
+**Checkpoint**: Wave 8.BQ establishes `gitlab-duo` as the canonical g0router provider ID for GitLab before runtime work. Legacy `gitlab` auth/API aliases normalize to `gitlab-duo`, GitLab OAuth uses bundled client defaults, scope `api`, and callback `http://localhost:8080/callback`, and persisted OAuth connections use runtime provider `gitlab-duo`. GitLab Duo remains `auth_only`; the direct-access token and GitLab AI Gateway runtime adapter are intentionally deferred.
 
 ---
 
@@ -4499,7 +4499,7 @@ tasks:
       - docs/WORKFLOW.md
 ```
 
-### Wave 7.E — Real 9Router-style dispatch pipeline
+### Wave 7.E — Real dispatch pipeline
 
 ```yaml
 wave: "7.E"
