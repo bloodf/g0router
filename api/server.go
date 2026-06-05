@@ -59,6 +59,10 @@ type Server struct {
 	settingsCache *store.Settings
 
 	logRetentionInterval time.Duration
+	// runRetention performs a single retention pass. It is a field so tests can
+	// inject a panicking pass and assert the loop survives; it defaults to
+	// runLogRetentionOnce.
+	runRetention func(time.Time)
 }
 
 // UpdateSettings writes settings to the store and invalidates the cache.
@@ -78,6 +82,7 @@ func (s *Server) UpdateSettings(settings store.Settings) error {
 func NewServer(config ServerConfig) *Server {
 	uiFS, err := g0router.UI()
 	srv := &Server{config: config, uiFS: uiFS, uiErr: err, logRetentionInterval: logRetentionInterval}
+	srv.runRetention = srv.runLogRetentionOnce
 	srv.server = &fasthttp.Server{
 		Handler: srv.handle,
 	}
@@ -95,8 +100,12 @@ func (s *Server) StartLogRetention(ctx context.Context) {
 	if interval <= 0 {
 		interval = logRetentionInterval
 	}
+	run := s.runRetention
+	if run == nil {
+		run = s.runLogRetentionOnce
+	}
 	go func() {
-		s.runLogRetentionOnce(time.Now().UTC())
+		s.runRetentionGuarded(run, time.Now().UTC())
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -104,10 +113,21 @@ func (s *Server) StartLogRetention(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				s.runLogRetentionOnce(time.Now().UTC())
+				s.runRetentionGuarded(run, time.Now().UTC())
 			}
 		}
 	}()
+}
+
+// runRetentionGuarded runs one retention pass and recovers from any panic so a
+// single failed cycle cannot kill the background loop.
+func (s *Server) runRetentionGuarded(run func(time.Time), now time.Time) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("log retention cleanup panic recovered: %v", r)
+		}
+	}()
+	run(now)
 }
 
 // runLogRetentionOnce performs a single retention pass: it reads the current
@@ -382,14 +402,14 @@ func (e *capturingInferenceEngine) DispatchStream(ctx context.Context, req *prov
 		return stream, err
 	}
 	e.streamed = true
-	return e.captureStream(req, stream), nil
+	return e.captureStream(ctx, req, stream), nil
 }
 
 func (e *capturingInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
 	return e.base.ListModels(ctx)
 }
 
-func (e *capturingInferenceEngine) captureStream(req *providers.ChatRequest, stream <-chan providers.StreamChunk) <-chan providers.StreamChunk {
+func (e *capturingInferenceEngine) captureStream(ctx context.Context, req *providers.ChatRequest, stream <-chan providers.StreamChunk) <-chan providers.StreamChunk {
 	out := make(chan providers.StreamChunk)
 	go func() {
 		defer close(out)
@@ -403,7 +423,14 @@ func (e *capturingInferenceEngine) captureStream(req *providers.ChatRequest, str
 				usageCopy := *chunk.Usage
 				lastUsage = &usageCopy
 			}
-			out <- chunk
+			// Abandon the send if the consumer has gone (client disconnect);
+			// ctx is cancelled when the body-stream writer loop exits, so this
+			// goroutine unwinds instead of blocking forever on out <- chunk.
+			select {
+			case out <- chunk:
+			case <-ctx.Done():
+				return
+			}
 		}
 		if e.onStreamComplete != nil {
 			e.onStreamComplete(req, lastModel, lastUsage)
@@ -456,12 +483,25 @@ type requestLogMetadata struct {
 // It must be called on the request goroutine before the pooled ctx is recycled.
 func clientToolFromCtx(ctx *fasthttp.RequestCtx) *string {
 	if value := strings.TrimSpace(string(ctx.Request.Header.Peek("X-Client-Tool"))); value != "" {
+		value = truncateClientTool(value)
 		return &value
 	}
 	if value := strings.TrimSpace(string(ctx.Request.Header.Peek("User-Agent"))); value != "" {
+		value = truncateClientTool(value)
 		return &value
 	}
 	return nil
+}
+
+// clientToolMaxBytes bounds the stored client-tool label so a hostile or
+// oversized header cannot bloat log rows.
+const clientToolMaxBytes = 512
+
+func truncateClientTool(value string) string {
+	if len(value) > clientToolMaxBytes {
+		return value[:clientToolMaxBytes]
+	}
+	return value
 }
 
 // streamLogSnapshot captures the request-scoped values needed to log a

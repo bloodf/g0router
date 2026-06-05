@@ -5,6 +5,7 @@ import (
 	"errors"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
@@ -218,6 +219,49 @@ func TestCapturingEngineStreamSuccess(t *testing.T) {
 	}
 	if gotModel != "sm" || gotUsage == nil || gotUsage.TotalTokens != 5 {
 		t.Fatalf("stream complete model=%q usage=%v", gotModel, gotUsage)
+	}
+}
+
+// TestCapturingEngineStreamConsumerDisconnect verifies that a consumer that
+// stops reading does not stall the capture goroutine: cancelling the context
+// (as the body-stream writer does on client disconnect) must let it exit even
+// though the upstream stream still has buffered chunks and never closes.
+func TestCapturingEngineStreamConsumerDisconnect(t *testing.T) {
+	in := make(chan providers.StreamChunk, 2)
+	in <- providers.StreamChunk{Model: "a"}
+	// in is intentionally never closed and has more chunks pending than the
+	// consumer will read, mimicking an upstream stream that outlives the client.
+	in <- providers.StreamChunk{Model: "b"}
+
+	completeCalled := make(chan struct{}, 1)
+	base := &wrapperEngine{stream: in}
+	cap := &capturingInferenceEngine{
+		base:             base,
+		onStreamComplete: func(*providers.ChatRequest, string, *providers.Usage) { completeCalled <- struct{}{} },
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	out, err := cap.DispatchStream(ctx, &providers.ChatRequest{})
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+
+	// Read one chunk then "disconnect" by cancelling and never reading again.
+	<-out
+	cancel()
+
+	// out must close (capture goroutine returned) within the timeout.
+	select {
+	case _, ok := <-out:
+		_ = ok
+	case <-time.After(2 * time.Second):
+		t.Fatal("capture goroutine did not exit after consumer disconnect (deadlock)")
+	}
+	// onStreamComplete must NOT fire on an abandoned stream.
+	select {
+	case <-completeCalled:
+		t.Fatal("onStreamComplete fired despite consumer disconnect")
+	default:
 	}
 }
 

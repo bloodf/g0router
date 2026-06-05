@@ -61,6 +61,15 @@ func TestClientToolFromCtxNeitherHeaderReturnsNil(t *testing.T) {
 	}
 }
 
+func TestClientToolFromCtxTruncatesOverlongHeader(t *testing.T) {
+	long := strings.Repeat("x", clientToolMaxBytes+200)
+	ctx := makeCtxWithHeaders("GET", "/", map[string]string{"X-Client-Tool": long})
+	got := clientToolFromCtx(ctx)
+	if got == nil || len(*got) != clientToolMaxBytes {
+		t.Fatalf("clientToolFromCtx len = %v, want %d", got, clientToolMaxBytes)
+	}
+}
+
 // ---- rtkBytesSaved ----
 
 func TestRTKBytesSavedDisabledReturnsNil(t *testing.T) {

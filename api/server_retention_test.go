@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -71,6 +72,34 @@ func TestRunLogRetentionOnceZeroKeepsEverything(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Fatalf("entries = %d, want 1 (retention 0 keeps forever)", len(entries))
+	}
+}
+
+// TestStartLogRetentionSurvivesPanic verifies a panic in one retention cycle is
+// recovered so the loop keeps ticking instead of dying.
+func TestStartLogRetentionSurvivesPanic(t *testing.T) {
+	s := newAPITestStore(t)
+	srv := NewServer(ServerConfig{Store: s, UsageStore: s})
+	srv.logRetentionInterval = 5 * time.Millisecond
+
+	var calls int32
+	srv.runRetention = func(time.Time) {
+		n := atomic.AddInt32(&calls, 1)
+		if n == 1 {
+			panic("boom")
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	srv.StartLogRetention(ctx)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for atomic.LoadInt32(&calls) < 3 {
+		if time.Now().After(deadline) {
+			t.Fatalf("retention loop died after panic; calls = %d", atomic.LoadInt32(&calls))
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

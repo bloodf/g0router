@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -54,8 +55,10 @@ func Inference(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 }
 
 func streamInference(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *providers.ChatRequest) {
-	stream, err := engine.DispatchStream(requestContext(ctx), req)
+	streamCtx, cancel := context.WithCancel(context.Background())
+	stream, err := engine.DispatchStream(streamCtx, req)
 	if err != nil {
+		cancel()
 		writeDispatchError(ctx, err)
 		return
 	}
@@ -65,6 +68,10 @@ func streamInference(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *prov
 	ctx.Response.Header.Set("Connection", "keep-alive")
 	ctx.SetStatusCode(fasthttp.StatusOK)
 	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		// Cancelling when the writer loop exits (client disconnect or normal
+		// completion) lets producer goroutines blocked on a send abandon and
+		// unwind instead of stalling until the upstream stream closes.
+		defer cancel()
 		for chunk := range stream {
 			if chunk.Error != nil {
 				writeStreamError(w, chunk.Error)
@@ -72,13 +79,25 @@ func streamInference(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *prov
 			}
 			data, err := json.Marshal(chunk)
 			if err != nil {
-				continue
+				writeStreamMarshalError(w)
+				return
 			}
 			_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 			_ = w.Flush()
 		}
 		_, _ = w.WriteString("data: [DONE]\n\n")
 		_ = w.Flush()
+	})
+}
+
+// writeStreamMarshalError emits a terminal SSE error event when a chunk cannot
+// be serialized, so the client sees a failure signal instead of a stream that
+// is silently truncated mid-flight.
+func writeStreamMarshalError(w *bufio.Writer) {
+	writeStreamError(w, &providers.StreamError{
+		Message: "stream encoding error",
+		Type:    "server_error",
+		Code:    "stream_encoding_error",
 	})
 }
 
@@ -138,8 +157,10 @@ func Messages(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 }
 
 func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *providers.ChatRequest) {
-	stream, err := engine.DispatchStream(requestContext(ctx), req)
+	streamCtx, cancel := context.WithCancel(context.Background())
+	stream, err := engine.DispatchStream(streamCtx, req)
 	if err != nil {
+		cancel()
 		writeDispatchError(ctx, err)
 		return
 	}
@@ -149,6 +170,8 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 	ctx.Response.Header.Set("Connection", "keep-alive")
 	ctx.SetStatusCode(fasthttp.StatusOK)
 	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		// See streamInference: cancel on writer-loop exit to unblock producers.
+		defer cancel()
 		started := false
 		contentStarted := false
 		// toolBlockOpen tracks whether a tool_use content block is currently
@@ -157,9 +180,19 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 		toolBlockOpen := false
 		blockIndex := 0
 		message := anthropicMessageBody{Type: "message", Role: "assistant", Model: req.Model}
+		writeErr := false
+		emit := func(eventType string, payload any) {
+			if writeErr {
+				return
+			}
+			if err := writeAnthropicStreamEvent(w, eventType, payload); err != nil {
+				writeStreamMarshalError(w)
+				writeErr = true
+			}
+		}
 		ensureStarted := func() {
 			if !started {
-				writeAnthropicStreamEvent(w, "message_start", map[string]any{
+				emit("message_start", map[string]any{
 					"type":    "message_start",
 					"message": message,
 				})
@@ -179,7 +212,7 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 				if choice.Delta.Content != nil {
 					ensureStarted()
 					if !contentStarted {
-						writeAnthropicStreamEvent(w, "content_block_start", map[string]any{
+						emit("content_block_start", map[string]any{
 							"type":  "content_block_start",
 							"index": blockIndex,
 							"content_block": map[string]string{
@@ -190,7 +223,7 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 						contentStarted = true
 					}
 					if *choice.Delta.Content != "" {
-						writeAnthropicStreamEvent(w, "content_block_delta", map[string]any{
+						emit("content_block_delta", map[string]any{
 							"type":  "content_block_delta",
 							"index": blockIndex,
 							"delta": map[string]string{
@@ -208,21 +241,21 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 					// parallel tool calls without ids are not disambiguated.
 					if call.ID != "" || call.Function.Name != "" {
 						if contentStarted {
-							writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
+							emit("content_block_stop", map[string]any{
 								"type":  "content_block_stop",
 								"index": blockIndex,
 							})
 							contentStarted = false
 						}
 						if toolBlockOpen {
-							writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
+							emit("content_block_stop", map[string]any{
 								"type":  "content_block_stop",
 								"index": blockIndex,
 							})
 						}
 						blockIndex++
 						toolBlockOpen = true
-						writeAnthropicStreamEvent(w, "content_block_start", map[string]any{
+						emit("content_block_start", map[string]any{
 							"type":  "content_block_start",
 							"index": blockIndex,
 							"content_block": map[string]any{
@@ -234,7 +267,7 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 						})
 					}
 					if toolBlockOpen && call.Function.Arguments != "" {
-						writeAnthropicStreamEvent(w, "content_block_delta", map[string]any{
+						emit("content_block_delta", map[string]any{
 							"type":  "content_block_delta",
 							"index": blockIndex,
 							"delta": map[string]string{
@@ -247,20 +280,20 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 				if choice.FinishReason != nil {
 					ensureStarted()
 					if contentStarted {
-						writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
+						emit("content_block_stop", map[string]any{
 							"type":  "content_block_stop",
 							"index": blockIndex,
 						})
 						contentStarted = false
 					}
 					if toolBlockOpen {
-						writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
+						emit("content_block_stop", map[string]any{
 							"type":  "content_block_stop",
 							"index": blockIndex,
 						})
 						toolBlockOpen = false
 					}
-					writeAnthropicStreamEvent(w, "message_delta", map[string]any{
+					emit("message_delta", map[string]any{
 						"type": "message_delta",
 						"delta": map[string]any{
 							"stop_reason":   anthropicStreamStopReason(choice.FinishReason),
@@ -268,10 +301,13 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 						},
 						"usage": anthropicStreamUsage(chunk.Usage),
 					})
-					writeAnthropicStreamEvent(w, "message_stop", map[string]string{
+					emit("message_stop", map[string]string{
 						"type": "message_stop",
 					})
 				}
+			}
+			if writeErr {
+				return
 			}
 		}
 		_ = w.Flush()
@@ -310,14 +346,15 @@ func shouldStartAnthropicMessage(chunk providers.StreamChunk) bool {
 	return false
 }
 
-func writeAnthropicStreamEvent(w *bufio.Writer, eventType string, payload any) {
+func writeAnthropicStreamEvent(w *bufio.Writer, eventType string, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
-		return
+		return err
 	}
 	_, _ = fmt.Fprintf(w, "event: %s\n", eventType)
 	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
 	_ = w.Flush()
+	return nil
 }
 
 func anthropicStreamUsage(usage *providers.Usage) map[string]int {
@@ -357,8 +394,10 @@ func Responses(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 }
 
 func streamResponses(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *providers.ChatRequest) {
-	stream, err := engine.DispatchStream(requestContext(ctx), req)
+	streamCtx, cancel := context.WithCancel(context.Background())
+	stream, err := engine.DispatchStream(streamCtx, req)
 	if err != nil {
+		cancel()
 		writeDispatchError(ctx, err)
 		return
 	}
@@ -368,7 +407,10 @@ func streamResponses(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *prov
 	ctx.Response.Header.Set("Connection", "keep-alive")
 	ctx.SetStatusCode(fasthttp.StatusOK)
 	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		// See streamInference: cancel on writer-loop exit to unblock producers.
+		defer cancel()
 		accumulator := streaming.NewResponsesAccumulator()
+		toolCalls := newResponsesToolCallAccumulator()
 		sequence := 0
 		responseID := ""
 		model := ""
@@ -396,7 +438,20 @@ func streamResponses(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *prov
 						SequenceNumber: sequence,
 					}
 					accumulator.AddEvent(event)
-					writeResponseStreamEvent(w, event.Type, event)
+					if err := writeResponseStreamEvent(w, event.Type, event); err != nil {
+						writeStreamMarshalError(w)
+						return
+					}
+				}
+				for _, call := range choice.Delta.ToolCalls {
+					itemID := toolCalls.add(call)
+					if call.Function.Arguments != "" {
+						sequence++
+						if err := writeResponsesFunctionCallDelta(w, itemID, call.Function.Arguments, sequence); err != nil {
+							writeStreamMarshalError(w)
+							return
+						}
+					}
 				}
 				if choice.FinishReason != nil {
 					response := streaming.Response{
@@ -413,14 +468,14 @@ func streamResponses(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *prov
 						SequenceNumber: sequence + 1,
 					}
 					accumulator.AddEvent(doneEvent)
-					writeResponseStreamEvent(w, doneEvent.Type, doneEvent)
-					completedEvent := streaming.ResponseEvent{
-						Type:           "response.completed",
-						SequenceNumber: sequence + 2,
-						Response:       completedResponse(response, accumulator.Response().OutputText),
+					if err := writeResponseStreamEvent(w, doneEvent.Type, doneEvent); err != nil {
+						writeStreamMarshalError(w)
+						return
 					}
-					accumulator.AddEvent(completedEvent)
-					writeResponseStreamEvent(w, completedEvent.Type, completedEvent)
+					if err := writeResponsesCompleted(w, response, accumulator.Response().OutputText, toolCalls.outputs(), sequence+2); err != nil {
+						writeStreamMarshalError(w)
+						return
+					}
 				}
 			}
 		}
@@ -429,29 +484,172 @@ func streamResponses(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *prov
 	})
 }
 
-func writeResponseStreamEvent(w *bufio.Writer, eventType string, event streaming.ResponseEvent) {
-	data, err := json.Marshal(event)
-	if err != nil {
-		return
-	}
-	_, _ = fmt.Fprintf(w, "event: %s\n", eventType)
-	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
-	_ = w.Flush()
+// responsesToolCallAccumulator stitches fragmented streaming tool-call deltas
+// (id/name on the first fragment, arguments across later fragments) back into
+// complete function calls, preserving emission order. Fragments without an id
+// or name continue the most recently opened call.
+type responsesToolCallAccumulator struct {
+	order   []string
+	byID    map[string]*responsesToolCall
+	lastID  string
+	counter int
 }
 
-func completedResponse(resp streaming.Response, outputText string) *streaming.Response {
-	resp.OutputText = outputText
+type responsesToolCall struct {
+	id        string
+	name      string
+	arguments string
+}
+
+func newResponsesToolCallAccumulator() *responsesToolCallAccumulator {
+	return &responsesToolCallAccumulator{byID: make(map[string]*responsesToolCall)}
+}
+
+// add records a tool-call delta and returns the stable item id used to
+// correlate streaming function-call-arguments events with the final call.
+func (a *responsesToolCallAccumulator) add(call providers.ToolCall) string {
+	id := call.ID
+	if id == "" && call.Function.Name == "" {
+		id = a.lastID
+	}
+	if id == "" {
+		a.counter++
+		id = fmt.Sprintf("call_%d", a.counter)
+	}
+	entry, ok := a.byID[id]
+	if !ok {
+		entry = &responsesToolCall{id: id}
+		a.byID[id] = entry
+		a.order = append(a.order, id)
+	}
+	if call.ID != "" {
+		entry.id = call.ID
+	}
+	if call.Function.Name != "" {
+		entry.name = call.Function.Name
+	}
+	entry.arguments += call.Function.Arguments
+	a.lastID = id
+	return id
+}
+
+func (a *responsesToolCallAccumulator) outputs() []responsesCompletedOutput {
+	if len(a.order) == 0 {
+		return nil
+	}
+	outputs := make([]responsesCompletedOutput, 0, len(a.order))
+	for _, id := range a.order {
+		entry := a.byID[id]
+		outputs = append(outputs, responsesCompletedOutput{
+			Type:      "function_call",
+			CallID:    entry.id,
+			Name:      entry.name,
+			Arguments: entry.arguments,
+		})
+	}
+	return outputs
+}
+
+// responsesCompletedOutput mirrors streaming.ResponseOutput while also carrying
+// the function-call fields the streaming package's output type omits, so the
+// response.completed payload can include emitted function calls.
+type responsesCompletedOutput struct {
+	Type      string                       `json:"type"`
+	Role      string                       `json:"role,omitempty"`
+	Content   []streaming.ResponseContent  `json:"content,omitempty"`
+	CallID    string                       `json:"call_id,omitempty"`
+	Name      string                       `json:"name,omitempty"`
+	Arguments string                       `json:"arguments,omitempty"`
+}
+
+// responsesCompletedResponse mirrors streaming.Response but replaces Output with
+// a type that can represent both message and function_call entries.
+type responsesCompletedResponse struct {
+	ID         string                     `json:"id"`
+	Object     string                     `json:"object"`
+	CreatedAt  int64                      `json:"created_at"`
+	Model      string                     `json:"model"`
+	Status     string                     `json:"status"`
+	OutputText string                     `json:"output_text,omitempty"`
+	Output     []responsesCompletedOutput `json:"output,omitempty"`
+	Usage      *streaming.ResponseUsage   `json:"usage,omitempty"`
+}
+
+type responsesCompletedEvent struct {
+	Type           string                     `json:"type"`
+	SequenceNumber int                        `json:"sequence_number,omitempty"`
+	Response       responsesCompletedResponse `json:"response"`
+}
+
+type responsesFunctionCallDeltaEvent struct {
+	Type           string `json:"type"`
+	ItemID         string `json:"item_id"`
+	Delta          string `json:"delta"`
+	SequenceNumber int    `json:"sequence_number,omitempty"`
+}
+
+func writeResponsesFunctionCallDelta(w *bufio.Writer, itemID, delta string, sequence int) error {
+	event := responsesFunctionCallDeltaEvent{
+		Type:           "response.function_call_arguments.delta",
+		ItemID:         itemID,
+		Delta:          delta,
+		SequenceNumber: sequence,
+	}
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(w, "event: %s\n", event.Type)
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+	_ = w.Flush()
+	return nil
+}
+
+func writeResponsesCompleted(w *bufio.Writer, resp streaming.Response, outputText string, toolOutputs []responsesCompletedOutput, sequence int) error {
+	completed := responsesCompletedResponse{
+		ID:         resp.ID,
+		Object:     "response",
+		CreatedAt:  resp.CreatedAt,
+		Model:      resp.Model,
+		Status:     resp.Status,
+		OutputText: outputText,
+		Usage:      resp.Usage,
+	}
 	if outputText != "" {
-		resp.Output = []streaming.ResponseOutput{{
+		completed.Output = append(completed.Output, responsesCompletedOutput{
 			Type: "message",
 			Role: "assistant",
 			Content: []streaming.ResponseContent{{
 				Type: "output_text",
 				Text: outputText,
 			}},
-		}}
+		})
 	}
-	return &resp
+	completed.Output = append(completed.Output, toolOutputs...)
+	event := responsesCompletedEvent{
+		Type:           "response.completed",
+		SequenceNumber: sequence,
+		Response:       completed,
+	}
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(w, "event: %s\n", event.Type)
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+	_ = w.Flush()
+	return nil
+}
+
+func writeResponseStreamEvent(w *bufio.Writer, eventType string, event streaming.ResponseEvent) error {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	_, _ = fmt.Fprintf(w, "event: %s\n", eventType)
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+	_ = w.Flush()
+	return nil
 }
 
 func streamResponseUsage(usage *providers.Usage) *streaming.ResponseUsage {

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -141,6 +143,80 @@ func TestStreamResponsesDispatchError(t *testing.T) {
 	})
 	if ctx.Response.StatusCode() < 400 {
 		t.Fatalf("status = %d, want >=400; body=%s", ctx.Response.StatusCode(), body)
+	}
+}
+
+func TestResponsesStreamingEmitsToolCalls(t *testing.T) {
+	id := "call_abc"
+	name := "get_weather"
+	argsA := `{"city":`
+	argsB := `"sf"}`
+	finish := "tool_calls"
+	chunks := make(chan providers.StreamChunk, 3)
+	chunks <- providers.StreamChunk{ID: "resp-1", Model: "gpt-4o", Created: 1, Choices: []providers.StreamChoice{{Delta: providers.StreamDelta{ToolCalls: []providers.ToolCall{{ID: id, Type: "function", Function: providers.ToolCallFunc{Name: name, Arguments: argsA}}}}}}}
+	chunks <- providers.StreamChunk{Choices: []providers.StreamChoice{{Delta: providers.StreamDelta{ToolCalls: []providers.ToolCall{{Function: providers.ToolCallFunc{Arguments: argsB}}}}}}}
+	chunks <- providers.StreamChunk{Choices: []providers.StreamChoice{{FinishReason: &finish}}, Usage: &providers.Usage{PromptTokens: 1, CompletionTokens: 1, TotalTokens: 2}}
+	close(chunks)
+
+	out := captureBodyStream(t, func(ctx *fasthttp.RequestCtx) {
+		streamResponses(ctx, &coverageEngine{stream: chunks}, &providers.ChatRequest{Model: "gpt-4o"})
+	})
+	for _, want := range []string{
+		"event: response.function_call_arguments.delta",
+		`"item_id":"call_abc"`,
+		`"delta":"{\"city\":"`,
+		`"delta":"\"sf\"}"`,
+		"response.completed",
+		`"type":"function_call"`,
+		`"call_id":"call_abc"`,
+		`"name":"get_weather"`,
+		`"arguments":"{\"city\":\"sf\"}"`,
+		"[DONE]",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stream missing %q:\n%s", want, out)
+		}
+	}
+}
+
+func TestWriteStreamMarshalErrorEmitsTerminalEvent(t *testing.T) {
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+	writeStreamMarshalError(w)
+	_ = w.Flush()
+	got := buf.String()
+	if !strings.Contains(got, "stream_encoding_error") || !strings.Contains(got, "server_error") {
+		t.Fatalf("terminal error event missing: %s", got)
+	}
+}
+
+func TestWriteResponsesFunctionCallDeltaShape(t *testing.T) {
+	var buf bytes.Buffer
+	w := bufio.NewWriter(&buf)
+	if err := writeResponsesFunctionCallDelta(w, "call_1", `{"a":1}`, 3); err != nil {
+		t.Fatalf("writeResponsesFunctionCallDelta: %v", err)
+	}
+	_ = w.Flush()
+	got := buf.String()
+	for _, want := range []string{"event: response.function_call_arguments.delta", `"item_id":"call_1"`, `"sequence_number":3`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("delta event missing %q: %s", want, got)
+		}
+	}
+}
+
+// responsesToolCallAccumulator stitches fragmented deltas: id/name on the first
+// fragment, arguments continuing on later fragments without ids.
+func TestResponsesToolCallAccumulatorStitchesFragments(t *testing.T) {
+	acc := newResponsesToolCallAccumulator()
+	acc.add(providers.ToolCall{ID: "c1", Function: providers.ToolCallFunc{Name: "f", Arguments: "{"}})
+	acc.add(providers.ToolCall{Function: providers.ToolCallFunc{Arguments: "}"}})
+	outputs := acc.outputs()
+	if len(outputs) != 1 {
+		t.Fatalf("outputs = %d, want 1", len(outputs))
+	}
+	if outputs[0].CallID != "c1" || outputs[0].Name != "f" || outputs[0].Arguments != "{}" {
+		t.Fatalf("output = %+v, want c1/f/{}", outputs[0])
 	}
 }
 

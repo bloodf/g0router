@@ -246,7 +246,7 @@ func (e *Engine) dispatchStreamRoute(ctx context.Context, route modelRoute, req 
 			return nil, wrapped
 		}
 		e.recordProviderSuccess(conn, upstreamModel)
-		return prependChunk(first, stream), nil
+		return prependChunk(ctx, first, stream), nil
 	}
 	if lastErr != nil {
 		return nil, lastErr
@@ -276,14 +276,25 @@ func closedStream() <-chan providers.StreamChunk {
 	return ch
 }
 
-// prependChunk re-emits first followed by the remaining chunks of rest.
-func prependChunk(first providers.StreamChunk, rest <-chan providers.StreamChunk) <-chan providers.StreamChunk {
+// prependChunk re-emits first followed by the remaining chunks of rest. Sends
+// select on ctx.Done() so the goroutine abandons (rather than blocking forever)
+// when the consumer disconnects mid-stream; ctx is cancelled once the request's
+// body-stream writer loop exits.
+func prependChunk(ctx context.Context, first providers.StreamChunk, rest <-chan providers.StreamChunk) <-chan providers.StreamChunk {
 	out := make(chan providers.StreamChunk)
 	go func() {
 		defer close(out)
-		out <- first
+		select {
+		case out <- first:
+		case <-ctx.Done():
+			return
+		}
 		for chunk := range rest {
-			out <- chunk
+			select {
+			case out <- chunk:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 	return out

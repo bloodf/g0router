@@ -4,10 +4,37 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
+
+// TestPrependChunkConsumerDisconnect ensures the prependChunk goroutine abandons
+// its send (rather than blocking forever) when the consumer disconnects and the
+// context is cancelled, even though the upstream channel is never closed.
+func TestPrependChunkConsumerDisconnect(t *testing.T) {
+	rest := make(chan providers.StreamChunk, 1)
+	rest <- providers.StreamChunk{Model: "second"} // upstream still producing
+	// rest is intentionally never closed, mimicking an upstream that outlives
+	// the disconnected client.
+	ctx, cancel := context.WithCancel(context.Background())
+
+	out := prependChunk(ctx, providers.StreamChunk{Model: "first"}, rest)
+
+	// Read only the prepended chunk; leave "second" stuck on the out-send so the
+	// goroutine is blocked on out <- chunk when we disconnect.
+	if got := <-out; got.Model != "first" {
+		t.Fatalf("first chunk = %q", got.Model)
+	}
+	cancel()
+
+	select {
+	case <-out: // channel closed: goroutine returned
+	case <-time.After(2 * time.Second):
+		t.Fatal("prependChunk goroutine did not exit after disconnect (deadlock)")
+	}
+}
 
 func TestChunkErrorVariants(t *testing.T) {
 	if chunkError(providers.StreamChunk{}) != nil {
