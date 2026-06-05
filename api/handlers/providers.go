@@ -15,9 +15,6 @@ type ManagementModelSource interface {
 
 type providerResponse struct {
 	ID                string                      `json:"id"`
-	OMPID             string                      `json:"omp_id"`
-	Router9ID         string                      `json:"router9_id"`
-	BifrostID         string                      `json:"bifrost_id"`
 	AuthTypes         []string                    `json:"auth_types"`
 	OAuthProvider     string                      `json:"oauth_provider,omitempty"`
 	Refresh           bool                        `json:"refresh"`
@@ -80,9 +77,6 @@ func knownProviders() []providerResponse {
 	for _, entry := range matrix {
 		responses = append(responses, providerResponse{
 			ID:                entry.G0RouterID,
-			OMPID:             entry.OMPID,
-			Router9ID:         entry.Router9ID,
-			BifrostID:         entry.BifrostID,
 			AuthTypes:         copyStringSlice(entry.AuthTypes),
 			OAuthProvider:     entry.OAuthProvider,
 			Refresh:           entry.Refresh,

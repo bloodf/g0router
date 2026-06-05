@@ -15,9 +15,6 @@ const (
 )
 
 type ProviderMatrixEntry struct {
-	OMPID             string
-	Router9ID         string
-	BifrostID         string
 	G0RouterID        string
 	AuthTypes         []string
 	OAuthProvider     string
@@ -62,7 +59,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		catalogRoutableProvider("vertex", "gemini", true, true, true, false, "oauth"),
 		authOnlyProvider("antigravity", "antigravity", true, "Google OAuth credential flow; runtime dispatch is through Gemini/Vertex adapters."),
 		dynamicRoutableProvider("github-copilot", "github-copilot", true, true, true, false, "oauth"),
-		authOnlyProvider("cursor", "cursor", true, "OMP-style loginDeepControl polling OAuth is implemented, but no Cursor inference adapter is wired."),
+		authOnlyProvider("cursor", "cursor", true, "loginDeepControl polling OAuth is implemented, but no Cursor inference adapter is wired."),
 		gitLabDuoProvider(),
 		dynamicRoutableProvider("kimi", "kimi", true, true, true, false, "api_key", "oauth"),
 		authOnlyProvider("kiro", "kiro", true, "OAuth is implemented, but no Kiro inference adapter is wired."),
@@ -132,8 +129,7 @@ func supportedProvider(id string, oauthProvider string, refresh, streaming, mode
 	entry.PublicStatus = ProviderStatusSupported
 	entry.Notes = "Public direct dispatch works through native routing; quota fetcher is not implemented yet."
 	if id == "openai" {
-		entry.OMPID = "openai/codex"
-	}
+}
 	return entry
 }
 
@@ -195,7 +191,7 @@ func cloudflareGatewayProvider() ProviderMatrixEntry {
 
 func xiaomiProvider() ProviderMatrixEntry {
 	entry := dynamicRoutableProvider("xiaomi", "xiaomi", true, true, false, false, "api_key", "oauth")
-	entry.Notes = "Public direct dispatch works through provider-qualified Xiaomi Anthropic-compatible model IDs; token-plan keys use the OMP token-plan endpoint, and no static model catalog or quota fetcher is implemented."
+	entry.Notes = "Public direct dispatch works through provider-qualified Xiaomi Anthropic-compatible model IDs; token-plan keys use the token-plan endpoint, and no static model catalog or quota fetcher is implemented."
 	return entry
 }
 
@@ -257,9 +253,6 @@ func unsupportedProvider(id string, notes string) ProviderMatrixEntry {
 func baseProvider(id string) ProviderMatrixEntry {
 	id = strings.ToLower(strings.TrimSpace(id))
 	return ProviderMatrixEntry{
-		OMPID:        id,
-		Router9ID:    id,
-		BifrostID:    id,
 		G0RouterID:   id,
 		PublicStatus: ProviderStatusUnsupported,
 	}

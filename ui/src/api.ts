@@ -8,9 +8,6 @@ export type ListResponse<T> = {
 
 export type ProviderMatrixEntry = {
   id: string;
-  omp_id: string;
-  router9_id: string;
-  bifrost_id: string;
   auth_types?: string[] | null;
   oauth_provider?: string;
   refresh: boolean;

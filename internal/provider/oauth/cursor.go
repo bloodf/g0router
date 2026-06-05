@@ -29,7 +29,7 @@ type CursorConfig struct {
 	NewUUID    func() (string, error)
 }
 
-// CursorFlow implements Cursor's OMP-style loginDeepControl OAuth flow.
+// CursorFlow implements Cursor's loginDeepControl OAuth flow.
 type CursorFlow struct {
 	client     *http.Client
 	loginURL   string

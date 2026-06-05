@@ -1072,9 +1072,6 @@ type MockAPIResponse = {
 const providers = [
   {
     id: "openai",
-    omp_id: "openai",
-    router9_id: "openai",
-    bifrost_id: "openai",
     auth_types: ["oauth", "api_key"],
     refresh: false,
     registered_adapter: true,
@@ -1090,9 +1087,6 @@ const providers = [
   },
   {
     id: "cursor",
-    omp_id: "cursor",
-    router9_id: "cursor",
-    bifrost_id: "cursor",
     auth_types: ["oauth"],
     refresh: true,
     registered_adapter: false,
@@ -1108,9 +1102,6 @@ const providers = [
   },
   {
     id: "anthropic",
-    omp_id: "anthropic",
-    router9_id: "anthropic",
-    bifrost_id: "anthropic",
     auth_types: ["api_key"],
     refresh: false,
     registered_adapter: true,

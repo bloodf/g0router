@@ -130,7 +130,7 @@ func TestTavilySearchTool(t *testing.T) {
 		t.Fatalf("request = %+v, want query/max_results/time_range", gotRequest)
 	}
 	if gotRequest.IncludeAnswer != "advanced" || gotRequest.IncludeRawContent || gotRequest.Topic != "" {
-		t.Fatalf("request = %+v, want OMP-style Tavily body without topic", gotRequest)
+		t.Fatalf("request = %+v, want Tavily body without topic", gotRequest)
 	}
 	content, ok := result.Content.(SearchResult)
 	if !ok {

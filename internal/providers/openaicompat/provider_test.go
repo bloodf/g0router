@@ -155,7 +155,7 @@ func TestKiloDefaultConfigUsesGatewayEndpoint(t *testing.T) {
 	}
 }
 
-func TestGitHubCopilotDefaultProviderSendsOMPHeaders(t *testing.T) {
+func TestGitHubCopilotDefaultProviderSendsEditorHeaders(t *testing.T) {
 	var gotUserAgent string
 	var gotAuth string
 	var gotRequest providers.ChatRequest
@@ -192,7 +192,7 @@ func TestGitHubCopilotDefaultProviderSendsOMPHeaders(t *testing.T) {
 		t.Fatalf("ChatCompletion: %v", err)
 	}
 	if gotUserAgent != "opencode/1.3.15" {
-		t.Fatalf("User-Agent = %q, want OMP Copilot header", gotUserAgent)
+		t.Fatalf("User-Agent = %q, want Copilot editor header", gotUserAgent)
 	}
 	if gotAuth != "Bearer sk-test" {
 		t.Fatalf("Authorization = %q, want bearer key", gotAuth)

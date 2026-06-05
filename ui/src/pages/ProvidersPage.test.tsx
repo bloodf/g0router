@@ -19,9 +19,6 @@ function deferredResponse() {
 
 const providerEntry = {
   id: "openai",
-  omp_id: "openai",
-  router9_id: "openai",
-  bifrost_id: "openai",
   auth_types: ["oauth", "api_key"],
   refresh: true,
   registered_adapter: true,
