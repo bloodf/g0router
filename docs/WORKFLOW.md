@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.BS"
-last_updated: "2026-06-05T02:55:00Z"
+last_updated: "2026-06-05T03:05:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2681,7 +2681,7 @@ max_agents: 1
 gate: "go test ./internal/providers/anthropic ./internal/providers/gitlabduo ./internal/provider ./internal/cli ./api/handlers -run 'Test(NewForProviderWithHeadersAddsProviderHeaders|ChatCompletionExchangesDirectAccessAndRoutesOpenAIModel|ChatCompletionRoutesAnthropicModelWithDirectAccessHeaders|ChatCompletionCachesDirectAccessToken|ChatCompletionRejectsUnsupportedModel|ListModelsReturnsDuoAliasesDeterministically|GitLabDuoPublicDynamicProvider|ProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|PublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|ProvidersListShowsKnownProviders|ProvidersListKnownProviders)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T02:55:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BS-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after implementation commit"
+evaluation: "PASS external evaluator subagent 019e9545-3401-7ea0-b7e6-76685927b8ba at commit 619e704"
 gate_results:
   - "focused GitLab Duo runtime tests: RED before implementation, provider package and ProviderGitLabDuo constant did not exist, Anthropic provider could not inject GitLab direct-access headers, matrix/API/CLI still treated gitlab-duo as auth_only, and provider-qualified routing did not accept gitlab-duo"
   - "focused GitLab Duo runtime tests: PASS"
@@ -2693,6 +2693,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e9545-3401-7ea0-b7e6-76685927b8ba: PASS, no blocking findings; non-blocking note to make the Duo alias table immutable-by-convention later"
 
 tasks:
   - id: "8.BS.1"
