@@ -33,7 +33,8 @@ tools, Responses/Messages streaming translation, unsupported-streaming
 error hardening, quota capability truth hardening, OpenRouter quota support,
 provider quota matrix documentation, clean-checkout release gate bootstrap,
 dashboard update/state coverage, backend/docs audit contract hardening, final
-docs/workflow closure, and stale closure-language cleanup through Wave 8.CH.
+docs/workflow closure, stale closure-language cleanup, and release-gate test
+stability through Wave 8.CI.
 
 ## Stage → Wave → Task Map
 
@@ -52,7 +53,7 @@ STAGE 5 ─┬─ Wave 5.A [3 tasks]  ──► Makefile, systemd, Docker
           └─ Wave 5.B [2 tasks]  ──► README polish, E2E tests
 STAGE 6 ─── Wave 6.A [6 tasks]   ──► advanced MCP instances, OAuth, callbacks
 STAGE 7 ─── Waves 7.A–7.M        ──► remediation, release hardening, docs reconciliation
-STAGE 8 ─── Waves 8.L–8.CH       ──► tracked completion hardening, E2E/API integration, audit fixes, provider parity, search/streaming/quota/release-gate/dashboard/backend hardening, final closure
+STAGE 8 ─── Waves 8.L–8.CI       ──► tracked completion hardening, E2E/API integration, audit fixes, provider parity, search/streaming/quota/release-gate/dashboard/backend hardening, final closure
 ```
 
 ## Phase Index

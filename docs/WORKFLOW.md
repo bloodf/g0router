@@ -31,8 +31,8 @@
 project_status: COMPLETE
 current_stage: 8
 current_wave: "COMPLETE"
-last_completed_wave: "8.CH"
-last_updated: "2026-06-05T04:30:38Z"
+last_completed_wave: "8.CI"
+last_updated: "2026-06-05T04:34:56Z"
 last_agent: "orchestrator"
 ```
 
@@ -3344,6 +3344,39 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.CH removes the remaining stale completion-language blockers found after Wave 8.CG. Historical wave names that include "remaining" are left intact when they describe old batch contents, not current unfinished work.
+
+---
+
+### Wave 8.CI — MCP Accounts Test Stability
+
+```yaml
+wave: "8.CI"
+status: DONE
+max_agents: 1
+gate: "npm --prefix ui test -- --run src/pages/McpSplitPages.test.tsx && make verify"
+completed_at: "2026-06-05T04:34:56Z"
+evaluator_prompt: "docs/evaluations/wave-8CI-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after workflow record commit"
+gate_results:
+  - "npm --prefix ui test -- --run src/pages/McpSplitPages.test.tsx: PASS, 1 file and 6 tests"
+  - "make verify: PASS, includes npm ci --prefix ui --include=dev; go test ./... -count=1; go vet ./...; go build ./cmd/g0router; npm --prefix ui test -- --run with 20 files and 97 tests; npm --prefix ui run build; npm --prefix ui run e2e with 23 passed and 1 skipped; make build; git diff --check"
+
+tasks:
+  - id: "8.CI.1"
+    name: "Stabilize MCP accounts split-page async control assertions"
+    status: DONE
+    agent: "orchestrator"
+    commit: "ff51b3e"
+    files_owned:
+      - ui/src/pages/McpSplitPages.test.tsx
+      - docs/README.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8CI-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.CI fixes the release-gate UI race found after Wave 8.CH by waiting for loaded MCP account controls before interacting with OAuth fields/buttons. The full `make verify` gate passed after the fix.
 
 ---
 

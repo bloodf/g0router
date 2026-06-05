@@ -292,7 +292,7 @@ Wave: {wave_id}
 | 5 | 2 | 3 | 5 |
 | 6 | 1 | 1 | 6 |
 | 7 | 13 | 8 | remediation Waves 7.A–7.M |
-| 8 | WORKFLOW-tracked | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.CH |
+| 8 | WORKFLOW-tracked | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.CI |
 | **Total** | WORKFLOW-tracked | — | **77 original tasks + remediation + completion hardening** |
 
 With 8 agents, the original 77 tasks compressed into ~13 sequential merge
@@ -326,7 +326,8 @@ through Wave 8.CB, provider quota matrix documentation through Wave 8.CC,
 clean-checkout release gate bootstrap through Wave 8.CD, dashboard
 update/state coverage through Wave 8.CE, backend/docs audit contract
 hardening through Wave 8.CF, final docs/workflow closure through Wave 8.CG,
-and stale closure-language cleanup through Wave 8.CH.
+stale closure-language cleanup through Wave 8.CH, and release-gate test
+stability through Wave 8.CI.
 Stage 8 has earlier conceptual plan labels in historical prompts,
 but `docs/WORKFLOW.md` tracks the committed implementation waves from 8.L
-through 8.CH.
+through 8.CI.
