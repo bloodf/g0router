@@ -303,6 +303,87 @@ func TestMessagesStreamingTranslatesChatStream(t *testing.T) {
 	}
 }
 
+func TestMessagesStreamingTranslatesToolCalls(t *testing.T) {
+	role := "assistant"
+	content := "let me check"
+	finish := "tool_calls"
+	chunks := make(chan providers.StreamChunk, 5)
+	chunks <- providers.StreamChunk{
+		ID:      "msg-tool",
+		Model:   "claude-sonnet-4",
+		Choices: []providers.StreamChoice{{Index: 0, Delta: providers.StreamDelta{Role: &role}}},
+	}
+	chunks <- providers.StreamChunk{
+		ID:      "msg-tool",
+		Model:   "claude-sonnet-4",
+		Choices: []providers.StreamChoice{{Index: 0, Delta: providers.StreamDelta{Content: &content}}},
+	}
+	chunks <- providers.StreamChunk{
+		ID:    "msg-tool",
+		Model: "claude-sonnet-4",
+		Choices: []providers.StreamChoice{{Index: 0, Delta: providers.StreamDelta{ToolCalls: []providers.ToolCall{{
+			ID:       "call_1",
+			Type:     "function",
+			Function: providers.ToolCallFunc{Name: "get_weather", Arguments: `{"loc`},
+		}}}}},
+	}
+	chunks <- providers.StreamChunk{
+		ID:    "msg-tool",
+		Model: "claude-sonnet-4",
+		Choices: []providers.StreamChoice{{Index: 0, Delta: providers.StreamDelta{ToolCalls: []providers.ToolCall{{
+			Function: providers.ToolCallFunc{Arguments: `ation":"SF"}`},
+		}}}}},
+	}
+	chunks <- providers.StreamChunk{
+		ID:      "msg-tool",
+		Model:   "claude-sonnet-4",
+		Choices: []providers.StreamChoice{{Index: 0, FinishReason: &finish}},
+		Usage:   &providers.Usage{PromptTokens: 5, CompletionTokens: 4, TotalTokens: 9},
+	}
+	close(chunks)
+	engine := &fakeEngine{stream: chunks}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hi"}],"stream":true}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	bodyText := string(body)
+
+	order := []string{
+		`event: message_start`,
+		`"type":"text"`,
+		`"type":"text_delta"`,
+		`event: content_block_stop`,
+		`"id":"call_1"`,
+		`"name":"get_weather"`,
+		`"type":"tool_use"`,
+		`"partial_json":"{\"loc"`,
+		`"type":"input_json_delta"`,
+		`"partial_json":"ation\":\"SF\"}"`,
+		`event: content_block_stop`,
+		`"stop_reason":"tool_use"`,
+		`event: message_stop`,
+	}
+	prev := 0
+	for _, frag := range order {
+		idx := strings.Index(bodyText[prev:], frag)
+		if idx < 0 {
+			t.Fatalf("stream body missing %q in order; body=%s", frag, bodyText)
+		}
+		prev += idx + len(frag)
+	}
+
+	if strings.Contains(bodyText, "data: [DONE]") {
+		t.Fatalf("messages stream should not use OpenAI [DONE] sentinel: %s", bodyText)
+	}
+	if !strings.HasSuffix(bodyText, "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n") {
+		t.Fatalf("messages stream should end with message_stop, got %q", bodyText)
+	}
+}
+
 func TestInferenceInvalidJSON(t *testing.T) {
 	engine := &fakeEngine{response: chatResponse()}
 	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})

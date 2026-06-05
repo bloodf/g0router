@@ -146,8 +146,21 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
 		started := false
 		contentStarted := false
+		// toolBlockOpen tracks whether a tool_use content block is currently
+		// open. blockIndex is the index of the currently open block; it
+		// increments as text and tool_use blocks open in sequence.
+		toolBlockOpen := false
 		blockIndex := 0
 		message := anthropicMessageBody{Type: "message", Role: "assistant", Model: req.Model}
+		ensureStarted := func() {
+			if !started {
+				writeAnthropicStreamEvent(w, "message_start", map[string]any{
+					"type":    "message_start",
+					"message": message,
+				})
+				started = true
+			}
+		}
 		for chunk := range stream {
 			if chunk.Error != nil {
 				writeStreamError(w, chunk.Error)
@@ -155,21 +168,11 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 			}
 			updateAnthropicStreamMessage(&message, chunk)
 			if !started && shouldStartAnthropicMessage(chunk) {
-				writeAnthropicStreamEvent(w, "message_start", map[string]any{
-					"type":    "message_start",
-					"message": message,
-				})
-				started = true
+				ensureStarted()
 			}
 			for _, choice := range chunk.Choices {
 				if choice.Delta.Content != nil {
-					if !started {
-						writeAnthropicStreamEvent(w, "message_start", map[string]any{
-							"type":    "message_start",
-							"message": message,
-						})
-						started = true
-					}
+					ensureStarted()
 					if !contentStarted {
 						writeAnthropicStreamEvent(w, "content_block_start", map[string]any{
 							"type":  "content_block_start",
@@ -192,19 +195,65 @@ func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *provi
 						})
 					}
 				}
-				if choice.FinishReason != nil {
-					if !started {
-						writeAnthropicStreamEvent(w, "message_start", map[string]any{
-							"type":    "message_start",
-							"message": message,
+				for _, call := range choice.Delta.ToolCalls {
+					ensureStarted()
+					// Heuristic: a fragment starts a NEW tool_use block iff it
+					// carries an id or function name; otherwise its Arguments
+					// continue the currently open block. Fully-interleaved
+					// parallel tool calls without ids are not disambiguated.
+					if call.ID != "" || call.Function.Name != "" {
+						if contentStarted {
+							writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
+								"type":  "content_block_stop",
+								"index": blockIndex,
+							})
+							contentStarted = false
+						}
+						if toolBlockOpen {
+							writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
+								"type":  "content_block_stop",
+								"index": blockIndex,
+							})
+						}
+						blockIndex++
+						toolBlockOpen = true
+						writeAnthropicStreamEvent(w, "content_block_start", map[string]any{
+							"type":  "content_block_start",
+							"index": blockIndex,
+							"content_block": map[string]any{
+								"type":  "tool_use",
+								"id":    call.ID,
+								"name":  call.Function.Name,
+								"input": map[string]any{},
+							},
 						})
-						started = true
 					}
+					if toolBlockOpen && call.Function.Arguments != "" {
+						writeAnthropicStreamEvent(w, "content_block_delta", map[string]any{
+							"type":  "content_block_delta",
+							"index": blockIndex,
+							"delta": map[string]string{
+								"type":         "input_json_delta",
+								"partial_json": call.Function.Arguments,
+							},
+						})
+					}
+				}
+				if choice.FinishReason != nil {
+					ensureStarted()
 					if contentStarted {
 						writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
 							"type":  "content_block_stop",
 							"index": blockIndex,
 						})
+						contentStarted = false
+					}
+					if toolBlockOpen {
+						writeAnthropicStreamEvent(w, "content_block_stop", map[string]any{
+							"type":  "content_block_stop",
+							"index": blockIndex,
+						})
+						toolBlockOpen = false
 					}
 					writeAnthropicStreamEvent(w, "message_delta", map[string]any{
 						"type": "message_delta",
