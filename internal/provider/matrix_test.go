@@ -1,10 +1,79 @@
 package provider
 
 import (
+	"context"
+	"errors"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/bedrock"
+	"github.com/bloodf/g0router/internal/providers/cloudflare"
+	"github.com/bloodf/g0router/internal/providers/replicate"
 )
+
+// streamingAdapter is the minimal surface needed to check whether an adapter's
+// advertised streaming capability matches its runtime behaviour.
+type streamingAdapter interface {
+	ChatCompletionStream(context.Context, providers.Key, *providers.ChatRequest) (<-chan providers.StreamChunk, error)
+}
+
+// TestProviderMatrixStreamingFlagMatchesAdapterBehaviour enforces honesty: an
+// adapter whose matrix entry advertises Streaming=false must reject streaming
+// with the ErrStreamingUnsupported sentinel, and an adapter advertising
+// Streaming=true must not return that sentinel (cloudflare instead surfaces a
+// clear configuration error when account_id is absent). This keeps the
+// advertised capability and the actual adapter wiring from drifting apart.
+func TestProviderMatrixStreamingFlagMatchesAdapterBehaviour(t *testing.T) {
+	matrix := ProviderMatrix()
+	req := &providers.ChatRequest{Model: "m", Messages: []providers.Message{{Role: "user", Content: "hi"}}}
+
+	cases := []struct {
+		id      string
+		adapter streamingAdapter
+	}{
+		{id: "bedrock", adapter: bedrock.New("")},
+		{id: "replicate", adapter: replicate.NewDefault()},
+		{id: "cloudflare-ai-gateway", adapter: cloudflare.New("")},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.id, func(t *testing.T) {
+			entry, ok := matrix.Provider(tc.id)
+			if !ok {
+				t.Fatalf("provider matrix missing %q", tc.id)
+			}
+			_, err := tc.adapter.ChatCompletionStream(context.Background(), providers.Key{}, req)
+			if err == nil {
+				t.Fatalf("%s ChatCompletionStream returned no error in offline test; cannot verify capability honesty", tc.id)
+			}
+			unsupported := errors.Is(err, providers.ErrStreamingUnsupported)
+			if entry.Streaming && unsupported {
+				t.Fatalf("%s advertises Streaming=true but adapter returns ErrStreamingUnsupported: %v", tc.id, err)
+			}
+			if !entry.Streaming && !unsupported {
+				t.Fatalf("%s advertises Streaming=false but adapter does not return ErrStreamingUnsupported: %v", tc.id, err)
+			}
+		})
+	}
+}
+
+// TestCloudflareRequiresAccountIDConfiguration verifies the cloudflare adapter
+// fails fast with a clear configuration error rather than dispatching dead
+// requests when the connection lacks an account_id.
+func TestCloudflareRequiresAccountIDConfiguration(t *testing.T) {
+	provider := cloudflare.New("")
+	req := &providers.ChatRequest{Model: "m", Messages: []providers.Message{{Role: "user", Content: "hi"}}}
+	_, err := provider.ChatCompletion(context.Background(), providers.Key{}, req)
+	if err == nil {
+		t.Fatal("cloudflare ChatCompletion without account_id should error")
+	}
+	if !strings.Contains(strings.ToLower(err.Error()), "account id") {
+		t.Fatalf("cloudflare error = %v, want clear account id configuration message", err)
+	}
+}
 
 func TestProviderMatrixCoversRemediationParityTiers(t *testing.T) {
 	required := []string{

@@ -7,6 +7,11 @@ import (
 
 var ErrStreamingUnsupported = errors.New("streaming unsupported")
 
+// ErrListModelsUnsupported is returned by adapters whose upstream does not
+// expose a model-listing endpoint, so callers can distinguish an advertised-but-
+// absent capability from a transient failure.
+var ErrListModelsUnsupported = errors.New("list models unsupported")
+
 // ModelProvider identifies an upstream LLM provider.
 type ModelProvider string
 
@@ -154,7 +159,8 @@ type Usage struct {
 }
 
 type PromptTokensDetails struct {
-	CachedTokens int `json:"cached_tokens"`
+	CachedTokens     int `json:"cached_tokens"`
+	CacheWriteTokens int `json:"cache_creation_input_tokens,omitempty"` // Anthropic: cache_creation_input_tokens; OpenAI: not reported
 }
 
 type CompletionTokensDetails struct {

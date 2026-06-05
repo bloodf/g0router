@@ -116,7 +116,7 @@ func (p *Provider) ChatCompletionStream(context.Context, providers.Key, *provide
 }
 
 func (p *Provider) ListModels(context.Context, providers.Key) ([]providers.Model, error) {
-	return nil, fmt.Errorf("replicate list models unsupported")
+	return nil, fmt.Errorf("replicate list models: %w", providers.ErrListModelsUnsupported)
 }
 
 func (p *Provider) createPrediction(ctx context.Context, key providers.Key, body predictionCreateRequest) (predictionResponse, error) {

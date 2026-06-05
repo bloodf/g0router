@@ -657,33 +657,99 @@ func TestMessagesRejectsAnthropicNativeToolChoice(t *testing.T) {
 	}
 }
 
-func TestMessagesRejectsAnthropicToolUseBlocks(t *testing.T) {
-	engine := &fakeEngine{response: chatResponse()}
-	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
-
-	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"lookup","input":{"query":"docs"}}]}]}`, nil)
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+func TestMessagesTranslatesAnthropicToolBlocksPreservingIDs(t *testing.T) {
+	cases := []struct {
+		name     string
+		body     string
+		assert   func(t *testing.T, req *providers.ChatRequest)
+	}{
+		{
+			name: "tool_use block becomes assistant tool_call with id",
+			body: `{"model":"claude-sonnet-4","messages":[{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"lookup","input":{"query":"docs"}}]}]}`,
+			assert: func(t *testing.T, req *providers.ChatRequest) {
+				if len(req.Messages) != 1 {
+					t.Fatalf("messages len = %d, want 1: %+v", len(req.Messages), req.Messages)
+				}
+				msg := req.Messages[0]
+				if msg.Role != "assistant" {
+					t.Fatalf("role = %q, want assistant", msg.Role)
+				}
+				if len(msg.ToolCalls) != 1 {
+					t.Fatalf("tool_calls len = %d, want 1: %+v", len(msg.ToolCalls), msg.ToolCalls)
+				}
+				call := msg.ToolCalls[0]
+				if call.ID != "toolu_1" {
+					t.Fatalf("tool_call id = %q, want toolu_1", call.ID)
+				}
+				if call.Function.Name != "lookup" {
+					t.Fatalf("tool_call name = %q, want lookup", call.Function.Name)
+				}
+				if call.Function.Arguments != `{"query":"docs"}` {
+					t.Fatalf("tool_call args = %q", call.Function.Arguments)
+				}
+			},
+		},
+		{
+			name: "tool_result block becomes tool message carrying tool_call_id",
+			body: `{"model":"claude-sonnet-4","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"value"}]}]}`,
+			assert: func(t *testing.T, req *providers.ChatRequest) {
+				if len(req.Messages) != 1 {
+					t.Fatalf("messages len = %d, want 1: %+v", len(req.Messages), req.Messages)
+				}
+				msg := req.Messages[0]
+				if msg.Role != "tool" {
+					t.Fatalf("role = %q, want tool", msg.Role)
+				}
+				if msg.ToolCallID == nil || *msg.ToolCallID != "toolu_1" {
+					t.Fatalf("tool_call_id = %v, want toolu_1", msg.ToolCallID)
+				}
+				if text, _ := msg.Content.(string); text != "value" {
+					t.Fatalf("content = %#v, want value", msg.Content)
+				}
+			},
+		},
+		{
+			name: "round trip tool_use then tool_result keeps matching ids",
+			body: `{"model":"claude-sonnet-4","messages":[{"role":"user","content":"weather?"},{"role":"assistant","content":[{"type":"text","text":"let me check"},{"type":"tool_use","id":"toolu_abc","name":"get_weather","input":{"city":"sf"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_abc","content":[{"type":"text","text":"sunny"}]}]}]}`,
+			assert: func(t *testing.T, req *providers.ChatRequest) {
+				if len(req.Messages) != 3 {
+					t.Fatalf("messages len = %d, want 3: %+v", len(req.Messages), req.Messages)
+				}
+				assistant := req.Messages[1]
+				if len(assistant.ToolCalls) != 1 || assistant.ToolCalls[0].ID != "toolu_abc" {
+					t.Fatalf("assistant tool_calls = %+v", assistant.ToolCalls)
+				}
+				if text, _ := assistant.Content.(string); text != "let me check" {
+					t.Fatalf("assistant content = %#v", assistant.Content)
+				}
+				tool := req.Messages[2]
+				if tool.Role != "tool" || tool.ToolCallID == nil || *tool.ToolCallID != "toolu_abc" {
+					t.Fatalf("tool message = %+v (id=%v)", tool, tool.ToolCallID)
+				}
+				if text, _ := tool.Content.(string); text != "sunny" {
+					t.Fatalf("tool content = %#v, want sunny", tool.Content)
+				}
+			},
+		},
 	}
-	if engine.received != nil {
-		t.Fatalf("engine request = %+v, want no dispatch for unsupported native tool use", engine.received)
-	}
-}
 
-func TestMessagesRejectsAnthropicToolResultBlocks(t *testing.T) {
-	engine := &fakeEngine{response: chatResponse()}
-	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			engine := &fakeEngine{response: chatResponse()}
+			_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
 
-	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"value"}]}]}`, nil)
-	defer resp.Body.Close()
+			resp, body := postJSON(t, baseURL+"/v1/messages", tc.body, nil)
+			defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
-	}
-	if engine.received != nil {
-		t.Fatalf("engine request = %+v, want no dispatch for unsupported native tool results", engine.received)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+			}
+			if engine.received == nil {
+				t.Fatalf("engine received no dispatch; body=%s", body)
+			}
+			tc.assert(t, engine.received)
+		})
 	}
 }
 

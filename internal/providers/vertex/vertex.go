@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/utils"
 	"github.com/valyala/fasthttp"
 )
 
@@ -55,7 +56,7 @@ func New(baseURL string, config Config) *VertexProvider {
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		config:       config,
 		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient: &http.Client{},
+		streamClient: utils.StreamHTTPClient(0),
 	}
 }
 

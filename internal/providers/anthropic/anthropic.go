@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/utils"
 	"github.com/valyala/fasthttp"
 )
 
@@ -55,7 +56,7 @@ func NewForProviderWithHeaders(name providers.ModelProvider, baseURL string, hea
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		headers:      copiedHeaders,
 		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient: &http.Client{},
+		streamClient: utils.StreamHTTPClient(0),
 	}
 }
 

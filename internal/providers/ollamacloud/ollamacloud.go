@@ -12,13 +12,15 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/utils"
 )
 
 const defaultBaseURL = "https://ollama.com"
 
 type Provider struct {
-	baseURL string
-	client  *http.Client
+	baseURL      string
+	client       *http.Client
+	streamClient *http.Client
 }
 
 type chatRequest struct {
@@ -85,8 +87,9 @@ func New(baseURL string) (*Provider, error) {
 		baseURL = defaultBaseURL
 	}
 	return &Provider{
-		baseURL: baseURL,
-		client:  &http.Client{Timeout: 60 * time.Second},
+		baseURL:      baseURL,
+		client:       &http.Client{Timeout: 60 * time.Second},
+		streamClient: utils.StreamHTTPClient(0),
 	}, nil
 }
 
@@ -119,7 +122,7 @@ func (p *Provider) ChatCompletionStream(ctx context.Context, key providers.Key, 
 	if err != nil {
 		return nil, err
 	}
-	resp, err := p.client.Do(httpReq)
+	resp, err := p.streamClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("ollama-cloud chat completion stream: %w", err)
 	}

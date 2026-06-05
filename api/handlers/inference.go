@@ -114,17 +114,17 @@ func Messages(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 		return
 	}
 
-	var req providers.ChatRequest
-	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+	req, err := translateAnthropicMessagesRequest(ctx.PostBody())
+	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 		return
 	}
 	if req.Stream != nil && *req.Stream {
-		streamMessages(ctx, engine, &req)
+		streamMessages(ctx, engine, req)
 		return
 	}
 
-	resp, err := engine.Dispatch(requestContext(ctx), &req)
+	resp, err := engine.Dispatch(requestContext(ctx), req)
 	if err != nil {
 		writeDispatchError(ctx, err)
 		return
@@ -523,6 +523,151 @@ func anthropicMessageResponse(resp *providers.ChatResponse) anthropicMessageBody
 	return body
 }
 
+// anthropicRequestEnvelope mirrors the inbound Anthropic /v1/messages body
+// closely enough to translate its content blocks into the internal/OpenAI
+// ChatRequest shape while preserving tool-call identifiers.
+type anthropicRequestEnvelope struct {
+	Model    string                     `json:"model"`
+	Messages []anthropicInboundMessage  `json:"messages"`
+	Stream   *bool                      `json:"stream,omitempty"`
+}
+
+type anthropicInboundMessage struct {
+	Role    string          `json:"role"`
+	Content json.RawMessage `json:"content"`
+}
+
+type anthropicInboundBlock struct {
+	Type      string          `json:"type"`
+	Text      string          `json:"text"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Input     json.RawMessage `json:"input"`
+	ToolUseID string          `json:"tool_use_id"`
+	Content   json.RawMessage `json:"content"`
+}
+
+// translateAnthropicMessagesRequest converts an inbound Anthropic messages body
+// into the internal ChatRequest. Anthropic tool_use blocks map to assistant
+// tool_calls (preserving ids), and tool_result blocks map to tool-role messages
+// whose tool_call_id is the originating tool_use_id, so identifiers survive the
+// translation. Bodies whose content is a plain string fall through to the
+// standard decoder unchanged.
+func translateAnthropicMessagesRequest(body []byte) (*providers.ChatRequest, error) {
+	var req providers.ChatRequest
+	if err := json.Unmarshal(body, &req); err != nil {
+		return nil, err
+	}
+
+	var envelope anthropicRequestEnvelope
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return nil, err
+	}
+
+	messages := make([]providers.Message, 0, len(envelope.Messages))
+	for _, inbound := range envelope.Messages {
+		translated, err := translateAnthropicInboundMessage(inbound)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, translated...)
+	}
+	req.Messages = messages
+	return &req, nil
+}
+
+func translateAnthropicInboundMessage(inbound anthropicInboundMessage) ([]providers.Message, error) {
+	trimmed := bytesTrimSpace(inbound.Content)
+	if len(trimmed) == 0 || trimmed[0] != '[' {
+		var content any
+		if len(trimmed) > 0 && string(trimmed) != "null" {
+			if err := json.Unmarshal(trimmed, &content); err != nil {
+				return nil, err
+			}
+		}
+		return []providers.Message{{Role: inbound.Role, Content: content}}, nil
+	}
+
+	var blocks []anthropicInboundBlock
+	if err := json.Unmarshal(trimmed, &blocks); err != nil {
+		return nil, err
+	}
+
+	var textParts []string
+	var toolCalls []providers.ToolCall
+	var results []providers.Message
+	for _, block := range blocks {
+		switch block.Type {
+		case "", "text":
+			if block.Text != "" {
+				textParts = append(textParts, block.Text)
+			}
+		case "tool_use":
+			toolCalls = append(toolCalls, providers.ToolCall{
+				ID:   block.ID,
+				Type: "function",
+				Function: providers.ToolCallFunc{
+					Name:      block.Name,
+					Arguments: anthropicToolInputArguments(block.Input),
+				},
+			})
+		case "tool_result":
+			id := block.ToolUseID
+			results = append(results, providers.Message{
+				Role:       "tool",
+				Content:    anthropicToolResultText(block.Content),
+				ToolCallID: &id,
+			})
+		}
+	}
+
+	var out []providers.Message
+	if len(textParts) > 0 || len(toolCalls) > 0 || len(results) == 0 {
+		message := providers.Message{Role: inbound.Role, Content: strings.Join(textParts, "")}
+		if len(toolCalls) > 0 {
+			message.ToolCalls = toolCalls
+		}
+		out = append(out, message)
+	}
+	out = append(out, results...)
+	return out, nil
+}
+
+func anthropicToolInputArguments(input json.RawMessage) string {
+	trimmed := bytesTrimSpace(input)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return "{}"
+	}
+	return string(trimmed)
+}
+
+func anthropicToolResultText(content json.RawMessage) string {
+	trimmed := bytesTrimSpace(content)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return ""
+	}
+	if trimmed[0] == '"' {
+		var text string
+		if err := json.Unmarshal(trimmed, &text); err == nil {
+			return text
+		}
+		return string(trimmed)
+	}
+	if trimmed[0] == '[' {
+		var blocks []anthropicInboundBlock
+		if err := json.Unmarshal(trimmed, &blocks); err == nil {
+			var parts []string
+			for _, block := range blocks {
+				if block.Text != "" {
+					parts = append(parts, block.Text)
+				}
+			}
+			return strings.Join(parts, "")
+		}
+	}
+	return string(trimmed)
+}
+
 func rejectUnsupportedAnthropicMessageShape(body []byte) error {
 	var req struct {
 		Tools      []json.RawMessage `json:"tools"`
@@ -591,7 +736,9 @@ func rejectUnsupportedAnthropicContent(raw json.RawMessage) error {
 		return nil
 	}
 	for i, block := range blocks {
-		if block.Type != "" && block.Type != "text" {
+		switch block.Type {
+		case "", "text", "tool_use", "tool_result":
+		default:
 			return fmt.Errorf("unsupported content block %d type %q", i, block.Type)
 		}
 	}
