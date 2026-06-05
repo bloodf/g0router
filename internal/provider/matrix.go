@@ -63,7 +63,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		authOnlyProvider("antigravity", "antigravity", true, "Google OAuth credential flow; runtime dispatch is through Gemini/Vertex adapters."),
 		dynamicRoutableProvider("github-copilot", "github-copilot", true, true, true, false, "oauth"),
 		authOnlyProvider("cursor", "cursor", true, "OMP-style loginDeepControl polling OAuth is implemented, but no Cursor inference adapter is wired."),
-		authOnlyProvider("gitlab", "gitlab", true, "OAuth is implemented for GitLab-style identity, but no GitLab inference adapter is wired."),
+		authOnlyProvider("gitlab-duo", "gitlab-duo", true, "OMP-style GitLab Duo OAuth is implemented, but no GitLab Duo inference adapter is wired."),
 		dynamicRoutableProvider("kimi", "kimi", true, true, true, false, "api_key", "oauth"),
 		authOnlyProvider("kiro", "kiro", true, "OAuth is implemented, but no Kiro inference adapter is wired."),
 		catalogRoutableProvider("xai", "xai", true, true, true, false, "api_key", "oauth"),

@@ -2575,6 +2575,55 @@ tasks:
 
 ---
 
+### Wave 8.BQ — GitLab Duo OMP Auth Identity Normalization
+
+```yaml
+wave: "8.BQ"
+status: DONE
+max_agents: 1
+gate: "go test ./api/handlers ./internal/provider ./internal/provider/oauth ./internal/cli -run 'Test(OAuthExchangeAcceptsGitLabAliasAndStoresGitLabDuoConnection|CanonicalProviderIDNormalizesRuntimeAliases|ProviderAliasesIncludeLegacyIDs|CanonicalFlowProviderIDNormalizesAuthAliases|CanonicalProviderIDKeepsVertexRuntimeProvider|GitLabFlowStartBuildsPKCEAuthURL|GitLabFlowExchangePostsAuthorizationCode|GitLabFlowPollUnsupported|ConnectionFromOAuthTokenNormalizesGitLabToGitLabDuo|ProviderMatrixCoversRemediationParityTiers|ProviderMatrixMarksOAuthOnlyProvidersExplicitly|PublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|AuthListShowsSupportedProviders|OAuthFlowAcceptsCanonicalProviderAliases)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T02:00:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BQ-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after implementation commit"
+gate_results:
+  - "focused GitLab Duo provider/API/CLI/OAuth tests: RED before implementation, gitlab did not canonicalize to gitlab-duo, GitLab OAuth emitted provider gitlab, matrix omitted gitlab-duo, auth list showed gitlab, and /api/oauth/gitlab exchange did not have dedicated canonical persistence coverage"
+  - "focused GitLab Duo provider/API/CLI/OAuth tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BQ.1"
+    name: "Normalize GitLab OAuth identity to OMP GitLab Duo"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - api/handlers/oauth_test.go
+      - internal/provider/ids.go
+      - internal/provider/ids_test.go
+      - internal/provider/credentials_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/provider/oauth/types.go
+      - internal/provider/oauth/types_test.go
+      - internal/provider/oauth/gitlab.go
+      - internal/provider/oauth/gitlab_test.go
+      - internal/cli/auth.go
+      - internal/cli/auth_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BQ-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BQ aligns g0router's GitLab identity with OMP's canonical `gitlab-duo` provider before runtime work. Legacy `gitlab` auth/API aliases normalize to `gitlab-duo`, GitLab OAuth uses OMP-style bundled client defaults, scope `api`, and callback `http://localhost:8080/callback`, and persisted OAuth connections use runtime provider `gitlab-duo`. GitLab Duo remains `auth_only`; the direct-access token and GitLab AI Gateway runtime adapter are intentionally deferred.
+
+---
+
 ## STAGE 0 — Bootstrap
 
 ### Wave 0.A

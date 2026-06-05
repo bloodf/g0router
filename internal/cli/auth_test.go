@@ -63,7 +63,7 @@ func TestAuthListShowsSupportedProviders(t *testing.T) {
 	for _, provider := range providers {
 		providerSet[provider] = true
 	}
-	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "kagi", "minimax", "qwen", "openrouter", "tavily"} {
+	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "gitlab-duo", "kagi", "minimax", "qwen", "openrouter", "tavily"} {
 		if !providerSet[want] {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}
@@ -116,6 +116,8 @@ func TestOAuthFlowAcceptsCanonicalProviderAliases(t *testing.T) {
 		{provider: "codex", want: oauth.ProviderID("codex")},
 		{provider: "github", want: oauth.ProviderID("github-copilot")},
 		{provider: "github-copilot", want: oauth.ProviderID("github-copilot")},
+		{provider: "gitlab", want: oauth.ProviderID("gitlab-duo")},
+		{provider: "gitlab-duo", want: oauth.ProviderID("gitlab-duo")},
 	}
 
 	for _, tt := range tests {

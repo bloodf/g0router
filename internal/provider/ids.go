@@ -8,6 +8,8 @@ func CanonicalProviderID(provider string) string {
 		return "openai"
 	case "github":
 		return "github-copilot"
+	case "gitlab":
+		return "gitlab-duo"
 	default:
 		return normalizedProviderID(provider)
 	}
@@ -20,6 +22,8 @@ func ProviderAliases(provider string) []string {
 		return []string{"openai", "codex"}
 	case "github-copilot":
 		return []string{"github-copilot", "github"}
+	case "gitlab-duo":
+		return []string{"gitlab-duo", "gitlab"}
 	default:
 		return []string{canonical}
 	}

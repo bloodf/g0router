@@ -266,7 +266,9 @@ func oauthFlowFactories() map[string]func() oauth.Flow {
 		"github-copilot": func() oauth.Flow {
 			return oauth.NewGitHubCopilotFlow(oauth.GitHubCopilotFlowConfig{})
 		},
-		"gitlab":  func() oauth.Flow { return oauth.NewGitLabFlow(oauth.GitLabConfig{}) },
+		"gitlab-duo": func() oauth.Flow {
+			return oauth.NewGitLabFlow(oauth.GitLabConfig{})
+		},
 		"kimi":    func() oauth.Flow { return oauth.NewKimiFlow(oauth.KimiFlowConfig{}) },
 		"kiro":    func() oauth.Flow { return oauth.NewKiroFlow(oauth.KiroConfig{}) },
 		"minimax": func() oauth.Flow { return oauth.NewMiniMaxFlow() },

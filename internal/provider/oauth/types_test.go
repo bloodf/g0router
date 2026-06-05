@@ -60,6 +60,8 @@ func TestCanonicalFlowProviderIDNormalizesAuthAliases(t *testing.T) {
 		{provider: ProviderID("github"), want: ProviderID("github-copilot")},
 		{provider: ProviderID("github-copilot"), want: ProviderID("github-copilot")},
 		{provider: ProviderID("  GitHub  "), want: ProviderID("github-copilot")},
+		{provider: ProviderID("gitlab"), want: ProviderID("gitlab-duo")},
+		{provider: ProviderID("gitlab-duo"), want: ProviderID("gitlab-duo")},
 		{provider: ProviderID("vertex"), want: ProviderID("gemini")},
 		{provider: ProviderID("gemini"), want: ProviderID("gemini")},
 		{provider: ProviderID("minimax"), want: ProviderID("minimax")},
@@ -81,6 +83,8 @@ func TestCanonicalProviderIDKeepsVertexRuntimeProvider(t *testing.T) {
 		{provider: ProviderID("codex"), want: "openai"},
 		{provider: ProviderID("github"), want: "github-copilot"},
 		{provider: ProviderID("github-copilot"), want: "github-copilot"},
+		{provider: ProviderID("gitlab"), want: "gitlab-duo"},
+		{provider: ProviderID("gitlab-duo"), want: "gitlab-duo"},
 		{provider: ProviderID("vertex"), want: "vertex"},
 		{provider: ProviderID("gemini"), want: "gemini"},
 	}

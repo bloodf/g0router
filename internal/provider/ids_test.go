@@ -12,6 +12,8 @@ func TestCanonicalProviderIDNormalizesRuntimeAliases(t *testing.T) {
 		{provider: "github", want: "github-copilot"},
 		{provider: "github-copilot", want: "github-copilot"},
 		{provider: "  GitHub  ", want: "github-copilot"},
+		{provider: "gitlab", want: "gitlab-duo"},
+		{provider: "gitlab-duo", want: "gitlab-duo"},
 		{provider: "minimax", want: "minimax"},
 	}
 
@@ -31,6 +33,8 @@ func TestProviderAliasesIncludeLegacyIDs(t *testing.T) {
 		{provider: "codex", want: []string{"openai", "codex"}},
 		{provider: "github-copilot", want: []string{"github-copilot", "github"}},
 		{provider: "github", want: []string{"github-copilot", "github"}},
+		{provider: "gitlab-duo", want: []string{"gitlab-duo", "gitlab"}},
+		{provider: "gitlab", want: []string{"gitlab-duo", "gitlab"}},
 		{provider: "minimax", want: []string{"minimax"}},
 	}
 

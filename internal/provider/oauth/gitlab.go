@@ -7,11 +7,11 @@ import (
 )
 
 const (
-	gitlabProviderID  ProviderID = "gitlab"
-	gitlabClientID               = "gitlab"
+	gitlabProviderID  ProviderID = "gitlab-duo"
+	gitlabClientID               = "da4edff2e6ebd2bc3208611e2768bc1c1dd7be791dc5ff26ca34ca9ee44f7d4b"
 	gitlabAuthURL                = "https://gitlab.com/oauth/authorize"
 	gitlabTokenURL               = "https://gitlab.com/oauth/token"
-	gitlabRedirectURI            = "http://localhost:54545/oauth/callback"
+	gitlabRedirectURI            = "http://localhost:8080/callback"
 )
 
 // GitLabConfig configures the GitLab callback-based PKCE OAuth flow.
@@ -45,7 +45,7 @@ func NewGitLabFlow(config GitLabConfig) *GitLabFlow {
 	}
 	scopes := config.Scopes
 	if len(scopes) == 0 {
-		scopes = []string{"read_user", "api"}
+		scopes = []string{"api"}
 	}
 
 	return &GitLabFlow{
@@ -79,5 +79,5 @@ func (f *GitLabFlow) Refresh(ctx context.Context, refreshToken string) (TokenRes
 }
 
 func (f *GitLabFlow) Poll(ctx context.Context, session AuthSession) (PollResult, error) {
-	return PollResult{}, errors.New("gitlab oauth does not support poll")
+	return PollResult{}, errors.New("gitlab-duo oauth does not support poll")
 }

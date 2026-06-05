@@ -442,6 +442,44 @@ func TestOAuthExchangeAcceptsOpenAIAliasForCodexFlow(t *testing.T) {
 	}
 }
 
+func TestOAuthExchangeAcceptsGitLabAliasAndStoresGitLabDuoConnection(t *testing.T) {
+	flow := &fakeOAuthFlow{
+		provider: oauth.ProviderID("gitlab-duo"),
+		token: oauth.TokenResult{
+			Provider:     oauth.ProviderID("gitlab-duo"),
+			AccessToken:  "gitlab-access",
+			RefreshToken: "gitlab-refresh",
+			TokenType:    "bearer",
+		},
+	}
+	s := openHandlerTestStore(t)
+	if err := s.CreateOAuthSession(&store.OAuthSession{
+		State:        "gitlab-state",
+		Provider:     "gitlab-duo",
+		CodeVerifier: "verifier",
+		ExpiresAt:    time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("CreateOAuthSession: %v", err)
+	}
+	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/gitlab/exchange", []byte(`{"state":"gitlab-state","code":"manual-code"}`))
+
+	OAuthExchange(ctx, s, OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	connections, err := s.GetConnections("gitlab-duo")
+	if err != nil {
+		t.Fatalf("GetConnections gitlab-duo: %v", err)
+	}
+	if len(connections) != 1 {
+		t.Fatalf("gitlab-duo connections = %d, want 1", len(connections))
+	}
+	if connections[0].ProviderSpecificData["oauth_provider"] != "gitlab-duo" {
+		t.Fatalf("provider data = %+v, want oauth_provider gitlab-duo", connections[0].ProviderSpecificData)
+	}
+}
+
 func TestOAuthExchangeStoresVertexTokenAsVertexConnection(t *testing.T) {
 	flow := &fakeOAuthFlow{
 		provider: oauth.ProviderID("gemini"),

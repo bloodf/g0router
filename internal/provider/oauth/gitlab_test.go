@@ -15,8 +15,8 @@ func TestGitLabFlowStartBuildsPKCEAuthURL(t *testing.T) {
 		ClientID:    "gitlab-client",
 		AuthURL:     "https://gitlab.com/oauth/authorize",
 		TokenURL:    "https://gitlab.com/oauth/token",
-		RedirectURI: "http://localhost:54545/oauth/callback",
-		Scopes:      []string{"read_user", "api"},
+		RedirectURI: "http://localhost:8080/callback",
+		Scopes:      []string{"api"},
 	})
 
 	session, err := flow.Start(context.Background())
@@ -24,10 +24,10 @@ func TestGitLabFlowStartBuildsPKCEAuthURL(t *testing.T) {
 		t.Fatalf("start: %v", err)
 	}
 
-	if flow.ProviderID() != ProviderID("gitlab") {
+	if flow.ProviderID() != ProviderID("gitlab-duo") {
 		t.Errorf("provider id = %q", flow.ProviderID())
 	}
-	if session.Provider != ProviderID("gitlab") {
+	if session.Provider != ProviderID("gitlab-duo") {
 		t.Errorf("session provider = %q", session.Provider)
 	}
 
@@ -40,7 +40,7 @@ func TestGitLabFlowStartBuildsPKCEAuthURL(t *testing.T) {
 	if got := query.Get("client_id"); got != "gitlab-client" {
 		t.Errorf("client_id = %q", got)
 	}
-	if got := query.Get("scope"); got != "read_user api" {
+	if got := query.Get("scope"); got != "api" {
 		t.Errorf("scope = %q", got)
 	}
 	if got := query.Get("code_challenge_method"); got != "S256" {
@@ -70,8 +70,8 @@ func TestGitLabFlowExchangePostsAuthorizationCode(t *testing.T) {
 		ClientID:    "gitlab-client",
 		AuthURL:     "https://gitlab.com/oauth/authorize",
 		TokenURL:    server.URL,
-		RedirectURI: "http://localhost:54545/oauth/callback",
-		Scopes:      []string{"read_user", "api"},
+		RedirectURI: "http://localhost:8080/callback",
+		Scopes:      []string{"api"},
 		HTTPClient:  server.Client(),
 	})
 
@@ -93,7 +93,7 @@ func TestGitLabFlowExchangePostsAuthorizationCode(t *testing.T) {
 	if gotForm.Get("code_verifier") == "" {
 		t.Fatal("code_verifier is empty")
 	}
-	if token.Provider != ProviderID("gitlab") {
+	if token.Provider != ProviderID("gitlab-duo") {
 		t.Errorf("provider = %q", token.Provider)
 	}
 	if token.AccessToken != "gitlab-access" {
@@ -107,7 +107,7 @@ func TestGitLabFlowExchangePostsAuthorizationCode(t *testing.T) {
 func TestGitLabFlowPollUnsupported(t *testing.T) {
 	flow := NewGitLabFlow(GitLabConfig{})
 
-	_, err := flow.Poll(context.Background(), AuthSession{Provider: ProviderID("gitlab")})
+	_, err := flow.Poll(context.Background(), AuthSession{Provider: ProviderID("gitlab-duo")})
 	if err == nil {
 		t.Fatal("poll error is nil")
 	}

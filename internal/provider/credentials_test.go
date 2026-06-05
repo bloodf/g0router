@@ -37,6 +37,23 @@ func TestConnectionFromOAuthTokenNormalizesCodexToOpenAI(t *testing.T) {
 	}
 }
 
+func TestConnectionFromOAuthTokenNormalizesGitLabToGitLabDuo(t *testing.T) {
+	conn := ConnectionFromOAuthToken(oauth.TokenResult{
+		Provider:     oauth.ProviderID("gitlab"),
+		AccessToken:  "access",
+		RefreshToken: "refresh",
+		TokenType:    "bearer",
+		ExpiresAt:    time.Unix(1700000000, 0),
+	}, "work")
+
+	if conn.Provider != "gitlab-duo" {
+		t.Fatalf("provider = %q, want gitlab-duo", conn.Provider)
+	}
+	if conn.ProviderSpecificData["oauth_provider"] != "gitlab" {
+		t.Fatalf("provider data = %+v, want oauth_provider gitlab", conn.ProviderSpecificData)
+	}
+}
+
 func TestConnectionFromOAuthTokenStoresAPIKeyFlowsAsAPIKeys(t *testing.T) {
 	conn := ConnectionFromOAuthToken(oauth.TokenResult{
 		Provider:    oauth.ProviderID("minimax"),

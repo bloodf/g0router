@@ -27,6 +27,10 @@ func CanonicalProviderID(provider ProviderID) string {
 		return "github-copilot"
 	case "github-copilot":
 		return "github-copilot"
+	case "gitlab":
+		return "gitlab-duo"
+	case "gitlab-duo":
+		return "gitlab-duo"
 	default:
 		return string(CanonicalFlowProviderID(normalized))
 	}
@@ -39,6 +43,8 @@ func CanonicalFlowProviderID(provider ProviderID) ProviderID {
 		return "codex"
 	case "github":
 		return "github-copilot"
+	case "gitlab":
+		return "gitlab-duo"
 	case "vertex":
 		return "gemini"
 	default:

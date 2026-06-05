@@ -41,7 +41,7 @@ func TestProviderMatrixCoversRemediationParityTiers(t *testing.T) {
 		"ollama-cloud",
 		"kilo",
 		"opencode",
-		"gitlab",
+		"gitlab-duo",
 		"kiro",
 		"zhipu",
 		"xiaomi",
@@ -62,7 +62,7 @@ func TestProviderMatrixCoversRemediationParityTiers(t *testing.T) {
 
 func TestProviderMatrixMarksOAuthOnlyProvidersExplicitly(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"cursor", "gitlab", "kiro"} {
+	for _, id := range []string{"cursor", "gitlab-duo", "kiro"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -241,6 +241,9 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 	if ids["cursor"] {
 		t.Fatal("cursor is auth-only today and must not be advertised as an inference provider")
+	}
+	if ids["gitlab-duo"] {
+		t.Fatal("gitlab-duo is auth-only today and must not be advertised as an inference provider")
 	}
 }
 
