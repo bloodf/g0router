@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.BT"
-last_updated: "2026-06-05T03:15:00Z"
+last_updated: "2026-06-05T03:25:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2730,7 +2730,7 @@ max_agents: 1
 gate: "go test ./internal/providers/gitlabduo -run 'Test(MappedRequestUsesFixedAliasTable|ListModelsReturnsDuoAliasesDeterministically)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T03:15:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BT-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after implementation commit"
+evaluation: "PASS external evaluator subagent 019e954c-2b8c-7ae0-9b8c-f09409b6c50b at commit 278cf2a"
 gate_results:
   - "focused GitLab Duo alias table test: RED before implementation, mutating the package-level modelMappings map changed routing for duo-chat-gpt-5-1"
   - "focused GitLab Duo alias table test: PASS"
@@ -2742,6 +2742,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e954c-2b8c-7ae0-9b8c-f09409b6c50b: PASS, no blocking findings; noted modelAliases remains an unexported package var array but no mutable map or production mutator remains"
 
 tasks:
   - id: "8.BT.1"
