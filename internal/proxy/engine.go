@@ -581,6 +581,60 @@ func quotaExhausted(quota usage.Quota) bool {
 	return quota.Remaining <= 0
 }
 
+// RefreshOutcome reports the result of a proactive refresh attempt for a single
+// OAuth connection.
+type RefreshOutcome struct {
+	ConnectionID string
+	Provider     string
+	Name         string
+	Refreshed    bool
+	Failed       bool
+	Reason       string
+}
+
+// RefreshExpiringConnections lists all OAuth connections whose tokens fall
+// within the refresh window and, for each that has a registered refresher,
+// attempts a refresh via the existing refresh-before-dispatch path. Success
+// persists new tokens and clears needs_reauth; failure marks needs_reauth. It
+// returns one outcome per attempted connection so the caller can notify on new
+// failures. Connections that are healthy or lack a refresher are skipped.
+func (e *Engine) RefreshExpiringConnections(ctx context.Context, now time.Time) []RefreshOutcome {
+	conns, err := e.store.ListConnections()
+	if err != nil {
+		log.Printf("proactive refresh: list connections: %v", err)
+		return nil
+	}
+
+	var outcomes []RefreshOutcome
+	for _, conn := range conns {
+		if conn == nil || !conn.IsActive {
+			continue
+		}
+		if !e.connectionNeedsRefresh(conn) {
+			continue
+		}
+		runtimeProvider := providers.ModelProvider(conn.Provider)
+		oauthProvider := e.oauthProviderForConnection(runtimeProvider, conn)
+		if _, ok := e.refresherFor(oauthProvider); !ok {
+			continue
+		}
+
+		outcome := RefreshOutcome{
+			ConnectionID: conn.ID,
+			Provider:     conn.Provider,
+			Name:         conn.Name,
+		}
+		if _, err := e.refreshConnectionIfNeeded(ctx, runtimeProvider, conn); err != nil {
+			outcome.Failed = true
+			outcome.Reason = sanitizeRefreshReason(err)
+		} else {
+			outcome.Refreshed = true
+		}
+		outcomes = append(outcomes, outcome)
+	}
+	return outcomes
+}
+
 func (e *Engine) refreshConnectionIfNeeded(ctx context.Context, provider providers.ModelProvider, conn *store.Connection) (*store.Connection, error) {
 	if !e.connectionNeedsRefresh(conn) {
 		return conn, nil

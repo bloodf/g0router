@@ -180,6 +180,7 @@ func runServer(ctx context.Context, config serveConfig) error {
 
 	server := api.NewServer(newServerConfig(ctx, config, s))
 	server.StartLogRetention(ctx)
+	server.StartConnectionRefresh(ctx)
 
 	go func() {
 		<-ctx.Done()

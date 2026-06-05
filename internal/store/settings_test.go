@@ -39,6 +39,61 @@ func TestGetSettingsDefaults(t *testing.T) {
 	}
 }
 
+func TestGetSettingsNotifyDefaults(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if settings.NotifyWebhookURL != "" {
+		t.Errorf("NotifyWebhookURL = %q, want empty", settings.NotifyWebhookURL)
+	}
+	if !settings.NotifyOnReauth {
+		t.Error("NotifyOnReauth should default to true")
+	}
+}
+
+func TestUpdateSettingsNotifyRoundTrip(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.NotifyWebhookURL = "https://discord.com/api/webhooks/1/abc"
+	settings.NotifyOnReauth = false
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	got, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if got.NotifyWebhookURL != "https://discord.com/api/webhooks/1/abc" {
+		t.Errorf("NotifyWebhookURL = %q, want round-tripped", got.NotifyWebhookURL)
+	}
+	if got.NotifyOnReauth {
+		t.Error("NotifyOnReauth = true, want false after round-trip")
+	}
+}
+
+func TestUpdateSettingsRejectsNonHTTPWebhookURL(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	for _, bad := range []string{"ftp://example.com/hook", "notaurl", "://nohost"} {
+		settings.NotifyWebhookURL = bad
+		if err := s.UpdateSettings(settings); err == nil {
+			t.Errorf("UpdateSettings should reject notify_webhook_url %q", bad)
+		}
+	}
+}
+
 func TestUpdateSettingsLogRetentionRoundTrip(t *testing.T) {
 	s := openTestStore(t)
 

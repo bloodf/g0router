@@ -2,6 +2,7 @@ package store
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -16,6 +17,8 @@ type Settings struct {
 	DataDir           string   `json:"data_dir"`
 	LogRetentionDays  int      `json:"log_retention_days"`
 	AllowedSources    []string `json:"allowed_sources"`
+	NotifyWebhookURL  string   `json:"notify_webhook_url"`
+	NotifyOnReauth    bool     `json:"notify_on_reauth"`
 }
 
 // validSourceClasses enumerates the connection-source classes an operator may
@@ -66,6 +69,10 @@ func (s *Store) UpdateSettings(settings Settings) error {
 		}
 	}
 
+	if err := validateNotifyWebhookURL(settings.NotifyWebhookURL); err != nil {
+		return err
+	}
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin settings update: %w", err)
@@ -82,6 +89,8 @@ func (s *Store) UpdateSettings(settings Settings) error {
 		"data_dir":            settings.DataDir,
 		"log_retention_days":  strconv.Itoa(settings.LogRetentionDays),
 		"allowed_sources":     strings.Join(settings.AllowedSources, ","),
+		"notify_webhook_url":  settings.NotifyWebhookURL,
+		"notify_on_reauth":    boolString(settings.NotifyOnReauth),
 	}
 
 	for key, value := range values {
@@ -112,6 +121,8 @@ func defaultSettings() Settings {
 		DataDir:           "",
 		LogRetentionDays:  30,
 		AllowedSources:    defaultAllowedSources(),
+		NotifyWebhookURL:  "",
+		NotifyOnReauth:    true,
 	}
 }
 
@@ -137,7 +148,30 @@ func applySetting(settings *Settings, key, value string) {
 		}
 	case "allowed_sources":
 		settings.AllowedSources = parseAllowedSources(value)
+	case "notify_webhook_url":
+		settings.NotifyWebhookURL = value
+	case "notify_on_reauth":
+		settings.NotifyOnReauth = value == "true"
 	}
+}
+
+// validateNotifyWebhookURL ensures a non-empty webhook URL uses http or https.
+func validateNotifyWebhookURL(raw string) error {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return fmt.Errorf("update settings: invalid notify_webhook_url: %w", err)
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return fmt.Errorf("update settings: notify_webhook_url must be http or https, got %q", parsed.Scheme)
+	}
+	if parsed.Host == "" {
+		return fmt.Errorf("update settings: notify_webhook_url must include a host")
+	}
+	return nil
 }
 
 // parseAllowedSources splits the persisted comma-joined list. An empty or

@@ -19,6 +19,7 @@ import (
 	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/modelcatalog"
+	"github.com/bloodf/g0router/internal/notify"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/ratelimit"
@@ -50,6 +51,15 @@ type ServerConfig struct {
 // logRetentionInterval is how often the background cleanup job runs.
 const logRetentionInterval = time.Hour
 
+// connectionRefreshInterval is how often the proactive OAuth refresh job runs.
+const connectionRefreshInterval = time.Minute
+
+// ConnectionRefresher proactively refreshes OAuth connections whose tokens are
+// near expiry. It is satisfied by *proxy.Engine.
+type ConnectionRefresher interface {
+	RefreshExpiringConnections(ctx context.Context, now time.Time) []proxy.RefreshOutcome
+}
+
 type Server struct {
 	config ServerConfig
 	server *fasthttp.Server
@@ -66,6 +76,21 @@ type Server struct {
 	// inject a panicking pass and assert the loop survives; it defaults to
 	// runLogRetentionOnce.
 	runRetention func(time.Time)
+
+	connectionRefreshInterval time.Duration
+	// connRefresher performs proactive OAuth refreshes. Nil when no engine is
+	// available (the refresh job becomes a no-op).
+	connRefresher ConnectionRefresher
+	// notifierFor builds a Notifier from a webhook URL. A field so tests can
+	// inject a capturing notifier; defaults to notify.NewNotifier.
+	notifierFor func(url string) notify.Notifier
+	// runConnectionRefresh performs a single refresh pass. A field so tests can
+	// inject a panicking pass; defaults to runConnectionRefreshOnce.
+	runConnectionRefresh func(time.Time)
+	// notifiedStale tracks connection IDs already notified about for the current
+	// stale episode, so we notify once per episode rather than every tick.
+	notifiedMu    sync.Mutex
+	notifiedStale map[string]bool
 }
 
 // UpdateSettings writes settings to the store and invalidates the cache.
@@ -84,8 +109,21 @@ func (s *Server) UpdateSettings(settings store.Settings) error {
 
 func NewServer(config ServerConfig) *Server {
 	uiFS, err := g0router.UI()
-	srv := &Server{config: config, uiFS: uiFS, uiErr: err, limiter: ratelimit.NewLimiter(), logRetentionInterval: logRetentionInterval}
+	srv := &Server{
+		config:                    config,
+		uiFS:                      uiFS,
+		uiErr:                     err,
+		limiter:                   ratelimit.NewLimiter(),
+		logRetentionInterval:      logRetentionInterval,
+		connectionRefreshInterval: connectionRefreshInterval,
+		notifiedStale:             make(map[string]bool),
+	}
 	srv.runRetention = srv.runLogRetentionOnce
+	srv.runConnectionRefresh = srv.runConnectionRefreshOnce
+	srv.notifierFor = func(url string) notify.Notifier { return notify.NewNotifier(url, nil) }
+	if refresher, ok := config.InferenceEngine.(ConnectionRefresher); ok {
+		srv.connRefresher = refresher
+	}
 	srv.server = &fasthttp.Server{
 		Handler: srv.handle,
 	}
@@ -152,6 +190,100 @@ func (s *Server) runLogRetentionOnce(now time.Time) {
 	}
 	if deleted > 0 {
 		log.Printf("log retention: deleted %d request log(s) older than %s", deleted, cutoff.Format(time.RFC3339))
+	}
+}
+
+// StartConnectionRefresh launches the background proactive OAuth refresh job. It
+// runs once immediately, then on every connectionRefreshInterval tick, and stops
+// when ctx is cancelled. Safe to call once during server startup. It is a no-op
+// when no refresher is configured.
+func (s *Server) StartConnectionRefresh(ctx context.Context) {
+	if s.connRefresher == nil {
+		return
+	}
+	interval := s.connectionRefreshInterval
+	if interval <= 0 {
+		interval = connectionRefreshInterval
+	}
+	run := s.runConnectionRefresh
+	if run == nil {
+		run = s.runConnectionRefreshOnce
+	}
+	go func() {
+		s.runConnectionRefreshGuarded(run, time.Now().UTC())
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.runConnectionRefreshGuarded(run, time.Now().UTC())
+			}
+		}
+	}()
+}
+
+// runConnectionRefreshGuarded runs one refresh pass and recovers from any panic
+// so a single failed cycle cannot kill the background loop.
+func (s *Server) runConnectionRefreshGuarded(run func(time.Time), now time.Time) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("connection refresh panic recovered: %v", r)
+		}
+	}()
+	run(now)
+}
+
+// runConnectionRefreshOnce performs a single proactive refresh pass: it refreshes
+// expiring OAuth connections and, for each that newly went stale (failed to
+// refresh), sends a notification when NotifyOnReauth is enabled. Notifications
+// are throttled to once per stale episode and cleared when a connection
+// recovers.
+func (s *Server) runConnectionRefreshOnce(now time.Time) {
+	if s.connRefresher == nil {
+		return
+	}
+	outcomes := s.connRefresher.RefreshExpiringConnections(context.Background(), now)
+
+	settings := s.runtimeSettings()
+
+	s.notifiedMu.Lock()
+	defer s.notifiedMu.Unlock()
+
+	for _, outcome := range outcomes {
+		if outcome.Refreshed {
+			// Connection recovered: clear throttle so a future failure notifies.
+			delete(s.notifiedStale, outcome.ConnectionID)
+			continue
+		}
+		if !outcome.Failed {
+			continue
+		}
+		if s.notifiedStale[outcome.ConnectionID] {
+			// Already notified for this stale episode.
+			continue
+		}
+		s.notifiedStale[outcome.ConnectionID] = true
+		if !settings.NotifyOnReauth {
+			continue
+		}
+		s.notifyStale(settings.NotifyWebhookURL, outcome)
+	}
+}
+
+func (s *Server) notifyStale(webhookURL string, outcome proxy.RefreshOutcome) {
+	notifier := s.notifierFor(webhookURL)
+	if notifier == nil {
+		return
+	}
+	event := notify.Event{
+		Title:   "Connection needs re-authentication",
+		Message: fmt.Sprintf("%s connection %q failed to refresh: %s", outcome.Provider, outcome.Name, outcome.Reason),
+		Level:   "warning",
+	}
+	if err := notifier.Notify(context.Background(), event); err != nil {
+		log.Printf("stale connection notification failed for %s: %v", outcome.ConnectionID, err)
 	}
 }
 
