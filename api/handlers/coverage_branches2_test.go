@@ -120,11 +120,20 @@ func TestTranslateAnthropicMessagesRequestPerMessageError(t *testing.T) {
 	}
 }
 
-// rejectUnsupportedAnthropicMessageShape rejects a native tool_choice.
-func TestRejectUnsupportedAnthropicNativeToolChoice(t *testing.T) {
+// rejectUnsupportedAnthropicMessageShape now accepts native tool_choice; it is
+// translated rather than rejected.
+func TestRejectUnsupportedAnthropicNativeToolChoiceAccepted(t *testing.T) {
 	body := []byte(`{"tool_choice":{"type":"tool","name":"x"},"messages":[]}`)
-	if err := rejectUnsupportedAnthropicMessageShape(body); err == nil {
-		t.Fatal("native tool_choice should be rejected")
+	if err := rejectUnsupportedAnthropicMessageShape(body); err != nil {
+		t.Fatalf("native tool_choice should no longer be rejected at shape gate: %v", err)
+	}
+	req, err := translateAnthropicMessagesRequest(body)
+	if err != nil {
+		t.Fatalf("translate native tool_choice: %v", err)
+	}
+	m, ok := req.ToolChoice.(map[string]any)
+	if !ok || m["type"] != "function" {
+		t.Fatalf("tool_choice = %#v, want function object", req.ToolChoice)
 	}
 }
 

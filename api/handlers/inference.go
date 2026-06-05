@@ -3,6 +3,7 @@ package handlers
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -116,6 +117,10 @@ func Messages(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 
 	req, err := translateAnthropicMessagesRequest(ctx.PostBody())
 	if err != nil {
+		if errors.Is(err, errAnthropicTranslate) {
+			writeError(ctx, fasthttp.StatusNotImplemented, err.Error())
+			return
+		}
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 		return
 	}
@@ -527,9 +532,18 @@ func anthropicMessageResponse(resp *providers.ChatResponse) anthropicMessageBody
 // closely enough to translate its content blocks into the internal/OpenAI
 // ChatRequest shape while preserving tool-call identifiers.
 type anthropicRequestEnvelope struct {
-	Model    string                     `json:"model"`
-	Messages []anthropicInboundMessage  `json:"messages"`
-	Stream   *bool                      `json:"stream,omitempty"`
+	Model      string                    `json:"model"`
+	Messages   []anthropicInboundMessage `json:"messages"`
+	Stream     *bool                     `json:"stream,omitempty"`
+	Tools      []anthropicInboundTool    `json:"tools"`
+	ToolChoice json.RawMessage           `json:"tool_choice"`
+}
+
+type anthropicInboundTool struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	InputSchema json.RawMessage `json:"input_schema"`
+	Type        string          `json:"type"`
 }
 
 type anthropicInboundMessage struct {
@@ -573,7 +587,88 @@ func translateAnthropicMessagesRequest(body []byte) (*providers.ChatRequest, err
 		messages = append(messages, translated...)
 	}
 	req.Messages = messages
+
+	tools, err := translateAnthropicTools(envelope.Tools)
+	if err != nil {
+		return nil, err
+	}
+	req.Tools = tools
+
+	choice, err := translateAnthropicToolChoice(envelope.ToolChoice)
+	if err != nil {
+		return nil, err
+	}
+	req.ToolChoice = choice
+
 	return &req, nil
+}
+
+// errAnthropicTranslate marks an Anthropic feature that has no representable
+// OpenAI equivalent, so the handler can answer 501 rather than 400.
+var errAnthropicTranslate = errors.New("messages translation unsupported")
+
+// translateAnthropicTools converts inbound Anthropic tool definitions
+// ({name, description, input_schema}) into internal/OpenAI function tools
+// ({type:"function", function:{name, description, parameters: <input_schema>}}).
+// Server-side tools (identified by a non-empty type, e.g. web_search) have no
+// OpenAI function equivalent and are rejected specifically.
+func translateAnthropicTools(tools []anthropicInboundTool) ([]providers.Tool, error) {
+	if len(tools) == 0 {
+		return nil, nil
+	}
+	out := make([]providers.Tool, 0, len(tools))
+	for i, tool := range tools {
+		if tool.Type != "" && tool.Type != "custom" && tool.Type != "function" {
+			return nil, fmt.Errorf("%w: tool %d type %q has no OpenAI equivalent", errAnthropicTranslate, i, tool.Type)
+		}
+		out = append(out, providers.Tool{
+			Type: "function",
+			Function: providers.ToolFunction{
+				Name:        tool.Name,
+				Description: tool.Description,
+				Parameters:  tool.InputSchema,
+			},
+		})
+	}
+	return out, nil
+}
+
+// translateAnthropicToolChoice maps an Anthropic tool_choice to its OpenAI
+// equivalent: {type:auto}->"auto", {type:any}->"required",
+// {type:tool,name:X}->{type:"function",function:{name:X}}. Absent/null leaves
+// it unset. A bare string passes through. Unknown variants are rejected.
+func translateAnthropicToolChoice(raw json.RawMessage) (any, error) {
+	trimmed := bytesTrimSpace(raw)
+	if len(trimmed) == 0 || string(trimmed) == "null" {
+		return nil, nil
+	}
+	if trimmed[0] == '"' {
+		var s string
+		if err := json.Unmarshal(trimmed, &s); err != nil {
+			return nil, err
+		}
+		return s, nil
+	}
+	var choice struct {
+		Type string `json:"type"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(trimmed, &choice); err != nil {
+		return nil, err
+	}
+	switch choice.Type {
+	case "auto":
+		return "auto", nil
+	case "any":
+		return "required", nil
+	case "tool":
+		return map[string]any{
+			"type":     "function",
+			"function": map[string]any{"name": choice.Name},
+		}, nil
+	default:
+		return nil, fmt.Errorf("%w: tool_choice type %q has no OpenAI equivalent", errAnthropicTranslate, choice.Type)
+	}
 }
 
 func translateAnthropicInboundMessage(inbound anthropicInboundMessage) ([]providers.Message, error) {
@@ -668,24 +763,19 @@ func anthropicToolResultText(content json.RawMessage) string {
 	return string(trimmed)
 }
 
+// rejectUnsupportedAnthropicMessageShape rejects only content block types we
+// cannot represent. Native tool definitions and tool_choice are now translated
+// (see translateAnthropicTools / translateAnthropicToolChoice), so they are no
+// longer rejected here; genuinely-unsupported tool variants are reported during
+// translation instead.
 func rejectUnsupportedAnthropicMessageShape(body []byte) error {
 	var req struct {
-		Tools      []json.RawMessage `json:"tools"`
-		ToolChoice json.RawMessage   `json:"tool_choice"`
-		Messages   []struct {
+		Messages []struct {
 			Content json.RawMessage `json:"content"`
 		} `json:"messages"`
 	}
 	if err := json.Unmarshal(body, &req); err != nil {
 		return nil
-	}
-	for i, tool := range req.Tools {
-		if isAnthropicNativeTool(tool) {
-			return fmt.Errorf("messages native tool %d is not supported", i)
-		}
-	}
-	if len(req.ToolChoice) > 0 && string(req.ToolChoice) != "null" && isAnthropicNativeToolChoice(req.ToolChoice) {
-		return fmt.Errorf("messages native tool_choice is not supported")
 	}
 	for i, message := range req.Messages {
 		if err := rejectUnsupportedAnthropicContent(message.Content); err != nil {
@@ -693,32 +783,6 @@ func rejectUnsupportedAnthropicMessageShape(body []byte) error {
 		}
 	}
 	return nil
-}
-
-func isAnthropicNativeTool(raw json.RawMessage) bool {
-	var tool struct {
-		Name        string          `json:"name"`
-		InputSchema json.RawMessage `json:"input_schema"`
-		Function    json.RawMessage `json:"function"`
-	}
-	if err := json.Unmarshal(raw, &tool); err != nil {
-		return false
-	}
-	return len(tool.InputSchema) > 0 || (tool.Name != "" && len(tool.Function) == 0)
-}
-
-func isAnthropicNativeToolChoice(raw json.RawMessage) bool {
-	if len(bytesTrimSpace(raw)) == 0 || bytesTrimSpace(raw)[0] == '"' {
-		return false
-	}
-	var choice struct {
-		Type     string          `json:"type"`
-		Function json.RawMessage `json:"function"`
-	}
-	if err := json.Unmarshal(raw, &choice); err != nil {
-		return false
-	}
-	return choice.Type != "" && len(choice.Function) == 0
 }
 
 func rejectUnsupportedAnthropicContent(raw json.RawMessage) error {

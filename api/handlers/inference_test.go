@@ -627,33 +627,116 @@ func TestGetModels(t *testing.T) {
 	}
 }
 
-func TestMessagesRejectsAnthropicNativeTools(t *testing.T) {
+func TestMessagesTranslatesAnthropicNativeToolsAndToolChoice(t *testing.T) {
 	engine := &fakeEngine{response: chatResponse()}
 	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
 
-	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","tools":[{"name":"lookup","input_schema":{"type":"object"}}],"messages":[{"role":"user","content":"hello"}]}`, nil)
+	body := `{"model":"claude-sonnet-4",` +
+		`"tools":[{"name":"lookup","description":"look it up","input_schema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}],` +
+		`"tool_choice":{"type":"tool","name":"lookup"},` +
+		`"messages":[` +
+		`{"role":"user","content":"weather?"},` +
+		`{"role":"assistant","content":[{"type":"tool_use","id":"toolu_abc","name":"lookup","input":{"query":"docs"}}]},` +
+		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_abc","content":"sunny"}]}` +
+		`]}`
+
+	resp, respBody := postJSON(t, baseURL+"/v1/messages", body, nil)
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, respBody)
 	}
-	if engine.received != nil {
-		t.Fatalf("engine request = %+v, want no dispatch for unsupported native tools", engine.received)
+	req := engine.received
+	if req == nil {
+		t.Fatalf("engine received no dispatch; body=%s", respBody)
+	}
+	if len(req.Tools) != 1 {
+		t.Fatalf("tools len = %d, want 1: %+v", len(req.Tools), req.Tools)
+	}
+	tool := req.Tools[0]
+	if tool.Type != "function" {
+		t.Fatalf("tool type = %q, want function", tool.Type)
+	}
+	if tool.Function.Name != "lookup" || tool.Function.Description != "look it up" {
+		t.Fatalf("tool function = %+v", tool.Function)
+	}
+	wantSchema := `{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`
+	if string(tool.Function.Parameters) != wantSchema {
+		t.Fatalf("tool parameters = %s, want input_schema verbatim %s", tool.Function.Parameters, wantSchema)
+	}
+
+	choice, ok := req.ToolChoice.(map[string]any)
+	if !ok {
+		t.Fatalf("tool_choice = %#v, want object map", req.ToolChoice)
+	}
+	if choice["type"] != "function" {
+		t.Fatalf("tool_choice type = %v, want function", choice["type"])
+	}
+	fn, ok := choice["function"].(map[string]any)
+	if !ok || fn["name"] != "lookup" {
+		t.Fatalf("tool_choice function = %#v, want name lookup", choice["function"])
+	}
+
+	// tool ids preserved through the prior exchange
+	if len(req.Messages) != 3 {
+		t.Fatalf("messages len = %d, want 3: %+v", len(req.Messages), req.Messages)
+	}
+	assistant := req.Messages[1]
+	if len(assistant.ToolCalls) != 1 || assistant.ToolCalls[0].ID != "toolu_abc" {
+		t.Fatalf("assistant tool_calls = %+v", assistant.ToolCalls)
+	}
+	toolMsg := req.Messages[2]
+	if toolMsg.Role != "tool" || toolMsg.ToolCallID == nil || *toolMsg.ToolCallID != "toolu_abc" {
+		t.Fatalf("tool message = %+v (id=%v)", toolMsg, toolMsg.ToolCallID)
 	}
 }
 
-func TestMessagesRejectsAnthropicNativeToolChoice(t *testing.T) {
-	engine := &fakeEngine{response: chatResponse()}
-	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
-
-	resp, body := postJSON(t, baseURL+"/v1/messages", `{"model":"claude-sonnet-4","tool_choice":{"type":"tool","name":"lookup"},"messages":[{"role":"user","content":"hello"}]}`, nil)
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusNotImplemented {
-		t.Fatalf("status = %d, want 501; body=%s", resp.StatusCode, body)
+func TestMessagesTranslatesAnthropicToolChoiceVariants(t *testing.T) {
+	cases := []struct {
+		name   string
+		choice string
+		assert func(t *testing.T, tc any)
+	}{
+		{
+			name:   "auto maps to auto string",
+			choice: `{"type":"auto"}`,
+			assert: func(t *testing.T, tc any) {
+				if tc != "auto" {
+					t.Fatalf("tool_choice = %#v, want \"auto\"", tc)
+				}
+			},
+		},
+		{
+			name:   "any maps to required string",
+			choice: `{"type":"any"}`,
+			assert: func(t *testing.T, tc any) {
+				if tc != "required" {
+					t.Fatalf("tool_choice = %#v, want \"required\"", tc)
+				}
+			},
+		},
 	}
-	if engine.received != nil {
-		t.Fatalf("engine request = %+v, want no dispatch for unsupported native tool choice", engine.received)
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			engine := &fakeEngine{response: chatResponse()}
+			_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+			body := `{"model":"claude-sonnet-4","tool_choice":` + c.choice +
+				`,"tools":[{"name":"lookup","input_schema":{"type":"object"}}],` +
+				`"messages":[{"role":"user","content":"hello"}]}`
+			resp, respBody := postJSON(t, baseURL+"/v1/messages", body, nil)
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, respBody)
+			}
+			if engine.received == nil {
+				t.Fatalf("engine received no dispatch; body=%s", respBody)
+			}
+			c.assert(t, engine.received.ToolChoice)
+		})
 	}
 }
 

@@ -430,36 +430,61 @@ func TestAnthropicToolResultTextVariants(t *testing.T) {
 	}
 }
 
-func TestIsAnthropicNativeToolChoiceVariants(t *testing.T) {
-	if isAnthropicNativeToolChoice(json.RawMessage(`"auto"`)) {
-		t.Fatal("string tool_choice is OpenAI shape, not native")
+func TestTranslateAnthropicToolChoiceVariants(t *testing.T) {
+	if got, err := translateAnthropicToolChoice(json.RawMessage(``)); err != nil || got != nil {
+		t.Fatalf("empty = (%#v, %v), want (nil, nil)", got, err)
 	}
-	if isAnthropicNativeToolChoice(json.RawMessage(``)) {
-		t.Fatal("empty tool_choice should be false")
+	if got, err := translateAnthropicToolChoice(json.RawMessage(`null`)); err != nil || got != nil {
+		t.Fatalf("null = (%#v, %v), want (nil, nil)", got, err)
 	}
-	if !isAnthropicNativeToolChoice(json.RawMessage(`{"type":"tool","name":"x"}`)) {
-		t.Fatal("native typed tool_choice should be detected")
+	if got, err := translateAnthropicToolChoice(json.RawMessage(`"auto"`)); err != nil || got != "auto" {
+		t.Fatalf("bare string passthrough = (%#v, %v)", got, err)
 	}
-	if isAnthropicNativeToolChoice(json.RawMessage(`{"type":"function","function":{"name":"x"}}`)) {
-		t.Fatal("OpenAI function tool_choice should not be native")
+	if got, err := translateAnthropicToolChoice(json.RawMessage(`{"type":"auto"}`)); err != nil || got != "auto" {
+		t.Fatalf("auto = (%#v, %v), want auto", got, err)
 	}
-	if isAnthropicNativeToolChoice(json.RawMessage(`not-json`)) {
-		t.Fatal("invalid JSON should be false")
+	if got, err := translateAnthropicToolChoice(json.RawMessage(`{"type":"any"}`)); err != nil || got != "required" {
+		t.Fatalf("any = (%#v, %v), want required", got, err)
+	}
+	got, err := translateAnthropicToolChoice(json.RawMessage(`{"type":"tool","name":"x"}`))
+	if err != nil {
+		t.Fatalf("tool err = %v", err)
+	}
+	m, ok := got.(map[string]any)
+	if !ok || m["type"] != "function" {
+		t.Fatalf("tool = %#v, want function object", got)
+	}
+	if fn, ok := m["function"].(map[string]any); !ok || fn["name"] != "x" {
+		t.Fatalf("tool function = %#v, want name x", m["function"])
+	}
+	if _, err := translateAnthropicToolChoice(json.RawMessage(`{"type":"web_search"}`)); !errors.Is(err, errAnthropicTranslate) {
+		t.Fatalf("unknown variant err = %v, want errAnthropicTranslate", err)
 	}
 }
 
-func TestIsAnthropicNativeToolVariants(t *testing.T) {
-	if !isAnthropicNativeTool(json.RawMessage(`{"name":"x","input_schema":{}}`)) {
-		t.Fatal("tool with input_schema should be native")
+func TestTranslateAnthropicToolsVariants(t *testing.T) {
+	if got, err := translateAnthropicTools(nil); err != nil || got != nil {
+		t.Fatalf("nil = (%#v, %v), want (nil, nil)", got, err)
 	}
-	if !isAnthropicNativeTool(json.RawMessage(`{"name":"x"}`)) {
-		t.Fatal("bare named tool should be native")
+	tools, err := translateAnthropicTools([]anthropicInboundTool{{
+		Name:        "lookup",
+		Description: "desc",
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+	}})
+	if err != nil {
+		t.Fatalf("translate err: %v", err)
 	}
-	if isAnthropicNativeTool(json.RawMessage(`{"name":"x","function":{}}`)) {
-		t.Fatal("OpenAI-wrapped tool should not be native")
+	if len(tools) != 1 || tools[0].Type != "function" {
+		t.Fatalf("tools = %+v", tools)
 	}
-	if isAnthropicNativeTool(json.RawMessage(`not-json`)) {
-		t.Fatal("invalid JSON should be false")
+	if tools[0].Function.Name != "lookup" || tools[0].Function.Description != "desc" {
+		t.Fatalf("function = %+v", tools[0].Function)
+	}
+	if string(tools[0].Function.Parameters) != `{"type":"object"}` {
+		t.Fatalf("parameters = %s, want input_schema verbatim", tools[0].Function.Parameters)
+	}
+	if _, err := translateAnthropicTools([]anthropicInboundTool{{Type: "web_search_20250305", Name: "web"}}); !errors.Is(err, errAnthropicTranslate) {
+		t.Fatalf("server-side tool err = %v, want errAnthropicTranslate", err)
 	}
 }
 
