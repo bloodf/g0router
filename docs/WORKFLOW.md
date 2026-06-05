@@ -31,7 +31,7 @@
 project_status: PARITY_HARDENING
 current_stage: 8
 current_wave: "8.BU"
-last_updated: "2026-06-05T03:35:00Z"
+last_updated: "2026-06-05T03:45:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2769,7 +2769,7 @@ max_agents: 1
 gate: "go test ./internal/providers/replicate ./internal/proxy ./internal/provider ./api/handlers ./internal/cli -run 'Test(ChatCompletionCreatesAndPollsPrediction|ChatCompletionMapsStringPredictionOutput|ChatCompletionReportsFailedPrediction|ChatCompletionTimesOutPendingPrediction|ChatCompletionStreamUnsupported|ListModelsUnsupported|DispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|ReplicatePromotesToPredictionBackedInferenceProvider|ProvidersListShowsKnownProviders|ProvidersTestRequiresActiveConnectionForCredentialProvider|ProvidersListKnownProviders)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T03:35:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BU-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after implementation commit"
+evaluation: "PASS external evaluator subagent 019e955b-0964-75d1-93fd-caccb5e1ae78 at commit 763e2af"
 gate_results:
   - "focused Replicate runtime tests: RED before implementation, replicate provider package was missing, provider-qualified route returned provider not found, matrix/API/CLI still treated replicate as auth_only"
   - "focused Replicate runtime tests: PASS"
@@ -2781,6 +2781,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e955b-0964-75d1-93fd-caccb5e1ae78: PASS, no blocking findings; non-blocking note to add a dedicated default-engine registration test for Replicate later"
 
 tasks:
   - id: "8.BU.1"
