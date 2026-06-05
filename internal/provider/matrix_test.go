@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -74,6 +75,44 @@ func TestProviderMatrixMarksOAuthOnlyProvidersExplicitly(t *testing.T) {
 			t.Fatalf("%s marked public-inference capable despite auth-only status", id)
 		}
 	}
+}
+
+func TestProviderDocsExposeQuotaColumnMatchingMatrix(t *testing.T) {
+	content, err := os.ReadFile("../../docs/PROVIDERS.md")
+	if err != nil {
+		t.Fatalf("read docs/PROVIDERS.md: %v", err)
+	}
+	text := string(content)
+	header := "| g0router ID | OMP ID | 9Router ID | Bifrost ID | Status | Auth | Refresh | Adapter | Public inference | Streaming | Catalog | List models | Quota | Notes |"
+	if !strings.Contains(text, header) {
+		t.Fatalf("provider docs matrix header is missing explicit Quota column")
+	}
+
+	matrix := ProviderMatrix()
+	for _, entry := range matrix.Entries() {
+		want := "no"
+		if entry.Quota {
+			want = "yes"
+		}
+		rowPrefix := "| `" + entry.G0RouterID + "` |"
+		row := lineWithPrefix(text, rowPrefix)
+		if row == "" {
+			t.Fatalf("provider docs missing row for %s", entry.G0RouterID)
+		}
+		quotaCell := "| " + want + " |"
+		if !strings.Contains(row, quotaCell) {
+			t.Fatalf("provider docs row for %s = %q, want quota cell %q", entry.G0RouterID, row, quotaCell)
+		}
+	}
+}
+
+func lineWithPrefix(text, prefix string) string {
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, prefix) {
+			return line
+		}
+	}
+	return ""
 }
 
 func TestGitLabDuoPublicDynamicProvider(t *testing.T) {
