@@ -1,6 +1,7 @@
 package store
 
 import (
+	"reflect"
 	"testing"
 )
 
@@ -17,6 +18,7 @@ func TestGetSettingsAppliesAllKeys(t *testing.T) {
 		ProxyURL:          "http://proxy:8080",
 		DataDir:           "/tmp/data",
 		LogRetentionDays:  14,
+		AllowedSources:    []string{"local", "tailscale"},
 	}
 	if err := s.UpdateSettings(want); err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
@@ -26,7 +28,7 @@ func TestGetSettingsAppliesAllKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSettings: %v", err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings = %+v, want %+v", got, want)
 	}
 }
@@ -45,7 +47,7 @@ func TestApplySettingUnknownKeyIgnored(t *testing.T) {
 	s := defaultSettings()
 	before := s
 	applySetting(&s, "unknown_key", "some_value")
-	if s != before {
+	if !reflect.DeepEqual(s, before) {
 		t.Fatalf("unknown key mutated settings: %+v", s)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -846,17 +847,18 @@ func assertSettingsManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) 
 		EnableRequestLogs: true,
 		ProxyURL:          "http://127.0.0.1:9000",
 		DataDir:           "/tmp/g0router-integration",
+		AllowedSources:    []string{"local", "lan"},
 	}
 	var updated store.Settings
-	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/settings", rawAPIKey, `{"require_api_key":true,"rtk_enabled":false,"caveman_enabled":true,"caveman_level":"minimal","enable_request_logs":true,"proxy_url":"http://127.0.0.1:9000","data_dir":"/tmp/g0router-integration"}`, http.StatusOK, &updated)
-	if updated != want {
+	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/settings", rawAPIKey, `{"require_api_key":true,"rtk_enabled":false,"caveman_enabled":true,"caveman_level":"minimal","enable_request_logs":true,"proxy_url":"http://127.0.0.1:9000","data_dir":"/tmp/g0router-integration","allowed_sources":["local","lan"]}`, http.StatusOK, &updated)
+	if !reflect.DeepEqual(updated, want) {
 		t.Fatalf("updated settings = %+v, want %+v", updated, want)
 	}
 
 	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/settings", http.StatusOK)
 	var got store.Settings
 	decodeIntegrationJSON(t, body, &got)
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings round trip = %+v, want %+v", got, want)
 	}
 }

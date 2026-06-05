@@ -17,6 +17,11 @@ func postAPITestJSONWithHeaders(t *testing.T, url, body string, headers map[stri
 		t.Fatalf("new request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if _, ok := headers["X-API-Key"]; !ok {
+		if _, ok := headers["Authorization"]; !ok {
+			req.Header.Set("X-API-Key", testHarnessAPIKey)
+		}
+	}
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}

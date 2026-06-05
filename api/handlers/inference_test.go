@@ -574,7 +574,8 @@ func TestInferenceNoAuth(t *testing.T) {
 		InferenceEngine: engine,
 	})
 
-	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`, nil)
+	// Explicitly send no API key to exercise the keyless -> 401 proxy path.
+	resp, body := postJSON(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"hello"}]}`, map[string]string{"Authorization": ""})
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusUnauthorized {
@@ -592,7 +593,12 @@ func TestGetModels(t *testing.T) {
 	}}
 	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
 
-	resp, err := httpClient().Get(baseURL + "/v1/models")
+	modelsReq, err := http.NewRequest(http.MethodGet, baseURL+"/v1/models", nil)
+	if err != nil {
+		t.Fatalf("NewRequest /v1/models: %v", err)
+	}
+	modelsReq.Header.Set("Authorization", "Bearer g0r_valid")
+	resp, err := httpClient().Do(modelsReq)
 	if err != nil {
 		t.Fatalf("GET /v1/models: %v", err)
 	}
@@ -938,6 +944,7 @@ func postJSON(t *testing.T, url string, body string, headers map[string]string) 
 		t.Fatalf("NewRequest: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer g0r_valid")
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
@@ -957,6 +964,14 @@ func postJSON(t *testing.T, url string, body string, headers map[string]string) 
 
 func startInferenceServer(t *testing.T, config api.ServerConfig) (*api.Server, string) {
 	t.Helper()
+
+	// The proxy now always requires a valid API key. Inject a default validator
+	// so proxy tests authenticate with the shared test key (g0r_valid) unless
+	// they supply their own validator.
+	if config.APIKeyValidator == nil {
+		config.APIKeyValidator = fakeValidator{valid: true}
+		config.APIKeySecret = "test-secret"
+	}
 
 	srv := api.NewServer(config)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

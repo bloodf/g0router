@@ -141,7 +141,14 @@ func TestServerDoesNotServeUIForAPIRoutes(t *testing.T) {
 
 	tests := []string{"/api/missing", "/v1/missing"}
 	for _, path := range tests {
-		resp, err := httpClient().Get(baseURL + path)
+		req, err := http.NewRequest(http.MethodGet, baseURL+path, nil)
+		if err != nil {
+			t.Fatalf("NewRequest %s: %v", path, err)
+		}
+		// /v1/* always requires a key; send the harness key so routing (not auth)
+		// determines the status.
+		req.Header.Set("X-API-Key", testHarnessAPIKey)
+		resp, err := httpClient().Do(req)
 		if err != nil {
 			t.Fatalf("GET %s: %v", path, err)
 		}
@@ -358,8 +365,8 @@ func TestInferenceLoggingRecordsUsageAndCostWhenEnabled(t *testing.T) {
 	if entry.Provider != "openai" || entry.Model != "gpt-4o" {
 		t.Fatalf("provider/model = %s/%s, want openai/gpt-4o", entry.Provider, entry.Model)
 	}
-	if entry.AuthType != "noauth" {
-		t.Fatalf("auth type = %q, want noauth", entry.AuthType)
+	if entry.AuthType != "api_key" {
+		t.Fatalf("auth type = %q, want api_key (proxy always authenticates)", entry.AuthType)
 	}
 	if entry.InputTokens == nil || *entry.InputTokens != 1000 {
 		t.Fatalf("input tokens = %v, want 1000", entry.InputTokens)
@@ -1245,6 +1252,7 @@ func postAPITestJSON(t *testing.T, url string, body string) (*http.Response, []b
 		t.Fatalf("new request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-API-Key", testHarnessAPIKey)
 	resp, err := httpClient().Do(req)
 	if err != nil {
 		t.Fatalf("POST %s: %v", url, err)

@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestGetSettingsDefaults(t *testing.T) {
 	s := openTestStore(t)
@@ -93,6 +96,7 @@ func TestUpdateAndGetSettings(t *testing.T) {
 		EnableRequestLogs: true,
 		ProxyURL:          "http://proxy.local:8080",
 		DataDir:           "/tmp/g0router-data",
+		AllowedSources:    []string{"local", "lan"},
 	}
 
 	if err := s.UpdateSettings(want); err != nil {
@@ -104,7 +108,7 @@ func TestUpdateAndGetSettings(t *testing.T) {
 		t.Fatalf("GetSettings: %v", err)
 	}
 
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings = %+v, want %+v", got, want)
 	}
 }
@@ -120,6 +124,7 @@ func TestUpdateSettingsIdempotent(t *testing.T) {
 		EnableRequestLogs: false,
 		ProxyURL:          "",
 		DataDir:           "/tmp/g0router",
+		AllowedSources:    []string{"public"},
 	}
 
 	if err := s.UpdateSettings(settings); err != nil {
@@ -133,7 +138,54 @@ func TestUpdateSettingsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSettings: %v", err)
 	}
-	if got != settings {
+	if !reflect.DeepEqual(got, settings) {
 		t.Fatalf("settings = %+v, want %+v", got, settings)
+	}
+}
+
+func TestGetSettingsAllowedSourcesDefault(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	want := []string{"local", "lan", "tailscale", "public"}
+	if !reflect.DeepEqual(settings.AllowedSources, want) {
+		t.Fatalf("AllowedSources = %v, want %v", settings.AllowedSources, want)
+	}
+}
+
+func TestUpdateSettingsRejectsUnknownSource(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.AllowedSources = []string{"local", "bogus"}
+	if err := s.UpdateSettings(settings); err == nil {
+		t.Fatal("UpdateSettings should reject unknown allowed_sources token")
+	}
+}
+
+func TestUpdateSettingsEmptyAllowedSourcesDefaultsToAll(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.AllowedSources = nil
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+	got, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	want := []string{"local", "lan", "tailscale", "public"}
+	if !reflect.DeepEqual(got.AllowedSources, want) {
+		t.Fatalf("AllowedSources = %v, want default %v", got.AllowedSources, want)
 	}
 }

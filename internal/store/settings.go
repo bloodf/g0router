@@ -3,17 +3,33 @@ package store
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 type Settings struct {
-	RequireAPIKey     bool   `json:"require_api_key"`
-	RTKEnabled        bool   `json:"rtk_enabled"`
-	CavemanEnabled    bool   `json:"caveman_enabled"`
-	CavemanLevel      string `json:"caveman_level"`
-	EnableRequestLogs bool   `json:"enable_request_logs"`
-	ProxyURL          string `json:"proxy_url"`
-	DataDir           string `json:"data_dir"`
-	LogRetentionDays  int    `json:"log_retention_days"`
+	RequireAPIKey     bool     `json:"require_api_key"`
+	RTKEnabled        bool     `json:"rtk_enabled"`
+	CavemanEnabled    bool     `json:"caveman_enabled"`
+	CavemanLevel      string   `json:"caveman_level"`
+	EnableRequestLogs bool     `json:"enable_request_logs"`
+	ProxyURL          string   `json:"proxy_url"`
+	DataDir           string   `json:"data_dir"`
+	LogRetentionDays  int      `json:"log_retention_days"`
+	AllowedSources    []string `json:"allowed_sources"`
+}
+
+// validSourceClasses enumerates the connection-source classes an operator may
+// allow. "public" is a superset that permits every class.
+var validSourceClasses = map[string]bool{
+	"local":     true,
+	"lan":       true,
+	"tailscale": true,
+	"public":    true,
+}
+
+// defaultAllowedSources returns the open-by-default policy: all four classes.
+func defaultAllowedSources() []string {
+	return []string{"local", "lan", "tailscale", "public"}
 }
 
 func (s *Store) GetSettings() (Settings, error) {
@@ -44,6 +60,12 @@ func (s *Store) UpdateSettings(settings Settings) error {
 		return fmt.Errorf("update settings: log_retention_days must be >= 0, got %d", settings.LogRetentionDays)
 	}
 
+	for _, source := range settings.AllowedSources {
+		if !validSourceClasses[source] {
+			return fmt.Errorf("update settings: invalid allowed_sources token %q", source)
+		}
+	}
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin settings update: %w", err)
@@ -59,6 +81,7 @@ func (s *Store) UpdateSettings(settings Settings) error {
 		"proxy_url":           settings.ProxyURL,
 		"data_dir":            settings.DataDir,
 		"log_retention_days":  strconv.Itoa(settings.LogRetentionDays),
+		"allowed_sources":     strings.Join(settings.AllowedSources, ","),
 	}
 
 	for key, value := range values {
@@ -88,6 +111,7 @@ func defaultSettings() Settings {
 		ProxyURL:          "",
 		DataDir:           "",
 		LogRetentionDays:  30,
+		AllowedSources:    defaultAllowedSources(),
 	}
 }
 
@@ -111,7 +135,30 @@ func applySetting(settings *Settings, key, value string) {
 		if parsed, err := strconv.Atoi(value); err == nil {
 			settings.LogRetentionDays = parsed
 		}
+	case "allowed_sources":
+		settings.AllowedSources = parseAllowedSources(value)
 	}
+}
+
+// parseAllowedSources splits the persisted comma-joined list. An empty or
+// unset value defaults to all classes so an absent setting never locks anyone
+// out.
+func parseAllowedSources(value string) []string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return defaultAllowedSources()
+	}
+	parts := strings.Split(trimmed, ",")
+	sources := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if token := strings.TrimSpace(part); token != "" {
+			sources = append(sources, token)
+		}
+	}
+	if len(sources) == 0 {
+		return defaultAllowedSources()
+	}
+	return sources
 }
 
 func boolString(value bool) string {

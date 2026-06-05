@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -145,6 +146,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 		EnableRequestLogs: true,
 		ProxyURL:          "http://proxy",
 		DataDir:           "/data",
+		AllowedSources:    []string{"lan", "public"},
 	}
 	if err := s.UpdateSettings(want); err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
@@ -153,7 +155,7 @@ func TestSettingsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSettings: %v", err)
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("settings = %+v, want %+v", got, want)
 	}
 }

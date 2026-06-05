@@ -2,9 +2,13 @@ package api
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"regexp"
 	"testing"
+
+	"github.com/bloodf/g0router/internal/store"
+	"github.com/valyala/fasthttp"
 )
 
 type fakeAPIKeyValidator struct {
@@ -326,21 +330,60 @@ func TestAuthRequiredValidKey(t *testing.T) {
 	}
 }
 
-func TestAuthNotRequired(t *testing.T) {
+func TestProxyAlwaysRequiresAPIKey(t *testing.T) {
 	_, baseURL := startTestServer(t, ServerConfig{
 		Port:          0,
 		Version:       "test",
 		RequireAPIKey: false,
+		APIKeySecret:  "test-secret",
+		APIKeyValidator: fakeAPIKeyValidator{
+			validKeys: map[string]bool{"g0r_valid": true},
+		},
 	})
 
+	// Without a key the proxy is closed even though RequireAPIKey is false.
 	resp, err := httpClient().Get(baseURL + "/v1/chat/completions")
 	if err != nil {
 		t.Fatalf("GET /v1/chat/completions: %v", err)
 	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401 (proxy always requires a key)", resp.StatusCode)
+	}
+
+	// A valid key passes auth.
+	req, err := http.NewRequest(http.MethodGet, baseURL+"/v1/chat/completions", nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer g0r_valid")
+	keyed, err := httpClient().Do(req)
+	if err != nil {
+		t.Fatalf("GET /v1/chat/completions with key: %v", err)
+	}
+	keyed.Body.Close()
+	if keyed.StatusCode == http.StatusUnauthorized {
+		t.Fatal("valid API key should pass proxy auth")
+	}
+}
+
+func TestManagementOpenWhenRequireAPIKeyFalse(t *testing.T) {
+	store := newAPITestStore(t)
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:          0,
+		Version:       "test",
+		Store:         store,
+		RequireAPIKey: false,
+	})
+
+	resp, err := httpClient().Get(baseURL + "/api/connections")
+	if err != nil {
+		t.Fatalf("GET /api/connections: %v", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized {
-		t.Fatal("auth should not be required")
+		t.Fatal("management plane should be open when RequireAPIKey is false")
 	}
 }
 
@@ -367,8 +410,89 @@ func TestPublicRoutesBypassAuth(t *testing.T) {
 	}
 }
 
+func TestClassifySourceIP(t *testing.T) {
+	tests := []struct {
+		name string
+		ip   string
+		want string
+	}{
+		{"loopback v4", "127.0.0.1", "local"},
+		{"loopback v6", "::1", "local"},
+		{"private 10", "10.1.2.3", "lan"},
+		{"private 192.168", "192.168.1.5", "lan"},
+		{"private 172.16", "172.16.4.4", "lan"},
+		{"link-local v4", "169.254.1.1", "lan"},
+		{"ula v6 fc00", "fc00::1", "lan"},
+		{"link-local v6 fe80", "fe80::1", "lan"},
+		{"tailscale low", "100.64.0.1", "tailscale"},
+		{"tailscale high", "100.127.255.254", "tailscale"},
+		{"public v4", "8.8.8.8", "public"},
+		{"public v6", "2606:4700:4700::1111", "public"},
+		{"public 100.128 above cgnat", "100.128.0.1", "public"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ip := net.ParseIP(tc.ip)
+			if ip == nil {
+				t.Fatalf("ParseIP(%q) = nil", tc.ip)
+			}
+			if got := classifySourceIP(ip); got != tc.want {
+				t.Fatalf("classifySourceIP(%s) = %q, want %q", tc.ip, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSourceAllowedPolicy(t *testing.T) {
+	tests := []struct {
+		name    string
+		allowed []string
+		remote  string
+		path    string
+		want    bool
+	}{
+		{"public blocked when only local", []string{"local"}, "8.8.8.8:1234", "/v1/chat/completions", false},
+		{"public allowed when public present", []string{"local", "public"}, "8.8.8.8:1234", "/v1/chat/completions", true},
+		{"loopback allowed when local present", []string{"local"}, "127.0.0.1:1234", "/v1/chat/completions", true},
+		{"tailscale allowed only when tailscale present", []string{"tailscale"}, "100.64.0.1:1234", "/v1/chat/completions", true},
+		{"tailscale blocked without tailscale", []string{"local"}, "100.64.0.1:1234", "/v1/chat/completions", false},
+		{"api path enforced", []string{"local"}, "8.8.8.8:1234", "/api/settings", false},
+		{"healthz bypasses policy", []string{"local"}, "8.8.8.8:1234", "/healthz", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := &Server{settingsCache: &store.Settings{AllowedSources: tc.allowed}}
+			ctx := &fasthttp.RequestCtx{}
+			ctx.Request.SetRequestURI(tc.path)
+			addr, err := net.ResolveTCPAddr("tcp", tc.remote)
+			if err != nil {
+				t.Fatalf("ResolveTCPAddr(%q): %v", tc.remote, err)
+			}
+			ctx.SetRemoteAddr(addr)
+			if got := srv.sourceAllowed(ctx); got != tc.want {
+				t.Fatalf("sourceAllowed(remote=%s path=%s) = %v, want %v", tc.remote, tc.path, got, tc.want)
+			}
+		})
+	}
+}
+
+// testHarnessAPIKey is accepted by the default validator injected into test
+// servers that do not provide their own. The shared POST helpers send it so the
+// always-on /v1 proxy auth passes without each test wiring its own validator.
+const testHarnessAPIKey = "g0r_test"
+
 func startTestServer(t *testing.T, config ServerConfig) (*Server, string) {
 	t.Helper()
+
+	// The inference proxy now always requires a valid API key. Tests that do not
+	// exercise auth directly leave the validator unset; give them one that
+	// accepts testHarnessAPIKey so /v1 requests can pass auth.
+	if config.APIKeyValidator == nil {
+		config.APIKeyValidator = fakeAPIKeyValidator{validKeys: map[string]bool{testHarnessAPIKey: true}}
+		if config.APIKeySecret == "" {
+			config.APIKeySecret = "test-secret"
+		}
+	}
 
 	srv := NewServer(config)
 	ln := apiTestListener(t)

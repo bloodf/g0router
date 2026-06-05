@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/rand"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
@@ -40,6 +41,11 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 
 	if string(ctx.Method()) == fasthttp.MethodOptions {
 		ctx.SetStatusCode(fasthttp.StatusNoContent)
+		return false
+	}
+
+	if !s.sourceAllowed(ctx) {
+		ctx.SetStatusCode(fasthttp.StatusForbidden)
 		return false
 	}
 
@@ -86,14 +92,21 @@ func isAllowedLocalOrigin(origin string) bool {
 }
 
 func (s *Server) requiresAuth(ctx *fasthttp.RequestCtx) bool {
-	if !s.config.RequireAPIKey {
-		return false
-	}
 	requestPath := strings.TrimRight(string(ctx.Path()), "/")
 	if requestPath == "" {
 		requestPath = "/"
 	}
-	return strings.HasPrefix(requestPath, "/v1/") || isProtectedManagementPath(requestPath)
+	// The inference proxy is always protected: a valid API key is mandatory for
+	// every /v1/* request regardless of RequireAPIKey. With no keys minted,
+	// validAPIKey returns false and the proxy answers 401.
+	if strings.HasPrefix(requestPath, "/v1/") {
+		return true
+	}
+	// The management plane stays gated by the RequireAPIKey toggle.
+	if !s.config.RequireAPIKey {
+		return false
+	}
+	return isProtectedManagementPath(requestPath)
 }
 
 func isProtectedManagementPath(requestPath string) bool {
@@ -102,6 +115,57 @@ func isProtectedManagementPath(requestPath string) bool {
 	}
 	return requestPath == "/api" || strings.HasPrefix(requestPath, "/api/")
 }
+
+// sourceAllowed enforces the connection-source policy for /v1/* and /api/*
+// requests. /healthz and any other path bypass the check so health and
+// orchestrator probes always work. The client IP is taken from the transport
+// (ctx.RemoteIP), never from X-Forwarded-For.
+func (s *Server) sourceAllowed(ctx *fasthttp.RequestCtx) bool {
+	requestPath := strings.TrimRight(string(ctx.Path()), "/")
+	if requestPath == "" {
+		requestPath = "/"
+	}
+	if !strings.HasPrefix(requestPath, "/v1/") && requestPath != "/api" && !strings.HasPrefix(requestPath, "/api/") {
+		return true
+	}
+
+	allowed := s.runtimeSettings().AllowedSources
+	if len(allowed) == 0 {
+		return true
+	}
+
+	class := classifySourceIP(ctx.RemoteIP())
+	for _, source := range allowed {
+		// "public" is a superset that permits every class.
+		if source == "public" || source == class {
+			return true
+		}
+	}
+	return false
+}
+
+// classifySourceIP maps a client IP to a connection-source class: "local"
+// (loopback), "tailscale" (CGNAT 100.64.0.0/10), "lan" (private/link-local), or
+// "public" (everything else).
+func classifySourceIP(ip net.IP) string {
+	if ip == nil {
+		return "public"
+	}
+	if ip.IsLoopback() {
+		return "local"
+	}
+	if tailscaleCGNAT.Contains(ip) {
+		return "tailscale"
+	}
+	if ip.IsPrivate() || ip.IsLinkLocalUnicast() {
+		return "lan"
+	}
+	return "public"
+}
+
+// tailscaleCGNAT is the 100.64.0.0/10 Carrier-Grade NAT range Tailscale assigns
+// to nodes.
+var _, tailscaleCGNAT, _ = net.ParseCIDR("100.64.0.0/10")
 
 func (s *Server) validAPIKey(ctx *fasthttp.RequestCtx) (bool, error) {
 	if s.config.APIKeyValidator == nil {

@@ -534,7 +534,14 @@ func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
 	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s)
 	_, baseURL := startCLITestServer(t, cfg)
 
-	resp, body := getCLITest(t, baseURL+"/v1/models")
+	// The proxy always requires a valid API key; mint one and send it.
+	_, proxyKey, err := s.CreateAPIKey("gateway-test", "")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	authHeader := map[string]string{"Authorization": "Bearer " + proxyKey}
+
+	resp, body := getCLITestWithHeaders(t, baseURL+"/v1/models", authHeader)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET /v1/models status = %d, want 200; body=%s", resp.StatusCode, body)
@@ -543,7 +550,7 @@ func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
 		t.Fatalf("/v1/models returned unavailable body: %s", body)
 	}
 
-	resp, body = postCLITest(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}`)
+	resp, body = postCLITestWithHeaders(t, baseURL+"/v1/chat/completions", `{"model":"gpt-4o","messages":[{"role":"user","content":"ping"}]}`, authHeader)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusServiceUnavailable {
 		t.Fatalf("POST /v1/chat/completions status = %d, want 503; body=%s", resp.StatusCode, body)
@@ -884,6 +891,41 @@ func postCLITest(t *testing.T, url string, body string) (*http.Response, []byte)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	resp, err := cliHTTPClient().Do(req)
+	if err != nil {
+		t.Fatalf("POST %s: %v", url, err)
+	}
+	return resp, readCLIResponseBody(t, resp)
+}
+
+func getCLITestWithHeaders(t *testing.T, url string, headers map[string]string) (*http.Response, []byte) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	resp, err := cliHTTPClient().Do(req)
+	if err != nil {
+		t.Fatalf("GET %s: %v", url, err)
+	}
+	return resp, readCLIResponseBody(t, resp)
+}
+
+func postCLITestWithHeaders(t *testing.T, url string, body string, headers map[string]string) (*http.Response, []byte) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("NewRequest: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 	resp, err := cliHTTPClient().Do(req)
 	if err != nil {
 		t.Fatalf("POST %s: %v", url, err)

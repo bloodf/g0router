@@ -14,12 +14,8 @@ import (
 // /v1/messages GET, /v1/responses GET, /v1/models POST — all return 404.
 
 func TestHandleMethodNotAllowedV1(t *testing.T) {
-	srv := NewServer(ServerConfig{Port: 0, Version: "test"})
-	ln := apiTestListener(t)
-	go func() { _ = srv.Serve(ln) }()
-	t.Cleanup(func() { _ = srv.Stop() })
+	_, base := startTestServer(t, ServerConfig{Port: 0, Version: "test"})
 
-	base := "http://" + localhostAddr(t, ln)
 	cases := []struct {
 		method, path string
 	}{
@@ -30,6 +26,7 @@ func TestHandleMethodNotAllowedV1(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.method+" "+c.path, func(t *testing.T) {
 			req, _ := http.NewRequest(c.method, base+c.path, nil)
+			req.Header.Set("X-API-Key", testHarnessAPIKey)
 			resp, err := httpClient().Do(req)
 			if err != nil {
 				t.Fatalf("%s %s: %v", c.method, c.path, err)
