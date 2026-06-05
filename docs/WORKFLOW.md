@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BT"
-last_updated: "2026-06-05T03:25:00Z"
+current_wave: "8.BU"
+last_updated: "2026-06-05T03:35:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2757,6 +2757,52 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BT resolves the Wave 8.BS evaluator's non-blocking mutable-map finding. GitLab Duo model aliases are held in a fixed alias table, routing scans that table instead of reading from a mutable map, model listing still returns deterministic aliases, and direct-access runtime behavior remains unchanged.
+
+---
+
+### Wave 8.BU — Replicate Prediction Runtime
+
+```yaml
+wave: "8.BU"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/replicate ./internal/proxy ./internal/provider ./api/handlers ./internal/cli -run 'Test(ChatCompletionCreatesAndPollsPrediction|ChatCompletionMapsStringPredictionOutput|ChatCompletionReportsFailedPrediction|ChatCompletionTimesOutPendingPrediction|ChatCompletionStreamUnsupported|ListModelsUnsupported|DispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders|ReplicatePromotesToPredictionBackedInferenceProvider|ProvidersListShowsKnownProviders|ProvidersTestRequiresActiveConnectionForCredentialProvider|ProvidersListKnownProviders)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T03:35:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BU-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after implementation commit"
+gate_results:
+  - "focused Replicate runtime tests: RED before implementation, replicate provider package was missing, provider-qualified route returned provider not found, matrix/API/CLI still treated replicate as auth_only"
+  - "focused Replicate runtime tests: PASS"
+  - "go test ./... -count=1: PASS after updating stale root/provider public-list negative tests"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BU.1"
+    name: "Promote Replicate to non-streaming prediction-backed provider-qualified dispatch"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - api/handlers/providers_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/providers/replicate/replicate.go
+      - internal/providers/replicate/replicate_test.go
+      - internal/proxy/engine.go
+      - internal/proxy/engine_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BU-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BU replaces Replicate credential-only status with a real prediction-backed runtime. Provider-qualified models such as `replicate/owner/model` create Replicate predictions, poll to terminal status, and map string outputs into OpenAI-compatible chat responses. Streaming, model listing, static catalog, and quota fetchers remain intentionally unsupported rather than fabricated.
 
 ---
 

@@ -88,16 +88,13 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if byID["anthropic"].Quota {
 		t.Fatalf("anthropic provider = %+v, should not claim quota support until a real fetcher exists", byID["anthropic"])
 	}
-	for _, id := range []string{"alibaba", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "gitlab-duo", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "ollama-cloud", "opencode", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "zhipu"} {
+	for _, id := range []string{"alibaba", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "gitlab-duo", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "ollama-cloud", "opencode", "openrouter", "perplexity", "qianfan", "qwen", "replicate", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "zhipu"} {
 		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
 			t.Fatalf("%s provider = %+v, want supported inference provider", id, byID[id])
 		}
 		if byID[id].Quota {
 			t.Fatalf("%s provider = %+v, should not claim quota support", id, byID[id])
 		}
-	}
-	if byID["replicate"].PublicStatus != "auth_only" || byID["replicate"].RegisteredAdapter || byID["replicate"].Inference || byID["replicate"].PublicInference || byID["replicate"].DirectDispatch {
-		t.Fatalf("replicate provider = %+v, want API-key auth-only provider until prediction runtime is implemented", byID["replicate"])
 	}
 	for _, id := range []string{"kagi", "tavily"} {
 		if byID[id].PublicStatus != "auth_only" || byID[id].RegisteredAdapter || byID[id].Inference || byID[id].PublicInference || byID[id].DirectDispatch {

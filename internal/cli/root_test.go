@@ -391,7 +391,7 @@ func TestProvidersListShowsSupportedInferenceProvidersOnly(t *testing.T) {
 			t.Fatalf("output = %q, want supported provider %q", output, want)
 		}
 	}
-	for _, unsupported := range []string{"cursor", "replicate"} {
+	for _, unsupported := range []string{"cursor"} {
 		if strings.Contains(output, unsupported+"\n") {
 			t.Fatalf("output = %q, should not advertise %q as inference provider", output, unsupported)
 		}

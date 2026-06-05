@@ -57,7 +57,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		catalogRoutableProvider("ollama", "", false, true, true, false, "noauth"),
 		catalogRoutableProvider("openrouter", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("perplexity", "", false, true, true, false, "api_key"),
-		apiKeyAuthOnlyProvider("replicate", "Replicate API-key credential capture is supported, but no g0router prediction-backed Replicate runtime or OpenAI-compatible inference adapter is implemented."),
+		replicateProvider(),
 		catalogRoutableProvider("together", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("vertex", "gemini", true, true, true, false, "oauth"),
 		authOnlyProvider("antigravity", "antigravity", true, "Google OAuth credential flow; runtime dispatch is through Gemini/Vertex adapters."),
@@ -217,6 +217,12 @@ func ollamaCloudProvider() ProviderMatrixEntry {
 func gitLabDuoProvider() ProviderMatrixEntry {
 	entry := dynamicRoutableProvider("gitlab-duo", "gitlab-duo", true, true, true, false, "oauth")
 	entry.Notes = "Public direct dispatch works through provider-qualified GitLab Duo model IDs after exchanging the GitLab OAuth token for a Duo direct-access token; Duo alias model listing is supported, with no static priced catalog or quota fetcher."
+	return entry
+}
+
+func replicateProvider() ProviderMatrixEntry {
+	entry := dynamicRoutableProvider("replicate", "", false, false, false, false, "api_key")
+	entry.Notes = "Public non-streaming direct dispatch works through provider-qualified Replicate prediction model IDs; streaming, model listing, static catalog, and quota fetcher are not implemented."
 	return entry
 }
 

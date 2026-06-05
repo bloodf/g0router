@@ -119,7 +119,7 @@ func TestProviderMatrixMarksSearchCredentialsAuthOnly(t *testing.T) {
 
 func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "gitlab-duo", "kilo", "kimi", "litellm", "lm-studio", "ollama-cloud", "opencode", "qianfan", "vllm", "xiaomi", "zhipu"} {
+	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "gitlab-duo", "kilo", "kimi", "litellm", "lm-studio", "ollama-cloud", "opencode", "qianfan", "replicate", "vllm", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -234,6 +234,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"perplexity":            true,
 		"qianfan":               true,
 		"qwen":                  true,
+		"replicate":             true,
 		"together":              true,
 		"vercel-ai-gateway":     true,
 		"vertex":                true,
@@ -337,10 +338,13 @@ func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalo
 		if entry.PublicStatus != ProviderStatusSupported {
 			t.Fatalf("%s status = %q, want supported", id, entry.PublicStatus)
 		}
-		if !entry.RegisteredAdapter || !entry.Inference || !entry.Streaming {
-			t.Fatalf("%s should expose the OpenAI-compatible adapter surface: %+v", id, entry)
+		if !entry.RegisteredAdapter || !entry.Inference {
+			t.Fatalf("%s should expose a registered inference adapter surface: %+v", id, entry)
 		}
-		if id != "cloudflare-ai-gateway" && id != "kilo" && id != "opencode" && !entry.ListModels {
+		if id != "replicate" && !entry.Streaming {
+			t.Fatalf("%s should expose streaming: %+v", id, entry)
+		}
+		if id != "cloudflare-ai-gateway" && id != "kilo" && id != "opencode" && id != "replicate" && !entry.ListModels {
 			t.Fatalf("%s should expose upstream list models/deployments: %+v", id, entry)
 		}
 		if !entry.PublicInference || !entry.DirectDispatch {
@@ -352,19 +356,22 @@ func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalo
 	}
 }
 
-func TestReplicateRemainsAuthOnlyUntilPredictionRuntimeIsImplemented(t *testing.T) {
+func TestReplicatePromotesToPredictionBackedInferenceProvider(t *testing.T) {
 	entry, ok := ProviderMatrix().Provider("replicate")
 	if !ok {
 		t.Fatal("provider matrix missing replicate")
 	}
-	if entry.PublicStatus != ProviderStatusAuthOnly {
-		t.Fatalf("replicate status = %q, want auth_only", entry.PublicStatus)
+	if entry.PublicStatus != ProviderStatusSupported {
+		t.Fatalf("replicate status = %q, want supported", entry.PublicStatus)
 	}
 	if len(entry.AuthTypes) != 1 || entry.AuthTypes[0] != "api_key" {
 		t.Fatalf("replicate auth types = %+v, want api_key only", entry.AuthTypes)
 	}
-	if entry.RegisteredAdapter || entry.Inference || entry.Streaming || entry.ListModels || entry.PublicInference || entry.DirectDispatch || entry.ModelCatalog || entry.Quota {
-		t.Fatalf("replicate should not claim adapter or runtime support until prediction runtime is implemented: %+v", entry)
+	if !entry.RegisteredAdapter || !entry.Inference || !entry.PublicInference || !entry.DirectDispatch {
+		t.Fatalf("replicate should claim prediction-backed provider-qualified runtime support: %+v", entry)
+	}
+	if entry.Streaming || entry.ListModels || entry.ModelCatalog || entry.Quota {
+		t.Fatalf("replicate should not claim streaming, listing, catalog, or quota: %+v", entry)
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/ollamacloud"
 	"github.com/bloodf/g0router/internal/providers/openai"
 	"github.com/bloodf/g0router/internal/providers/openaicompat"
+	"github.com/bloodf/g0router/internal/providers/replicate"
 	"github.com/bloodf/g0router/internal/providers/vertex"
 	"github.com/bloodf/g0router/internal/providers/xiaomi"
 	"github.com/bloodf/g0router/internal/proxy"
@@ -47,6 +48,7 @@ func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
 	registerProvider(engine, func() (providers.Provider, error) {
 		return ollamacloud.NewDefault()
 	})
+	engine.Register(replicate.NewDefault())
 	engine.Register(gitlabduo.New(gitlabduo.Config{}))
 	engine.Register(xiaomi.NewDefault())
 	return engine

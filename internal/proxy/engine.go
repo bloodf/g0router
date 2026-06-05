@@ -584,6 +584,7 @@ func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
 		providers.ProviderOllamaCloud,
 		providers.ProviderOpenCode,
 		providers.ProviderQianfan,
+		providers.ProviderReplicate,
 		providers.ProviderVLLM,
 		providers.ProviderXiaomi,
 		providers.ProviderZhipu:

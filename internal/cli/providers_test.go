@@ -21,12 +21,12 @@ func TestProvidersListShowsKnownProviders(t *testing.T) {
 	}
 
 	output := out.String()
-	for _, want := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "gitlab-duo", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "ollama-cloud", "opencode", "openai", "openrouter", "perplexity", "qianfan", "qwen", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "xiaomi", "zhipu"} {
+	for _, want := range []string{"alibaba", "anthropic", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "gitlab-duo", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "ollama-cloud", "opencode", "openai", "openrouter", "perplexity", "qianfan", "qwen", "replicate", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "xiaomi", "zhipu"} {
 		if !strings.Contains(output, want+"\n") {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}
 	}
-	for _, wantAbsent := range []string{"cursor", "replicate"} {
+	for _, wantAbsent := range []string{"cursor"} {
 		if strings.Contains(output, wantAbsent+"\n") {
 			t.Fatalf("output = %q, should not list non-public provider %q", output, wantAbsent)
 		}
@@ -97,7 +97,7 @@ func TestProvidersTestCanonicalizesCodexToOpenAI(t *testing.T) {
 }
 
 func TestProvidersTestReportsAuthOnlyProvider(t *testing.T) {
-	for _, provider := range []string{"cursor", "replicate"} {
+	for _, provider := range []string{"cursor"} {
 		t.Run(provider, func(t *testing.T) {
 			cmd := NewRootCommand("test")
 			cmd.SetOut(&bytes.Buffer{})
