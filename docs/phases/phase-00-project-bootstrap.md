@@ -80,7 +80,7 @@ func main() {
     }
 
     fmt.Fprintf(os.Stderr, "g0router %s\n", version)
-    fmt.Fprintln(os.Stderr, "Use 'g0router serve' to start the server (not yet implemented)")
+    fmt.Fprintln(os.Stderr, "Use 'g0router serve' to start the server")
     os.Exit(1)
 }
 ```

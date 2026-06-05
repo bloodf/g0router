@@ -28,10 +28,11 @@
 ## Current State
 
 ```yaml
-project_status: PARITY_HARDENING
+project_status: COMPLETE
 current_stage: 8
-current_wave: "8.CF"
-last_updated: "2026-06-05T04:11:23Z"
+current_wave: "COMPLETE"
+last_completed_wave: "8.CG"
+last_updated: "2026-06-05T04:18:07Z"
 last_agent: "orchestrator"
 ```
 
@@ -3276,6 +3277,39 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.CF closes the remaining small audit gaps around raw quota JSON shape, dynamic provider model-list coverage, OAuth start-path error redaction, and stale Cursor OAuth phase wording.
+
+---
+
+### Wave 8.CG — Final Docs And Workflow Closure
+
+```yaml
+wave: "8.CG"
+status: DONE
+max_agents: 1
+gate: "rg -n 'status: (PENDING|IN_PROGRESS|BLOCKED)|evaluation: \"PENDING|\\[ \\]|TODO|FIXME|implementation does not exist|implementation doesn''t exist' docs && false || true; git diff --check"
+completed_at: "2026-06-05T04:18:07Z"
+evaluator_prompt: "docs/evaluations/wave-8CG-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "final docs/workflow completion audit 019e95fb-59d2-7352-8485-0a0247daff83: FAIL before implementation, README still said Stage 8 remained active and WORKFLOW front matter still reported PARITY_HARDENING/current 8.CF"
+  - "final code/test gap audit 019e95fb-9beb-7a51-b9cb-bb88e33c4bed: PASS, go test ./... -count=1 PASS, npm --prefix ui run e2e PASS with 23 passed and 1 skipped, no code/test blockers"
+
+tasks:
+  - id: "8.CG.1"
+    name: "Close final docs and workflow status"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - docs/README.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/phases/phase-00-project-bootstrap.md
+      - docs/evaluations/wave-8CG-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.CG closes the final docs-only audit findings. The workflow now marks the project complete, README no longer points agents at nonexistent pending work, and the historical Phase 0 bootstrap sample no longer says `serve` is unimplemented.
 
 ---
 

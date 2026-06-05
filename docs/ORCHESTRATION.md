@@ -292,7 +292,7 @@ Wave: {wave_id}
 | 5 | 2 | 3 | 5 |
 | 6 | 1 | 1 | 6 |
 | 7 | 13 | 8 | remediation Waves 7.A–7.M |
-| 8 | WORKFLOW-tracked | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.CF |
+| 8 | WORKFLOW-tracked | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.CG |
 | **Total** | WORKFLOW-tracked | — | **77 original tasks + remediation + completion hardening** |
 
 With 8 agents, the original 77 tasks compressed into ~13 sequential merge
@@ -324,8 +324,8 @@ unsupported-streaming error classification through Wave 8.BZ, quota
 capability truth hardening through Wave 8.CA, real OpenRouter quota support
 through Wave 8.CB, provider quota matrix documentation through Wave 8.CC,
 clean-checkout release gate bootstrap through Wave 8.CD, dashboard
-update/state coverage through Wave 8.CE, and backend/docs audit contract
-hardening through Wave 8.CF.
+update/state coverage through Wave 8.CE, backend/docs audit contract
+hardening through Wave 8.CF, and final docs/workflow closure through Wave 8.CG.
 Stage 8 has earlier conceptual plan labels in historical prompts,
 but `docs/WORKFLOW.md` tracks the committed implementation waves from 8.L
-through 8.CF.
+through 8.CG.

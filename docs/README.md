@@ -12,12 +12,10 @@ Start here to understand the project, then dive into specific areas.
 
 ## Current Status
 
-Implementation and remediation waves through **Stage 7** are complete and merged.
-**Stage 8 completion hardening remains active** for provider parity, dashboard
-coverage, MCP runtime behavior, API integration coverage, and release-gate
-reconciliation. Use [WORKFLOW.md](WORKFLOW.md) as the source of truth for the
-current wave, gate results, evaluator prompts, and remaining caveats. Phase
-documents are retained as completed implementation guides.
+Implementation and remediation waves through **Stage 8.CG** are complete and
+merged. Use [WORKFLOW.md](WORKFLOW.md) as the source of truth for final gate
+results, evaluator prompts, and intentionally unsupported capability boundaries.
+Phase documents are retained as completed implementation guides.
 
 ## Reference
 
@@ -53,8 +51,8 @@ Each phase is a self-contained implementation guide with design decisions, type 
 If you're an AI agent working on this project:
 
 1. Read [CLAUDE.md](../CLAUDE.md) for behavioral rules
-2. Read [WORKFLOW.md](WORKFLOW.md) for current task status
-3. Pick up the next `PENDING` task
+2. Read [WORKFLOW.md](WORKFLOW.md) for final task status and gate evidence
+3. If new work is explicitly added later, create a new workflow wave before implementation
 4. Follow TDD: write test → see fail → write code → see pass
 5. Run `go test ./... && go vet ./...` before committing
 6. Commit: `phase-N/task-M: <description>`
