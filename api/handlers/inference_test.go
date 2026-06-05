@@ -87,8 +87,8 @@ func TestSyncInference(t *testing.T) {
 	if engine.received == nil || engine.received.Model != "gpt-4o" {
 		t.Fatalf("engine received = %+v", engine.received)
 	}
-	if _, ok := engine.dispatchCtx.(*fasthttp.RequestCtx); !ok {
-		t.Fatalf("dispatch context is %T, want *fasthttp.RequestCtx", engine.dispatchCtx)
+	if _, ok := engine.dispatchCtx.(*fasthttp.RequestCtx); ok {
+		t.Fatalf("dispatch context must be detached from the pooled *fasthttp.RequestCtx to avoid use-after-recycle, got %T", engine.dispatchCtx)
 	}
 }
 
@@ -145,8 +145,8 @@ func TestStreamInference(t *testing.T) {
 	if engine.streamReceived == nil || engine.streamReceived.Stream == nil || !*engine.streamReceived.Stream {
 		t.Fatalf("stream request = %+v", engine.streamReceived)
 	}
-	if _, ok := engine.streamCtx.(*fasthttp.RequestCtx); !ok {
-		t.Fatalf("stream context is %T, want *fasthttp.RequestCtx", engine.streamCtx)
+	if _, ok := engine.streamCtx.(*fasthttp.RequestCtx); ok {
+		t.Fatalf("stream context must be detached from the pooled *fasthttp.RequestCtx to avoid use-after-recycle, got %T", engine.streamCtx)
 	}
 }
 
@@ -622,8 +622,8 @@ func TestGetModels(t *testing.T) {
 	if decoded.Data[0].ID != "gpt-4o" || decoded.Data[1].ID != "claude-3-5-sonnet" {
 		t.Fatalf("models = %+v", decoded.Data)
 	}
-	if _, ok := engine.modelsCtx.(*fasthttp.RequestCtx); !ok {
-		t.Fatalf("models context is %T, want *fasthttp.RequestCtx", engine.modelsCtx)
+	if _, ok := engine.modelsCtx.(*fasthttp.RequestCtx); ok {
+		t.Fatalf("models context must be detached from the pooled *fasthttp.RequestCtx to avoid use-after-recycle, got %T", engine.modelsCtx)
 	}
 }
 

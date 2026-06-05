@@ -105,6 +105,80 @@ func TestIntegrationAuthenticatedAPIServerWithFakeUpstream(t *testing.T) {
 	}
 }
 
+// TestIntegrationRequestContextDoesNotLeakPooledFasthttpContext is a regression
+// guard for the data race where requestContext returned the pooled
+// *fasthttp.RequestCtx directly. That pooled ctx flowed into the downstream
+// net/http client; net/http's Transport wrapped it in a cancel context and, from
+// a background readLoop goroutine, walked ctx.Value()/UserValue() during
+// cancellation -- racing with fasthttp recycling (Server.releaseCtx -> reset)
+// the same RequestCtx after the handler returned.
+//
+// Driving many concurrent chat completions through the real server against a real
+// net/http upstream forces Transport cancellation to overlap with ctx recycling.
+// Run under `go test -race`, this fails on the buggy code and is clean once
+// requestContext detaches downstream work from the pooled RequestCtx.
+func TestIntegrationRequestContextDoesNotLeakPooledFasthttpContext(t *testing.T) {
+	const (
+		apiKeySecret      = "test-secret"
+		upstreamModelID   = "gpt-4o"
+		upstreamReplyText = "race regression reply"
+	)
+	providerSecret := integrationSecret(t)
+
+	upstream := newIntegrationFakeOpenAI(t, providerSecret, upstreamModelID, upstreamReplyText)
+	defer upstream.Close()
+
+	s := newAPITestStore(t)
+	_, rawAPIKey, err := s.CreateAPIKey("integration", apiKeySecret)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	if err := s.CreateConnection(&store.Connection{
+		Provider: "openai",
+		Name:     "fake-openai",
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   stringPtr(providerSecret),
+		IsActive: true,
+		ProviderSpecificData: map[string]any{
+			"region":        "local",
+			"Authorization": "Bearer " + providerSecret,
+		},
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.RequireAPIKey = true
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	engine := proxy.NewEngine(s)
+	engine.Register(openai.New(upstream.URL))
+
+	_, baseURL := startTestServer(t, ServerConfig{
+		Port:            0,
+		Version:         "integration-test",
+		Store:           s,
+		UsageStore:      s,
+		RequireAPIKey:   true,
+		APIKeySecret:    apiKeySecret,
+		APIKeyValidator: integrationStoreAPIKeyValidator{s: s},
+		InferenceEngine: engine,
+		ModelSource:     engine,
+	})
+
+	// Sequential round-trips: each request drives a net/http upstream round-trip
+	// through the engine, so the Transport readLoop's cancellation walk overlaps
+	// with fasthttp recycling the just-returned RequestCtx. Several iterations make
+	// the use-after-recycle window reliably observable under -race.
+	for i := 0; i < 40; i++ {
+		assertAuthenticatedChatCompletion(t, baseURL, rawAPIKey, upstreamModelID, upstreamReplyText)
+	}
+}
+
 func TestIntegrationManagementMutationsRoundTripThroughAuthenticatedServer(t *testing.T) {
 	const (
 		apiKeySecret = "test-secret"

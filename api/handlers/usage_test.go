@@ -140,8 +140,11 @@ func TestUsageQuotaFetchesProviderQuota(t *testing.T) {
 	if fetcher.gotKey.Provider != providers.ProviderOpenAI || fetcher.gotKey.Value != "sk-test" {
 		t.Fatalf("key = %+v, want openai/sk-test", fetcher.gotKey)
 	}
-	if fetcher.gotCtx != ctx {
-		t.Fatalf("quota context is %T, want request context", fetcher.gotCtx)
+	if fetcher.gotCtx == nil {
+		t.Fatal("quota context is nil, want non-nil request-scoped context")
+	}
+	if _, ok := fetcher.gotCtx.(*fasthttp.RequestCtx); ok {
+		t.Fatalf("quota context must be detached from the pooled *fasthttp.RequestCtx to avoid use-after-recycle, got %T", fetcher.gotCtx)
 	}
 	var decoded usage.Quota
 	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {

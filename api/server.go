@@ -145,10 +145,15 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 			settings: s.runtimeSettings,
 			tools:    s.config.MCPToolManager,
 		}
+		// Snapshot request-scoped data from the pooled ctx on the request
+		// goroutine. The streaming-complete callback fires from the capture
+		// goroutine concurrently with fasthttp's body-stream writer and ctx
+		// recycling, so it must never read ctx itself.
+		snapshot := newStreamLogSnapshot(ctx)
 		captured = &capturingInferenceEngine{
 			base: engine,
 			onStreamComplete: func(req *providers.ChatRequest, model string, providerUsage *providers.Usage) {
-				s.logInferenceUsage(ctx, started, sourceFormat, req, nil, nil, model, providerUsage, fasthttp.StatusOK)
+				s.logStreamingInferenceUsage(snapshot, started, sourceFormat, req, model, providerUsage)
 			},
 		}
 		engine = captured
@@ -179,6 +184,26 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, 
 	}
 
 	metadata := inferenceLogMetadata(ctx, request, response, streamModel)
+	s.writeInferenceLog(usageStore, metadata, string(ctx.Response.Header.Peek(requestIDHeader)), started, sourceFormat, request, response, streamUsage, sanitizedLogError(ctx, dispatchErr, statusCode), statusCode)
+}
+
+// logStreamingInferenceUsage logs a completed streaming inference using values
+// captured before streaming began. It deliberately takes no *fasthttp.RequestCtx:
+// it runs from the capture goroutine after the handler returned, so touching the
+// pooled ctx would race with fasthttp's body-stream writer and ctx recycling.
+func (s *Server) logStreamingInferenceUsage(snapshot streamLogSnapshot, started time.Time, sourceFormat string, request *providers.ChatRequest, streamModel string, streamUsage *providers.Usage) {
+	usageStore, ok := s.config.UsageStore.(logging.RequestStore)
+	if !ok || usageStore == nil || !s.requestLogsEnabled() {
+		return
+	}
+	if request == nil && streamModel == "" {
+		return
+	}
+	metadata := inferenceLogMetadataWithAuth(request, nil, streamModel, snapshot.authType, snapshot.authTypeSet, snapshot.apiKeyID)
+	s.writeInferenceLog(usageStore, metadata, snapshot.requestID, started, sourceFormat, request, nil, streamUsage, nil, fasthttp.StatusOK)
+}
+
+func (s *Server) writeInferenceLog(usageStore logging.RequestStore, metadata requestLogMetadata, requestID string, started time.Time, sourceFormat string, request *providers.ChatRequest, response *providers.ChatResponse, streamUsage *providers.Usage, logError *string, statusCode int) {
 	settings := s.runtimeSettings()
 	var extractedUsage *usage.Usage
 	if response != nil {
@@ -196,7 +221,7 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, 
 		costUSD = costForUsage(s.config.Store, metadata.provider, metadata.model, extractedUsage)
 	}
 	entry := logging.RequestLog{
-		RequestID:      string(ctx.Response.Header.Peek(requestIDHeader)),
+		RequestID:      requestID,
 		Timestamp:      started.UTC(),
 		Provider:       metadata.provider,
 		Model:          metadata.model,
@@ -206,7 +231,7 @@ func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, 
 		CostUSD:        costUSD,
 		Latency:        time.Since(started),
 		StatusCode:     statusCode,
-		Error:          sanitizedLogError(ctx, dispatchErr, statusCode),
+		Error:          logError,
 		APIKeyID:       metadata.apiKeyID,
 		SourceFormat:   stringPtrIfNotEmpty(sourceFormat),
 		TargetFormat:   stringPtrIfNotEmpty(metadata.provider),
@@ -345,7 +370,41 @@ type requestLogMetadata struct {
 	apiKeyID     *string
 }
 
+// streamLogSnapshot captures the request-scoped values needed to log a
+// streaming inference after the handler returns. It is taken on the request
+// goroutine so the streaming-complete callback never reads the pooled
+// *fasthttp.RequestCtx (which races with the body-stream writer and is recycled
+// once the handler returns).
+type streamLogSnapshot struct {
+	requestID   string
+	authType    string
+	apiKeyID    *string
+	authTypeSet bool
+}
+
+func newStreamLogSnapshot(ctx *fasthttp.RequestCtx) streamLogSnapshot {
+	snapshot := streamLogSnapshot{
+		requestID: string(ctx.Response.Header.Peek(requestIDHeader)),
+		apiKeyID:  userValueStringPtr(ctx, requestAPIKeyIDKey),
+	}
+	if value, ok := ctx.UserValue(requestAuthTypeKey).(string); ok && value != "" {
+		snapshot.authType = value
+		snapshot.authTypeSet = true
+	}
+	return snapshot
+}
+
 func inferenceLogMetadata(ctx *fasthttp.RequestCtx, request *providers.ChatRequest, response *providers.ChatResponse, streamModel string) requestLogMetadata {
+	authType := authTypeForRequest(false)
+	authTypeSet := false
+	if value, ok := ctx.UserValue(requestAuthTypeKey).(string); ok && value != "" {
+		authType = value
+		authTypeSet = true
+	}
+	return inferenceLogMetadataWithAuth(request, response, streamModel, authType, authTypeSet, userValueStringPtr(ctx, requestAPIKeyIDKey))
+}
+
+func inferenceLogMetadataWithAuth(request *providers.ChatRequest, response *providers.ChatResponse, streamModel, snapshotAuthType string, snapshotAuthTypeSet bool, apiKeyID *string) requestLogMetadata {
 	model := streamModel
 	requestModel := ""
 	provider := ""
@@ -378,8 +437,8 @@ func inferenceLogMetadata(ctx *fasthttp.RequestCtx, request *providers.ChatReque
 			model = requestModel
 		}
 	}
-	if value, ok := ctx.UserValue(requestAuthTypeKey).(string); ok && value != "" {
-		authType = value
+	if snapshotAuthTypeSet {
+		authType = snapshotAuthType
 	} else if response == nil || response.AuthType == "" {
 		authType = authTypeForRequest(false)
 	}
@@ -389,7 +448,7 @@ func inferenceLogMetadata(ctx *fasthttp.RequestCtx, request *providers.ChatReque
 		model:        model,
 		connectionID: connectionID,
 		authType:     authType,
-		apiKeyID:     userValueStringPtr(ctx, requestAPIKeyIDKey),
+		apiKeyID:     apiKeyID,
 	}
 }
 
