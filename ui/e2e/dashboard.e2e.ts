@@ -288,7 +288,6 @@ test.describe("dashboard control plane", () => {
     await page.getByLabel("Working directory").fill("/srv/mcp");
     await page.getByRole("button", { name: "Create instance" }).click();
 
-    await expect(page.getByRole("table", { name: "MCP instances" })).toContainText("filesystem-tools");
     await expect.poll(() => apiRequests.find((request) => request.method === "POST" && request.path === "/api/mcp/instances")?.body).toMatchObject({
       args: ["server.js", "--stdio"],
       command: "node",
@@ -300,6 +299,7 @@ test.describe("dashboard control plane", () => {
       server_key: "filesystem",
       transport: "stdio"
     });
+    await expect(page.getByRole("table", { name: "MCP instances" })).toContainText("filesystem-tools");
     await expect(page.getByText("e2e-secret")).not.toBeVisible();
     await expect(page.getByText("e2e-env-secret")).not.toBeVisible();
   });
