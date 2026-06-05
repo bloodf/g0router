@@ -21,6 +21,9 @@ VOLUME ["/data"]
 EXPOSE 20128
 ENV DATA_DIR=/data
 ENV PORT=20128
+# Containers must bind all interfaces to be reachable from the host/orchestrator.
+# The binary itself defaults to 127.0.0.1 (secure for local use); override here.
+ENV BIND_ADDRESS=0.0.0.0
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD ["/g0router", "healthcheck"]
 ENTRYPOINT ["/g0router"]
 CMD ["serve"]
