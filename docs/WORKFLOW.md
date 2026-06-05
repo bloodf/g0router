@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BU"
-last_updated: "2026-06-05T03:45:00Z"
+current_wave: "8.BV"
+last_updated: "2026-06-05T03:55:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2804,6 +2804,42 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BU replaces Replicate credential-only status with a real prediction-backed runtime. Provider-qualified models such as `replicate/owner/model` create Replicate predictions, poll to terminal status, and map string outputs into OpenAI-compatible chat responses. Streaming, model listing, static catalog, and quota fetchers remain intentionally unsupported rather than fabricated.
+
+---
+
+### Wave 8.BV — Replicate Startup Registration Guard
+
+```yaml
+wave: "8.BV"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/cli -run TestDefaultInferenceEngineRegistersReplicateProvider -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T03:55:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BV-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after implementation commit"
+gate_results:
+  - "go test ./internal/cli -run TestDefaultInferenceEngineRegistersReplicateProvider -count=1: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BV.1"
+    name: "Add default-engine regression coverage for Replicate startup registration"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/cli/root_test.go
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BV-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BV resolves the Wave 8.BU evaluator's non-blocking registration-test note. The default inference engine now has direct regression coverage that Replicate remains registered in normal startup.
 
 ---
 
