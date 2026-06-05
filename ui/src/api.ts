@@ -144,6 +144,19 @@ export type APIKeyResponse = {
   IsActive: boolean;
   LastUsedAt?: string | null;
   CreatedAt: string;
+  expires_at?: number | null;
+  scopes?: string[] | null;
+  rate_limit_rpm?: number | null;
+  rate_limit_tpm?: number | null;
+  daily_spend_cap_usd?: number | null;
+};
+
+export type APIKeyPolicy = {
+  expires_at?: number | null;
+  scopes?: string[];
+  rate_limit_rpm?: number | null;
+  rate_limit_tpm?: number | null;
+  daily_spend_cap_usd?: number | null;
 };
 
 export type CreateAPIKeyResponse = {
@@ -161,6 +174,10 @@ export type SettingsResponse = {
   data_dir: string;
   log_retention_days: number;
   allowed_sources: string[];
+  notify_webhook_url: string;
+  notify_on_reauth: boolean;
+  cache_enabled: boolean;
+  cache_ttl_seconds: number;
 };
 
 export type UsageLogRecord = {
@@ -240,7 +257,7 @@ export type ComboStepResponse = {
   model: string;
 };
 
-export type ComboStrategy = "fallback" | "round_robin" | "least_used" | "auto";
+export type ComboStrategy = "fallback" | "round_robin" | "least_used" | "auto" | "fastest" | "cheapest";
 
 export type ComboResponse = {
   ID: string;
@@ -263,6 +280,30 @@ export type PricingOverrideResponse = {
   Model: string;
   InputCostPerToken: number;
   OutputCostPerToken: number;
+};
+
+export type AuditLogEntry = {
+  id: number;
+  timestamp: string;
+  actor_api_key_id: string;
+  action: string;
+  target: string;
+  details: string;
+};
+
+export type AuditListResponse = {
+  object: "list";
+  data: AuditLogEntry[];
+  limit: number;
+  offset: number;
+  total: number;
+};
+
+export type AuditQuery = {
+  limit?: number;
+  offset?: number;
+  action?: string;
+  actor?: string;
 };
 
 export type MCPManifestTool = {
@@ -378,7 +419,8 @@ const apiPaths = {
   mcpClients: "/api/mcp/clients",
   mcpServers: "/api/mcp/instances",
   mcpTools: "/api/mcp/tools",
-  settings: "/api/settings"
+  settings: "/api/settings",
+  audit: "/api/audit"
 } as const;
 
 export function getControlPlaneKey() {
@@ -526,6 +568,28 @@ export function getSettingsPath() {
   return apiPaths.settings;
 }
 
+export function getAuditPath() {
+  return apiPaths.audit;
+}
+
+export function buildAuditPath(query: AuditQuery = {}): string {
+  const params = new URLSearchParams();
+  if (query.limit != null) {
+    params.set("limit", String(query.limit));
+  }
+  if (query.offset != null) {
+    params.set("offset", String(query.offset));
+  }
+  if (query.action?.trim()) {
+    params.set("action", query.action.trim());
+  }
+  if (query.actor?.trim()) {
+    params.set("actor", query.actor.trim());
+  }
+  const qs = params.toString();
+  return qs ? `${apiPaths.audit}?${qs}` : apiPaths.audit;
+}
+
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const optionHeaders = options.headers as Record<string, string> | undefined;
   const headers = {
@@ -635,12 +699,19 @@ export function listAPIKeys() {
   return apiList<APIKeyResponse>(getApiKeysPath());
 }
 
-export function createAPIKey(name: string) {
-  return apiFetch<CreateAPIKeyResponse>(getApiKeysPath(), { method: "POST", body: { name } });
+export function createAPIKey(name: string, policy?: APIKeyPolicy) {
+  return apiFetch<CreateAPIKeyResponse>(getApiKeysPath(), { method: "POST", body: { name, ...policy } });
 }
 
 export function deleteAPIKey(id: string) {
   return apiFetch<void>(`${getApiKeysPath()}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function updateAPIKeyPolicy(id: string, policy: APIKeyPolicy) {
+  return apiFetch<CreateAPIKeyResponse>(`${getApiKeysPath()}/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: policy
+  });
 }
 
 export function listAliases() {
@@ -708,6 +779,10 @@ export function getSettings() {
 
 export function updateSettings(settings: SettingsResponse) {
   return apiFetch<SettingsResponse>(getSettingsPath(), { method: "PUT", body: settings });
+}
+
+export function listAudit(query: AuditQuery = {}) {
+  return apiFetch<AuditListResponse>(buildAuditPath(query));
 }
 
 export function listUsage(query: UsageQuery = {}) {

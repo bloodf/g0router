@@ -22,7 +22,9 @@ const strategyOptions: { value: ComboStrategy; label: string; hint: string }[] =
   { value: "fallback", label: "Fallback", hint: "Try steps in order until one succeeds (default)" },
   { value: "round_robin", label: "Round-robin", hint: "Rotate the starting step across calls to spread load" },
   { value: "least_used", label: "Least-used", hint: "Start with the least-used step (by call count)" },
-  { value: "auto", label: "Auto", hint: "Pick the best step per request (capable model for tools/large context, cheaper otherwise)" }
+  { value: "auto", label: "Auto", hint: "Pick the best step per request (capable model for tools/large context, cheaper otherwise)" },
+  { value: "fastest", label: "Fastest", hint: "Route to the step with the lowest observed latency" },
+  { value: "cheapest", label: "Cheapest", hint: "Route to the step with the lowest cost per token" }
 ];
 
 export function CombosPage() {

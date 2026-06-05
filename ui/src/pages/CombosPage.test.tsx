@@ -478,6 +478,57 @@ describe("CombosPage", () => {
     expect(within(rowB).getByText("auto")).toBeInTheDocument();
   });
 
+  it("strategy selector includes fastest and cheapest options", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === getCombosPath() && method === "GET" && fetch.mock.calls.length === 1) {
+        return jsonResponse({ data: [] });
+      }
+      if (path === getCombosPath() && method === "POST") {
+        return jsonResponse(
+          { ID: "combo-fast", Name: "perf-chain", Steps: [{ provider: "openai", model: "gpt-4o-mini" }], Strategy: "fastest", IsActive: true, CreatedAt: "2026-06-05T00:00:00Z", UpdatedAt: "2026-06-05T00:00:00Z" },
+          { status: 201 }
+        );
+      }
+      if (path === getCombosPath() && method === "GET") {
+        return jsonResponse({ data: [{ ID: "combo-fast", Name: "perf-chain", Steps: [{ provider: "openai", model: "gpt-4o-mini" }], Strategy: "fastest", IsActive: true, CreatedAt: "2026-06-05T00:00:00Z", UpdatedAt: "2026-06-05T00:00:00Z" }] });
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CombosPage />);
+
+    await screen.findByText("No combo routes configured");
+
+    const strategySelect = screen.getByLabelText("Strategy");
+    expect(strategySelect).toBeInTheDocument();
+
+    // fastest and cheapest must be present as options
+    const options = Array.from((strategySelect as HTMLSelectElement).options).map((o) => o.value);
+    expect(options).toContain("fastest");
+    expect(options).toContain("cheapest");
+
+    fireEvent.change(screen.getByLabelText("Combo name"), { target: { value: "perf-chain" } });
+    fireEvent.change(screen.getByLabelText("Step 1 provider"), { target: { value: "openai" } });
+    fireEvent.change(screen.getByLabelText("Step 1 model"), { target: { value: "gpt-4o-mini" } });
+    fireEvent.change(strategySelect, { target: { value: "fastest" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create combo" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        getCombosPath(),
+        expect.objectContaining({
+          body: JSON.stringify({ name: "perf-chain", steps: [{ provider: "openai", model: "gpt-4o-mini" }], is_active: true, strategy: "fastest" }),
+          method: "POST"
+        })
+      );
+    });
+    const row = await screen.findByRole("row", { name: /perf-chain/i });
+    expect(within(row).getByText("fastest")).toBeInTheDocument();
+  });
+
   it("renders recoverable errors and auth-expired errors", async () => {
     const fetch = vi
       .fn()

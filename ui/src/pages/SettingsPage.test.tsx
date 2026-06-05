@@ -12,7 +12,11 @@ const settings: SettingsResponse = {
   proxy_url: "http://localhost:8081",
   data_dir: "/var/lib/g0router",
   log_retention_days: 30,
-  allowed_sources: ["local", "lan", "tailscale", "public"]
+  allowed_sources: ["local", "lan", "tailscale", "public"],
+  notify_webhook_url: "",
+  notify_on_reauth: true,
+  cache_enabled: false,
+  cache_ttl_seconds: 300
 };
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -100,7 +104,11 @@ describe("SettingsPage", () => {
             proxy_url: "http://proxy.internal:9000",
             data_dir: "/var/lib/g0router",
             log_retention_days: 90,
-            allowed_sources: ["local", "lan", "public"]
+            allowed_sources: ["local", "lan", "public"],
+            notify_webhook_url: "",
+            notify_on_reauth: true,
+            cache_enabled: false,
+            cache_ttl_seconds: 300
           }),
           credentials: "same-origin",
           method: "PUT"
@@ -174,6 +182,57 @@ describe("SettingsPage", () => {
       );
     });
     expect(screen.getByText(/rejected \(403\)/i)).toBeInTheDocument();
+  });
+
+  it("renders and saves notify webhook + cache controls", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === getSettingsPath() && method === "GET") {
+        return jsonResponse(settings);
+      }
+      if (path === getSettingsPath() && method === "PUT") {
+        return jsonResponse({
+          ...settings,
+          notify_webhook_url: "https://hooks.example.com/abc",
+          notify_on_reauth: false,
+          cache_enabled: true,
+          cache_ttl_seconds: 600
+        });
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByLabelText("Notify webhook URL")).toHaveValue("");
+    expect(screen.getByLabelText("Notify on reauth")).toBeChecked();
+    expect(screen.getByLabelText("Cache enabled")).not.toBeChecked();
+    expect(screen.getByLabelText("Cache TTL (seconds)")).toHaveValue(300);
+
+    fireEvent.change(screen.getByLabelText("Notify webhook URL"), { target: { value: "https://hooks.example.com/abc" } });
+    fireEvent.click(screen.getByLabelText("Notify on reauth"));
+    fireEvent.click(screen.getByLabelText("Cache enabled"));
+    fireEvent.change(screen.getByLabelText("Cache TTL (seconds)"), { target: { value: "600" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        getSettingsPath(),
+        expect.objectContaining({
+          body: JSON.stringify({
+            ...settings,
+            notify_webhook_url: "https://hooks.example.com/abc",
+            notify_on_reauth: false,
+            cache_enabled: true,
+            cache_ttl_seconds: 600
+          }),
+          method: "PUT"
+        })
+      );
+    });
+    expect(await screen.findByText("Settings saved")).toBeInTheDocument();
   });
 
   it("renders recoverable errors and auth-expired errors", async () => {

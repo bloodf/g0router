@@ -143,6 +143,7 @@ function SettingsForm({
           <label className="block text-sm font-medium text-zinc-700">
             Caveman level
             <input
+              aria-label="Caveman level"
               className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
               value={form.caveman_level}
               onChange={(event) => setForm({ ...form, caveman_level: event.target.value })}
@@ -151,6 +152,7 @@ function SettingsForm({
           <label className="block text-sm font-medium text-zinc-700">
             Proxy URL
             <input
+              aria-label="Proxy URL"
               className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
               value={form.proxy_url}
               onChange={(event) => setForm({ ...form, proxy_url: event.target.value })}
@@ -159,9 +161,41 @@ function SettingsForm({
           <label className="block text-sm font-medium text-zinc-700">
             Data directory
             <input
+              aria-label="Data directory"
               className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
               value={form.data_dir}
               onChange={(event) => setForm({ ...form, data_dir: event.target.value })}
+            />
+          </label>
+          <label className="block text-sm font-medium text-zinc-700">
+            Notify webhook URL
+            <input
+              aria-label="Notify webhook URL"
+              className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+              type="url"
+              value={form.notify_webhook_url}
+              onChange={(event) => setForm({ ...form, notify_webhook_url: event.target.value })}
+            />
+          </label>
+          <ToggleRow
+            checked={form.notify_on_reauth}
+            label="Notify on reauth"
+            onChange={(value) => setForm({ ...form, notify_on_reauth: value })}
+          />
+          <ToggleRow
+            checked={form.cache_enabled}
+            label="Cache enabled"
+            onChange={(value) => setForm({ ...form, cache_enabled: value })}
+          />
+          <label className="block text-sm font-medium text-zinc-700">
+            Cache TTL (seconds)
+            <input
+              aria-label="Cache TTL (seconds)"
+              className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+              min={0}
+              type="number"
+              value={form.cache_ttl_seconds}
+              onChange={(event) => setForm({ ...form, cache_ttl_seconds: Math.max(0, Number(event.target.value) || 0) })}
             />
           </label>
         </div>

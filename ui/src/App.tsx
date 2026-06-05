@@ -3,6 +3,7 @@ import "./index.css";
 import { clearControlPlaneKey, getControlPlaneKey, saveControlPlaneKey } from "./api";
 import { APIKeysPage } from "./pages/APIKeysPage";
 import { AliasesPage } from "./pages/AliasesPage";
+import { AuditPage } from "./pages/AuditPage";
 import { CombosPage } from "./pages/CombosPage";
 import { ConnectionsAuthPage } from "./pages/ConnectionsAuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -154,6 +155,13 @@ const pages = [
     title: "Diagnostics",
     description: "Release-readiness and control-plane health checks.",
     Component: DiagnosticsPage
+  },
+  {
+    id: "audit",
+    label: "Audit Log",
+    title: "Audit log",
+    description: "Admin mutations recorded by the gateway control plane.",
+    Component: AuditPage
   }
 ] as const;
 

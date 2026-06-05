@@ -6,6 +6,8 @@ import {
   createAPIKey,
   deleteAPIKey,
   listAPIKeys,
+  updateAPIKeyPolicy,
+  type APIKeyPolicy,
   type APIKeyResponse,
   type AsyncState,
   type CreateAPIKeyResponse
@@ -24,6 +26,7 @@ export function APIKeysControlPlane({ showEndpointControls = false }: { showEndp
   const [copiedEndpoint, setCopiedEndpoint] = useState("");
   const [creating, setCreating] = useState(false);
   const [deletingID, setDeletingID] = useState<string | null>(null);
+  const [editingPolicyKey, setEditingPolicyKey] = useState<APIKeyResponse | null>(null);
 
   const loadKeys = useCallback(async () => {
     setState({ status: "loading" });
@@ -93,6 +96,22 @@ export function APIKeysControlPlane({ showEndpointControls = false }: { showEndp
     setCopiedEndpoint(endpoint);
   }
 
+  async function handleSavePolicy(key: APIKeyResponse, policy: APIKeyPolicy) {
+    setActionError(null);
+    try {
+      await updateAPIKeyPolicy(key.ID, policy);
+      setEditingPolicyKey(null);
+      await loadKeys();
+    } catch (error) {
+      const apiError = toApiError(error);
+      if (apiError.authExpired) {
+        setState(asyncError(apiError));
+      } else {
+        setActionError(apiError.message);
+      }
+    }
+  }
+
   return (
     <Panel
       title={showEndpointControls ? "Endpoint controls" : "API keys"}
@@ -152,7 +171,17 @@ export function APIKeysControlPlane({ showEndpointControls = false }: { showEndp
           {state.status === "empty" ? (
             <EmptyState title="No API keys" description="Create a gateway key before routing protected client requests." />
           ) : null}
-          {state.status === "success" ? <KeysTable keys={state.data} deletingID={deletingID} onDelete={handleDelete} /> : null}
+          {state.status === "success" ? (
+            <KeysTable
+              keys={state.data}
+              deletingID={deletingID}
+              editingPolicyKey={editingPolicyKey}
+              onDelete={handleDelete}
+              onEditPolicy={setEditingPolicyKey}
+              onSavePolicy={handleSavePolicy}
+              onCancelPolicy={() => setEditingPolicyKey(null)}
+            />
+          ) : null}
         </div>
 
         <div className="min-w-0 space-y-4">
@@ -199,11 +228,15 @@ export function APIKeysControlPlane({ showEndpointControls = false }: { showEndp
 
 type KeysTableProps = {
   deletingID: string | null;
+  editingPolicyKey: APIKeyResponse | null;
   keys: APIKeyResponse[];
+  onCancelPolicy: () => void;
   onDelete: (key: APIKeyResponse) => void;
+  onEditPolicy: (key: APIKeyResponse) => void;
+  onSavePolicy: (key: APIKeyResponse, policy: APIKeyPolicy) => void;
 };
 
-function KeysTable({ deletingID, keys, onDelete }: KeysTableProps) {
+function KeysTable({ deletingID, editingPolicyKey, keys, onCancelPolicy, onDelete, onEditPolicy, onSavePolicy }: KeysTableProps) {
   return (
     <div className="overflow-x-auto rounded-md border border-zinc-200">
       <table aria-label="API keys" className="min-w-[760px] w-full text-left text-sm">
@@ -219,30 +252,149 @@ function KeysTable({ deletingID, keys, onDelete }: KeysTableProps) {
         </thead>
         <tbody className="divide-y divide-zinc-200">
           {keys.map((key) => (
-            <tr key={key.ID}>
-              <td className="px-4 py-3 font-medium text-zinc-950">{key.Name}</td>
-              <td className="px-4 py-3 font-mono text-xs text-zinc-600">{key.Prefix}</td>
-              <td className="px-4 py-3">
-                <StatusPill tone={key.IsActive ? "good" : "bad"}>{key.IsActive ? "active" : "inactive"}</StatusPill>
-              </td>
-              <td className="px-4 py-3 text-zinc-600">{formatTimestamp(key.LastUsedAt)}</td>
-              <td className="px-4 py-3 text-zinc-600">{formatTimestamp(key.CreatedAt)}</td>
-              <td className="px-4 py-3">
-                <button
-                  aria-label={`Delete ${key.Name}`}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
-                  type="button"
-                  disabled={deletingID === key.ID}
-                  onClick={() => onDelete(key)}
-                >
-                  {deletingID === key.ID ? "Deleting" : "Delete"}
-                </button>
-              </td>
-            </tr>
+            <>
+              <tr key={key.ID}>
+                <td className="px-4 py-3 font-medium text-zinc-950">{key.Name}</td>
+                <td className="px-4 py-3 font-mono text-xs text-zinc-600">{key.Prefix}</td>
+                <td className="px-4 py-3">
+                  <StatusPill tone={key.IsActive ? "good" : "bad"}>{key.IsActive ? "active" : "inactive"}</StatusPill>
+                </td>
+                <td className="px-4 py-3 text-zinc-600">{formatTimestamp(key.LastUsedAt)}</td>
+                <td className="px-4 py-3 text-zinc-600">{formatTimestamp(key.CreatedAt)}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      aria-label={`Edit policy ${key.Name}`}
+                      className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+                      type="button"
+                      disabled={deletingID === key.ID}
+                      onClick={() => onEditPolicy(key)}
+                    >
+                      Edit policy
+                    </button>
+                    <button
+                      aria-label={`Delete ${key.Name}`}
+                      className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+                      type="button"
+                      disabled={deletingID === key.ID}
+                      onClick={() => onDelete(key)}
+                    >
+                      {deletingID === key.ID ? "Deleting" : "Delete"}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {editingPolicyKey?.ID === key.ID ? (
+                <tr key={`${key.ID}-policy`}>
+                  <td colSpan={6} className="px-4 py-3">
+                    <PolicyForm key={key.ID} apiKey={key} onSave={onSavePolicy} onCancel={onCancelPolicy} />
+                  </td>
+                </tr>
+              ) : null}
+            </>
           ))}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function PolicyForm({ apiKey, onSave, onCancel }: { apiKey: APIKeyResponse; onSave: (key: APIKeyResponse, policy: APIKeyPolicy) => void; onCancel: () => void }) {
+  const [expiresAt, setExpiresAt] = useState<number | null>(apiKey.expires_at ?? null);
+  const [scopes, setScopes] = useState<string>((apiKey.scopes ?? []).join(", "));
+  const [rateLimitRpm, setRateLimitRpm] = useState<number | null>(apiKey.rate_limit_rpm ?? null);
+  const [rateLimitTpm, setRateLimitTpm] = useState<number | null>(apiKey.rate_limit_tpm ?? null);
+  const [dailySpendCapUsd, setDailySpendCapUsd] = useState<number | null>(apiKey.daily_spend_cap_usd ?? null);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const scopeList = scopes.split(",").map((s) => s.trim()).filter(Boolean);
+    onSave(apiKey, {
+      expires_at: expiresAt,
+      scopes: scopeList,
+      rate_limit_rpm: rateLimitRpm,
+      rate_limit_tpm: rateLimitTpm,
+      daily_spend_cap_usd: dailySpendCapUsd
+    });
+  }
+
+  return (
+    <form className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-4" onSubmit={handleSubmit}>
+      <p className="text-sm font-semibold text-zinc-700">Edit policy: {apiKey.Name}</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <label className="block text-sm font-medium text-zinc-700">
+          Rate limit RPM
+          <input
+            aria-label="Rate limit RPM"
+            className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+            min={0}
+            type="number"
+            value={rateLimitRpm ?? ""}
+            onChange={(e) => setRateLimitRpm(e.target.value === "" ? null : Number(e.target.value))}
+          />
+        </label>
+        <label className="block text-sm font-medium text-zinc-700">
+          Rate limit TPM
+          <input
+            aria-label="Rate limit TPM"
+            className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+            min={0}
+            type="number"
+            value={rateLimitTpm ?? ""}
+            onChange={(e) => setRateLimitTpm(e.target.value === "" ? null : Number(e.target.value))}
+          />
+        </label>
+        <label className="block text-sm font-medium text-zinc-700">
+          Daily spend cap (USD)
+          <input
+            aria-label="Daily spend cap (USD)"
+            className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+            min={0}
+            step="0.01"
+            type="number"
+            value={dailySpendCapUsd ?? ""}
+            onChange={(e) => setDailySpendCapUsd(e.target.value === "" ? null : Number(e.target.value))}
+          />
+        </label>
+        <label className="block text-sm font-medium text-zinc-700">
+          Expires at (unix seconds)
+          <input
+            aria-label="Expires at (unix seconds)"
+            className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+            min={0}
+            type="number"
+            value={expiresAt ?? ""}
+            onChange={(e) => setExpiresAt(e.target.value === "" ? null : Number(e.target.value))}
+          />
+        </label>
+        <label className="block text-sm font-medium text-zinc-700 sm:col-span-2">
+          Scopes (comma-separated, empty = all models)
+          <input
+            aria-label="Scopes"
+            className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+            placeholder="e.g. openai, anthropic"
+            type="text"
+            value={scopes}
+            onChange={(e) => setScopes(e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="flex gap-2">
+        <button
+          className="rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white"
+          type="submit"
+        >
+          Save policy
+        </button>
+        <button
+          className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700"
+          type="button"
+          onClick={onCancel}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }
 
