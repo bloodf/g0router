@@ -3064,7 +3064,7 @@ max_agents: 1
 gate: "go test ./internal/usage ./internal/cli ./internal/provider ./api/handlers ./internal/proxy -run 'TestOpenRouterQuotaFetcher|TestDefaultServerConfigRegistersOpenRouterQuotaFetcher|TestPublicProvidersOnlyClaimImplementedQuotaSupport|TestProvidersListKnownProviders|TestDispatchUnlimitedQuotaAllowsProviderCall' -count=1 && npm --prefix ui test -- --run QuotaPage && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T06:45:00Z"
 evaluator_prompt: "docs/evaluations/wave-8CB-evaluator-prompt.md"
-evaluation: "PENDING replacement evaluator after workflow record fix"
+evaluation: "PASS external evaluator thread 019e95b9-0966-7db1-a04c-56f608b366c4 at commit 2327865"
 gate_results:
   - "go test ./internal/usage ./internal/cli ./internal/provider ./api/handlers ./internal/proxy -run 'TestOpenRouterQuotaFetcher|TestDefaultServerConfigRegistersOpenRouterQuotaFetcher|TestPublicProvidersOnlyClaimImplementedQuotaSupport|TestProvidersListKnownProviders|TestDispatchUnlimitedQuotaAllowsProviderCall' -count=1: PASS"
   - "npm --prefix ui test -- --run QuotaPage: PASS, 1 file and 7 tests"
@@ -3076,6 +3076,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e95b9-0966-7db1-a04c-56f608b366c4: PASS, no blocking findings"
 
 tasks:
   - id: "8.CB.1"
