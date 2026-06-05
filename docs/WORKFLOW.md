@@ -2634,7 +2634,7 @@ max_agents: 1
 gate: "go test ./internal/provider ./api/handlers ./internal/cli -run 'Test(ReplicateRemainsAuthOnlyUntilPredictionRuntimeIsImplemented|ProvidersListKnownProviders|AuthListShowsSupportedProviders|LoginCommandPersistsSearchProviderAPIKeyConnection|ProvidersTestReportsAuthOnlyProvider)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T02:35:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BR-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after implementation commit"
+evaluation: "PASS external evaluator subagent 019e9531-47a8-7903-9971-981e280fe605 at commit ed78ce9"
 gate_results:
   - "focused Replicate provider/API/CLI tests: RED before implementation, matrix reported adapter_only, API reported a registered inference adapter, and providers test returned adapter_only instead of auth_only"
   - "focused Replicate provider/API/CLI tests: PASS"
@@ -2646,6 +2646,8 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e9531-47a8-7903-9971-981e280fe605: PASS, no blocking findings; workflow pending marker replaced by this record commit"
+  - "direct CLI spot checks: auth list includes replicate, providers list excludes replicate, providers test replicate reports auth_only"
 
 tasks:
   - id: "8.BR.1"
