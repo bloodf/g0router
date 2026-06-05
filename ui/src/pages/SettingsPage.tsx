@@ -133,6 +133,10 @@ function SettingsForm({
             onChange={(value) => setForm({ ...form, enable_request_logs: value })}
           />
           <LogRetentionRow value={form.log_retention_days} onChange={(value) => setForm({ ...form, log_retention_days: value })} />
+          <ConnectionSourcesRow
+            value={form.allowed_sources ?? []}
+            onChange={(value) => setForm({ ...form, allowed_sources: value })}
+          />
         </div>
 
         <div className="space-y-3">
@@ -231,6 +235,43 @@ function LogRetentionRow({ value, onChange }: { value: number; onChange: (value:
         </label>
       ) : null}
     </div>
+  );
+}
+
+const connectionSources: { token: string; label: string }[] = [
+  { token: "local", label: "Local (loopback)" },
+  { token: "lan", label: "LAN (private network)" },
+  { token: "tailscale", label: "Tailscale" },
+  { token: "public", label: "Public web" }
+];
+
+function ConnectionSourcesRow({ value, onChange }: { value: string[]; onChange: (value: string[]) => void }) {
+  function toggle(token: string, checked: boolean) {
+    const next = checked ? [...value.filter((item) => item !== token), token] : value.filter((item) => item !== token);
+    onChange(connectionSources.map((source) => source.token).filter((token) => next.includes(token)));
+  }
+
+  return (
+    <fieldset className="space-y-2 rounded-md border border-zinc-200 px-4 py-3">
+      <legend className="text-sm font-medium text-zinc-700">Connection sources</legend>
+      <div className="space-y-2">
+        {connectionSources.map((source) => (
+          <label key={source.token} className="flex items-center justify-between gap-3 text-sm text-zinc-700">
+            <span>{source.label}</span>
+            <input
+              aria-label={source.label}
+              checked={value.includes(source.token)}
+              className="h-4 w-4 accent-zinc-950"
+              type="checkbox"
+              onChange={(event) => toggle(source.token, event.target.checked)}
+            />
+          </label>
+        ))}
+      </div>
+      <p className="text-xs leading-5 text-zinc-500">
+        Requests from unchecked sources are rejected (403). Enabling “Public web” allows any source.
+      </p>
+    </fieldset>
   );
 }
 

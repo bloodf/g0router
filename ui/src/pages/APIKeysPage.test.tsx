@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { APIKeysPage } from "./APIKeysPage";
 
@@ -39,5 +39,29 @@ describe("APIKeysPage", () => {
     expect(within(row).getByText("g0r_live")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "API keys" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy chat completions endpoint" })).not.toBeInTheDocument();
+    expect(screen.getByText("An API key is required to call the proxy")).toBeInTheDocument();
+  });
+
+  it("generates a key and shows the raw secret once", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const method = init?.method ?? "GET";
+        if (method === "POST") {
+          return jsonResponse({
+            key: { ID: "key-2", Name: "ci", Prefix: "g0r_live", IsActive: true, LastUsedAt: null, CreatedAt: "2026-06-03T09:00:00Z" },
+            raw: "g0r_live_secret_value"
+          });
+        }
+        return jsonResponse({ data: [] });
+      })
+    );
+
+    render(<APIKeysPage />);
+
+    fireEvent.change(await screen.findByLabelText("Key name"), { target: { value: "ci" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create key" }));
+
+    expect(await screen.findByText("g0r_live_secret_value")).toBeInTheDocument();
   });
 });

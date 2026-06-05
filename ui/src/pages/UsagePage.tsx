@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { isAuthExpiredError, listLogs, listUsage } from "../api";
-import type { UsageLogRecord } from "../api";
+import { isAuthExpiredError, listAPIKeys, listLogs, listUsage } from "../api";
+import type { APIKeyResponse, UsageLogRecord, UsageQuery } from "../api";
 import { EmptyState, ErrorState, LoadingState, MetricCard, Panel, StatusPill } from "../components/Primitives";
 
 type UsageData = {
@@ -15,15 +15,46 @@ type UsageState =
   | { status: "error"; message: string }
   | { status: "auth-expired"; message: string };
 
+type UsageFilters = {
+  apiKeyId: string;
+  authType: string;
+};
+
+const emptyFilters: UsageFilters = { apiKeyId: "", authType: "" };
+
 export function UsagePage() {
   const [state, setState] = useState<UsageState>({ status: "loading" });
+  const [filters, setFilters] = useState<UsageFilters>(emptyFilters);
+  const [apiKeys, setApiKeys] = useState<APIKeyResponse[]>([]);
 
   useEffect(() => {
     let cancelled = false;
+    listAPIKeys()
+      .then((keys) => {
+        if (!cancelled) {
+          setApiKeys(keys);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
 
     async function loadUsage() {
+      const query: UsageQuery = {};
+      if (filters.apiKeyId) {
+        query.api_key_id = filters.apiKeyId;
+      }
+      if (filters.authType) {
+        query.auth_type = filters.authType;
+      }
       try {
-        const [usage, logs] = await Promise.all([listUsage(), listLogs()]);
+        const [usage, logs] = await Promise.all([listUsage(query), listLogs()]);
         if (cancelled) {
           return;
         }
@@ -46,15 +77,63 @@ export function UsagePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [filters]);
 
   return (
     <div className="space-y-6">
       {state.status === "success" ? <UsageMetrics data={state.data} /> : null}
 
-      <Panel title="Usage analytics" description="Request, token, cost, and log rows returned by the management API.">
+      <Panel
+        title="Usage history"
+        description="Per-request usage history with key and account attribution. For raw request logs, see the Logs page."
+      >
+        <UsageFiltersBar apiKeys={apiKeys} filters={filters} onChange={setFilters} />
         {renderUsageContent(state)}
       </Panel>
+    </div>
+  );
+}
+
+function UsageFiltersBar({
+  apiKeys,
+  filters,
+  onChange
+}: {
+  apiKeys: APIKeyResponse[];
+  filters: UsageFilters;
+  onChange: (filters: UsageFilters) => void;
+}) {
+  return (
+    <div className="mb-4 flex flex-wrap items-end gap-3">
+      <label className="text-sm font-medium text-zinc-700">
+        API key
+        <select
+          aria-label="Filter by API key"
+          className="mt-1 block w-56 rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+          value={filters.apiKeyId}
+          onChange={(event) => onChange({ ...filters, apiKeyId: event.target.value })}
+        >
+          <option value="">All API keys</option>
+          {apiKeys.map((key) => (
+            <option key={key.ID} value={key.ID}>
+              {key.Name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="text-sm font-medium text-zinc-700">
+        Auth type
+        <select
+          aria-label="Filter by auth type"
+          className="mt-1 block w-40 rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950"
+          value={filters.authType}
+          onChange={(event) => onChange({ ...filters, authType: event.target.value })}
+        >
+          <option value="">All auth types</option>
+          <option value="oauth">OAuth</option>
+          <option value="api_key">API key</option>
+        </select>
+      </label>
     </div>
   );
 }
@@ -104,6 +183,8 @@ function UsageTables({ data }: { data: UsageData }) {
               <th className="px-4 py-3 font-semibold">Request</th>
               <th className="px-4 py-3 font-semibold">Provider</th>
               <th className="px-4 py-3 font-semibold">Model</th>
+              <th className="px-4 py-3 font-semibold">Key</th>
+              <th className="px-4 py-3 font-semibold">Account / OAuth</th>
               <th className="px-4 py-3 font-semibold">Tokens</th>
               <th className="px-4 py-3 font-semibold">Cost</th>
               <th className="px-4 py-3 font-semibold">Status</th>
@@ -116,6 +197,13 @@ function UsageTables({ data }: { data: UsageData }) {
                 <td className="px-4 py-3 font-mono text-xs text-zinc-700">{record.request_id}</td>
                 <td className="px-4 py-3 font-medium text-zinc-950">{record.provider}</td>
                 <td className="px-4 py-3 text-zinc-600">{record.model}</td>
+                <td className="px-4 py-3 text-zinc-600">{formatKey(record)}</td>
+                <td className="px-4 py-3 text-zinc-600">
+                  <div className="flex flex-col gap-1">
+                    <span>{formatAccount(record)}</span>
+                    <StatusPill tone={authTone(record)}>{authLabel(record)}</StatusPill>
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-zinc-600">{formatNullableInteger(record.total_tokens)}</td>
                 <td className="px-4 py-3 text-zinc-600">{formatNullableUSD(record.cost_usd)}</td>
                 <td className="px-4 py-3">
@@ -164,6 +252,33 @@ function UsageTables({ data }: { data: UsageData }) {
       </div>
     </div>
   );
+}
+
+function formatKey(record: UsageLogRecord) {
+  if (record.api_key_name) {
+    return record.api_key_name;
+  }
+  if (record.api_key_id) {
+    return record.api_key_id.slice(0, 8);
+  }
+  return "-";
+}
+
+function formatAccount(record: UsageLogRecord) {
+  const provider = record.connection_provider ?? "";
+  const email = record.account_email ?? "";
+  if (provider && email) {
+    return `${provider} · ${email}`;
+  }
+  return provider || email || "-";
+}
+
+function authLabel(record: UsageLogRecord) {
+  return record.auth_type === "oauth" ? "oauth" : "api_key";
+}
+
+function authTone(record: UsageLogRecord): "good" | "neutral" {
+  return record.auth_type === "oauth" ? "good" : "neutral";
 }
 
 function isFailedRecord(record: UsageLogRecord) {

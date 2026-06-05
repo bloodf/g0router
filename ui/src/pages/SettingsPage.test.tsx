@@ -11,7 +11,8 @@ const settings: SettingsResponse = {
   enable_request_logs: false,
   proxy_url: "http://localhost:8081",
   data_dir: "/var/lib/g0router",
-  log_retention_days: 30
+  log_retention_days: 30,
+  allowed_sources: ["local", "lan", "tailscale", "public"]
 };
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -83,6 +84,7 @@ describe("SettingsPage", () => {
     fireEvent.click(screen.getByLabelText("Enable request logs"));
     fireEvent.change(screen.getByLabelText("Proxy URL"), { target: { value: "http://proxy.internal:9000" } });
     fireEvent.change(screen.getByLabelText("Log retention"), { target: { value: "90" } });
+    fireEvent.click(screen.getByLabelText("Tailscale"));
     fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
 
     await waitFor(() => {
@@ -97,7 +99,8 @@ describe("SettingsPage", () => {
             enable_request_logs: true,
             proxy_url: "http://proxy.internal:9000",
             data_dir: "/var/lib/g0router",
-            log_retention_days: 90
+            log_retention_days: 90,
+            allowed_sources: ["local", "lan", "public"]
           }),
           credentials: "same-origin",
           method: "PUT"
@@ -136,6 +139,41 @@ describe("SettingsPage", () => {
         })
       );
     });
+  });
+
+  it("persists connection-source policy via allowed_sources", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === getSettingsPath() && method === "GET") {
+        return jsonResponse(settings);
+      }
+      if (path === getSettingsPath() && method === "PUT") {
+        return jsonResponse({ ...settings, allowed_sources: ["local", "tailscale"] });
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<SettingsPage />);
+
+    expect(await screen.findByLabelText("Local (loopback)")).toBeChecked();
+    expect(screen.getByLabelText("Public web")).toBeChecked();
+
+    fireEvent.click(screen.getByLabelText("LAN (private network)"));
+    fireEvent.click(screen.getByLabelText("Public web"));
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        getSettingsPath(),
+        expect.objectContaining({
+          body: JSON.stringify({ ...settings, allowed_sources: ["local", "tailscale"] }),
+          method: "PUT"
+        })
+      );
+    });
+    expect(screen.getByText(/rejected \(403\)/i)).toBeInTheDocument();
   });
 
   it("renders recoverable errors and auth-expired errors", async () => {

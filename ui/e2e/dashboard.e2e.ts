@@ -318,6 +318,40 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByLabel("Log retention")).toHaveValue("90");
   });
 
+  test("persists connection-source policy in settings", async ({ page }) => {
+    const apiRequests = await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "Settings");
+
+    await expect(page.getByLabel("Public web")).toBeChecked();
+    await page.getByLabel("Public web").uncheck();
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect(page.getByText("Settings saved")).toBeVisible();
+
+    await expect
+      .poll(() => apiRequests.find((request) => request.method === "PUT" && request.path === "/api/settings")?.body)
+      .toMatchObject({ allowed_sources: ["local", "lan", "tailscale"] });
+  });
+
+  test("shows the API-key-required notice and usage attribution columns", async ({ page }) => {
+    await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "API Keys");
+    await expect(page.getByText("An API key is required to call the proxy")).toBeVisible();
+
+    await navigateTo(page, "Usage");
+    await expect(page.getByRole("heading", { exact: true, name: "Usage" })).toBeVisible();
+    const usageTable = page.getByRole("table", { name: "Usage rows" });
+    await expect(usageTable).toContainText("desktop-client");
+    await expect(usageTable).toContainText("ops@example.test");
+    await expect(usageTable.getByText("oauth").first()).toBeVisible();
+
+    await page.getByLabel("Filter by auth type").selectOption("oauth");
+    await expect(usageTable).toContainText("desktop-client");
+  });
+
   test("creates MCP instances with advanced launch fields", async ({ page }) => {
     const apiRequests = await mockAPI(page);
 
@@ -1223,7 +1257,11 @@ const usageRows = [
     timestamp: "2026-06-03T10:00:00Z",
     provider: "openai",
     model: "gpt-5-mini",
-    auth_type: "api_key",
+    auth_type: "oauth",
+    api_key_id: "key-1",
+    api_key_name: "desktop-client",
+    connection_provider: "openai",
+    account_email: "ops@example.test",
     total_tokens: 1250,
     cost_usd: 0.034,
     latency_ms: 320,
@@ -1382,5 +1420,6 @@ const settings = {
   enable_request_logs: true,
   proxy_url: "http://127.0.0.1:8080",
   data_dir: "/var/lib/g0router",
-  log_retention_days: 30
+  log_retention_days: 30,
+  allowed_sources: ["local", "lan", "tailscale", "public"]
 };

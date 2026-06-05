@@ -98,6 +98,14 @@ export function APIKeysControlPlane({ showEndpointControls = false }: { showEndp
       title={showEndpointControls ? "Endpoint controls" : "API keys"}
       description={showEndpointControls ? "API key, request transformation, and endpoint protection controls." : "Gateway API keys for authenticated client traffic."}
     >
+      <div className="mb-5 rounded-md border border-sky-200 bg-sky-50 p-4">
+        <p className="text-sm font-semibold text-sky-900">An API key is required to call the proxy</p>
+        <p className="mt-1 text-sm leading-6 text-sky-800">
+          Every request to <code className="font-mono">/v1/*</code> must send a gateway API key. Generate one below; the full key
+          is shown once at creation and cannot be retrieved later.
+        </p>
+      </div>
+
       {showEndpointControls ? (
         <div className="mb-5 rounded-md border border-zinc-200 p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

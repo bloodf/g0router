@@ -158,6 +158,7 @@ export type SettingsResponse = {
   proxy_url: string;
   data_dir: string;
   log_retention_days: number;
+  allowed_sources: string[];
 };
 
 export type UsageLogRecord = {
@@ -184,7 +185,16 @@ export type UsageLogRecord = {
   caveman_enabled?: boolean | null;
   combo_name?: string | null;
   api_key_id?: string | null;
+  api_key_name?: string | null;
   client_tool?: string | null;
+  connection_name?: string | null;
+  connection_provider?: string | null;
+  account_email?: string | null;
+};
+
+export type UsageQuery = {
+  api_key_id?: string;
+  auth_type?: string;
 };
 
 export type UsageListResponse = {
@@ -435,6 +445,20 @@ export function getUsagePath() {
   return apiPaths.usage;
 }
 
+export function buildUsagePath(query: UsageQuery = {}): string {
+  const params = new URLSearchParams();
+  const append = (key: string, value: string | undefined) => {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      params.set(key, trimmed);
+    }
+  };
+  append("api_key_id", query.api_key_id);
+  append("auth_type", query.auth_type);
+  const qs = params.toString();
+  return qs ? `${apiPaths.usage}?${qs}` : apiPaths.usage;
+}
+
 export function getUsageSummaryPath() {
   return apiPaths.usageSummary;
 }
@@ -681,8 +705,8 @@ export function updateSettings(settings: SettingsResponse) {
   return apiFetch<SettingsResponse>(getSettingsPath(), { method: "PUT", body: settings });
 }
 
-export function listUsage() {
-  return apiFetch<UsageListResponse>(getUsagePath());
+export function listUsage(query: UsageQuery = {}) {
+  return apiFetch<UsageListResponse>(buildUsagePath(query));
 }
 
 export function getUsageSummary() {

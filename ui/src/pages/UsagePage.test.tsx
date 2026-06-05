@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UsagePage } from "./UsagePage";
 
@@ -97,6 +97,55 @@ describe("UsagePage", () => {
       expect(fetch.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining(["/api/usage", "/api/logs"]));
     });
     expect(screen.queryByText("req-1092")).not.toBeInTheDocument();
+  });
+
+  it("shows key and account attribution and filters by api key and auth type", async () => {
+    const usageRecord = {
+      id: 1,
+      request_id: "req-oauth",
+      timestamp: "2026-06-03T10:00:00Z",
+      provider: "anthropic",
+      model: "claude-sonnet",
+      auth_type: "oauth",
+      api_key_id: "key-abcdef123456",
+      api_key_name: "desktop-client",
+      connection_provider: "anthropic",
+      account_email: "user@example.test",
+      total_tokens: 500,
+      cost_usd: 0.02,
+      latency_ms: 120,
+      status_code: 200
+    };
+
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/keys") {
+        return jsonResponse({ data: [{ ID: "key-abcdef123456", Name: "desktop-client", Prefix: "g0r_live", IsActive: true, CreatedAt: "2026-06-03T09:00:00Z" }] });
+      }
+      if (path.startsWith("/api/usage")) {
+        return jsonResponse({ object: "list", data: [usageRecord], limit: 0, offset: 0 });
+      }
+      if (path === "/api/logs") {
+        return jsonResponse(emptyUsageList);
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<UsagePage />);
+
+    const row = await screen.findByRole("row", { name: /req-oauth/i });
+    expect(within(row).getByText("desktop-client")).toBeInTheDocument();
+    expect(within(row).getByText("anthropic · user@example.test")).toBeInTheDocument();
+    expect(within(row).getByText("oauth")).toBeInTheDocument();
+
+    fireEvent.change(await screen.findByLabelText("Filter by API key"), { target: { value: "key-abcdef123456" } });
+    fireEvent.change(screen.getByLabelText("Filter by auth type"), { target: { value: "oauth" } });
+
+    await waitFor(() => {
+      const usagePaths = fetch.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith("/api/usage"));
+      expect(usagePaths.some((path) => path.includes("api_key_id=key-abcdef123456") && path.includes("auth_type=oauth"))).toBe(true);
+    });
   });
 
   it("shows loading while usage requests are pending", () => {
