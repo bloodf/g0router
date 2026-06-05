@@ -8,6 +8,7 @@ import { CombosPage } from "./pages/CombosPage";
 import { ConnectionsAuthPage } from "./pages/ConnectionsAuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
+import { HealthPage } from "./pages/HealthPage";
 import { EndpointPage } from "./pages/EndpointPage";
 import { LogsPage } from "./pages/LogsPage";
 import { McpAccountsPage } from "./pages/McpAccountsPage";
@@ -57,6 +58,13 @@ const pages = [
     title: "Connections/Auth",
     description: "Provider account rows, OAuth-backed sessions, API-token rows, and credential-safe actions.",
     Component: ConnectionsAuthPage
+  },
+  {
+    id: "health",
+    label: "Health",
+    title: "Provider health",
+    description: "Per-connection active state, re-auth needs, backoff windows, token expiry, and last error.",
+    Component: HealthPage
   },
   {
     id: "aliases",

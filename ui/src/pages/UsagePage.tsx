@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isAuthExpiredError, listAPIKeys, listLogs, listUsage } from "../api";
+import { apiFetch, getUsageSummaryPath, isAuthExpiredError, listAPIKeys, listLogs, listUsage, type UsageSummaryResponse } from "../api";
 import type { APIKeyResponse, UsageLogRecord, UsageQuery } from "../api";
 import { EmptyState, ErrorState, LoadingState, MetricCard, Panel, StatusPill } from "../components/Primitives";
 
@@ -7,6 +7,11 @@ type UsageData = {
   logs: UsageLogRecord[];
   usage: UsageLogRecord[];
 };
+
+type SummaryState =
+  | { status: "loading" | "idle" }
+  | { status: "success"; data: UsageSummaryResponse }
+  | { status: "error" };
 
 type UsageState =
   | { status: "loading" }
@@ -26,6 +31,7 @@ export function UsagePage() {
   const [state, setState] = useState<UsageState>({ status: "loading" });
   const [filters, setFilters] = useState<UsageFilters>(emptyFilters);
   const [apiKeys, setApiKeys] = useState<APIKeyResponse[]>([]);
+  const [summaryState, setSummaryState] = useState<SummaryState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
@@ -39,6 +45,15 @@ export function UsagePage() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSummaryState({ status: "loading" });
+    apiFetch<UsageSummaryResponse>(getUsageSummaryPath())
+      .then((data) => { if (!cancelled) setSummaryState({ status: "success", data }); })
+      .catch(() => { if (!cancelled) setSummaryState({ status: "error" }); });
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -82,6 +97,7 @@ export function UsagePage() {
   return (
     <div className="space-y-6">
       {state.status === "success" ? <UsageMetrics data={state.data} /> : null}
+      <UsageSummarySection summaryState={summaryState} />
 
       <Panel
         title="Usage history"
@@ -251,6 +267,65 @@ function UsageTables({ data }: { data: UsageData }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function UsageSummarySection({ summaryState }: { summaryState: SummaryState }) {
+  if (summaryState.status !== "success") {
+    return null;
+  }
+  const { data } = summaryState;
+  if (typeof data.request_count !== "number" || typeof data.total_tokens !== "number" || typeof data.total_cost_usd !== "number") {
+    return null;
+  }
+  return (
+    <Panel title="Usage summary" description="Aggregate totals from /api/usage/summary.">
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-3">
+          <MetricCard label="Requests" value={String(data.request_count)} detail="total requests recorded" tone="sky" />
+          <MetricCard label="Tokens" value={data.total_tokens.toLocaleString()} detail="total tokens tracked" tone="emerald" />
+          <MetricCard label="Cost (USD)" value={`$${data.total_cost_usd.toFixed(4)}`} detail="total cost recorded" tone="amber" />
+        </div>
+        <UsageSummaryBarChart data={data} />
+      </div>
+    </Panel>
+  );
+}
+
+function UsageSummaryBarChart({ data }: { data: UsageSummaryResponse }) {
+  const bars = [
+    { label: "Requests", value: data.request_count, color: "#0ea5e9" },
+    { label: "Tokens (k)", value: Math.round(data.total_tokens / 1000), color: "#10b981" },
+    { label: "Cost (¢)", value: Math.round(data.total_cost_usd * 100), color: "#f59e0b" }
+  ];
+  const maxVal = Math.max(...bars.map((b) => b.value), 1);
+  const chartW = 300;
+  const chartH = 80;
+  const barW = 60;
+  const gap = (chartW - bars.length * barW) / (bars.length + 1);
+
+  return (
+    <svg
+      aria-label="Usage summary chart"
+      role="img"
+      width={chartW}
+      height={chartH + 24}
+      className="overflow-visible"
+    >
+      {bars.map((bar, i) => {
+        const barH = maxVal > 0 ? Math.max(2, Math.round((bar.value / maxVal) * chartH)) : 2;
+        const x = gap + i * (barW + gap);
+        const y = chartH - barH;
+        return (
+          <g key={bar.label}>
+            <rect x={x} y={y} width={barW} height={barH} fill={bar.color} rx={3} />
+            <text x={x + barW / 2} y={chartH + 16} textAnchor="middle" fontSize={10} fill="#71717a">
+              {bar.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 

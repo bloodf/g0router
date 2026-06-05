@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConnectionsAuthPage } from "./ConnectionsAuthPage";
 
@@ -131,6 +131,77 @@ describe("ConnectionsAuthPage", () => {
 
     const okRow = screen.getByRole("row", { name: /Healthy API openai local api_key/i });
     expect(within(okRow).queryByText("Needs re-auth")).not.toBeInTheDocument();
+  });
+
+  it("shows Re-authenticate button for needs_reauth connections and triggers authorize call", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = (init?.method ?? "GET").toUpperCase();
+      if (path === "/api/providers") {
+        return jsonResponse({
+          data: [{ id: "openai", auth_types: ["oauth", "api_key"], model_catalog: true, list_models: true, public_inference: true, public_status: "supported" }]
+        });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({
+          data: [
+            {
+              ID: "conn-stale",
+              Provider: "openai",
+              Name: "Stale OAuth",
+              AuthType: "oauth",
+              IsActive: true,
+              Email: "stale@example.com",
+              AccountID: null,
+              UnavailableUntil: null,
+              BackoffLevel: 0,
+              NeedsReauth: true,
+              LastRefreshError: "refresh token revoked",
+              CreatedAt: "2026-06-04T00:00:00Z",
+              UpdatedAt: "2026-06-04T00:00:00Z"
+            },
+            {
+              ID: "conn-ok",
+              Provider: "openai",
+              Name: "Healthy API",
+              AuthType: "api_key",
+              IsActive: true,
+              Email: null,
+              AccountID: null,
+              UnavailableUntil: null,
+              BackoffLevel: 0,
+              NeedsReauth: false,
+              LastRefreshError: null,
+              CreatedAt: "2026-06-04T00:00:00Z",
+              UpdatedAt: "2026-06-04T00:00:00Z"
+            }
+          ]
+        });
+      }
+      if (path === "/api/oauth/openai/authorize" && method === "POST") {
+        return jsonResponse({ provider: "openai", auth_url: "https://openai.com/auth?code=abc", session_id: "sess-reauth-123" });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ConnectionsAuthPage />);
+
+    // Stale row has Re-authenticate button; healthy row does not
+    const staleRow = await screen.findByRole("row", { name: /Stale OAuth openai stale@example.com oauth/i });
+    const reAuthBtn = within(staleRow).getByRole("button", { name: /Re-authenticate/i });
+    expect(reAuthBtn).toBeInTheDocument();
+
+    const okRow = screen.getByRole("row", { name: /Healthy API openai local api_key/i });
+    expect(within(okRow).queryByRole("button", { name: /Re-authenticate/i })).not.toBeInTheDocument();
+
+    // Clicking Re-authenticate calls the authorize endpoint
+    fireEvent.click(reAuthBtn);
+
+    await waitFor(() => {
+      const authCalls = fetch.mock.calls.filter((args) => String(args[0]) === "/api/oauth/openai/authorize");
+      expect(authCalls.length).toBeGreaterThanOrEqual(1);
+    });
   });
 
   it("exposes provider OAuth controls on the dedicated Connections/Auth route", async () => {

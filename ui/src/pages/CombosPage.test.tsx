@@ -529,6 +529,21 @@ describe("CombosPage", () => {
     expect(within(row).getByText("fastest")).toBeInTheDocument();
   });
 
+  it("shows inline help text for the selected strategy near the strategy selector", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: [] })));
+
+    render(<CombosPage />);
+
+    await screen.findByText("No combo routes configured");
+
+    // Default strategy is fallback — hint text must be visible
+    expect(screen.getByText(/Try steps in order until one succeeds/i)).toBeInTheDocument();
+
+    // Change to auto and verify auto help text appears
+    fireEvent.change(screen.getByLabelText("Strategy"), { target: { value: "auto" } });
+    expect(screen.getByText(/Pick the best step per request/i)).toBeInTheDocument();
+  });
+
   it("renders recoverable errors and auth-expired errors", async () => {
     const fetch = vi
       .fn()

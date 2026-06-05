@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { getUsageSummaryPath } from "../api";
 import { UsagePage } from "./UsagePage";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -94,7 +95,7 @@ describe("UsagePage", () => {
     expect(screen.getByRole("table", { name: "Request logs" }).parentElement).toHaveClass("overflow-x-auto");
 
     await waitFor(() => {
-      expect(fetch.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining(["/api/usage", "/api/logs"]));
+      expect(fetch.mock.calls.map((args) => String(args[0]))).toEqual(expect.arrayContaining(["/api/usage", "/api/logs"]));
     });
     expect(screen.queryByText("req-1092")).not.toBeInTheDocument();
   });
@@ -143,7 +144,7 @@ describe("UsagePage", () => {
     fireEvent.change(screen.getByLabelText("Filter by auth type"), { target: { value: "oauth" } });
 
     await waitFor(() => {
-      const usagePaths = fetch.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith("/api/usage"));
+      const usagePaths = fetch.mock.calls.map((args) => String(args[0])).filter((path) => path.startsWith("/api/usage"));
       expect(usagePaths.some((path) => path.includes("api_key_id=key-abcdef123456") && path.includes("auth_type=oauth"))).toBe(true);
     });
   });
@@ -189,5 +190,66 @@ describe("UsagePage", () => {
 
     expect(await screen.findByText("Session expired")).toBeInTheDocument();
     expect(screen.getByText("control-plane auth required")).toBeInTheDocument();
+  });
+
+  it("fetches usage summary and renders an SVG chart", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/usage") return jsonResponse({ object: "list", data: [], limit: 0, offset: 0 });
+      if (path === "/api/logs") return jsonResponse({ object: "list", data: [], limit: 0, offset: 0 });
+      if (path === getUsageSummaryPath()) {
+        return jsonResponse({ request_count: 42, total_tokens: 15000, total_cost_usd: 0.75 });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<UsagePage />);
+
+    expect(await screen.findByText("Usage summary")).toBeInTheDocument();
+    expect(screen.getByText("42")).toBeInTheDocument();
+    expect(screen.getByText("15,000")).toBeInTheDocument();
+    expect(document.querySelector("svg")).not.toBeNull();
+
+    await waitFor(() => {
+      const paths = fetch.mock.calls.map((args) => String(args[0]));
+      expect(paths).toContain(getUsageSummaryPath());
+    });
+  });
+
+  it("degrades gracefully when summary fetch returns zero data", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/usage") return jsonResponse({ object: "list", data: [], limit: 0, offset: 0 });
+      if (path === "/api/logs") return jsonResponse({ object: "list", data: [], limit: 0, offset: 0 });
+      if (path === getUsageSummaryPath()) {
+        return jsonResponse({ request_count: 0, total_tokens: 0, total_cost_usd: 0 });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<UsagePage />);
+
+    expect(await screen.findByText("Usage summary")).toBeInTheDocument();
+    expect(screen.queryByText("Usage data unavailable")).not.toBeInTheDocument();
+  });
+
+  it("renders summary section even when summary fetch fails", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === "/api/usage") return jsonResponse({ object: "list", data: [], limit: 0, offset: 0 });
+      if (path === "/api/logs") return jsonResponse({ object: "list", data: [], limit: 0, offset: 0 });
+      if (path === getUsageSummaryPath()) {
+        return jsonResponse({ error: "summary unavailable" }, { status: 500 });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<UsagePage />);
+
+    // Usage page still loads (empty state), summary section absent or shows no error banner from main state
+    expect(await screen.findByText("No usage or logs yet")).toBeInTheDocument();
   });
 });

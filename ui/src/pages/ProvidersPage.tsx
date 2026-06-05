@@ -266,6 +266,26 @@ function ProviderTables({
     }
   }
 
+  async function handleReAuth(connection: ConnectionResponse) {
+    const provider = connection.Provider;
+    const accountLabel = connection.Email ?? connection.AccountID ?? connection.Name ?? "";
+    setBusyConnectionID(connection.ID);
+    setMutationError("");
+    setMutationMessage("");
+    setOAuthProvider(provider);
+    setOAuthSession(null);
+    setOAuthCallback("");
+    try {
+      const session = await startProviderOAuth(provider, accountLabel);
+      setOAuthSession(session);
+      setMutationMessage(`Re-auth OAuth started for ${provider}`);
+    } catch (error) {
+      setMutationError(toApiError(error).message);
+    } finally {
+      setBusyConnectionID("");
+    }
+  }
+
   async function handleDeleteConnection(connection: ConnectionResponse) {
     const label = connection.Name || connection.ID;
     if (!window.confirm(`Delete provider connection ${label}?`)) {
@@ -511,6 +531,17 @@ function ProviderTables({
                       <td className="px-4 py-3 text-zinc-600">{connection.BackoffLevel}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
+                          {connection.NeedsReauth ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleReAuth(connection)}
+                              disabled={busyConnectionID === connection.ID}
+                              className="rounded-md border border-amber-300 px-3 py-1.5 text-xs font-semibold text-amber-700 disabled:cursor-not-allowed disabled:text-amber-300"
+                              aria-label={`Re-authenticate ${connection.Name || connection.ID}`}
+                            >
+                              Re-authenticate
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => void handleTestConnection(connection)}
