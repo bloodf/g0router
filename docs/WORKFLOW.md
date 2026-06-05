@@ -63,6 +63,26 @@ Gates: `go test ./...` 2098+ pass, `-race` clean, `go vet` clean, UI 100 tests,
 Playwright e2e 23/24 (1 skipped), `make verify` green, gitleaks clean (420 commits),
 real-binary + OrbStack container smoke verified. Coverage **95.0%**.
 
+### Wave L — Full request-logging system
+
+- Configurable retention via the Web UI (`log_retention_days`: 5/15/30/60/90/180,
+  keep-forever, or custom) with an hourly background cleanup that prunes logs past
+  the window. Default 30 days. Negative values rejected.
+- `GET /api/logs` rich query: `provider`, `model`, `auth_type`, `source_format`,
+  `status_class` (success/client_error/server_error), `search`, `start`/`end`
+  (RFC3339), `limit`/`offset`; response carries `total` for pagination.
+- Log viewer page: kind/provider/model/source-format/date filters, debounced
+  search, pagination with totals, expandable per-row detail.
+- Operational fields now populated: `client_tool` (X-Client-Tool / User-Agent),
+  `rtk_bytes_saved` (RTK compression delta), `combo_name` (active-combo routing).
+- Scope note: only inference request logs are persisted; "Kind" filters by HTTP
+  status class. No separate MCP/access/system log streams (not in scope).
+
+Final gates after Wave L: `go test ./... -race` **2181 pass**, `go vet` clean,
+coverage **95.0%**, UI **104 tests**, Playwright e2e **27 pass**, `make verify`
+green, `make e2e-binary` green, gitleaks clean (history), real-binary + OrbStack
+container smoke verified, working tree clean.
+
 ---
 
 ## STAGE 8 — Completion Hardening
