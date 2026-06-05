@@ -2533,7 +2533,7 @@ max_agents: 1
 gate: "go test ./internal/providers/ollamacloud ./internal/provider ./internal/cli ./api/handlers ./internal/proxy -run 'Test(ChatCompletionUsesNativeOllamaCloudChat|ListModelsUsesNativeTagsEndpoint|NewDefaultUsesOllamaCloudProvider|OllamaCloudPublicNativeProvider|ProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|PublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|PublicProvidersDoNotClaimQuotaSupport|ProvidersListShowsKnownProviders|DefaultInferenceEngineRegistersOllamaCloudProvider|ProvidersListKnownProviders|DispatchUsesProviderQualifiedDynamicRouteForDeploymentDefinedProviders)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T01:28:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BP-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e9515-e2e4-7f93-a1ee-7293925a05ed at commit 0fc9797"
 gate_results:
   - "focused Ollama Cloud provider/matrix/proxy/CLI/API tests: RED before implementation, ollama-cloud provider package was missing, matrix remained unsupported, runtime registration omitted it, public lists omitted it, and provider-qualified dispatch did not route it"
   - "focused Ollama Cloud provider/matrix/proxy/CLI/API tests: PASS"
@@ -2545,6 +2545,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e9515-e2e4-7f93-a1ee-7293925a05ed: PASS, no blocking findings; workflow pending marker replaced by this record commit"
 
 tasks:
   - id: "8.BP.1"
