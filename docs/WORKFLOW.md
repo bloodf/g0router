@@ -3178,7 +3178,7 @@ tasks:
     name: "Add bootstrapped clean-checkout release verification target"
     status: DONE
     agent: "orchestrator with audit subagents 019e95c8-6d0c-7c23-be7a-1f4f724b5c09, 019e95c8-a5d7-76b3-b264-59f1a87eeb37, 019e95c8-f512-7fe2-b08b-a7066c1a35f6"
-    commit: "PENDING"
+    commit: "82d8485"
     files_owned:
       - Makefile
       - README.md
