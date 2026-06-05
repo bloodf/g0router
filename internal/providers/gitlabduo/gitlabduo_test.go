@@ -171,14 +171,27 @@ func TestChatCompletionRejectsUnsupportedModel(t *testing.T) {
 	}
 }
 
+func TestMappedRequestUsesFixedAliasTable(t *testing.T) {
+	aliases := modelAliases
+	aliases[5].Mapping = modelMapping{Provider: "openai", Model: "mutated-model"}
+
+	mapping, err := mappedRequest(&providers.ChatRequest{Model: "duo-chat-gpt-5-1"})
+	if err != nil {
+		t.Fatalf("mappedRequest: %v", err)
+	}
+	if mapping.Model != "gpt-5.1-2025-11-13" {
+		t.Fatalf("mapping model = %q, want immutable original alias target", mapping.Model)
+	}
+}
+
 func TestListModelsReturnsDuoAliasesDeterministically(t *testing.T) {
 	provider := New(Config{})
 	models, err := provider.ListModels(context.Background(), testKey())
 	if err != nil {
 		t.Fatalf("ListModels: %v", err)
 	}
-	if len(models) != len(modelMappings) {
-		t.Fatalf("models = %d, want %d", len(models), len(modelMappings))
+	if len(models) != len(modelAliases) {
+		t.Fatalf("models = %d, want %d", len(models), len(modelAliases))
 	}
 	if models[0].ID != "duo-chat-gpt-5-1" {
 		t.Fatalf("first model = %q, want sorted Duo alias list", models[0].ID)

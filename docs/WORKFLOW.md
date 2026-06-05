@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BS"
-last_updated: "2026-06-05T03:05:00Z"
+current_wave: "8.BT"
+last_updated: "2026-06-05T03:15:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2718,6 +2718,44 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BS turns canonical `gitlab-duo` credentials into real provider-qualified dispatch. The runtime exchanges stored GitLab OAuth tokens for GitLab Duo direct-access tokens, caches those direct-access credentials briefly, forwards GitLab-provided gateway headers, maps Duo aliases to GitLab AI Gateway OpenAI and Anthropic proxy models, exposes deterministic Duo alias model listing, and advertises `gitlab-duo` through provider matrix, CLI, API, and normal server startup. Static priced catalog and quota fetchers remain intentionally absent.
+
+---
+
+### Wave 8.BT — GitLab Duo Alias Table Hardening
+
+```yaml
+wave: "8.BT"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/gitlabduo -run 'Test(MappedRequestUsesFixedAliasTable|ListModelsReturnsDuoAliasesDeterministically)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T03:15:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BT-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after implementation commit"
+gate_results:
+  - "focused GitLab Duo alias table test: RED before implementation, mutating the package-level modelMappings map changed routing for duo-chat-gpt-5-1"
+  - "focused GitLab Duo alias table test: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BT.1"
+    name: "Replace GitLab Duo mutable alias map with a fixed alias table"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - internal/providers/gitlabduo/gitlabduo.go
+      - internal/providers/gitlabduo/gitlabduo_test.go
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BT-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BT resolves the Wave 8.BS evaluator's non-blocking mutable-map finding. GitLab Duo model aliases are held in a fixed alias table, routing scans that table instead of reading from a mutable map, model listing still returns deterministic aliases, and direct-access runtime behavior remains unchanged.
 
 ---
 

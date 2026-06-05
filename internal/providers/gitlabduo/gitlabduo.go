@@ -50,17 +50,22 @@ type modelMapping struct {
 	Model    string
 }
 
-var modelMappings = map[string]modelMapping{
-	"duo-chat-opus-4-6":      {Provider: "anthropic", Model: "claude-opus-4-6"},
-	"duo-chat-sonnet-4-6":    {Provider: "anthropic", Model: "claude-sonnet-4-6"},
-	"duo-chat-opus-4-5":      {Provider: "anthropic", Model: "claude-opus-4-5-20251101"},
-	"duo-chat-sonnet-4-5":    {Provider: "anthropic", Model: "claude-sonnet-4-5-20250929"},
-	"duo-chat-haiku-4-5":     {Provider: "anthropic", Model: "claude-haiku-4-5-20251001"},
-	"duo-chat-gpt-5-1":       {Provider: "openai", Model: "gpt-5.1-2025-11-13"},
-	"duo-chat-gpt-5-2":       {Provider: "openai", Model: "gpt-5.2-2025-12-11"},
-	"duo-chat-gpt-5-mini":    {Provider: "openai", Model: "gpt-5-mini-2025-08-07"},
-	"duo-chat-gpt-5-codex":   {Provider: "openai", Model: "gpt-5-codex"},
-	"duo-chat-gpt-5-2-codex": {Provider: "openai", Model: "gpt-5.2-codex"},
+type modelAlias struct {
+	ID      string
+	Mapping modelMapping
+}
+
+var modelAliases = [...]modelAlias{
+	{ID: "duo-chat-opus-4-6", Mapping: modelMapping{Provider: "anthropic", Model: "claude-opus-4-6"}},
+	{ID: "duo-chat-sonnet-4-6", Mapping: modelMapping{Provider: "anthropic", Model: "claude-sonnet-4-6"}},
+	{ID: "duo-chat-opus-4-5", Mapping: modelMapping{Provider: "anthropic", Model: "claude-opus-4-5-20251101"}},
+	{ID: "duo-chat-sonnet-4-5", Mapping: modelMapping{Provider: "anthropic", Model: "claude-sonnet-4-5-20250929"}},
+	{ID: "duo-chat-haiku-4-5", Mapping: modelMapping{Provider: "anthropic", Model: "claude-haiku-4-5-20251001"}},
+	{ID: "duo-chat-gpt-5-1", Mapping: modelMapping{Provider: "openai", Model: "gpt-5.1-2025-11-13"}},
+	{ID: "duo-chat-gpt-5-2", Mapping: modelMapping{Provider: "openai", Model: "gpt-5.2-2025-12-11"}},
+	{ID: "duo-chat-gpt-5-mini", Mapping: modelMapping{Provider: "openai", Model: "gpt-5-mini-2025-08-07"}},
+	{ID: "duo-chat-gpt-5-codex", Mapping: modelMapping{Provider: "openai", Model: "gpt-5-codex"}},
+	{ID: "duo-chat-gpt-5-2-codex", Mapping: modelMapping{Provider: "openai", Model: "gpt-5.2-codex"}},
 }
 
 func New(config Config) *Provider {
@@ -158,9 +163,9 @@ func (p *Provider) ChatCompletionStream(ctx context.Context, key providers.Key, 
 }
 
 func (p *Provider) ListModels(context.Context, providers.Key) ([]providers.Model, error) {
-	ids := make([]string, 0, len(modelMappings))
-	for id := range modelMappings {
-		ids = append(ids, id)
+	ids := make([]string, 0, len(modelAliases))
+	for _, alias := range modelAliases {
+		ids = append(ids, alias.ID)
 	}
 	sort.Strings(ids)
 
@@ -223,11 +228,12 @@ func mappedRequest(req *providers.ChatRequest) (modelMapping, error) {
 	if req == nil {
 		return modelMapping{}, fmt.Errorf("gitlab-duo request: nil chat request")
 	}
-	mapping, ok := modelMappings[req.Model]
-	if !ok {
-		return modelMapping{}, fmt.Errorf("unsupported gitlab-duo model: %s", req.Model)
+	for _, alias := range modelAliases {
+		if alias.ID == req.Model {
+			return alias.Mapping, nil
+		}
 	}
-	return mapping, nil
+	return modelMapping{}, fmt.Errorf("unsupported gitlab-duo model: %s", req.Model)
 }
 
 func requestWithModel(req *providers.ChatRequest, model string) *providers.ChatRequest {
