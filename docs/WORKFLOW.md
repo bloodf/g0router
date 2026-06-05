@@ -3120,7 +3120,7 @@ max_agents: 1
 gate: "go test ./internal/provider -run TestProviderDocsExposeQuotaColumnMatchingMatrix -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T07:05:00Z"
 evaluator_prompt: "docs/evaluations/wave-8CC-evaluator-prompt.md"
-evaluation: "PENDING external evaluator"
+evaluation: "PASS external evaluator thread 019e95c4-074e-7d01-9d91-06d1f981eca3 at commit eb4cf81"
 gate_results:
   - "go test ./internal/provider -run TestProviderDocsExposeQuotaColumnMatchingMatrix -count=1: FAIL before docs update, missing explicit Quota column"
   - "go test ./internal/provider -run TestProviderDocsExposeQuotaColumnMatchingMatrix -count=1: PASS"
@@ -3132,6 +3132,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e95c4-074e-7d01-9d91-06d1f981eca3: PASS, no blocking findings; UI dependencies were bootstrapped with make build before rerunning UI gates"
 
 tasks:
   - id: "8.CC.1"
