@@ -3214,7 +3214,7 @@ tasks:
     name: "Add dashboard update controls and complete state coverage"
     status: DONE
     agent: "orchestrator"
-    commit: "PENDING"
+    commit: "2ba7073"
     files_owned:
       - ui/src/api.ts
       - ui/src/api.test.ts
