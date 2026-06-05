@@ -26,6 +26,7 @@ const (
 type AnthropicProvider struct {
 	name         providers.ModelProvider
 	baseURL      string
+	headers      map[string]string
 	client       *fasthttp.Client
 	streamClient *http.Client
 }
@@ -35,12 +36,24 @@ func New(baseURL string) *AnthropicProvider {
 }
 
 func NewForProvider(name providers.ModelProvider, baseURL string) *AnthropicProvider {
+	return NewForProviderWithHeaders(name, baseURL, nil)
+}
+
+func NewForProviderWithHeaders(name providers.ModelProvider, baseURL string, headers map[string]string) *AnthropicProvider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
+	}
+	copiedHeaders := make(map[string]string, len(headers))
+	for key, value := range headers {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		copiedHeaders[key] = value
 	}
 	return &AnthropicProvider{
 		name:         name,
 		baseURL:      strings.TrimRight(baseURL, "/"),
+		headers:      copiedHeaders,
 		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
 		streamClient: &http.Client{},
 	}
@@ -153,6 +166,9 @@ func (p *AnthropicProvider) newJSONRequest(method, path string, key providers.Ke
 	req := fasthttp.AcquireRequest()
 	req.Header.SetMethod(method)
 	req.SetRequestURI(p.baseURL + path)
+	for key, value := range p.headers {
+		req.Header.Set(key, value)
+	}
 	req.Header.Set("anthropic-version", anthropicVersion)
 	if key.AuthType == "oauth" {
 		req.Header.Set("Authorization", "Bearer "+key.Value)
@@ -184,6 +200,9 @@ func (p *AnthropicProvider) newHTTPJSONRequest(ctx context.Context, method, path
 	req, err := http.NewRequestWithContext(ctx, method, p.baseURL+path, reader)
 	if err != nil {
 		return nil, fmt.Errorf("create anthropic request: %w", err)
+	}
+	for key, value := range p.headers {
+		req.Header.Set(key, value)
 	}
 	req.Header.Set("anthropic-version", anthropicVersion)
 	if key.AuthType == "oauth" {

@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BR"
-last_updated: "2026-06-05T02:35:00Z"
+current_wave: "8.BS"
+last_updated: "2026-06-05T02:55:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2669,6 +2669,54 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BR removes the unproven Replicate OpenAI-compatible wrapper from normal startup and marks Replicate as API-key `auth_only`. This keeps credential capture available while refusing to advertise adapter, inference, streaming, listing, catalog, quota, or public dispatch support until a real Replicate prediction-backed runtime is implemented and tested against local fake prediction endpoints.
+
+---
+
+### Wave 8.BS — GitLab Duo Runtime Dispatch
+
+```yaml
+wave: "8.BS"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/providers/anthropic ./internal/providers/gitlabduo ./internal/provider ./internal/cli ./api/handlers -run 'Test(NewForProviderWithHeadersAddsProviderHeaders|ChatCompletionExchangesDirectAccessAndRoutesOpenAIModel|ChatCompletionRoutesAnthropicModelWithDirectAccessHeaders|ChatCompletionCachesDirectAccessToken|ChatCompletionRejectsUnsupportedModel|ListModelsReturnsDuoAliasesDeterministically|GitLabDuoPublicDynamicProvider|ProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes|PublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|ProvidersListShowsKnownProviders|ProvidersListKnownProviders)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T02:55:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BS-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after implementation commit"
+gate_results:
+  - "focused GitLab Duo runtime tests: RED before implementation, provider package and ProviderGitLabDuo constant did not exist, Anthropic provider could not inject GitLab direct-access headers, matrix/API/CLI still treated gitlab-duo as auth_only, and provider-qualified routing did not accept gitlab-duo"
+  - "focused GitLab Duo runtime tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BS.1"
+    name: "Promote GitLab Duo to provider-qualified runtime dispatch"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - api/handlers/providers_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/providers/anthropic/anthropic.go
+      - internal/providers/anthropic/anthropic_test.go
+      - internal/providers/gitlabduo/gitlabduo.go
+      - internal/providers/gitlabduo/gitlabduo_test.go
+      - internal/providers/types.go
+      - internal/proxy/engine.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BS-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BS turns canonical `gitlab-duo` credentials into real provider-qualified dispatch. The runtime exchanges stored GitLab OAuth tokens for GitLab Duo direct-access tokens, caches those direct-access credentials briefly, forwards GitLab-provided gateway headers, maps Duo aliases to GitLab AI Gateway OpenAI and Anthropic proxy models, exposes deterministic Duo alias model listing, and advertises `gitlab-duo` through provider matrix, CLI, API, and normal server startup. Static priced catalog and quota fetchers remain intentionally absent.
 
 ---
 

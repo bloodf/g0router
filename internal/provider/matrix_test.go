@@ -62,7 +62,7 @@ func TestProviderMatrixCoversRemediationParityTiers(t *testing.T) {
 
 func TestProviderMatrixMarksOAuthOnlyProvidersExplicitly(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"cursor", "gitlab-duo", "kiro"} {
+	for _, id := range []string{"cursor", "kiro"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -73,6 +73,25 @@ func TestProviderMatrixMarksOAuthOnlyProvidersExplicitly(t *testing.T) {
 		if entry.PublicInference {
 			t.Fatalf("%s marked public-inference capable despite auth-only status", id)
 		}
+	}
+}
+
+func TestGitLabDuoPublicDynamicProvider(t *testing.T) {
+	entry, ok := ProviderMatrix().Provider("gitlab-duo")
+	if !ok {
+		t.Fatal("provider matrix missing gitlab-duo")
+	}
+	if entry.PublicStatus != ProviderStatusSupported {
+		t.Fatalf("gitlab-duo status = %q, want supported", entry.PublicStatus)
+	}
+	if !entry.RegisteredAdapter || !entry.Inference || !entry.Streaming || !entry.PublicInference || !entry.DirectDispatch {
+		t.Fatalf("gitlab-duo should expose public dynamic runtime support: %+v", entry)
+	}
+	if entry.ModelCatalog || !entry.ListModels || entry.Quota {
+		t.Fatalf("gitlab-duo should claim alias listing, but no static catalog or quota: %+v", entry)
+	}
+	if entry.OAuthProvider != "gitlab-duo" || len(entry.AuthTypes) != 1 || entry.AuthTypes[0] != "oauth" {
+		t.Fatalf("gitlab-duo auth metadata = %+v, want oauth through gitlab-duo", entry)
 	}
 }
 
@@ -100,7 +119,7 @@ func TestProviderMatrixMarksSearchCredentialsAuthOnly(t *testing.T) {
 
 func TestProviderMatrixMarksDeploymentDefinedAdaptersAsDynamicPublicRoutes(t *testing.T) {
 	matrix := ProviderMatrix()
-	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "kilo", "kimi", "litellm", "lm-studio", "ollama-cloud", "opencode", "qianfan", "vllm", "xiaomi", "zhipu"} {
+	for _, id := range []string{"alibaba", "azure", "cloudflare-ai-gateway", "github-copilot", "gitlab-duo", "kilo", "kimi", "litellm", "lm-studio", "ollama-cloud", "opencode", "qianfan", "vllm", "xiaomi", "zhipu"} {
 		entry, ok := matrix.Provider(id)
 		if !ok {
 			t.Fatalf("provider %q missing", id)
@@ -197,6 +216,7 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 		"fireworks":             true,
 		"gemini":                true,
 		"github-copilot":        true,
+		"gitlab-duo":            true,
 		"groq":                  true,
 		"huggingface":           true,
 		"kilo":                  true,
@@ -241,9 +261,6 @@ func TestPublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries(t *testing
 
 	if ids["cursor"] {
 		t.Fatal("cursor is auth-only today and must not be advertised as an inference provider")
-	}
-	if ids["gitlab-duo"] {
-		t.Fatal("gitlab-duo is auth-only today and must not be advertised as an inference provider")
 	}
 }
 

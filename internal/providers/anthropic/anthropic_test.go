@@ -95,6 +95,36 @@ func TestBuildMessagesRequest(t *testing.T) {
 	}
 }
 
+func TestNewForProviderWithHeadersAddsProviderHeaders(t *testing.T) {
+	var gotFeature string
+	var gotAuth string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotFeature = r.Header.Get("X-GitLab-Feature")
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(messageResponseJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := NewForProviderWithHeaders(providers.ModelProvider("gitlab-duo"), server.URL, map[string]string{
+		"X-GitLab-Feature": "duo",
+	})
+	_, err := provider.ChatCompletion(context.Background(), providers.Key{
+		Value:    "direct-access-token",
+		Provider: providers.ModelProvider("gitlab-duo"),
+		AuthType: "oauth",
+	}, testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletion: %v", err)
+	}
+	if gotFeature != "duo" {
+		t.Fatalf("X-GitLab-Feature = %q, want duo", gotFeature)
+	}
+	if gotAuth != "Bearer direct-access-token" {
+		t.Fatalf("Authorization = %q, want direct access bearer", gotAuth)
+	}
+}
+
 func TestBuildOAuthRequest(t *testing.T) {
 	var gotAuth string
 	var gotAPIKey string

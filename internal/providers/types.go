@@ -38,6 +38,7 @@ const (
 	ProviderOpenCode      ModelProvider = "opencode"
 	ProviderKilo          ModelProvider = "kilo"
 	ProviderGitHubCopilot ModelProvider = "github-copilot"
+	ProviderGitLabDuo     ModelProvider = "gitlab-duo"
 	ProviderCursor        ModelProvider = "cursor"
 	ProviderAlibaba       ModelProvider = "alibaba"
 	ProviderKimi          ModelProvider = "kimi"

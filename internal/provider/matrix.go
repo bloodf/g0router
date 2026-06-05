@@ -63,7 +63,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		authOnlyProvider("antigravity", "antigravity", true, "Google OAuth credential flow; runtime dispatch is through Gemini/Vertex adapters."),
 		dynamicRoutableProvider("github-copilot", "github-copilot", true, true, true, false, "oauth"),
 		authOnlyProvider("cursor", "cursor", true, "OMP-style loginDeepControl polling OAuth is implemented, but no Cursor inference adapter is wired."),
-		authOnlyProvider("gitlab-duo", "gitlab-duo", true, "OMP-style GitLab Duo OAuth is implemented, but no GitLab Duo inference adapter is wired."),
+		gitLabDuoProvider(),
 		dynamicRoutableProvider("kimi", "kimi", true, true, true, false, "api_key", "oauth"),
 		authOnlyProvider("kiro", "kiro", true, "OAuth is implemented, but no Kiro inference adapter is wired."),
 		catalogRoutableProvider("xai", "xai", true, true, true, false, "api_key", "oauth"),
@@ -211,6 +211,12 @@ func kiloProvider() ProviderMatrixEntry {
 func ollamaCloudProvider() ProviderMatrixEntry {
 	entry := dynamicRoutableProvider("ollama-cloud", "", false, true, true, false, "api_key")
 	entry.Notes = "Public direct dispatch works through provider-qualified native Ollama Cloud model IDs; native /api/tags model listing is supported, with no static catalog or quota fetcher."
+	return entry
+}
+
+func gitLabDuoProvider() ProviderMatrixEntry {
+	entry := dynamicRoutableProvider("gitlab-duo", "gitlab-duo", true, true, true, false, "oauth")
+	entry.Notes = "Public direct dispatch works through provider-qualified GitLab Duo model IDs after exchanging the GitLab OAuth token for a Duo direct-access token; Duo alias model listing is supported, with no static priced catalog or quota fetcher."
 	return entry
 }
 

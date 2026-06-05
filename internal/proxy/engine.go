@@ -576,6 +576,7 @@ func providerQualifiedDynamicRoute(model string) (modelRoute, bool) {
 		providers.ProviderAzure,
 		providers.ProviderCloudflare,
 		providers.ProviderGitHubCopilot,
+		providers.ProviderGitLabDuo,
 		providers.ProviderKilo,
 		providers.ProviderKimi,
 		providers.ProviderLiteLLM,
