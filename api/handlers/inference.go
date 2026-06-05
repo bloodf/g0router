@@ -8,6 +8,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
+	"github.com/bloodf/g0router/internal/streaming"
 	"github.com/bloodf/g0router/internal/translate"
 	"github.com/valyala/fasthttp"
 )
@@ -142,14 +143,14 @@ func Responses(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 		return
 	}
-	if req.Stream != nil && *req.Stream {
-		writeError(ctx, fasthttp.StatusNotImplemented, "responses streaming unavailable")
-		return
-	}
 
 	chatReq, err := translate.ResponsesRequestToOpenAIChat(&req)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+		return
+	}
+	if req.Stream != nil && *req.Stream {
+		streamResponses(ctx, engine, chatReq)
 		return
 	}
 	resp, err := engine.Dispatch(requestContext(ctx), chatReq)
@@ -158,6 +159,115 @@ func Responses(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 		return
 	}
 	writeJSON(ctx, fasthttp.StatusOK, translate.OpenAIChatToResponsesResponse(resp))
+}
+
+func streamResponses(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *providers.ChatRequest) {
+	stream, err := engine.DispatchStream(requestContext(ctx), req)
+	if err != nil {
+		writeDispatchError(ctx, err)
+		return
+	}
+
+	ctx.SetContentType("text/event-stream")
+	ctx.Response.Header.Set("Cache-Control", "no-cache")
+	ctx.Response.Header.Set("Connection", "keep-alive")
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		accumulator := streaming.NewResponsesAccumulator()
+		sequence := 0
+		responseID := ""
+		model := ""
+		createdAt := int64(0)
+		for chunk := range stream {
+			if chunk.Error != nil {
+				writeStreamError(w, chunk.Error)
+				return
+			}
+			if chunk.ID != "" {
+				responseID = chunk.ID
+			}
+			if chunk.Model != "" {
+				model = chunk.Model
+			}
+			if chunk.Created != 0 {
+				createdAt = chunk.Created
+			}
+			for _, choice := range chunk.Choices {
+				if choice.Delta.Content != nil && *choice.Delta.Content != "" {
+					sequence++
+					event := streaming.ResponseEvent{
+						Type:           "response.output_text.delta",
+						Delta:          *choice.Delta.Content,
+						SequenceNumber: sequence,
+					}
+					accumulator.AddEvent(event)
+					writeResponseStreamEvent(w, event.Type, event)
+				}
+				if choice.FinishReason != nil {
+					response := streaming.Response{
+						ID:        responseID,
+						Object:    "response",
+						CreatedAt: createdAt,
+						Model:     model,
+						Status:    "completed",
+						Usage:     streamResponseUsage(chunk.Usage),
+					}
+					doneEvent := streaming.ResponseEvent{
+						Type:           "response.output_text.done",
+						Text:           accumulator.Response().OutputText,
+						SequenceNumber: sequence + 1,
+					}
+					accumulator.AddEvent(doneEvent)
+					writeResponseStreamEvent(w, doneEvent.Type, doneEvent)
+					completedEvent := streaming.ResponseEvent{
+						Type:           "response.completed",
+						SequenceNumber: sequence + 2,
+						Response:       completedResponse(response, accumulator.Response().OutputText),
+					}
+					accumulator.AddEvent(completedEvent)
+					writeResponseStreamEvent(w, completedEvent.Type, completedEvent)
+				}
+			}
+		}
+		_, _ = w.WriteString("data: [DONE]\n\n")
+		_ = w.Flush()
+	})
+}
+
+func writeResponseStreamEvent(w *bufio.Writer, eventType string, event streaming.ResponseEvent) {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	_, _ = fmt.Fprintf(w, "event: %s\n", eventType)
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", data)
+	_ = w.Flush()
+}
+
+func completedResponse(resp streaming.Response, outputText string) *streaming.Response {
+	resp.OutputText = outputText
+	if outputText != "" {
+		resp.Output = []streaming.ResponseOutput{{
+			Type: "message",
+			Role: "assistant",
+			Content: []streaming.ResponseContent{{
+				Type: "output_text",
+				Text: outputText,
+			}},
+		}}
+	}
+	return &resp
+}
+
+func streamResponseUsage(usage *providers.Usage) *streaming.ResponseUsage {
+	if usage == nil {
+		return nil
+	}
+	return &streaming.ResponseUsage{
+		InputTokens:  usage.PromptTokens,
+		OutputTokens: usage.CompletionTokens,
+		TotalTokens:  usage.TotalTokens,
+	}
 }
 
 func writeDispatchError(ctx *fasthttp.RequestCtx, err error) {

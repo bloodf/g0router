@@ -181,6 +181,61 @@ func TestStreamInferenceWritesSanitizedStreamError(t *testing.T) {
 	}
 }
 
+func TestResponsesStreamingTranslatesChatStream(t *testing.T) {
+	role := "assistant"
+	content := "hello"
+	finish := "stop"
+	chunks := make(chan providers.StreamChunk, 4)
+	chunks <- providers.StreamChunk{
+		ID:      "resp-stream",
+		Object:  "chat.completion.chunk",
+		Created: 1710000000,
+		Model:   "gpt-4o",
+		Choices: []providers.StreamChoice{{Index: 0, Delta: providers.StreamDelta{Role: &role}}},
+	}
+	chunks <- providers.StreamChunk{
+		ID:      "resp-stream",
+		Object:  "chat.completion.chunk",
+		Created: 1710000000,
+		Model:   "gpt-4o",
+		Choices: []providers.StreamChoice{{Index: 0, Delta: providers.StreamDelta{Content: &content}}},
+	}
+	chunks <- providers.StreamChunk{
+		ID:      "resp-stream",
+		Object:  "chat.completion.chunk",
+		Created: 1710000000,
+		Model:   "gpt-4o",
+		Choices: []providers.StreamChoice{{Index: 0, FinishReason: &finish}},
+		Usage:   &providers.Usage{PromptTokens: 3, CompletionTokens: 2, TotalTokens: 5},
+	}
+	close(chunks)
+	engine := &fakeEngine{stream: chunks}
+	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
+
+	resp, body := postJSON(t, baseURL+"/v1/responses", `{"model":"gpt-4o","input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}],"stream":true}`, nil)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+	}
+	if got := resp.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/event-stream") {
+		t.Fatalf("Content-Type = %q, want text/event-stream", got)
+	}
+	bodyText := string(body)
+	if !strings.Contains(bodyText, `event: response.output_text.delta`) || !strings.Contains(bodyText, `"delta":"hello"`) {
+		t.Fatalf("stream body missing response text delta: %s", bodyText)
+	}
+	if !strings.Contains(bodyText, `event: response.completed`) || !strings.Contains(bodyText, `"output_text":"hello"`) {
+		t.Fatalf("stream body missing completed response: %s", bodyText)
+	}
+	if !strings.HasSuffix(bodyText, "data: [DONE]\n\n") {
+		t.Fatalf("stream body should end with [DONE], got %q", bodyText)
+	}
+	if engine.streamReceived == nil || engine.streamReceived.Stream == nil || !*engine.streamReceived.Stream {
+		t.Fatalf("stream request = %+v", engine.streamReceived)
+	}
+}
+
 func TestInferenceInvalidJSON(t *testing.T) {
 	engine := &fakeEngine{response: chatResponse()}
 	_, baseURL := startInferenceServer(t, api.ServerConfig{Version: "test", InferenceEngine: engine})
