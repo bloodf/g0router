@@ -450,6 +450,134 @@ func TestMigrateCreatesRequestLogIndexes(t *testing.T) {
 	}
 }
 
+func TestGetUsageResolvesAPIKeyAndConnectionLabels(t *testing.T) {
+	s := openTestStore(t)
+
+	// Create an api key (name only; key hash/secret irrelevant for JOIN resolution).
+	key, _, err := s.CreateAPIKey("my-key", "testsecret")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+
+	// Create a connection with provider+email.
+	email := "user@example.com"
+	conn := &Connection{
+		Provider: "anthropic",
+		Name:     "work-account",
+		AuthType: AuthTypeAPIKey,
+		IsActive: true,
+		Email:    &email,
+	}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	conns, err := s.GetConnections("anthropic")
+	if err != nil || len(conns) == 0 {
+		t.Fatalf("GetConnections: %v (len=%d)", err, len(conns))
+	}
+	connID := conns[0].ID
+
+	ts := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	entry := RequestLogEntry{
+		RequestID:    "req-labeled",
+		Timestamp:    ts,
+		Provider:     "anthropic",
+		Model:        "claude-sonnet-4",
+		AuthType:     "api_key",
+		APIKeyID:     &key.ID,
+		ConnectionID: &connID,
+	}
+	if err := s.LogRequest(&entry); err != nil {
+		t.Fatalf("LogRequest: %v", err)
+	}
+
+	entries, err := s.GetUsage(UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries len = %d, want 1", len(entries))
+	}
+	got := entries[0]
+	if got.APIKeyName == nil || *got.APIKeyName != "my-key" {
+		t.Fatalf("APIKeyName = %v, want my-key", got.APIKeyName)
+	}
+	if got.ConnectionName == nil || *got.ConnectionName != "work-account" {
+		t.Fatalf("ConnectionName = %v, want work-account", got.ConnectionName)
+	}
+	if got.ConnectionProvider == nil || *got.ConnectionProvider != "anthropic" {
+		t.Fatalf("ConnectionProvider = %v, want anthropic", got.ConnectionProvider)
+	}
+	if got.AccountEmail == nil || *got.AccountEmail != "user@example.com" {
+		t.Fatalf("AccountEmail = %v, want user@example.com", got.AccountEmail)
+	}
+}
+
+func TestGetUsageNullAPIKeyAndConnectionReturnsNilLabels(t *testing.T) {
+	s := openTestStore(t)
+	entry := minimalUsageEntry("req-no-key", "openai", "gpt-4o", time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC))
+	// No APIKeyID, no ConnectionID → LEFT JOIN yields NULLs.
+	if err := s.LogRequest(&entry); err != nil {
+		t.Fatalf("LogRequest: %v", err)
+	}
+
+	entries, err := s.GetUsage(UsageFilter{})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("entries len = %d, want 1", len(entries))
+	}
+	got := entries[0]
+	if got.APIKeyName != nil {
+		t.Fatalf("APIKeyName = %v, want nil", got.APIKeyName)
+	}
+	if got.ConnectionName != nil {
+		t.Fatalf("ConnectionName = %v, want nil", got.ConnectionName)
+	}
+	if got.ConnectionProvider != nil {
+		t.Fatalf("ConnectionProvider = %v, want nil", got.ConnectionProvider)
+	}
+	if got.AccountEmail != nil {
+		t.Fatalf("AccountEmail = %v, want nil", got.AccountEmail)
+	}
+}
+
+func TestGetUsageFilterByAPIKeyID(t *testing.T) {
+	s := openTestStore(t)
+	key, _, err := s.CreateAPIKey("filter-key", "testsecret")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+
+	base := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	withKey := minimalUsageEntry("req-keyed", "openai", "gpt-4o", base)
+	withKey.APIKeyID = &key.ID
+	noKey := minimalUsageEntry("req-nokey", "openai", "gpt-4o", base.Add(time.Minute))
+	if err := s.LogRequest(&withKey); err != nil {
+		t.Fatalf("LogRequest withKey: %v", err)
+	}
+	if err := s.LogRequest(&noKey); err != nil {
+		t.Fatalf("LogRequest noKey: %v", err)
+	}
+
+	entries, err := s.GetUsage(UsageFilter{APIKeyID: &key.ID})
+	if err != nil {
+		t.Fatalf("GetUsage: %v", err)
+	}
+	if len(entries) != 1 || entries[0].RequestID != "req-keyed" {
+		t.Fatalf("entries = %+v, want only req-keyed", entries)
+	}
+
+	count, err := s.CountUsage(UsageFilter{APIKeyID: &key.ID})
+	if err != nil {
+		t.Fatalf("CountUsage: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("count = %d, want 1", count)
+	}
+}
+
 func minimalUsageEntry(requestID, provider, model string, timestamp time.Time) RequestLogEntry {
 	return RequestLogEntry{
 		RequestID: requestID,

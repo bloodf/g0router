@@ -41,30 +41,34 @@ type usageSummaryResponse struct {
 }
 
 type usageLogResponse struct {
-	ID               int64    `json:"id"`
-	RequestID        string   `json:"request_id"`
-	Timestamp        string   `json:"timestamp"`
-	Provider         string   `json:"provider"`
-	Model            string   `json:"model"`
-	ConnectionID     *string  `json:"connection_id"`
-	AuthType         string   `json:"auth_type"`
-	InputTokens      *int     `json:"input_tokens"`
-	OutputTokens     *int     `json:"output_tokens"`
-	CacheReadTokens  *int     `json:"cache_read_tokens"`
-	CacheWriteTokens *int     `json:"cache_write_tokens"`
-	TotalTokens      *int     `json:"total_tokens"`
-	CostUSD          *float64 `json:"cost_usd"`
-	LatencyMS        *int     `json:"latency_ms"`
-	StatusCode       *int     `json:"status_code"`
-	Error            *string  `json:"error"`
-	SourceFormat     *string  `json:"source_format"`
-	TargetFormat     *string  `json:"target_format"`
-	RTKEnabled       *bool    `json:"rtk_enabled"`
-	RTKBytesSaved    *int     `json:"rtk_bytes_saved"`
-	CavemanEnabled   *bool    `json:"caveman_enabled"`
-	ComboName        *string  `json:"combo_name"`
-	APIKeyID         *string  `json:"api_key_id"`
-	ClientTool       *string  `json:"client_tool"`
+	ID                 int64    `json:"id"`
+	RequestID          string   `json:"request_id"`
+	Timestamp          string   `json:"timestamp"`
+	Provider           string   `json:"provider"`
+	Model              string   `json:"model"`
+	ConnectionID       *string  `json:"connection_id"`
+	AuthType           string   `json:"auth_type"`
+	InputTokens        *int     `json:"input_tokens"`
+	OutputTokens       *int     `json:"output_tokens"`
+	CacheReadTokens    *int     `json:"cache_read_tokens"`
+	CacheWriteTokens   *int     `json:"cache_write_tokens"`
+	TotalTokens        *int     `json:"total_tokens"`
+	CostUSD            *float64 `json:"cost_usd"`
+	LatencyMS          *int     `json:"latency_ms"`
+	StatusCode         *int     `json:"status_code"`
+	Error              *string  `json:"error"`
+	SourceFormat       *string  `json:"source_format"`
+	TargetFormat       *string  `json:"target_format"`
+	RTKEnabled         *bool    `json:"rtk_enabled"`
+	RTKBytesSaved      *int     `json:"rtk_bytes_saved"`
+	CavemanEnabled     *bool    `json:"caveman_enabled"`
+	ComboName          *string  `json:"combo_name"`
+	APIKeyID           *string  `json:"api_key_id"`
+	APIKeyName         *string  `json:"api_key_name"`
+	ClientTool         *string  `json:"client_tool"`
+	ConnectionName     *string  `json:"connection_name"`
+	ConnectionProvider *string  `json:"connection_provider"`
+	AccountEmail       *string  `json:"account_email"`
 }
 
 func Usage(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
@@ -197,6 +201,7 @@ func parseUsageFilter(ctx *fasthttp.RequestCtx) (store.UsageFilter, error) {
 		Provider:     queryString(args, "provider"),
 		Model:        queryString(args, "model"),
 		AuthType:     queryString(args, "auth_type"),
+		APIKeyID:     queryString(args, "api_key_id"),
 		SourceFormat: queryString(args, "source_format"),
 		Search:       string(args.Peek("search")),
 	}
@@ -278,30 +283,34 @@ func usageLogResponses(entries []store.RequestLogEntry) []usageLogResponse {
 	responses := make([]usageLogResponse, 0, len(entries))
 	for _, entry := range entries {
 		responses = append(responses, usageLogResponse{
-			ID:               entry.ID,
-			RequestID:        entry.RequestID,
-			Timestamp:        entry.Timestamp.Format(time.RFC3339),
-			Provider:         entry.Provider,
-			Model:            entry.Model,
-			ConnectionID:     entry.ConnectionID,
-			AuthType:         entry.AuthType,
-			InputTokens:      entry.InputTokens,
-			OutputTokens:     entry.OutputTokens,
-			CacheReadTokens:  entry.CacheReadTokens,
-			CacheWriteTokens: entry.CacheWriteTokens,
-			TotalTokens:      entry.TotalTokens,
-			CostUSD:          entry.CostUSD,
-			LatencyMS:        entry.LatencyMS,
-			StatusCode:       entry.StatusCode,
-			Error:            entry.Error,
-			SourceFormat:     entry.SourceFormat,
-			TargetFormat:     entry.TargetFormat,
-			RTKEnabled:       entry.RTKEnabled,
-			RTKBytesSaved:    entry.RTKBytesSaved,
-			CavemanEnabled:   entry.CavemanEnabled,
-			ComboName:        entry.ComboName,
-			APIKeyID:         entry.APIKeyID,
-			ClientTool:       entry.ClientTool,
+			ID:                 entry.ID,
+			RequestID:          entry.RequestID,
+			Timestamp:          entry.Timestamp.Format(time.RFC3339),
+			Provider:           entry.Provider,
+			Model:              entry.Model,
+			ConnectionID:       entry.ConnectionID,
+			AuthType:           entry.AuthType,
+			InputTokens:        entry.InputTokens,
+			OutputTokens:       entry.OutputTokens,
+			CacheReadTokens:    entry.CacheReadTokens,
+			CacheWriteTokens:   entry.CacheWriteTokens,
+			TotalTokens:        entry.TotalTokens,
+			CostUSD:            entry.CostUSD,
+			LatencyMS:          entry.LatencyMS,
+			StatusCode:         entry.StatusCode,
+			Error:              entry.Error,
+			SourceFormat:       entry.SourceFormat,
+			TargetFormat:       entry.TargetFormat,
+			RTKEnabled:         entry.RTKEnabled,
+			RTKBytesSaved:      entry.RTKBytesSaved,
+			CavemanEnabled:     entry.CavemanEnabled,
+			ComboName:          entry.ComboName,
+			APIKeyID:           entry.APIKeyID,
+			APIKeyName:         entry.APIKeyName,
+			ClientTool:         entry.ClientTool,
+			ConnectionName:     entry.ConnectionName,
+			ConnectionProvider: entry.ConnectionProvider,
+			AccountEmail:       entry.AccountEmail,
 		})
 	}
 	return responses

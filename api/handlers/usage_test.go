@@ -296,3 +296,146 @@ func intPtr(value int) *int {
 func floatPtr(value float64) *float64 {
 	return &value
 }
+
+func TestUsageResponseIncludesAttributionFields(t *testing.T) {
+	s := openHandlerTestStore(t)
+
+	key, _, err := s.CreateAPIKey("handler-key", "testsecret")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+
+	email := "handler@example.com"
+	conn := &store.Connection{
+		Provider: "openai",
+		Name:     "handler-conn",
+		AuthType: store.AuthTypeAPIKey,
+		IsActive: true,
+		Email:    &email,
+	}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+	conns, err := s.GetConnections("openai")
+	if err != nil || len(conns) == 0 {
+		t.Fatalf("GetConnections: %v (len=%d)", err, len(conns))
+	}
+	connID := conns[0].ID
+
+	entry := store.RequestLogEntry{
+		RequestID:    "req-attr",
+		Timestamp:    time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC),
+		Provider:     "openai",
+		Model:        "gpt-4o",
+		AuthType:     "api_key",
+		APIKeyID:     &key.ID,
+		ConnectionID: &connID,
+	}
+	logHandlerEntries(t, s, []store.RequestLogEntry{entry})
+
+	ctx := newHandlerCtx("GET", "/api/usage")
+	Usage(ctx, s)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+
+	var decoded struct {
+		Data []struct {
+			APIKeyID           *string `json:"api_key_id"`
+			APIKeyName         *string `json:"api_key_name"`
+			ConnectionID       *string `json:"connection_id"`
+			ConnectionName     *string `json:"connection_name"`
+			ConnectionProvider *string `json:"connection_provider"`
+			AccountEmail       *string `json:"account_email"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(decoded.Data) != 1 {
+		t.Fatalf("data len = %d, want 1", len(decoded.Data))
+	}
+	row := decoded.Data[0]
+	if row.APIKeyID == nil || *row.APIKeyID != key.ID {
+		t.Fatalf("api_key_id = %v, want %s", row.APIKeyID, key.ID)
+	}
+	if row.APIKeyName == nil || *row.APIKeyName != "handler-key" {
+		t.Fatalf("api_key_name = %v, want handler-key", row.APIKeyName)
+	}
+	if row.ConnectionID == nil || *row.ConnectionID != connID {
+		t.Fatalf("connection_id = %v, want %s", row.ConnectionID, connID)
+	}
+	if row.ConnectionName == nil || *row.ConnectionName != "handler-conn" {
+		t.Fatalf("connection_name = %v, want handler-conn", row.ConnectionName)
+	}
+	if row.ConnectionProvider == nil || *row.ConnectionProvider != "openai" {
+		t.Fatalf("connection_provider = %v, want openai", row.ConnectionProvider)
+	}
+	if row.AccountEmail == nil || *row.AccountEmail != "handler@example.com" {
+		t.Fatalf("account_email = %v, want handler@example.com", row.AccountEmail)
+	}
+}
+
+func TestUsageFilterByAPIKeyID(t *testing.T) {
+	s := openHandlerTestStore(t)
+
+	key, _, err := s.CreateAPIKey("filter-key", "testsecret")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+
+	base := time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC)
+	withKey := handlerUsageEntry("req-keyed", "openai", "gpt-4o", base)
+	withKey.APIKeyID = &key.ID
+	noKey := handlerUsageEntry("req-nokey", "openai", "gpt-4o", base.Add(time.Minute))
+	logHandlerEntries(t, s, []store.RequestLogEntry{withKey, noKey})
+
+	ctx := newHandlerCtx("GET", "/api/usage?api_key_id="+key.ID)
+	Usage(ctx, s)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var decoded struct {
+		Data  []struct{ RequestID string `json:"request_id"` } `json:"data"`
+		Total int                                               `json:"total"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(decoded.Data) != 1 || decoded.Data[0].RequestID != "req-keyed" {
+		t.Fatalf("data = %+v, want only req-keyed", decoded.Data)
+	}
+	if decoded.Total != 1 {
+		t.Fatalf("total = %d, want 1", decoded.Total)
+	}
+}
+
+func TestUsageNullAttributionFieldsReturnNull(t *testing.T) {
+	s := openHandlerTestStore(t)
+	entry := handlerUsageEntry("req-null-attr", "openai", "gpt-4o", time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC))
+	logHandlerEntries(t, s, []store.RequestLogEntry{entry})
+
+	ctx := newHandlerCtx("GET", "/api/usage")
+	Usage(ctx, s)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var decoded struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(decoded.Data) != 1 {
+		t.Fatalf("data len = %d, want 1", len(decoded.Data))
+	}
+	row := decoded.Data[0]
+	for _, field := range []string{"api_key_name", "connection_name", "connection_provider", "account_email"} {
+		if v, ok := row[field]; ok && v != nil {
+			t.Fatalf("field %q = %v, want null", field, v)
+		}
+	}
+}

@@ -8,30 +8,34 @@ import (
 )
 
 type RequestLogEntry struct {
-	ID               int64
-	RequestID        string
-	Timestamp        time.Time
-	Provider         string
-	Model            string
-	ConnectionID     *string
-	AuthType         string
-	InputTokens      *int
-	OutputTokens     *int
-	CacheReadTokens  *int
-	CacheWriteTokens *int
-	TotalTokens      *int
-	CostUSD          *float64
-	LatencyMS        *int
-	StatusCode       *int
-	Error            *string
-	SourceFormat     *string
-	TargetFormat     *string
-	RTKEnabled       *bool
-	RTKBytesSaved    *int
-	CavemanEnabled   *bool
-	ComboName        *string
-	APIKeyID         *string
-	ClientTool       *string
+	ID                 int64
+	RequestID          string
+	Timestamp          time.Time
+	Provider           string
+	Model              string
+	ConnectionID       *string
+	AuthType           string
+	InputTokens        *int
+	OutputTokens       *int
+	CacheReadTokens    *int
+	CacheWriteTokens   *int
+	TotalTokens        *int
+	CostUSD            *float64
+	LatencyMS          *int
+	StatusCode         *int
+	Error              *string
+	SourceFormat       *string
+	TargetFormat       *string
+	RTKEnabled         *bool
+	RTKBytesSaved      *int
+	CavemanEnabled     *bool
+	ComboName          *string
+	APIKeyID           *string
+	ClientTool         *string
+	APIKeyName         *string
+	ConnectionName     *string
+	ConnectionProvider *string
+	AccountEmail       *string
 }
 
 const (
@@ -50,6 +54,7 @@ type UsageFilter struct {
 	Provider     *string
 	Model        *string
 	AuthType     *string
+	APIKeyID     *string
 	SourceFormat *string
 	StatusClass  string
 	Search       string
@@ -125,12 +130,15 @@ func clampUsageLimit(limit int) int {
 func (s *Store) GetUsage(filter UsageFilter) ([]RequestLogEntry, error) {
 	where, args := usageWhere(filter)
 	query := `SELECT
-		id, request_id, timestamp, provider, model, connection_id, auth_type,
-		input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-		total_tokens, cost_usd, latency_ms, status_code, error,
-		source_format, target_format, rtk_enabled, rtk_bytes_saved,
-		caveman_enabled, combo_name, api_key_id, client_tool
-		FROM request_log` + where + ` ORDER BY timestamp DESC, id DESC`
+		rl.id, rl.request_id, rl.timestamp, rl.provider, rl.model, rl.connection_id, rl.auth_type,
+		rl.input_tokens, rl.output_tokens, rl.cache_read_tokens, rl.cache_write_tokens,
+		rl.total_tokens, rl.cost_usd, rl.latency_ms, rl.status_code, rl.error,
+		rl.source_format, rl.target_format, rl.rtk_enabled, rl.rtk_bytes_saved,
+		rl.caveman_enabled, rl.combo_name, rl.api_key_id, rl.client_tool,
+		ak.name, c.name, c.provider, c.email
+		FROM request_log rl
+		LEFT JOIN api_keys ak ON rl.api_key_id = ak.id
+		LEFT JOIN connections c ON rl.connection_id = c.id` + where + ` ORDER BY rl.timestamp DESC, rl.id DESC`
 	query += " LIMIT ?"
 	args = append(args, clampUsageLimit(filter.Limit))
 	if filter.Offset > 0 {
@@ -164,7 +172,10 @@ func (s *Store) GetUsageSummary(filter UsageFilter) (*UsageSummary, error) {
 
 	var summary UsageSummary
 	if err := s.db.QueryRow(
-		`SELECT COUNT(*), COALESCE(SUM(total_tokens), 0), COALESCE(SUM(cost_usd), 0) FROM request_log`+where,
+		`SELECT COUNT(*), COALESCE(SUM(rl.total_tokens), 0), COALESCE(SUM(rl.cost_usd), 0)
+		FROM request_log rl
+		LEFT JOIN api_keys ak ON rl.api_key_id = ak.id
+		LEFT JOIN connections c ON rl.connection_id = c.id`+where,
 		args...,
 	).Scan(&summary.RequestCount, &summary.TotalTokens, &summary.TotalCostUSD); err != nil {
 		return nil, fmt.Errorf("query usage summary: %w", err)
@@ -180,7 +191,9 @@ func (s *Store) CountUsage(filter UsageFilter) (int, error) {
 
 	var count int
 	if err := s.db.QueryRow(
-		`SELECT COUNT(*) FROM request_log`+where,
+		`SELECT COUNT(*) FROM request_log rl
+		LEFT JOIN api_keys ak ON rl.api_key_id = ak.id
+		LEFT JOIN connections c ON rl.connection_id = c.id`+where,
 		args...,
 	).Scan(&count); err != nil {
 		return 0, fmt.Errorf("count usage: %w", err)
@@ -213,33 +226,37 @@ func usageWhere(filter UsageFilter) (string, []any) {
 	var args []any
 
 	if filter.Provider != nil {
-		clauses = append(clauses, "provider = ?")
+		clauses = append(clauses, "rl.provider = ?")
 		args = append(args, *filter.Provider)
 	}
 	if filter.Model != nil {
-		clauses = append(clauses, "model = ?")
+		clauses = append(clauses, "rl.model = ?")
 		args = append(args, *filter.Model)
 	}
 	if filter.AuthType != nil {
-		clauses = append(clauses, "auth_type = ?")
+		clauses = append(clauses, "rl.auth_type = ?")
 		args = append(args, *filter.AuthType)
 	}
+	if filter.APIKeyID != nil {
+		clauses = append(clauses, "rl.api_key_id = ?")
+		args = append(args, *filter.APIKeyID)
+	}
 	if filter.SourceFormat != nil {
-		clauses = append(clauses, "source_format = ?")
+		clauses = append(clauses, "rl.source_format = ?")
 		args = append(args, *filter.SourceFormat)
 	}
 	switch filter.StatusClass {
 	case StatusClassSuccess:
-		clauses = append(clauses, "status_code < 400")
+		clauses = append(clauses, "rl.status_code < 400")
 	case StatusClassClientError:
-		clauses = append(clauses, "status_code >= 400 AND status_code < 500")
+		clauses = append(clauses, "rl.status_code >= 400 AND rl.status_code < 500")
 	case StatusClassServerError:
-		clauses = append(clauses, "status_code >= 500")
+		clauses = append(clauses, "rl.status_code >= 500")
 	}
 	if filter.Search != "" {
 		escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.ToLower(filter.Search))
 		pattern := "%" + escaped + "%"
-		clauses = append(clauses, "(LOWER(request_id) LIKE ? ESCAPE '\\' OR LOWER(model) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(error, '')) LIKE ? ESCAPE '\\')")
+		clauses = append(clauses, "(LOWER(rl.request_id) LIKE ? ESCAPE '\\' OR LOWER(rl.model) LIKE ? ESCAPE '\\' OR LOWER(COALESCE(rl.error, '')) LIKE ? ESCAPE '\\')")
 		args = append(args, pattern, pattern, pattern)
 	}
 	// from/to are aliases for start/end; prefer start/end when both are set.
@@ -252,11 +269,11 @@ func usageWhere(filter UsageFilter) (string, []any) {
 		end = filter.To
 	}
 	if start != nil {
-		clauses = append(clauses, "timestamp >= ?")
+		clauses = append(clauses, "rl.timestamp >= ?")
 		args = append(args, start.Format(time.RFC3339))
 	}
 	if end != nil {
-		clauses = append(clauses, "timestamp <= ?")
+		clauses = append(clauses, "rl.timestamp <= ?")
 		args = append(args, end.Format(time.RFC3339))
 	}
 	if len(clauses) == 0 {
@@ -271,6 +288,7 @@ func scanRequestLogEntry(rows *sql.Rows) (RequestLogEntry, error) {
 	var timestamp string
 	var connectionID, errorMessage, sourceFormat, targetFormat sql.NullString
 	var comboName, apiKeyID, clientTool sql.NullString
+	var apiKeyName, connectionName, connectionProvider, accountEmail sql.NullString
 	var inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens sql.NullInt64
 	var totalTokens, latencyMS, statusCode, rtkBytesSaved sql.NullInt64
 	var costUSD sql.NullFloat64
@@ -301,6 +319,10 @@ func scanRequestLogEntry(rows *sql.Rows) (RequestLogEntry, error) {
 		&comboName,
 		&apiKeyID,
 		&clientTool,
+		&apiKeyName,
+		&connectionName,
+		&connectionProvider,
+		&accountEmail,
 	)
 	if err != nil {
 		return RequestLogEntry{}, fmt.Errorf("scan usage: %w", err)
@@ -329,6 +351,10 @@ func scanRequestLogEntry(rows *sql.Rows) (RequestLogEntry, error) {
 	entry.ComboName = nullStringPtr(comboName)
 	entry.APIKeyID = nullStringPtr(apiKeyID)
 	entry.ClientTool = nullStringPtr(clientTool)
+	entry.APIKeyName = nullStringPtr(apiKeyName)
+	entry.ConnectionName = nullStringPtr(connectionName)
+	entry.ConnectionProvider = nullStringPtr(connectionProvider)
+	entry.AccountEmail = nullStringPtr(accountEmail)
 
 	return entry, nil
 }
