@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BP"
-last_updated: "2026-06-05T01:28:00Z"
+current_wave: "8.BQ"
+last_updated: "2026-06-05T02:15:00Z"
 last_agent: "orchestrator"
 ```
 
