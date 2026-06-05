@@ -2584,7 +2584,7 @@ max_agents: 1
 gate: "go test ./api/handlers ./internal/provider ./internal/provider/oauth ./internal/cli -run 'Test(OAuthExchangeAcceptsGitLabAliasAndStoresGitLabDuoConnection|CanonicalProviderIDNormalizesRuntimeAliases|ProviderAliasesIncludeLegacyIDs|CanonicalFlowProviderIDNormalizesAuthAliases|CanonicalProviderIDKeepsVertexRuntimeProvider|GitLabFlowStartBuildsPKCEAuthURL|GitLabFlowExchangePostsAuthorizationCode|GitLabFlowPollUnsupported|ConnectionFromOAuthTokenNormalizesGitLabToGitLabDuo|ProviderMatrixCoversRemediationParityTiers|ProviderMatrixMarksOAuthOnlyProvidersExplicitly|PublicInferenceProvidersExcludeUnsupportedAndAuthOnlyEntries|AuthListShowsSupportedProviders|OAuthFlowAcceptsCanonicalProviderAliases)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T02:00:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BQ-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after implementation commit"
+evaluation: "PASS external evaluator subagent 019e952a-7b90-7120-bd6b-b54ccb3eff27 at commit 38c2ab7"
 gate_results:
   - "focused GitLab Duo provider/API/CLI/OAuth tests: RED before implementation, gitlab did not canonicalize to gitlab-duo, GitLab OAuth emitted provider gitlab, matrix omitted gitlab-duo, auth list showed gitlab, and /api/oauth/gitlab exchange did not have dedicated canonical persistence coverage"
   - "focused GitLab Duo provider/API/CLI/OAuth tests: PASS"
@@ -2596,6 +2596,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e952a-7b90-7120-bd6b-b54ccb3eff27: PASS, no blocking findings; workflow pending marker replaced by this record commit"
 
 tasks:
   - id: "8.BQ.1"
