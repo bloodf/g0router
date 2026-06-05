@@ -31,9 +31,37 @@
 project_status: COMPLETE
 current_stage: 9
 current_wave: "COMPLETE"
-last_completed_wave: "R15 (principal audit remediation)"
-last_updated: "2026-06-05T05:30:00Z"
+last_completed_wave: "S1 (dashboard wiring + traffic topology + coverage gate)"
+last_updated: "2026-06-05T19:00:00Z"
 last_agent: "orchestrator"
+```
+
+---
+
+## Session S1 — Dashboard wiring, traffic topology, coverage gate
+
+```yaml
+wave: S1
+status: DONE
+summary: "Lifted Go coverage to the 95% gate and wired every Round 1-5 backend
+  feature into the dashboard, then added a live traffic topology view."
+work:
+  - "coverage -> 95.0%: multimodal handlers, metrics, cache, audit, server helpers, traffic broker"
+  - "UI wave b: per-key policy form, notify+cache settings, fastest/cheapest combo strategies, audit page"
+  - "UI wave c: provider health page, usage summary + daily time-series charts, strategy hints, one-click reauth"
+  - "traffic topology: internal/traffic broker + SSE GET /api/traffic/stream + animated SVG graph"
+  - "fix: API-key wire shape normalized snake_case->dashboard; keyed policy-row fragment"
+gates:
+  - { command: "gitleaks detect", status: PASS, notes: "no leaks, 473 commits" }
+  - { command: "go vet ./...", status: PASS }
+  - { command: "go test ./... -count=1", status: PASS, notes: "2701 tests; coverage 95.0%" }
+  - { command: "go test -race ./api/ ./internal/traffic/", status: PASS }
+  - { command: "go test -tags e2ebin -run TestE2EBinary", status: PASS }
+  - { command: "npm --prefix ui test", status: PASS, notes: "147 tests" }
+  - { command: "npm --prefix ui run build", status: PASS }
+  - { command: "npm --prefix ui run e2e", status: PASS, notes: "33 passed, 1 skipped" }
+  - { command: "docker build + run + /healthz (OrbStack)", status: PASS, notes: "healthz 200; API_KEY_SECRET required at runtime" }
+  - { command: "git diff --check", status: PASS }
 ```
 
 ---
