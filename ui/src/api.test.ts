@@ -121,6 +121,8 @@ describe("apiFetch", () => {
       UnavailableUntil: null,
       BackoffLevel: 0,
       ModelLocks: {},
+      NeedsReauth: false,
+      LastRefreshError: null,
       CreatedAt: "2026-06-04T00:00:00Z",
       UpdatedAt: "2026-06-04T00:00:00Z"
     });

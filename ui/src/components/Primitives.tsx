@@ -48,6 +48,7 @@ export function MetricCard({ label, value, detail, tone = "zinc" }: MetricCardPr
 
 type StatusPillProps = {
   children: ReactNode;
+  title?: string;
   tone?: "neutral" | "good" | "warn" | "bad";
 };
 
@@ -58,9 +59,9 @@ const pillClasses = {
   warn: "border-amber-200 bg-amber-50 text-amber-700"
 };
 
-export function StatusPill({ children, tone = "neutral" }: StatusPillProps) {
+export function StatusPill({ children, title, tone = "neutral" }: StatusPillProps) {
   return (
-    <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${pillClasses[tone]}`}>
+    <span title={title} className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${pillClasses[tone]}`}>
       {children}
     </span>
   );

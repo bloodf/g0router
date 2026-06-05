@@ -499,7 +499,14 @@ function ProviderTables({
                       <td className="px-4 py-3 text-zinc-600">{connection.Email || connection.AccountID || "local"}</td>
                       <td className="px-4 py-3 text-zinc-600">{connection.AuthType}</td>
                       <td className="px-4 py-3">
-                        <StatusPill tone={connectionStatusTone[status]}>{status}</StatusPill>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <StatusPill tone={connectionStatusTone[status]}>{status}</StatusPill>
+                          {connection.NeedsReauth ? (
+                            <StatusPill tone="bad" title={connection.LastRefreshError ?? undefined}>
+                              Needs re-auth
+                            </StatusPill>
+                          ) : null}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-zinc-600">{connection.BackoffLevel}</td>
                       <td className="px-4 py-3">

@@ -465,6 +465,20 @@ test.describe("dashboard control plane", () => {
     expect(apiRequests.some((request) => request.method === "GET" && request.path === "/api/oauth/cursor/poll")).toBe(true);
   });
 
+  test("shows Needs re-auth badge on stale connections in Providers and Connections/Auth pages", async ({ page }) => {
+    await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "Providers");
+    await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("Stale OAuth");
+    await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("Needs re-auth");
+
+    await navigateTo(page, "Connections/Auth");
+    await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("Stale OAuth");
+    await expect(page.getByRole("table", { name: "Provider connections" })).toContainText("Needs re-auth");
+    await expect(page.getByRole("table", { name: "Provider connections" })).not.toContainText("token revoked");
+  });
+
   test("handles endpoint copy, destructive cancellation, and mutation failure states", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://127.0.0.1:5173" });
     await mockAPI(page);
@@ -1222,6 +1236,22 @@ const connections = [
     AccountID: "acct-openai",
     Email: "ops@example.test",
     BackoffLevel: 0,
+    NeedsReauth: false,
+    LastRefreshError: null,
+    CreatedAt: "2026-06-03T10:00:00Z",
+    UpdatedAt: "2026-06-03T10:00:00Z"
+  },
+  {
+    ID: "conn-stale",
+    Provider: "openai",
+    Name: "Stale OAuth",
+    AuthType: "oauth",
+    IsActive: true,
+    AccountID: null,
+    Email: "stale@example.test",
+    BackoffLevel: 0,
+    NeedsReauth: true,
+    LastRefreshError: "token revoked",
     CreatedAt: "2026-06-03T10:00:00Z",
     UpdatedAt: "2026-06-03T10:00:00Z"
   }

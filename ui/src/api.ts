@@ -78,6 +78,8 @@ export type ConnectionResponse = {
   UnavailableUntil?: number | null;
   BackoffLevel: number;
   ModelLocks?: Record<string, number>;
+  NeedsReauth: boolean;
+  LastRefreshError?: string | null;
   CreatedAt: string;
   UpdatedAt: string;
 };

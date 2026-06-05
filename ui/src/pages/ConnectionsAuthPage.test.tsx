@@ -46,6 +46,8 @@ describe("ConnectionsAuthPage", () => {
                 AccountID: "acct-1",
                 UnavailableUntil: null,
                 BackoffLevel: 0,
+                NeedsReauth: false,
+                LastRefreshError: null,
                 ProviderSpecificData: { access_token: "provider-access-token" },
                 AccessToken: "top-secret-access-token",
                 RefreshToken: "top-secret-refresh-token",
@@ -68,6 +70,67 @@ describe("ConnectionsAuthPage", () => {
     expect(screen.getByRole("table", { name: "Provider connections" })).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "Provider contract" })).not.toBeInTheDocument();
     expect(screen.queryByText(/top-secret|provider-access-token|provider-api-key/i)).not.toBeInTheDocument();
+  });
+
+  it("shows Needs re-auth badge on stale connections and omits it on healthy ones", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === "/api/providers") {
+          return new Response(JSON.stringify({ data: [{ id: "openai", auth_types: ["oauth", "api_key"], model_catalog: true, list_models: true, public_inference: true, public_status: "supported" }] }), { headers: { "Content-Type": "application/json" } });
+        }
+        if (path === "/api/connections") {
+          return new Response(
+            JSON.stringify({
+              data: [
+                {
+                  ID: "conn-stale",
+                  Provider: "openai",
+                  Name: "Stale OAuth",
+                  AuthType: "oauth",
+                  IsActive: true,
+                  Email: "stale@example.com",
+                  AccountID: null,
+                  UnavailableUntil: null,
+                  BackoffLevel: 0,
+                  NeedsReauth: true,
+                  LastRefreshError: "refresh token revoked",
+                  CreatedAt: "2026-06-04T00:00:00Z",
+                  UpdatedAt: "2026-06-04T00:00:00Z"
+                },
+                {
+                  ID: "conn-ok",
+                  Provider: "openai",
+                  Name: "Healthy API",
+                  AuthType: "api_key",
+                  IsActive: true,
+                  Email: null,
+                  AccountID: null,
+                  UnavailableUntil: null,
+                  BackoffLevel: 0,
+                  NeedsReauth: false,
+                  LastRefreshError: null,
+                  CreatedAt: "2026-06-04T00:00:00Z",
+                  UpdatedAt: "2026-06-04T00:00:00Z"
+                }
+              ]
+            }),
+            { headers: { "Content-Type": "application/json" } }
+          );
+        }
+        return new Response(JSON.stringify({ error: `missing ${path}` }), { status: 404, headers: { "Content-Type": "application/json" } });
+      })
+    );
+
+    render(<ConnectionsAuthPage />);
+
+    const staleRow = await screen.findByRole("row", { name: /Stale OAuth openai stale@example.com oauth/i });
+    expect(within(staleRow).getByText("Needs re-auth")).toBeInTheDocument();
+    expect(within(staleRow).getByTitle("refresh token revoked")).toBeInTheDocument();
+
+    const okRow = screen.getByRole("row", { name: /Healthy API openai local api_key/i });
+    expect(within(okRow).queryByText("Needs re-auth")).not.toBeInTheDocument();
   });
 
   it("exposes provider OAuth controls on the dedicated Connections/Auth route", async () => {

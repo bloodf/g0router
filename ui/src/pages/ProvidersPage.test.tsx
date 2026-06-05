@@ -49,6 +49,8 @@ const connectionEntry = {
   UnavailableUntil: null,
   BackoffLevel: 0,
   ModelLocks: {},
+  NeedsReauth: false,
+  LastRefreshError: null,
   CreatedAt: "2026-06-03T00:00:00Z",
   UpdatedAt: "2026-06-03T00:05:00Z",
   AccessToken: "top-secret-access-token",
@@ -579,6 +581,36 @@ describe("ProvidersPage", () => {
 
     await screen.findByRole("row", { name: /openai supported oauth, api_key/i });
     expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("shows Needs re-auth badge when needs_reauth is true and hides it when false", async () => {
+    const staleEntry = {
+      ...connectionEntry,
+      ID: "conn-stale",
+      Name: "stale",
+      NeedsReauth: true,
+      LastRefreshError: "token expired"
+    };
+    const freshEntry = { ...connectionEntry, ID: "conn-fresh", Name: "fresh", NeedsReauth: false, LastRefreshError: null };
+    const fetch = vi.fn(async (path: string) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [providerEntry] });
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: [staleEntry, freshEntry] });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    const staleRow = await screen.findByRole("row", { name: /stale openai operator@example.com oauth/i });
+    expect(within(staleRow).getByText("Needs re-auth")).toBeInTheDocument();
+    expect(within(staleRow).getByTitle("token expired")).toBeInTheDocument();
+
+    const freshRow = screen.getByRole("row", { name: /fresh openai operator@example.com oauth/i });
+    expect(within(freshRow).queryByText("Needs re-auth")).not.toBeInTheDocument();
   });
 
   it("renders an auth-expired state for protected provider APIs", async () => {
