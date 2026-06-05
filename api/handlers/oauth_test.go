@@ -119,6 +119,29 @@ func TestOAuthStartRejectsUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestOAuthStartDoesNotLeakFlowErrorSecrets(t *testing.T) {
+	flow := &fakeOAuthFlow{
+		provider: oauth.ProviderID("anthropic"),
+		startErr: errors.New(`start failed access_token=start-access refresh_token=start-refresh verifier=start-verifier Authorization="Bearer start-auth"`),
+	}
+	ctx := oauthRequestCtx(t, fasthttp.MethodPost, "/api/oauth/anthropic/authorize", nil)
+
+	OAuthStart(ctx, openHandlerTestStore(t), OAuthFlows{flow.ProviderID(): flow})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "start oauth failed") {
+		t.Fatalf("body = %s, want sanitized start failure", body)
+	}
+	for _, secret := range []string{"start-access", "start-refresh", "start-verifier", "start-auth", "access_token", "refresh_token", "Authorization"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("body leaked %q: %s", secret, body)
+		}
+	}
+}
+
 func TestOAuthPollUsesSessionFromQuery(t *testing.T) {
 	flow := &fakeOAuthFlow{provider: oauth.ProviderID("github-copilot")}
 	ctx := oauthRequestCtx(t, fasthttp.MethodGet, "/api/oauth/github-copilot/poll?session_id=device-123", nil)

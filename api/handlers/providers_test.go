@@ -209,6 +209,29 @@ func TestProvidersListModelsCanonicalizesProviderAlias(t *testing.T) {
 	}
 }
 
+func TestProvidersListModelsForDynamicProvider(t *testing.T) {
+	source := handlerModelSource{models: []providers.Model{
+		{ID: "kimi/kimi-k2.6", Object: "model", Created: 1, OwnedBy: "kimi", Provider: providers.ProviderKimi},
+		{ID: "gpt-4o", Object: "model", Created: 2, OwnedBy: "openai", Provider: providers.ProviderOpenAI},
+	}}
+
+	ctx, body := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		Providers(ctx, source, "kimi")
+	})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+
+	var decoded struct {
+		Data []providers.Model `json:"data"`
+	}
+	decodeJSON(t, body, &decoded)
+	if len(decoded.Data) != 1 || decoded.Data[0].ID != "kimi/kimi-k2.6" || decoded.Data[0].OwnedBy != "kimi" {
+		t.Fatalf("models = %+v, want dynamic kimi model only", decoded.Data)
+	}
+}
+
 func TestProvidersListModelsRejectsAuthOnlyProvider(t *testing.T) {
 	ctx, body := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
 		Providers(ctx, handlerModelSource{}, "cursor")

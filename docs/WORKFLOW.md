@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.CE"
-last_updated: "2026-06-05T08:05:00Z"
+current_wave: "8.CF"
+last_updated: "2026-06-05T04:04:11Z"
 last_agent: "orchestrator"
 ```
 
@@ -3237,6 +3237,43 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.CE closes the dashboard audit gaps for documented update endpoints and state coverage. Connections can be activated/deactivated through `PUT /api/connections/:id`, aliases, combos, and pricing overrides can be edited through their documented PUT routes, connection metadata is scrubbed before dashboard PUT serialization, Pricing/Logs/Diagnostics have explicit negative-state tests, and mocked dashboard E2E covers update actions plus auth-expired coverage for Pricing, Usage, Logs, Quotas, and Diagnostics.
+
+---
+
+### Wave 8.CF — Backend And Docs Audit Contract Hardening
+
+```yaml
+wave: "8.CF"
+status: DONE
+max_agents: 1
+gate: "go test ./api/handlers ./internal/provider -run 'TestUsageQuotaRawJSONContract|TestProvidersListModelsForDynamicProvider|TestOAuthStartDoesNotLeakFlowErrorSecrets|TestOAuthPhaseDocsDescribeCursorOMPFlow' -count=1 && make verify"
+completed_at: "2026-06-05T04:04:11Z"
+evaluator_prompt: "docs/evaluations/wave-8CF-evaluator-prompt.md"
+evaluation: "PENDING external evaluator"
+gate_results:
+  - "focused backend/docs tests before implementation: RED, OAuthStart leaked raw flow error details, provider dynamic test asserted internal-only provider field, and phase-05 docs still described Cursor as PKCE OAuth"
+  - "focused backend/docs tests after implementation: PASS"
+
+tasks:
+  - id: "8.CF.1"
+    name: "Harden backend API contract coverage and Cursor OAuth docs truth"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - api/handlers/oauth.go
+      - api/handlers/oauth_test.go
+      - api/handlers/providers_test.go
+      - api/handlers/usage_test.go
+      - internal/provider/matrix_test.go
+      - docs/phases/phase-05-oauth-flows-cli.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8CF-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.CF closes the remaining small audit gaps around raw quota JSON shape, dynamic provider model-list coverage, OAuth start-path error redaction, and stale Cursor OAuth phase wording.
 
 ---
 

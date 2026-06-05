@@ -229,13 +229,13 @@ phase-5/task-4: github copilot oauth
 
 ---
 
-## Task 5.5: Cursor PKCE OAuth
+## Task 5.5: Cursor OMP loginDeepControl OAuth
 
 ### Completed Work
 
 - [x] Write test FIRST
 - [x] Implement
-- [x] Commit: `phase-5/task-5: cursor pkce oauth`
+- [x] Commit: `phase-5/task-5: cursor omp oauth`
 
 ### Pre-conditions
 
@@ -275,7 +275,7 @@ go vet ./...              # Clean
 ### Commit
 
 ```
-phase-5/task-5: cursor pkce oauth
+phase-5/task-5: cursor omp oauth
 ```
 
 ---
@@ -602,7 +602,7 @@ go build ./cmd/g0router   # Binary builds
 - [x] Task 5.2 complete (Anthropic OAuth (Claude Code))
 - [x] Task 5.3 complete (OpenAI Codex OAuth)
 - [x] Task 5.4 complete (GitHub Copilot OAuth)
-- [x] Task 5.5 complete (Cursor PKCE OAuth)
+- [x] Task 5.5 complete (Cursor OMP loginDeepControl OAuth)
 - [x] Task 5.6 complete (Google OAuth (Gemini CLI, Antigravity))
 - [x] Task 5.7 complete (xAI, DeepSeek, GitLab, Kiro OAuth)
 - [x] Task 5.8 complete (Chinese Provider OAuth)

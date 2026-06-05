@@ -106,6 +106,20 @@ func TestProviderDocsExposeQuotaColumnMatchingMatrix(t *testing.T) {
 	}
 }
 
+func TestOAuthPhaseDocsDescribeCursorOMPFlow(t *testing.T) {
+	content, err := os.ReadFile("../../docs/phases/phase-05-oauth-flows-cli.md")
+	if err != nil {
+		t.Fatalf("read phase-05 oauth docs: %v", err)
+	}
+	text := string(content)
+	if strings.Contains(text, "Cursor PKCE OAuth") || strings.Contains(text, "cursor pkce oauth") {
+		t.Fatalf("phase-05 docs still describe Cursor as PKCE OAuth")
+	}
+	if !strings.Contains(text, "Cursor OMP loginDeepControl OAuth") {
+		t.Fatalf("phase-05 docs missing Cursor OMP loginDeepControl wording")
+	}
+}
+
 func lineWithPrefix(text, prefix string) string {
 	for _, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(line, prefix) {

@@ -52,7 +52,7 @@ func OAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 
 	session, err := flow.Start(requestContext(ctx))
 	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, fmt.Sprintf("start oauth: %v", err))
+		writeError(ctx, fasthttp.StatusInternalServerError, "start oauth failed")
 		return
 	}
 	session.Provider = runtimeProvider

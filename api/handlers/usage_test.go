@@ -152,6 +152,44 @@ func TestUsageQuotaFetchesProviderQuota(t *testing.T) {
 	}
 }
 
+func TestUsageQuotaRawJSONContract(t *testing.T) {
+	fetcher := &fakeQuotaFetcher{
+		quota: usage.Quota{
+			Provider:  providers.ProviderOpenAI,
+			Limit:     1000,
+			Used:      125,
+			Remaining: 875,
+			Unit:      "credits",
+		},
+	}
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/quota/openai")
+
+	UsageQuota(ctx, nil, map[providers.ModelProvider]usage.QuotaFetcher{
+		providers.ProviderOpenAI: fetcher,
+	}, providers.Key{Value: "sk-test", AuthType: "api_key"})
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(ctx.Response.Body(), &raw); err != nil {
+		t.Fatalf("unmarshal raw quota: %v", err)
+	}
+	for _, key := range []string{"Provider", "Limit", "Used", "Remaining", "Unit"} {
+		if _, ok := raw[key]; !ok {
+			t.Fatalf("quota JSON missing %q: %s", key, ctx.Response.Body())
+		}
+	}
+	for _, key := range []string{"provider", "limit", "used", "remaining", "unit"} {
+		if _, ok := raw[key]; ok {
+			t.Fatalf("quota JSON should not expose lower-case key %q: %s", key, ctx.Response.Body())
+		}
+	}
+	if raw["Provider"] != string(providers.ProviderOpenAI) || raw["Unit"] != "credits" {
+		t.Fatalf("quota JSON = %+v, want Provider openai and Unit credits", raw)
+	}
+}
+
 func TestUsageQuotaUsesActiveStoredProviderConnection(t *testing.T) {
 	s := openHandlerTestStore(t)
 	apiKey := "sk-from-store"
