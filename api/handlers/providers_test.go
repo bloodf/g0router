@@ -96,8 +96,8 @@ func TestProvidersListKnownProviders(t *testing.T) {
 			t.Fatalf("%s provider = %+v, should not claim quota support", id, byID[id])
 		}
 	}
-	if byID["replicate"].PublicStatus != "adapter_only" || !byID["replicate"].RegisteredAdapter || !byID["replicate"].Inference || byID["replicate"].PublicInference || byID["replicate"].DirectDispatch {
-		t.Fatalf("replicate provider = %+v, want registered adapter-only provider until public semantics are proven", byID["replicate"])
+	if byID["replicate"].PublicStatus != "auth_only" || byID["replicate"].RegisteredAdapter || byID["replicate"].Inference || byID["replicate"].PublicInference || byID["replicate"].DirectDispatch {
+		t.Fatalf("replicate provider = %+v, want API-key auth-only provider until prediction runtime is implemented", byID["replicate"])
 	}
 	for _, id := range []string{"kagi", "tavily"} {
 		if byID[id].PublicStatus != "auth_only" || byID[id].RegisteredAdapter || byID[id].Inference || byID[id].PublicInference || byID[id].DirectDispatch {

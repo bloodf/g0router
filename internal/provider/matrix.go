@@ -57,7 +57,7 @@ func ProviderMatrix() ProviderMatrixTable {
 		catalogRoutableProvider("ollama", "", false, true, true, false, "noauth"),
 		catalogRoutableProvider("openrouter", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("perplexity", "", false, true, true, false, "api_key"),
-		adapterOnlyProvider("replicate", "", false, true, true, false, "api_key"),
+		apiKeyAuthOnlyProvider("replicate", "Replicate API-key credential capture is supported, but no g0router prediction-backed Replicate runtime or OpenAI-compatible inference adapter is implemented."),
 		catalogRoutableProvider("together", "", false, true, true, false, "api_key"),
 		catalogRoutableProvider("vertex", "gemini", true, true, true, false, "oauth"),
 		authOnlyProvider("antigravity", "antigravity", true, "Google OAuth credential flow; runtime dispatch is through Gemini/Vertex adapters."),

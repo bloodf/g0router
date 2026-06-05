@@ -335,19 +335,19 @@ func TestOpenAICompatibleGatewayProvidersUseDynamicPublicRoutesWithoutFakeCatalo
 	}
 }
 
-func TestReplicateRemainsAdapterOnlyUntilPublicSemanticsAreProven(t *testing.T) {
+func TestReplicateRemainsAuthOnlyUntilPredictionRuntimeIsImplemented(t *testing.T) {
 	entry, ok := ProviderMatrix().Provider("replicate")
 	if !ok {
 		t.Fatal("provider matrix missing replicate")
 	}
-	if entry.PublicStatus != ProviderStatusAdapterOnly {
-		t.Fatalf("replicate status = %q, want adapter_only", entry.PublicStatus)
+	if entry.PublicStatus != ProviderStatusAuthOnly {
+		t.Fatalf("replicate status = %q, want auth_only", entry.PublicStatus)
 	}
-	if !entry.RegisteredAdapter || !entry.Inference || !entry.Streaming || !entry.ListModels {
-		t.Fatalf("replicate should keep registered adapter capabilities: %+v", entry)
+	if len(entry.AuthTypes) != 1 || entry.AuthTypes[0] != "api_key" {
+		t.Fatalf("replicate auth types = %+v, want api_key only", entry.AuthTypes)
 	}
-	if entry.PublicInference || entry.DirectDispatch || entry.ModelCatalog || entry.Quota {
-		t.Fatalf("replicate should not claim public routing, fake catalog, or quota yet: %+v", entry)
+	if entry.RegisteredAdapter || entry.Inference || entry.Streaming || entry.ListModels || entry.PublicInference || entry.DirectDispatch || entry.ModelCatalog || entry.Quota {
+		t.Fatalf("replicate should not claim adapter or runtime support until prediction runtime is implemented: %+v", entry)
 	}
 }
 

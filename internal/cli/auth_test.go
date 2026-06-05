@@ -63,7 +63,7 @@ func TestAuthListShowsSupportedProviders(t *testing.T) {
 	for _, provider := range providers {
 		providerSet[provider] = true
 	}
-	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "gitlab-duo", "kagi", "minimax", "qwen", "openrouter", "tavily"} {
+	for _, want := range []string{"anthropic", "codex", "github-copilot", "gemini", "gitlab-duo", "kagi", "minimax", "qwen", "openrouter", "replicate", "tavily"} {
 		if !providerSet[want] {
 			t.Fatalf("output = %q, want provider %q", output, want)
 		}
@@ -196,7 +196,7 @@ func TestLoginCommandPersistsAPIKeyConnection(t *testing.T) {
 }
 
 func TestLoginCommandPersistsSearchProviderAPIKeyConnection(t *testing.T) {
-	for _, provider := range []string{"kagi", "tavily"} {
+	for _, provider := range []string{"kagi", "replicate", "tavily"} {
 		t.Run(provider, func(t *testing.T) {
 			dataDir := t.TempDir()
 			cmd := newRootCommand(rootConfig{

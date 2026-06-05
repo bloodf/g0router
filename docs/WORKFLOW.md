@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BQ"
-last_updated: "2026-06-05T02:15:00Z"
+current_wave: "8.BR"
+last_updated: "2026-06-05T02:35:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2622,6 +2622,51 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BQ aligns g0router's GitLab identity with OMP's canonical `gitlab-duo` provider before runtime work. Legacy `gitlab` auth/API aliases normalize to `gitlab-duo`, GitLab OAuth uses OMP-style bundled client defaults, scope `api`, and callback `http://localhost:8080/callback`, and persisted OAuth connections use runtime provider `gitlab-duo`. GitLab Duo remains `auth_only`; the direct-access token and GitLab AI Gateway runtime adapter are intentionally deferred.
+
+---
+
+### Wave 8.BR — Replicate Runtime Truthfulness
+
+```yaml
+wave: "8.BR"
+status: DONE
+max_agents: 1
+gate: "go test ./internal/provider ./api/handlers ./internal/cli -run 'Test(ReplicateRemainsAuthOnlyUntilPredictionRuntimeIsImplemented|ProvidersListKnownProviders|AuthListShowsSupportedProviders|LoginCommandPersistsSearchProviderAPIKeyConnection|ProvidersTestReportsAuthOnlyProvider)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T02:35:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BR-evaluator-prompt.md"
+evaluation: "PENDING external evaluator after implementation commit"
+gate_results:
+  - "focused Replicate provider/API/CLI tests: RED before implementation, matrix reported adapter_only, API reported a registered inference adapter, and providers test returned adapter_only instead of auth_only"
+  - "focused Replicate provider/API/CLI tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BR.1"
+    name: "Demote Replicate to API-key auth-only until prediction runtime exists"
+    status: DONE
+    agent: "orchestrator"
+    files_owned:
+      - api/handlers/providers_test.go
+      - internal/cli/auth_test.go
+      - internal/cli/provider_runtime.go
+      - internal/cli/providers_test.go
+      - internal/provider/matrix.go
+      - internal/provider/matrix_test.go
+      - internal/providers/replicate/replicate.go
+      - internal/providers/replicate/replicate_test.go
+      - docs/PROVIDERS.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BR-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BR removes the unproven Replicate OpenAI-compatible wrapper from normal startup and marks Replicate as API-key `auth_only`. This keeps credential capture available while refusing to advertise adapter, inference, streaming, listing, catalog, quota, or public dispatch support until a real Replicate prediction-backed runtime is implemented and tested against local fake prediction endpoints.
 
 ---
 

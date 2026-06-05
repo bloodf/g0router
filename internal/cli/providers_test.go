@@ -97,16 +97,20 @@ func TestProvidersTestCanonicalizesCodexToOpenAI(t *testing.T) {
 }
 
 func TestProvidersTestReportsAuthOnlyProvider(t *testing.T) {
-	cmd := NewRootCommand("test")
-	cmd.SetOut(&bytes.Buffer{})
-	cmd.SetErr(&bytes.Buffer{})
-	cmd.SetArgs([]string{"providers", "test", "cursor"})
+	for _, provider := range []string{"cursor", "replicate"} {
+		t.Run(provider, func(t *testing.T) {
+			cmd := NewRootCommand("test")
+			cmd.SetOut(&bytes.Buffer{})
+			cmd.SetErr(&bytes.Buffer{})
+			cmd.SetArgs([]string{"providers", "test", provider})
 
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("execute error is nil")
-	}
-	if !strings.Contains(err.Error(), "cursor is auth_only") {
-		t.Fatalf("error = %q, want auth-only provider status", err.Error())
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatal("execute error is nil")
+			}
+			if !strings.Contains(err.Error(), provider+" is auth_only") {
+				t.Fatalf("error = %q, want auth-only provider status", err.Error())
+			}
+		})
 	}
 }
