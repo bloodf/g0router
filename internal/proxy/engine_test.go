@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +22,8 @@ type fakeProvider struct {
 	response    *providers.ChatResponse
 	responses   []*providers.ChatResponse
 	stream      <-chan providers.StreamChunk
+	streams     []<-chan providers.StreamChunk
+	streamErrs  []error
 	models      []providers.Model
 	err         error
 	errs        []error
@@ -63,7 +67,19 @@ func (f *fakeProvider) ChatCompletionStream(ctx context.Context, key providers.K
 	f.received = req
 	f.keys = append(f.keys, key)
 	f.requests = append(f.requests, req)
-	return f.stream, f.err
+	index := f.calls
+	f.calls++
+	err := f.err
+	if index < len(f.streamErrs) {
+		err = f.streamErrs[index]
+	}
+	if err != nil {
+		return nil, err
+	}
+	if index < len(f.streams) {
+		return f.streams[index], nil
+	}
+	return f.stream, nil
 }
 
 func (f *fakeProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
@@ -1760,4 +1776,251 @@ func (c *fakeProxyMCPClient) CallTool(ctx context.Context, req mcp.CallRequest) 
 
 func (c *fakeProxyMCPClient) Close() error {
 	return nil
+}
+
+func errorChunkStream(message string) <-chan providers.StreamChunk {
+	ch := make(chan providers.StreamChunk, 1)
+	ch <- providers.StreamChunk{
+		ID:    "chunk-err",
+		Error: &providers.StreamError{Message: message},
+	}
+	close(ch)
+	return ch
+}
+
+func contentChunkStream(id, content string) <-chan providers.StreamChunk {
+	ch := make(chan providers.StreamChunk, 1)
+	ch <- providers.StreamChunk{
+		ID:      id,
+		Choices: []providers.StreamChoice{{Delta: providers.StreamDelta{Content: &content}}},
+	}
+	close(ch)
+	return ch
+}
+
+func connByName(t *testing.T, s *store.Store, provider, name string) *store.Connection {
+	t.Helper()
+	conns, err := s.GetActiveConnections(provider)
+	if err != nil {
+		t.Fatalf("GetActiveConnections: %v", err)
+	}
+	for _, c := range conns {
+		if c.Name == name {
+			return c
+		}
+	}
+	t.Fatalf("connection %q not found", name)
+	return nil
+}
+
+func createNamedProxyConnection(t *testing.T, s *store.Store, provider, name, key string) {
+	t.Helper()
+	if err := s.CreateConnection(&store.Connection{
+		Provider: provider,
+		Name:     name,
+		AuthType: store.AuthTypeAPIKey,
+		APIKey:   &key,
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateConnection %s: %v", name, err)
+	}
+}
+
+// TestDispatchStreamFailureBeforeFirstChunkRotatesAndRecordsBackoff asserts that
+// a stream which errors at the first chunk penalizes backoff and rotates to the
+// next connection, where a clean first chunk records success.
+func TestDispatchStreamFailureBeforeFirstChunkRotatesAndRecordsBackoff(t *testing.T) {
+	s := openProxyTestStore(t)
+	createNamedProxyConnection(t, s, "anthropic", "anthropic-a", "key-a")
+	createNamedProxyConnection(t, s, "anthropic", "anthropic-b", "key-b")
+
+	anthropic := &fakeProvider{
+		name: providers.ProviderAnthropic,
+		streams: []<-chan providers.StreamChunk{
+			errorChunkStream("rate limit exceeded"),
+			contentChunkStream("chunk-ok", "hello"),
+		},
+	}
+	engine := NewEngine(s)
+	engine.Register(anthropic)
+
+	stream, err := engine.DispatchStream(context.Background(), &providers.ChatRequest{Model: "claude-3-5-sonnet"})
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	got, ok := <-stream
+	if !ok {
+		t.Fatal("stream closed before first chunk")
+	}
+	if got.ID != "chunk-ok" {
+		t.Fatalf("chunk ID = %q, want chunk-ok (rotated connection)", got.ID)
+	}
+
+	// The fallback cursor decides which connection is tried first, so assert
+	// order-independently: exactly one connection took the failure backoff and
+	// the other (which served the good first chunk) was reset to zero.
+	conns, err := s.GetActiveConnections("anthropic")
+	if err != nil {
+		t.Fatalf("GetActiveConnections: %v", err)
+	}
+	backedOff, clean := 0, 0
+	for _, c := range conns {
+		if c.BackoffLevel > 0 {
+			backedOff++
+		} else {
+			clean++
+		}
+	}
+	if backedOff != 1 {
+		t.Fatalf("connections with backoff = %d, want 1", backedOff)
+	}
+	if clean != 1 {
+		t.Fatalf("connections without backoff = %d, want 1", clean)
+	}
+}
+
+// TestDispatchStreamSuccessAfterFirstChunkClearsBackoff asserts a clean first
+// chunk records success (backoff reset) without rotating.
+func TestDispatchStreamSuccessAfterFirstChunkClearsBackoff(t *testing.T) {
+	s := openProxyTestStore(t)
+	key := "key-a"
+	if err := s.CreateConnection(&store.Connection{
+		Provider:     "anthropic",
+		Name:         "anthropic-a",
+		AuthType:     store.AuthTypeAPIKey,
+		APIKey:       &key,
+		IsActive:     true,
+		BackoffLevel: 3,
+	}); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	anthropic := &fakeProvider{
+		name:    providers.ProviderAnthropic,
+		streams: []<-chan providers.StreamChunk{contentChunkStream("chunk-ok", "hi")},
+	}
+	engine := NewEngine(s)
+	engine.Register(anthropic)
+
+	stream, err := engine.DispatchStream(context.Background(), &providers.ChatRequest{Model: "claude-3-5-sonnet"})
+	if err != nil {
+		t.Fatalf("DispatchStream: %v", err)
+	}
+	got, ok := <-stream
+	if !ok || got.ID != "chunk-ok" {
+		t.Fatalf("first chunk = %+v, ok=%v, want chunk-ok", got, ok)
+	}
+
+	conn := connByName(t, s, "anthropic", "anthropic-a")
+	if conn.BackoffLevel != 0 {
+		t.Fatalf("backoff level = %d, want 0 after success", conn.BackoffLevel)
+	}
+}
+
+// TestListModelsSkipsFailingProvider asserts one failing provider does not blank
+// the others; partial results are aggregated.
+func TestListModelsSkipsFailingProvider(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "sk-openai")
+	createProxyConnection(t, s, "anthropic", "sk-anthropic")
+	createProxyConnection(t, s, "groq", "groq-key")
+
+	openAI := &fakeProvider{
+		name:   providers.ProviderOpenAI,
+		models: []providers.Model{{ID: "gpt-4o", Provider: providers.ProviderOpenAI}},
+	}
+	anthropic := &fakeProvider{
+		name:   providers.ProviderAnthropic,
+		models: []providers.Model{{ID: "claude-3-5-sonnet", Provider: providers.ProviderAnthropic}},
+	}
+	// groq fails on ListModels; it must fall back to catalog, not blank everything.
+	groq := &fakeProvider{name: providers.ProviderGroq, err: errors.New("upstream down")}
+
+	engine := NewEngine(s)
+	engine.Register(openAI)
+	engine.Register(anthropic)
+	engine.Register(groq)
+
+	models, err := engine.ListModels(context.Background())
+	if err != nil {
+		t.Fatalf("ListModels: %v", err)
+	}
+
+	have := map[string]bool{}
+	for _, m := range models {
+		have[m.ID] = true
+	}
+	if !have["gpt-4o"] {
+		t.Fatal("expected gpt-4o from openai provider")
+	}
+	if !have["claude-3-5-sonnet"] {
+		t.Fatal("expected claude-3-5-sonnet from anthropic provider")
+	}
+}
+
+// concurrentProvider is a goroutine-safe provider used by the race test; the
+// shared fakeProvider mutates per-call fields and cannot be hit concurrently.
+type concurrentProvider struct {
+	name providers.ModelProvider
+}
+
+func (p *concurrentProvider) Name() providers.ModelProvider { return p.name }
+
+func (p *concurrentProvider) ChatCompletion(ctx context.Context, key providers.Key, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	return &providers.ChatResponse{ID: "ok"}, nil
+}
+
+func (p *concurrentProvider) ChatCompletionStream(ctx context.Context, key providers.Key, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	return closedStream(), nil
+}
+
+func (p *concurrentProvider) ListModels(ctx context.Context, key providers.Key) ([]providers.Model, error) {
+	return []providers.Model{{ID: "gpt-4o", Provider: p.name}}, nil
+}
+
+// TestRegisterConcurrentWithDispatchAndList exercises the registry/pool mutexes
+// under the race detector.
+func TestRegisterConcurrentWithDispatchAndList(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "openai", "sk-openai")
+	engine := NewEngine(s)
+	engine.Register(&concurrentProvider{name: providers.ProviderOpenAI})
+
+	var wg sync.WaitGroup
+	stop := make(chan struct{})
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; ; i++ {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			engine.RegisterOAuthRefresher(oauth.ProviderID(fmt.Sprintf("p%d", i%4)), &fakeOAuthRefresher{})
+			engine.RegisterQuotaFetcher(providers.ModelProvider(fmt.Sprintf("q%d", i%4)), &fakeQuotaFetcher{})
+			engine.Register(&concurrentProvider{name: providers.ModelProvider(fmt.Sprintf("x%d", i%4))})
+		}
+	}()
+
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				_, _ = engine.Dispatch(context.Background(), &providers.ChatRequest{Model: "gpt-4o"})
+				_, _ = engine.ListModels(context.Background())
+				_ = engine.RegisteredProviders()
+			}
+		}()
+	}
+
+	time.AfterFunc(150*time.Millisecond, func() { close(stop) })
+	wg.Wait()
 }

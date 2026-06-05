@@ -108,6 +108,67 @@ func TestRefreshManagerWrapsRefreshError(t *testing.T) {
 	}
 }
 
+func TestRefreshManagerRecoversFromPanicAndUnblocksWaiters(t *testing.T) {
+	manager := NewRefreshManager()
+	refreshToken := "refresh-token"
+	conn := &store.Connection{ID: "conn-1", Provider: "anthropic", RefreshToken: &refreshToken}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := manager.Refresh(context.Background(), conn, func(context.Context, *store.Connection) (oauth.TokenResult, error) {
+			panic("boom")
+		})
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected error from panicking refresh")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("waiter blocked after refresh panic")
+	}
+
+	// A subsequent refresh for the same key must not be stuck on a stale entry.
+	want := oauth.TokenResult{AccessToken: "access-token"}
+	got, err := manager.Refresh(context.Background(), conn, func(context.Context, *store.Connection) (oauth.TokenResult, error) {
+		return want, nil
+	})
+	if err != nil {
+		t.Fatalf("second refresh returned error: %v", err)
+	}
+	if got.AccessToken != want.AccessToken {
+		t.Fatalf("access token = %q, want %q", got.AccessToken, want.AccessToken)
+	}
+}
+
+func TestRefreshManagerConcurrentRefreshHammer(t *testing.T) {
+	manager := NewRefreshManager()
+	refreshToken := "refresh-token"
+	conn := &store.Connection{ID: "conn-1", Provider: "anthropic", RefreshToken: &refreshToken}
+	want := oauth.TokenResult{AccessToken: "access-token"}
+
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			got, err := manager.Refresh(context.Background(), conn, func(context.Context, *store.Connection) (oauth.TokenResult, error) {
+				return want, nil
+			})
+			if err != nil {
+				t.Errorf("Refresh returned error: %v", err)
+				return
+			}
+			if got.AccessToken != want.AccessToken {
+				t.Errorf("access token = %q, want %q", got.AccessToken, want.AccessToken)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
 func assertTokenResult(t *testing.T, got, want oauth.TokenResult) {
 	t.Helper()
 

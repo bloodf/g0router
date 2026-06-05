@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/bloodf/g0router/internal/mcp"
@@ -46,6 +48,7 @@ func (c engineClock) Now() time.Time {
 type Engine struct {
 	store          *store.Store
 	pool           providerPool
+	registryMu     sync.RWMutex
 	refreshers     map[oauth.ProviderID]oauthRefresher
 	refreshManager *providercore.RefreshManager
 	fallback       *providercore.FallbackManager
@@ -76,15 +79,32 @@ func (e *Engine) Register(provider providers.Provider) {
 }
 
 func (e *Engine) RegisterOAuthRefresher(provider oauth.ProviderID, refresher oauthRefresher) {
+	e.registryMu.Lock()
+	defer e.registryMu.Unlock()
 	e.refreshers[provider] = refresher
 }
 
 func (e *Engine) RegisterQuotaFetcher(provider providers.ModelProvider, fetcher usage.QuotaFetcher) {
+	e.registryMu.Lock()
+	defer e.registryMu.Unlock()
 	if fetcher == nil {
 		delete(e.quotaFetchers, provider)
 		return
 	}
 	e.quotaFetchers[provider] = fetcher
+}
+
+func (e *Engine) refresherFor(provider oauth.ProviderID) (oauthRefresher, bool) {
+	e.registryMu.RLock()
+	defer e.registryMu.RUnlock()
+	refresher, ok := e.refreshers[provider]
+	return refresher, ok
+}
+
+func (e *Engine) quotaFetcherFor(provider providers.ModelProvider) usage.QuotaFetcher {
+	e.registryMu.RLock()
+	defer e.registryMu.RUnlock()
+	return e.quotaFetchers[provider]
 }
 
 func (e *Engine) RegisterMCPToolManager(tools *mcp.ToolManager) {
@@ -206,8 +226,27 @@ func (e *Engine) dispatchStreamRoute(ctx context.Context, route modelRoute, req 
 			}
 			return nil, wrapped
 		}
+
+		// Success is only recorded once a non-error chunk flows. A stream that
+		// errors at the first chunk records failure and rotates to the next
+		// connection, so mid-stream failures still penalize backoff.
+		first, ok := <-stream
+		if !ok {
+			// Clean completion with no chunks: treat as success.
+			e.recordProviderSuccess(conn, upstreamModel)
+			return closedStream(), nil
+		}
+		if streamErr := chunkError(first); streamErr != nil {
+			wrapped := fmt.Errorf("chat completion stream: %w", streamErr)
+			if fallbackWorthyError(streamErr) {
+				e.recordProviderFailure(conn, upstreamModel)
+				lastErr = wrapped
+				continue
+			}
+			return nil, wrapped
+		}
 		e.recordProviderSuccess(conn, upstreamModel)
-		return stream, nil
+		return prependChunk(first, stream), nil
 	}
 	if lastErr != nil {
 		return nil, lastErr
@@ -215,12 +254,48 @@ func (e *Engine) dispatchStreamRoute(ctx context.Context, route modelRoute, req 
 	return nil, ErrNoConnections
 }
 
+// chunkError reports a stream-level error carried by a chunk, if any.
+func chunkError(chunk providers.StreamChunk) error {
+	if chunk.Error == nil {
+		return nil
+	}
+	msg := chunk.Error.Message
+	if msg == "" {
+		msg = chunk.Error.Code
+	}
+	if msg == "" {
+		msg = "stream error"
+	}
+	return errors.New(msg)
+}
+
+// closedStream returns an already-closed empty stream channel.
+func closedStream() <-chan providers.StreamChunk {
+	ch := make(chan providers.StreamChunk)
+	close(ch)
+	return ch
+}
+
+// prependChunk re-emits first followed by the remaining chunks of rest.
+func prependChunk(first providers.StreamChunk, rest <-chan providers.StreamChunk) <-chan providers.StreamChunk {
+	out := make(chan providers.StreamChunk)
+	go func() {
+		defer close(out)
+		out <- first
+		for chunk := range rest {
+			out <- chunk
+		}
+	}()
+	return out
+}
+
 func (e *Engine) ListModels(ctx context.Context) ([]providers.Model, error) {
 	var models []providers.Model
 	for _, providerName := range e.pool.names() {
 		providerModels, err := e.providerModels(ctx, providerName)
 		if err != nil {
-			return nil, err
+			log.Printf("proxy: list models for provider %s: %v", providerName, err)
+			continue
 		}
 		models = append(models, providerModels...)
 	}
@@ -244,6 +319,9 @@ func (e *Engine) providerModels(ctx context.Context, providerName providers.Mode
 	models, err := provider.ListModels(ctx, key)
 	if err == nil && len(models) > 0 {
 		return models, nil
+	}
+	if err != nil {
+		log.Printf("proxy: provider %s list models, falling back to catalog: %v", providerName, err)
 	}
 	return catalogModels(providerName), nil
 }
@@ -459,7 +537,7 @@ func (e *Engine) maxConnectionAttempts(provider providers.ModelProvider) int {
 }
 
 func (e *Engine) checkQuota(ctx context.Context, key providers.Key) error {
-	fetcher := e.quotaFetchers[key.Provider]
+	fetcher := e.quotaFetcherFor(key.Provider)
 	if fetcher == nil {
 		return nil
 	}
@@ -491,7 +569,7 @@ func (e *Engine) refreshConnectionIfNeeded(ctx context.Context, provider provide
 		return conn, nil
 	}
 	oauthProvider := e.oauthProviderForConnection(provider, conn)
-	refresher, ok := e.refreshers[oauthProvider]
+	refresher, ok := e.refresherFor(oauthProvider)
 	if !ok {
 		return conn, nil
 	}
