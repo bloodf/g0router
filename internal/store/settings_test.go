@@ -140,6 +140,72 @@ func TestUpdateSettingsRejectsNegativeRetention(t *testing.T) {
 	}
 }
 
+func TestGetSettingsCacheDefaults(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if settings.CacheEnabled {
+		t.Error("CacheEnabled should default to false")
+	}
+	if settings.CacheTTLSeconds != 300 {
+		t.Errorf("CacheTTLSeconds = %d, want 300", settings.CacheTTLSeconds)
+	}
+}
+
+func TestUpdateSettingsCacheRoundTrip(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.CacheEnabled = true
+	settings.CacheTTLSeconds = 600
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	got, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if !got.CacheEnabled {
+		t.Error("CacheEnabled = false, want true after round-trip")
+	}
+	if got.CacheTTLSeconds != 600 {
+		t.Errorf("CacheTTLSeconds = %d, want 600", got.CacheTTLSeconds)
+	}
+
+	// Zero disables caching and must round-trip as zero.
+	settings.CacheTTLSeconds = 0
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings zero TTL: %v", err)
+	}
+	got, err = s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if got.CacheTTLSeconds != 0 {
+		t.Errorf("CacheTTLSeconds = %d, want 0", got.CacheTTLSeconds)
+	}
+}
+
+func TestUpdateSettingsRejectsNegativeCacheTTL(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.CacheTTLSeconds = -1
+	if err := s.UpdateSettings(settings); err == nil {
+		t.Fatal("UpdateSettings should reject negative CacheTTLSeconds")
+	}
+}
+
 func TestUpdateAndGetSettings(t *testing.T) {
 	s := openTestStore(t)
 

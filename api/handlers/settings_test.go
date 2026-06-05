@@ -61,6 +61,34 @@ func TestSettingsRejectsRetentionOverCap(t *testing.T) {
 	}
 }
 
+func TestSettingsCacheFieldsRoundTrip(t *testing.T) {
+	s := newHandlerStore(t)
+
+	updateBody := `{"cache_enabled":true,"cache_ttl_seconds":600}`
+	ctx, body := runHandler(t, fasthttp.MethodPut, updateBody, func(ctx *fasthttp.RequestCtx) {
+		Settings(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("put status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+	var updated store.Settings
+	decodeJSON(t, body, &updated)
+	if !updated.CacheEnabled || updated.CacheTTLSeconds != 600 {
+		t.Fatalf("updated = %+v, want cache enabled ttl 600", updated)
+	}
+}
+
+func TestSettingsRejectsNegativeCacheTTL(t *testing.T) {
+	s := newHandlerStore(t)
+
+	ctx, body := runHandler(t, fasthttp.MethodPut, `{"cache_ttl_seconds":-1}`, func(ctx *fasthttp.RequestCtx) {
+		Settings(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)
+	}
+}
+
 func TestSettingsInvalidJSON(t *testing.T) {
 	s := newHandlerStore(t)
 

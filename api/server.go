@@ -16,6 +16,7 @@ import (
 
 	"github.com/bloodf/g0router"
 	"github.com/bloodf/g0router/api/handlers"
+	"github.com/bloodf/g0router/internal/cache"
 	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/metrics"
@@ -51,6 +52,9 @@ type ServerConfig struct {
 
 // logRetentionInterval is how often the background cleanup job runs.
 const logRetentionInterval = time.Hour
+
+// responseCacheMaxEntries bounds the optional non-streaming response cache.
+const responseCacheMaxEntries = 1000
 
 // connectionRefreshInterval is how often the proactive OAuth refresh job runs.
 const connectionRefreshInterval = time.Minute
@@ -94,6 +98,13 @@ type Server struct {
 	// stale episode, so we notify once per episode rather than every tick.
 	notifiedMu    sync.Mutex
 	notifiedStale map[string]bool
+
+	// responseCacheMu guards the optional non-streaming response cache and the
+	// TTL it was built with. The cache TTL is fixed at construction, so when the
+	// operator changes cache_ttl_seconds we rebuild the cache to honor it.
+	responseCacheMu  sync.Mutex
+	responseCache    *cache.Cache
+	responseCacheTTL time.Duration
 }
 
 // UpdateSettings writes settings to the store and invalidates the cache.
@@ -399,6 +410,20 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 	if !s.enforceKeyPolicy(ctx) {
 		return
 	}
+
+	// Optional non-streaming response cache. A hit short-circuits dispatch (and
+	// therefore spend/usage accounting, since a cache hit costs nothing upstream).
+	respCache, cacheKey, hitBody, cacheable := s.cacheLookup(ctx)
+	if cacheable && hitBody != nil {
+		// These inference endpoints always emit JSON, so the cached content-type
+		// is application/json.
+		ctx.SetStatusCode(fasthttp.StatusOK)
+		ctx.SetContentType("application/json")
+		ctx.Response.Header.Set("X-Cache", "HIT")
+		ctx.SetBody(hitBody)
+		return
+	}
+
 	started := time.Now()
 	engine := s.config.InferenceEngine
 	var captured *capturingInferenceEngine
@@ -426,6 +451,17 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 	if captured != nil && captured.streamed {
 		return
 	}
+
+	// Store successful non-streamed responses in the cache. The live response is
+	// marked X-Cache: MISS so clients can distinguish it from a HIT.
+	if cacheable && respCache != nil {
+		status := ctx.Response.StatusCode()
+		if status >= 200 && status < 300 {
+			respCache.Set(cacheKey, ctx.Response.Body())
+			ctx.Response.Header.Set("X-Cache", "MISS")
+		}
+	}
+
 	var resp *providers.ChatResponse
 	var req *providers.ChatRequest
 	var dispatchErr error
@@ -647,6 +683,66 @@ func (e *capturingInferenceEngine) captureStream(ctx context.Context, req *provi
 		}
 	}()
 	return out
+}
+
+// responseCacheFor returns a response cache whose TTL matches ttl, rebuilding it
+// when the operator changes cache_ttl_seconds. It returns nil when ttl is
+// non-positive (caching disabled). The cache is shared across requests and is
+// itself thread-safe; only the (re)build is guarded here.
+func (s *Server) responseCacheFor(ttl time.Duration) *cache.Cache {
+	if ttl <= 0 {
+		return nil
+	}
+	s.responseCacheMu.Lock()
+	defer s.responseCacheMu.Unlock()
+	if s.responseCache == nil || s.responseCacheTTL != ttl {
+		s.responseCache = cache.NewCache(responseCacheMaxEntries, ttl, time.Now)
+		s.responseCacheTTL = ttl
+	}
+	return s.responseCache
+}
+
+// cacheLookup decides whether the request is cacheable and, if so, returns the
+// cache, the derived key, and any already-cached response bytes. cacheable is
+// false for streaming requests, when caching is disabled, or when the body
+// cannot be parsed for a model. A cached hit is signalled by hitBody != nil.
+//
+// It reads only ctx.PostBody(), which fasthttp keeps valid for the duration of
+// the handler on the request goroutine, so this never touches the pooled ctx
+// off-goroutine.
+func (s *Server) cacheLookup(ctx *fasthttp.RequestCtx) (c *cache.Cache, key string, hitBody []byte, cacheable bool) {
+	settings := s.runtimeSettings()
+	if !settings.CacheEnabled || settings.CacheTTLSeconds <= 0 {
+		return nil, "", nil, false
+	}
+	body := ctx.PostBody()
+	model, stream, ok := parseCacheableRequest(body)
+	if !ok || stream {
+		return nil, "", nil, false
+	}
+	c = s.responseCacheFor(time.Duration(settings.CacheTTLSeconds) * time.Second)
+	if c == nil {
+		return nil, "", nil, false
+	}
+	key = c.Key(model, body)
+	if cached, hit := c.Get(key); hit {
+		return c, key, cached, true
+	}
+	return c, key, nil, true
+}
+
+// parseCacheableRequest extracts the model and stream flag from a chat request
+// body. ok is false when the body is not a JSON object, so non-JSON or malformed
+// requests simply bypass the cache.
+func parseCacheableRequest(body []byte) (model string, stream bool, ok bool) {
+	var parsed struct {
+		Model  string `json:"model"`
+		Stream *bool  `json:"stream"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		return "", false, false
+	}
+	return parsed.Model, parsed.Stream != nil && *parsed.Stream, true
 }
 
 func (s *Server) requestLogsEnabled() bool {

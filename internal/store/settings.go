@@ -19,6 +19,8 @@ type Settings struct {
 	AllowedSources    []string `json:"allowed_sources"`
 	NotifyWebhookURL  string   `json:"notify_webhook_url"`
 	NotifyOnReauth    bool     `json:"notify_on_reauth"`
+	CacheEnabled      bool     `json:"cache_enabled"`
+	CacheTTLSeconds   int      `json:"cache_ttl_seconds"`
 }
 
 // validSourceClasses enumerates the connection-source classes an operator may
@@ -69,6 +71,10 @@ func (s *Store) UpdateSettings(settings Settings) error {
 		}
 	}
 
+	if settings.CacheTTLSeconds < 0 {
+		return fmt.Errorf("update settings: cache_ttl_seconds must be >= 0, got %d", settings.CacheTTLSeconds)
+	}
+
 	if err := validateNotifyWebhookURL(settings.NotifyWebhookURL); err != nil {
 		return err
 	}
@@ -91,6 +97,8 @@ func (s *Store) UpdateSettings(settings Settings) error {
 		"allowed_sources":     strings.Join(settings.AllowedSources, ","),
 		"notify_webhook_url":  settings.NotifyWebhookURL,
 		"notify_on_reauth":    boolString(settings.NotifyOnReauth),
+		"cache_enabled":       boolString(settings.CacheEnabled),
+		"cache_ttl_seconds":   strconv.Itoa(settings.CacheTTLSeconds),
 	}
 
 	for key, value := range values {
@@ -123,6 +131,8 @@ func defaultSettings() Settings {
 		AllowedSources:    defaultAllowedSources(),
 		NotifyWebhookURL:  "",
 		NotifyOnReauth:    true,
+		CacheEnabled:      false,
+		CacheTTLSeconds:   300,
 	}
 }
 
@@ -152,6 +162,12 @@ func applySetting(settings *Settings, key, value string) {
 		settings.NotifyWebhookURL = value
 	case "notify_on_reauth":
 		settings.NotifyOnReauth = value == "true"
+	case "cache_enabled":
+		settings.CacheEnabled = value == "true"
+	case "cache_ttl_seconds":
+		if parsed, err := strconv.Atoi(value); err == nil {
+			settings.CacheTTLSeconds = parsed
+		}
 	}
 }
 
