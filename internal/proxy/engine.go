@@ -55,6 +55,7 @@ type Engine struct {
 	quotaFetchers  map[providers.ModelProvider]usage.QuotaFetcher
 	mcpTools       *mcp.ToolManager
 	aliasCache     *aliasCache
+	comboResolver  *ComboResolver
 	refreshWindow  time.Duration
 	now            func() time.Time
 }
@@ -67,6 +68,7 @@ func NewEngine(s *store.Store) *Engine {
 		refreshManager: providercore.NewRefreshManager(),
 		quotaFetchers:  make(map[providers.ModelProvider]usage.QuotaFetcher),
 		aliasCache:     newAliasCache(defaultAliasCacheTTL),
+		comboResolver:  NewComboResolver(s),
 		refreshWindow:  defaultRefreshWindow,
 		now:            time.Now,
 	}
@@ -121,7 +123,7 @@ func (e *Engine) RegisteredProviders() []providers.ModelProvider {
 
 func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
 	if comboName, ok := comboModelName(req.Model); ok {
-		return NewComboResolver(e.store).Dispatch(ctx, e, comboName, req)
+		return e.comboResolver.Dispatch(ctx, e, comboName, req)
 	}
 
 	route, err := e.resolveModelRoute(req.Model)
@@ -133,7 +135,7 @@ func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*pro
 
 func (e *Engine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
 	if comboName, ok := comboModelName(req.Model); ok {
-		return NewComboResolver(e.store).DispatchStream(ctx, e, comboName, req)
+		return e.comboResolver.DispatchStream(ctx, e, comboName, req)
 	}
 
 	route, err := e.resolveModelRoute(req.Model)

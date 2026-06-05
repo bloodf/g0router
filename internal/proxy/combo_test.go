@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -639,6 +640,247 @@ func TestComboDispatchStreamQuotaExhaustedStepStopsBeforeFallback(t *testing.T) 
 	}
 	if openAI.streamed {
 		t.Fatal("fallback combo stream step should not open after quota exhaustion")
+	}
+}
+
+func TestSelectAutoStepIndex(t *testing.T) {
+	steps := []ComboStep{
+		{Provider: providers.ProviderAnthropic, Model: "claude-sonnet-4"},
+		{Provider: providers.ProviderOpenAI, Model: "gpt-4o-mini"},
+		{Provider: providers.ProviderGroq, Model: "llama-3.3-70b-versatile"},
+	}
+
+	small := &providers.ChatRequest{
+		Messages: []providers.Message{{Role: "user", Content: "hi"}},
+	}
+	if got := selectAutoStepIndex(steps, small); got != len(steps)-1 {
+		t.Fatalf("small request index = %d, want %d (cheapest/last)", got, len(steps)-1)
+	}
+
+	withTools := &providers.ChatRequest{
+		Messages: []providers.Message{{Role: "user", Content: "hi"}},
+		Tools:    []providers.Tool{{Type: "function"}},
+	}
+	if got := selectAutoStepIndex(steps, withTools); got != 0 {
+		t.Fatalf("tool request index = %d, want 0 (most capable/first)", got)
+	}
+
+	bigContent := make([]byte, 9000)
+	for i := range bigContent {
+		bigContent[i] = 'x'
+	}
+	large := &providers.ChatRequest{
+		Messages: []providers.Message{{Role: "user", Content: string(bigContent)}},
+	}
+	if got := selectAutoStepIndex(steps, large); got != 0 {
+		t.Fatalf("large request index = %d, want 0 (most capable/first)", got)
+	}
+}
+
+func TestComboDispatchRoundRobinRotatesFirstStep(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+	createProxyConnection(t, s, "anthropic", "anthropic-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name:     "rr",
+		Strategy: store.ComboStrategyRoundRobin,
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+			{Provider: "anthropic", Model: "claude-sonnet-4"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "groq"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "openai"}}
+	anthropic := &fakeProvider{name: providers.ProviderAnthropic, response: &providers.ChatResponse{ID: "anthropic"}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+	engine.Register(anthropic)
+
+	resolver := NewComboResolver(s)
+	var firstIDs []string
+	for i := 0; i < 3; i++ {
+		resp, err := resolver.Dispatch(context.Background(), engine, "rr", &providers.ChatRequest{Model: "combo/rr"})
+		if err != nil {
+			t.Fatalf("Dispatch %d: %v", i, err)
+		}
+		firstIDs = append(firstIDs, resp.ID)
+	}
+	if firstIDs[0] == firstIDs[1] || firstIDs[1] == firstIDs[2] || firstIDs[0] == firstIDs[2] {
+		t.Fatalf("round_robin did not rotate first step: %v", firstIDs)
+	}
+}
+
+func TestComboDispatchLeastUsedPicksLowestCount(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "groq", "groq-key")
+	createProxyConnection(t, s, "openai", "openai-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name:     "lu",
+		Strategy: store.ComboStrategyLeastUsed,
+		Steps: []store.ComboStep{
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+			{Provider: "openai", Model: "gpt-4o-mini"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "groq"}}
+	openAI := &fakeProvider{name: providers.ProviderOpenAI, response: &providers.ChatResponse{ID: "openai"}}
+	engine := NewEngine(s)
+	engine.Register(groq)
+	engine.Register(openAI)
+
+	resolver := NewComboResolver(s)
+	// First call goes to step 0 (groq) on a tie, skewing its count.
+	if _, err := resolver.Dispatch(context.Background(), engine, "lu", &providers.ChatRequest{Model: "combo/lu"}); err != nil {
+		t.Fatalf("Dispatch first: %v", err)
+	}
+	// Second call must now pick the least-used step (openai).
+	resp, err := resolver.Dispatch(context.Background(), engine, "lu", &providers.ChatRequest{Model: "combo/lu"})
+	if err != nil {
+		t.Fatalf("Dispatch second: %v", err)
+	}
+	if resp.ID != "openai" {
+		t.Fatalf("least_used second pick = %q, want openai", resp.ID)
+	}
+}
+
+func TestComboDispatchAutoPicksCapableForTools(t *testing.T) {
+	s := openProxyTestStore(t)
+	createProxyConnection(t, s, "anthropic", "anthropic-key")
+	createProxyConnection(t, s, "groq", "groq-key")
+	if err := s.CreateCombo(&store.Combo{
+		Name:     "auto",
+		Strategy: store.ComboStrategyAuto,
+		Steps: []store.ComboStep{
+			{Provider: "anthropic", Model: "claude-sonnet-4"},
+			{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+		},
+		IsActive: true,
+	}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	anthropic := &fakeProvider{name: providers.ProviderAnthropic, response: &providers.ChatResponse{ID: "anthropic"}}
+	groq := &fakeProvider{name: providers.ProviderGroq, response: &providers.ChatResponse{ID: "groq"}}
+	engine := NewEngine(s)
+	engine.Register(anthropic)
+	engine.Register(groq)
+
+	resolver := NewComboResolver(s)
+	toolResp, err := resolver.Dispatch(context.Background(), engine, "auto", &providers.ChatRequest{
+		Model: "combo/auto",
+		Tools: []providers.Tool{{Type: "function"}},
+	})
+	if err != nil {
+		t.Fatalf("Dispatch tools: %v", err)
+	}
+	if toolResp.ID != "anthropic" {
+		t.Fatalf("auto tool pick = %q, want anthropic (most capable)", toolResp.ID)
+	}
+
+	plainResp, err := resolver.Dispatch(context.Background(), engine, "auto", &providers.ChatRequest{
+		Model:    "combo/auto",
+		Messages: []providers.Message{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("Dispatch plain: %v", err)
+	}
+	if plainResp.ID != "groq" {
+		t.Fatalf("auto plain pick = %q, want groq (cheapest/last)", plainResp.ID)
+	}
+}
+
+func TestComboDispatchStrategyFallbackOnError(t *testing.T) {
+	for _, strategy := range []string{
+		store.ComboStrategyRoundRobin,
+		store.ComboStrategyLeastUsed,
+		store.ComboStrategyAuto,
+	} {
+		t.Run(strategy, func(t *testing.T) {
+			s := openProxyTestStore(t)
+			createProxyConnection(t, s, "groq", "groq-key")
+			createProxyConnection(t, s, "openai", "openai-key")
+			if err := s.CreateCombo(&store.Combo{
+				Name:     "fb",
+				Strategy: strategy,
+				Steps: []store.ComboStep{
+					{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+					{Provider: "openai", Model: "gpt-4o-mini"},
+				},
+				IsActive: true,
+			}); err != nil {
+				t.Fatalf("CreateCombo: %v", err)
+			}
+
+			// Both steps error to force trying every step regardless of which is first.
+			groq := &fakeProvider{name: providers.ProviderGroq, err: errors.New("rate limited")}
+			openAI := &fakeProvider{name: providers.ProviderOpenAI, err: errors.New("rate limited")}
+			engine := NewEngine(s)
+			engine.Register(groq)
+			engine.Register(openAI)
+
+			_, err := NewComboResolver(s).Dispatch(context.Background(), engine, "fb", &providers.ChatRequest{Model: "combo/fb"})
+			if err == nil {
+				t.Fatal("expected error when all steps fail")
+			}
+			if !groq.called || !openAI.called {
+				t.Fatalf("both steps should be attempted as fallbacks: groq=%v openai=%v", groq.called, openAI.called)
+			}
+		})
+	}
+}
+
+func TestComboDispatchConcurrentStrategiesRaceFree(t *testing.T) {
+	for _, strategy := range []string{store.ComboStrategyRoundRobin, store.ComboStrategyLeastUsed} {
+		t.Run(strategy, func(t *testing.T) {
+			s := openProxyTestStore(t)
+			createProxyConnection(t, s, "groq", "groq-key")
+			createProxyConnection(t, s, "openai", "openai-key")
+			createProxyConnection(t, s, "anthropic", "anthropic-key")
+			if err := s.CreateCombo(&store.Combo{
+				Name:     "conc",
+				Strategy: strategy,
+				Steps: []store.ComboStep{
+					{Provider: "groq", Model: "llama-3.3-70b-versatile"},
+					{Provider: "openai", Model: "gpt-4o-mini"},
+					{Provider: "anthropic", Model: "claude-sonnet-4"},
+				},
+				IsActive: true,
+			}); err != nil {
+				t.Fatalf("CreateCombo: %v", err)
+			}
+
+			// Exercise the selector's shared cursor/counts state directly under
+			// concurrency; this is the only mutable state the strategies add.
+			steps, st, err := NewComboResolver(s).resolveWithStrategy("conc")
+			if err != nil {
+				t.Fatalf("resolveWithStrategy: %v", err)
+			}
+			resolver := NewComboResolver(s)
+			req := &providers.ChatRequest{Model: "combo/conc"}
+			var wg sync.WaitGroup
+			for i := 0; i < 50; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					ordered := resolver.orderComboSteps("conc", st, steps, req)
+					if len(ordered) != len(steps) {
+						t.Errorf("ordered len = %d, want %d", len(ordered), len(steps))
+					}
+				}()
+			}
+			wg.Wait()
+		})
 	}
 }
 

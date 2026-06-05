@@ -11,6 +11,7 @@ import (
 type comboRequest struct {
 	Name     string            `json:"name"`
 	Steps    []store.ComboStep `json:"steps"`
+	Strategy string            `json:"strategy"`
 	IsActive bool              `json:"is_active"`
 }
 
@@ -81,9 +82,15 @@ func decodeComboRequest(ctx *fasthttp.RequestCtx) (*store.Combo, bool) {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 		return nil, false
 	}
+	strategy, err := store.NormalizeComboStrategy(req.Strategy)
+	if err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid strategy")
+		return nil, false
+	}
 	return &store.Combo{
 		Name:     req.Name,
 		Steps:    req.Steps,
+		Strategy: strategy,
 		IsActive: req.IsActive,
 	}, true
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	providerids "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
@@ -18,17 +19,37 @@ type ComboStep struct {
 }
 
 type ComboResolver struct {
-	store *store.Store
+	store      *store.Store
+	selectorMu sync.Mutex
+	selectors  map[string]*comboSelector
 }
 
 func NewComboResolver(s *store.Store) *ComboResolver {
-	return &ComboResolver{store: s}
+	return &ComboResolver{store: s, selectors: make(map[string]*comboSelector)}
+}
+
+// selectorFor returns the shared selection state for a combo, creating it on
+// first use. Thread-safe.
+func (r *ComboResolver) selectorFor(name string) *comboSelector {
+	r.selectorMu.Lock()
+	defer r.selectorMu.Unlock()
+	sel, ok := r.selectors[name]
+	if !ok {
+		sel = &comboSelector{}
+		r.selectors[name] = sel
+	}
+	return sel
 }
 
 func (r *ComboResolver) Resolve(name string) ([]ComboStep, error) {
+	steps, _, err := r.resolveWithStrategy(name)
+	return steps, err
+}
+
+func (r *ComboResolver) resolveWithStrategy(name string) ([]ComboStep, string, error) {
 	combo, err := r.store.GetActiveCombo(name)
 	if err != nil {
-		return nil, fmt.Errorf("get active combo: %w", err)
+		return nil, "", fmt.Errorf("get active combo: %w", err)
 	}
 
 	steps := make([]ComboStep, len(combo.Steps))
@@ -38,17 +59,33 @@ func (r *ComboResolver) Resolve(name string) ([]ComboStep, error) {
 			Model:    step.Model,
 		}
 	}
-	return steps, nil
+	strategy := combo.Strategy
+	if strategy == "" {
+		strategy = store.ComboStrategyFallback
+	}
+	return steps, strategy, nil
+}
+
+// orderComboSteps applies the combo strategy to produce the ordered list of
+// steps to try. The original order is always fully represented so remaining
+// steps act as fallbacks.
+func (r *ComboResolver) orderComboSteps(name, strategy string, steps []ComboStep, req *providers.ChatRequest) []ComboStep {
+	if strategy == store.ComboStrategyFallback {
+		return steps
+	}
+	ordered, _ := r.selectorFor(name).orderedSteps(strategy, steps, req)
+	return ordered
 }
 
 func (r *ComboResolver) Dispatch(ctx context.Context, engine *Engine, name string, req *providers.ChatRequest) (*providers.ChatResponse, error) {
-	steps, err := r.Resolve(name)
+	steps, strategy, err := r.resolveWithStrategy(name)
 	if err != nil {
 		return nil, err
 	}
 	if len(steps) == 0 {
 		return nil, ErrNoComboSteps
 	}
+	steps = r.orderComboSteps(name, strategy, steps, req)
 
 	var lastErr error
 	for _, step := range steps {
@@ -66,13 +103,14 @@ func (r *ComboResolver) Dispatch(ctx context.Context, engine *Engine, name strin
 }
 
 func (r *ComboResolver) DispatchStream(ctx context.Context, engine *Engine, name string, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	steps, err := r.Resolve(name)
+	steps, strategy, err := r.resolveWithStrategy(name)
 	if err != nil {
 		return nil, err
 	}
 	if len(steps) == 0 {
 		return nil, ErrNoComboSteps
 	}
+	steps = r.orderComboSteps(name, strategy, steps, req)
 
 	var lastErr error
 	for _, step := range steps {

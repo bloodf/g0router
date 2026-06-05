@@ -170,6 +170,88 @@ func TestComboDeleteNotFound(t *testing.T) {
 	}
 }
 
+func TestComboStrategyRoundTrips(t *testing.T) {
+	s := openTestStore(t)
+	combo := &Combo{
+		Name:     "rr-chain",
+		Steps:    []ComboStep{{Provider: "openai", Model: "gpt-4o"}},
+		Strategy: "round_robin",
+		IsActive: true,
+	}
+	if err := s.CreateCombo(combo); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	got, err := s.GetCombo(combo.ID)
+	if err != nil {
+		t.Fatalf("GetCombo: %v", err)
+	}
+	if got.Strategy != "round_robin" {
+		t.Fatalf("strategy = %q, want round_robin", got.Strategy)
+	}
+
+	got.Strategy = "least_used"
+	if err := s.UpdateCombo(got); err != nil {
+		t.Fatalf("UpdateCombo: %v", err)
+	}
+	reloaded, err := s.GetCombo(combo.ID)
+	if err != nil {
+		t.Fatalf("GetCombo: %v", err)
+	}
+	if reloaded.Strategy != "least_used" {
+		t.Fatalf("strategy = %q, want least_used", reloaded.Strategy)
+	}
+}
+
+func TestComboStrategyDefaultsToFallback(t *testing.T) {
+	s := openTestStore(t)
+	combo := &Combo{
+		Name:     "default-chain",
+		Steps:    []ComboStep{{Provider: "openai", Model: "gpt-4o"}},
+		IsActive: true,
+	}
+	if err := s.CreateCombo(combo); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+	if combo.Strategy != "fallback" {
+		t.Fatalf("strategy = %q, want fallback after create", combo.Strategy)
+	}
+
+	got, err := s.GetActiveCombo("default-chain")
+	if err != nil {
+		t.Fatalf("GetActiveCombo: %v", err)
+	}
+	if got.Strategy != "fallback" {
+		t.Fatalf("loaded strategy = %q, want fallback", got.Strategy)
+	}
+}
+
+func TestComboStrategyInvalidRejected(t *testing.T) {
+	s := openTestStore(t)
+	err := s.CreateCombo(&Combo{
+		Name:     "bad-chain",
+		Steps:    []ComboStep{{Provider: "openai", Model: "gpt-4o"}},
+		Strategy: "nonsense",
+		IsActive: true,
+	})
+	if !errors.Is(err, ErrInvalidComboStrategy) {
+		t.Fatalf("CreateCombo error = %v, want ErrInvalidComboStrategy", err)
+	}
+
+	combo := &Combo{
+		Name:     "ok-chain",
+		Steps:    []ComboStep{{Provider: "openai", Model: "gpt-4o"}},
+		IsActive: true,
+	}
+	if err := s.CreateCombo(combo); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+	combo.Strategy = "nonsense"
+	if err := s.UpdateCombo(combo); !errors.Is(err, ErrInvalidComboStrategy) {
+		t.Fatalf("UpdateCombo error = %v, want ErrInvalidComboStrategy", err)
+	}
+}
+
 func assertComboSteps(t *testing.T, got, want []ComboStep) {
 	t.Helper()
 

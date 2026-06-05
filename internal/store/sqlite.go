@@ -233,6 +233,9 @@ func (s *Store) migrate() error {
 		}
 	}
 
+	if err := s.ensureColumn("combos", "strategy", "TEXT NOT NULL DEFAULT 'fallback'"); err != nil {
+		return err
+	}
 	if err := s.ensureColumn("mcp_oauth_flows", "client_id", "TEXT"); err != nil {
 		return err
 	}

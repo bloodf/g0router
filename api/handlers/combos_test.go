@@ -58,6 +58,52 @@ func TestCombosCreateListUpdateDelete(t *testing.T) {
 	}
 }
 
+func TestCombosStrategyInRequestAndResponse(t *testing.T) {
+	s := newHandlerStore(t)
+
+	body := `{"name":"rr","steps":[{"provider":"openai","model":"gpt-4o"}],"strategy":"round_robin","is_active":true}`
+	ctx, respBody := runHandler(t, fasthttp.MethodPost, body, func(ctx *fasthttp.RequestCtx) {
+		Combos(ctx, s, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+		t.Fatalf("create status = %d, want 201; body=%s", ctx.Response.StatusCode(), respBody)
+	}
+	var created store.Combo
+	decodeJSON(t, respBody, &created)
+	if created.Strategy != "round_robin" {
+		t.Fatalf("created strategy = %q, want round_robin", created.Strategy)
+	}
+}
+
+func TestCombosStrategyDefaultsToFallback(t *testing.T) {
+	s := newHandlerStore(t)
+
+	body := `{"name":"plain","steps":[{"provider":"openai","model":"gpt-4o"}],"is_active":true}`
+	ctx, respBody := runHandler(t, fasthttp.MethodPost, body, func(ctx *fasthttp.RequestCtx) {
+		Combos(ctx, s, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
+		t.Fatalf("create status = %d, want 201; body=%s", ctx.Response.StatusCode(), respBody)
+	}
+	var created store.Combo
+	decodeJSON(t, respBody, &created)
+	if created.Strategy != "fallback" {
+		t.Fatalf("created strategy = %q, want fallback", created.Strategy)
+	}
+}
+
+func TestCombosInvalidStrategyReturnsBadRequest(t *testing.T) {
+	s := newHandlerStore(t)
+
+	body := `{"name":"bad","steps":[{"provider":"openai","model":"gpt-4o"}],"strategy":"nonsense","is_active":true}`
+	ctx, respBody := runHandler(t, fasthttp.MethodPost, body, func(ctx *fasthttp.RequestCtx) {
+		Combos(ctx, s, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), respBody)
+	}
+}
+
 func TestCombosMissingReturnsNotFound(t *testing.T) {
 	s := newHandlerStore(t)
 
