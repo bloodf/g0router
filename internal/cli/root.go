@@ -17,6 +17,7 @@ import (
 	"github.com/bloodf/g0router/internal/mcp"
 	providerinfo "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/search"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
 	"github.com/spf13/cobra"
@@ -194,6 +195,7 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) ap
 	engine := newDefaultInferenceEngine(s)
 	mcpRuntime := newDefaultMCPRuntime()
 	rehydrateMCPRuntime(ctx, s, mcpRuntime)
+	_ = search.RegisterBuiltInTools(ctx, s, mcpRuntime.tools, search.Config{})
 	engine.RegisterMCPToolManager(mcpRuntime.tools)
 	quotaFetchers := defaultQuotaFetchers()
 	for provider, fetcher := range quotaFetchers {

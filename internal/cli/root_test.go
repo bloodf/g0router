@@ -631,6 +631,35 @@ func TestDefaultServerConfigRehydratesActiveMCPInstances(t *testing.T) {
 	}
 }
 
+func TestDefaultServerConfigRegistersBuiltInSearchTools(t *testing.T) {
+	s := openCLIStoreForTest(t, t.TempDir())
+	defer s.Close()
+
+	kagiKey := "kagi-key"
+	tavilyKey := "tavily-key"
+	for _, conn := range []*store.Connection{
+		{Provider: "kagi", Name: "kagi", AuthType: store.AuthTypeAPIKey, APIKey: &kagiKey, IsActive: true},
+		{Provider: "tavily", Name: "tavily", AuthType: store.AuthTypeAPIKey, APIKey: &tavilyKey, IsActive: true},
+	} {
+		if err := s.CreateConnection(conn); err != nil {
+			t.Fatalf("CreateConnection %s: %v", conn.Provider, err)
+		}
+	}
+
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s)
+
+	tools := cfg.MCPToolManager.CompactTools()
+	got := make(map[string]bool, len(tools))
+	for _, tool := range tools {
+		got[tool.Function.Name] = true
+	}
+	for _, want := range []string{"kagi__search", "tavily__search"} {
+		if !got[want] {
+			t.Fatalf("tools = %+v, missing %s", tools, want)
+		}
+	}
+}
+
 func TestDefaultServerConfigRehydratesMCPInstanceWithPersistedOAuth(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()

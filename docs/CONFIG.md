@@ -31,6 +31,15 @@ credentials. Live smoke tests are opt-in only:
 | `G0ROUTER_E2E_MINIMAX_API_KEY` | For MiniMax live tests | MiniMax API key read from the environment. Never commit or echo this value. |
 | `G0ROUTER_E2E_MINIMAX_BASE_URL` | No | Override MiniMax OpenAI-compatible base URL for live smoke tests. |
 
+## Built-In Search Tools
+
+Kagi and Tavily are configured as stored provider connections, not environment
+variables. Add an active API-key connection for `kagi` or `tavily` with the CLI,
+dashboard, or `/api/connections`; normal server startup registers `kagi__search`
+and `tavily__search` as MCP tools when usable credentials exist. The tools are
+available through `/api/mcp/tools` and the inference MCP tool manager; they do
+not make Kagi or Tavily public inference providers.
+
 ## MCP Instance Configuration
 
 MCP servers are runtime-managed records, not global environment variables. Configure them with the dashboard, the management API, or CLI commands:

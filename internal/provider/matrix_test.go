@@ -109,10 +109,11 @@ func TestProviderMatrixMarksSearchCredentialsAuthOnly(t *testing.T) {
 			t.Fatalf("%s auth types = %+v, want api_key only", id, entry.AuthTypes)
 		}
 		if entry.RegisteredAdapter || entry.Inference || entry.PublicInference || entry.DirectDispatch || entry.Streaming || entry.ModelCatalog || entry.ListModels || entry.Quota {
-			t.Fatalf("%s should be credential-only until web-search runtime is implemented: %+v", id, entry)
+			t.Fatalf("%s should stay auth-only outside built-in MCP search tools: %+v", id, entry)
 		}
-		if !strings.Contains(strings.ToLower(entry.Notes), "search") || !strings.Contains(strings.ToLower(entry.Notes), "runtime") {
-			t.Fatalf("%s notes = %q, want search runtime caveat", id, entry.Notes)
+		notes := strings.ToLower(entry.Notes)
+		if !strings.Contains(notes, "__search") || !strings.Contains(notes, "no inference adapter") {
+			t.Fatalf("%s notes = %q, want built-in search tool plus no-inference caveat", id, entry.Notes)
 		}
 	}
 }

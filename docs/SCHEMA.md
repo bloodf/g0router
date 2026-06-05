@@ -270,6 +270,10 @@ GET    /api/mcp/instances/:id/accounts       — List redacted OAuth accounts
 GET    /api/mcp/oauth/callback       — Browser OAuth callback completion
 GET    /api/mcp/tools                — List discovered tools (compact); optional instance_id/account_label filters
 POST   /api/mcp/tools/:name/execute  — Execute tool
+                                       Built-in `kagi__search` and `tavily__search`
+                                       appear here when active stored API-key
+                                       connections exist. There is no separate
+                                       `/api/search` route.
 
 GET    /api/logs                     — Query request/response logs
 

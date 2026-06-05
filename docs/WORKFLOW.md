@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.BV"
-last_updated: "2026-06-05T04:05:00Z"
+current_wave: "8.BW"
+last_updated: "2026-06-05T04:40:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -2520,7 +2520,7 @@ tasks:
       - docs/evaluations/wave-8BO-evaluator-prompt.md
 ```
 
-**Checkpoint**: Wave 8.BO removes the Kagi and Tavily `unsupported` credential gap only. They now appear in auth-capable provider surfaces and accept stored API-key connections for future search tooling. They remain `auth_only`: no inference adapter, public dispatch, web-search runtime endpoint, static catalog, model listing, streaming, pricing, or quota support is advertised.
+**Checkpoint**: Wave 8.BO removes the Kagi and Tavily `unsupported` credential gap only. They now appear in auth-capable provider surfaces and accept stored API-key connections. Wave 8.BW later uses those credentials for built-in MCP search tools while preserving `auth_only` provider status: no inference adapter, public dispatch, static catalog, model listing, streaming, pricing, or quota support is advertised.
 
 ---
 
@@ -2841,6 +2841,52 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.BV resolves the Wave 8.BU evaluator's non-blocking registration-test note. The default inference engine now has direct regression coverage that Replicate remains registered in normal startup.
+
+---
+
+### Wave 8.BW — Kagi and Tavily Built-In MCP Search Tools
+
+```yaml
+wave: "8.BW"
+status: DONE
+max_agents: 2
+gate: "go test ./internal/search ./internal/cli ./internal/provider ./api/handlers -run 'Test(KagiSearchTool|TavilySearchTool|SearchToolRequiresActiveAPIKey|SearchToolErrorsAreSanitized|BuiltInSearchTools|DefaultServerConfigRegistersBuiltInSearchTools|ProviderMatrixKeepsSearchProvidersAuthOnly|ProviderMatrixMarksSearchCredentialsAuthOnly)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
+completed_at: "2026-06-05T04:40:00Z"
+evaluator_prompt: "docs/evaluations/wave-8BW-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "focused internal/search tests: RED before implementation, search package API and startup registration did not exist"
+  - "focused internal/search and internal/cli startup registration tests: PASS"
+  - "go test ./... -count=1: PASS"
+  - "go vet ./...: PASS"
+  - "go build ./cmd/g0router: PASS"
+  - "npm --prefix ui test -- --run: PASS, 20 files and 87 tests"
+  - "npm --prefix ui run build: PASS"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make build: PASS"
+  - "git diff --check: PASS"
+
+tasks:
+  - id: "8.BW.1"
+    name: "Register stored Kagi and Tavily API keys as built-in MCP search tools"
+    status: DONE
+    agent: "orchestrator with read-only scout 019e9566-e03c-7101-ada7-74bd7e7a8dd3"
+    files_owned:
+      - internal/search/search.go
+      - internal/search/search_test.go
+      - internal/cli/root.go
+      - internal/cli/root_test.go
+      - internal/provider/matrix.go
+      - docs/PROVIDERS.md
+      - docs/CONFIG.md
+      - docs/SCHEMA.md
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8BW-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.BW turns the Wave 8.BO Kagi/Tavily API-key credential capture into usable built-in MCP search tools. Active stored API-key connections register `kagi__search` and `tavily__search` during normal server startup and through the same MCP `ToolManager` surface used by dashboard tool execution and inference tool injection. Kagi and Tavily remain `auth_only` providers: no inference adapter, `/v1` dispatch, `/api/search` route, model catalog, streaming, pricing, or quota support is advertised.
 
 ---
 

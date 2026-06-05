@@ -292,7 +292,7 @@ Wave: {wave_id}
 | 5 | 2 | 3 | 5 |
 | 6 | 1 | 1 | 6 |
 | 7 | 13 | 8 | remediation Waves 7.A–7.M |
-| 8 | 52 | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.BP |
+| 8 | 53 | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.BW |
 | **Total** | **75 waves** | — | **77 original tasks + remediation + completion hardening** |
 
 With 8 agents, the original 77 tasks compressed into ~13 sequential merge
@@ -316,8 +316,9 @@ smoke, Cloudflare account-scoped gateway routing, Kimi dynamic routing, and
 Xiaomi OMP-style Anthropic-compatible runtime routing through Wave 8.BL,
 OpenCode Zen dynamic runtime routing through Wave 8.BM, Kilo Gateway
 dynamic runtime routing through Wave 8.BN, Kagi/Tavily API-key credential
-capture through Wave 8.BO, and native Ollama Cloud runtime routing through
-Wave 8.BP.
+capture through Wave 8.BO, native Ollama Cloud runtime routing through
+Wave 8.BP, GitLab Duo and Replicate runtime follow-ups through Wave 8.BV,
+and built-in Kagi/Tavily MCP search tools through Wave 8.BW.
 Stage 8 has earlier conceptual plan labels in historical prompts,
 but `docs/WORKFLOW.md` tracks the committed implementation waves from 8.L
-through 8.BP.
+through 8.BW.
