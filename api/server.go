@@ -18,6 +18,7 @@ import (
 	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
+	"github.com/bloodf/g0router/internal/metrics"
 	"github.com/bloodf/g0router/internal/modelcatalog"
 	"github.com/bloodf/g0router/internal/notify"
 	"github.com/bloodf/g0router/internal/providers"
@@ -71,6 +72,8 @@ type Server struct {
 
 	limiter *ratelimit.Limiter
 
+	metrics *metrics.Collector
+
 	logRetentionInterval time.Duration
 	// runRetention performs a single retention pass. It is a field so tests can
 	// inject a panicking pass and assert the loop survives; it defaults to
@@ -114,6 +117,7 @@ func NewServer(config ServerConfig) *Server {
 		uiFS:                      uiFS,
 		uiErr:                     err,
 		limiter:                   ratelimit.NewLimiter(),
+		metrics:                   metrics.NewCollector(),
 		logRetentionInterval:      logRetentionInterval,
 		connectionRefreshInterval: connectionRefreshInterval,
 		notifiedStale:             make(map[string]bool),
@@ -260,6 +264,7 @@ func (s *Server) runConnectionRefreshOnce(now time.Time) {
 		if !outcome.Failed {
 			continue
 		}
+		s.metrics.IncRefreshFailure()
 		if s.notifiedStale[outcome.ConnectionID] {
 			// Already notified for this stale episode.
 			continue
@@ -317,6 +322,8 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 	switch string(ctx.Path()) {
 	case "/healthz":
 		handlers.Health(ctx, s.config.Version)
+	case "/metrics":
+		s.handleMetrics(ctx)
 	case "/v1/chat/completions":
 		if string(ctx.Method()) == fasthttp.MethodPost {
 			s.handleInference(ctx)
@@ -355,6 +362,7 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 			return
 		}
 		s.handleAPI(ctx)
+		s.recordAuditIfMutation(ctx)
 	}
 }
 
@@ -501,6 +509,43 @@ func (s *Server) writeInferenceLog(usageStore logging.RequestStore, metadata req
 	}
 	if err := logging.NewLogger(usageStore).Log(entry); err != nil {
 		log.Printf("write inference log: %v", err)
+	}
+
+	s.observeRequestMetric(metadata, extractedUsage, costUSD, statusCode, time.Since(started))
+}
+
+// observeRequestMetric records the just-logged inference into the Prometheus
+// collector. It mirrors the values written to the request log so /metrics and
+// /api/usage stay consistent. Cost and tokens default to zero when unknown.
+func (s *Server) observeRequestMetric(metadata requestLogMetadata, extracted *usage.Usage, costUSD *float64, statusCode int, dur time.Duration) {
+	if s.metrics == nil {
+		return
+	}
+	var inputTok, outputTok int
+	if extracted != nil {
+		inputTok = extracted.InputTokens
+		outputTok = extracted.OutputTokens
+	}
+	var cost float64
+	if costUSD != nil {
+		cost = *costUSD
+	}
+	s.metrics.ObserveRequest(metadata.provider, metadata.model, statusClassFor(statusCode), inputTok, outputTok, cost, dur)
+}
+
+// statusClassFor maps an HTTP status code to a Prometheus-friendly class label.
+func statusClassFor(statusCode int) string {
+	switch {
+	case statusCode >= 500:
+		return "5xx"
+	case statusCode >= 400:
+		return "4xx"
+	case statusCode >= 300:
+		return "3xx"
+	case statusCode >= 200:
+		return "2xx"
+	default:
+		return "other"
 	}
 }
 
@@ -942,6 +987,8 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 		handlers.UsageQuota(ctx, s.config.Store, s.config.QuotaFetchers, s.config.QuotaKey)
 	case path == "/api/logs":
 		handlers.Logs(ctx, s.config.UsageStore)
+	case path == "/api/audit":
+		handlers.Audit(ctx, s.config.Store)
 	case path == "/api/mcp/clients":
 		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, "")
 	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "clients":
@@ -980,6 +1027,76 @@ func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
 			return
 		}
 		s.handleUI(ctx)
+	}
+}
+
+// handleMetrics serves GET /metrics in Prometheus text exposition format.
+// /metrics is treated as a management path: it is gated by RequireAPIKey (via
+// requiresAuth/isProtectedManagementPath) and subject to the source policy, so
+// a scraper authenticates with the same bearer API key used for /api/*.
+func (s *Server) handleMetrics(ctx *fasthttp.RequestCtx) {
+	if string(ctx.Method()) != fasthttp.MethodGet {
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+		return
+	}
+	ctx.SetContentType("text/plain; version=0.0.4; charset=utf-8")
+	if s.metrics == nil {
+		return
+	}
+	_, _ = ctx.WriteString(s.metrics.Render())
+}
+
+// auditedResources are the top-level /api/{resource} segments whose successful
+// mutations (POST/PUT/DELETE) are recorded in the admin audit log.
+var auditedResources = map[string]bool{
+	"settings":    true,
+	"keys":        true,
+	"connections": true,
+	"combos":      true,
+	"aliases":     true,
+	"pricing":     true,
+}
+
+// recordAuditIfMutation appends an audit-log entry after a successful mutating
+// management request. It runs after handleAPI so it can read the response
+// status. It deliberately never logs the request body (which may contain
+// secrets); details is a short, non-secret note. The actor is the
+// authenticated API key id captured by the auth middleware (may be empty when
+// RequireAPIKey is disabled).
+func (s *Server) recordAuditIfMutation(ctx *fasthttp.RequestCtx) {
+	if s.config.Store == nil {
+		return
+	}
+	method := string(ctx.Method())
+	switch method {
+	case fasthttp.MethodPost, fasthttp.MethodPut, fasthttp.MethodDelete:
+	default:
+		return
+	}
+	if status := ctx.Response.StatusCode(); status < 200 || status >= 400 {
+		return
+	}
+
+	path := strings.TrimRight(string(ctx.Path()), "/")
+	parts := pathParts(path)
+	if len(parts) < 2 || parts[0] != "api" || !auditedResources[parts[1]] {
+		return
+	}
+
+	target := parts[len(parts)-1]
+	var actor string
+	if id := userValueStringPtr(ctx, requestAPIKeyIDKey); id != nil {
+		actor = *id
+	}
+
+	entry := store.AuditEntry{
+		ActorAPIKeyID: actor,
+		Action:        method + " " + path,
+		Target:        target,
+		Details:       method + " " + parts[1],
+	}
+	if err := s.config.Store.AppendAudit(entry); err != nil {
+		log.Printf("append audit log: %v", err)
 	}
 }
 

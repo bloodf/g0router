@@ -30,18 +30,21 @@ func (s *Server) enforceKeyPolicy(ctx *fasthttp.RequestCtx) bool {
 
 	// (b) requests-per-minute check.
 	if !s.limiter.AllowRequest(identity.ID, identity.RateLimitRPM) {
+		s.metrics.IncRateLimitRejected()
 		writePolicyError(ctx, fasthttp.StatusTooManyRequests, "request rate limit exceeded")
 		return false
 	}
 
 	// (b') tokens-per-minute check, based on usage recorded so far.
 	if !s.limiter.AllowTokens(identity.ID, identity.RateLimitTPM) {
+		s.metrics.IncRateLimitRejected()
 		writePolicyError(ctx, fasthttp.StatusTooManyRequests, "token rate limit exceeded")
 		return false
 	}
 
 	// (c) daily spend cap check.
 	if !s.limiter.WithinSpendCap(identity.ID, identity.DailySpendCapUSD) {
+		s.metrics.IncSpendCapRejected()
 		writePolicyError(ctx, fasthttp.StatusPaymentRequired, "daily spend cap reached")
 		return false
 	}

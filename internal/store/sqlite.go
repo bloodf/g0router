@@ -225,6 +225,17 @@ func (s *Store) migrate() error {
 			expires_at TEXT NOT NULL,
 			created_at TEXT NOT NULL DEFAULT (datetime('now'))
 		)`,
+		`CREATE TABLE IF NOT EXISTS audit_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+			actor_api_key_id TEXT,
+			action TEXT NOT NULL,
+			target TEXT,
+			details TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action)`,
+		`CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_api_key_id)`,
 	}
 
 	for _, stmt := range ddl {

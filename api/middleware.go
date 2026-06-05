@@ -125,6 +125,11 @@ func isProtectedManagementPath(requestPath string) bool {
 	if requestPath == "/api/oauth/callback" || requestPath == "/api/mcp/oauth/callback" {
 		return false
 	}
+	// /metrics is a management path: scrapers pass the API key via bearer just
+	// like /api/* clients.
+	if requestPath == "/metrics" {
+		return true
+	}
 	return requestPath == "/api" || strings.HasPrefix(requestPath, "/api/")
 }
 
@@ -137,7 +142,7 @@ func (s *Server) sourceAllowed(ctx *fasthttp.RequestCtx) bool {
 	if requestPath == "" {
 		requestPath = "/"
 	}
-	if !strings.HasPrefix(requestPath, "/v1/") && requestPath != "/api" && !strings.HasPrefix(requestPath, "/api/") {
+	if !strings.HasPrefix(requestPath, "/v1/") && requestPath != "/api" && !strings.HasPrefix(requestPath, "/api/") && requestPath != "/metrics" {
 		return true
 	}
 
