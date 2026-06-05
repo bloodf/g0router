@@ -29,12 +29,39 @@
 
 ```yaml
 project_status: COMPLETE
-current_stage: 8
+current_stage: 9
 current_wave: "COMPLETE"
-last_completed_wave: "8.CI"
-last_updated: "2026-06-05T04:53:18Z"
+last_completed_wave: "R15 (principal audit remediation)"
+last_updated: "2026-06-05T05:30:00Z"
 last_agent: "orchestrator"
 ```
+
+---
+
+## Stage 9 — Principal Engineer Audit Remediation (Waves R1–R15)
+
+A full line-by-line audit (security, backend/API, provider parity, routing/runtime,
+MCP, dashboard, docs) plus an independent Kimi CLI review drove waves R1–R15.
+All findings fixed under TDD; gates green at every commit.
+
+- **R1** strip legacy upstream brand references from source + UI
+- **R2** translate tool calls in Anthropic streaming egress (`/v1/messages`)
+- **R3** map races (refreshers/quota/pool), streaming backoff timing, `/v1/models` resilience
+- **R4** redact internal errors from client responses (~38 sites)
+- **R5** stop leaking the pooled `*fasthttp.RequestCtx` (use-after-recycle data race, found via `-race`)
+- **R6** strip brands from docs; fix false claims (23→43 providers, phantom files/pkgs, SCHEMA)
+- **R7** clamp negative input cost; plumb cache-write tokens
+- **R8** MCP: stdio deadlock, cancellation notifications, call-after-close refcount, session teardown
+- **R9** preserve Anthropic tool ids on ingress; bound stream timeouts; honest capability tests
+- **R10** validate SQL identifiers; expire MCP OAuth flows; cache settings
+- **R11** UI: multi-step combos; origin-relative endpoint URLs
+- **R12–R13** unit coverage 76% → **95.0%** (real-behavior tests, no mocks)
+- **R14** container binds `0.0.0.0`; opt-in real-binary smoke (`make e2e-binary`)
+- **R15** full Anthropic tool loop (translate tool definitions + tool_choice on ingress)
+
+Gates: `go test ./...` 2098+ pass, `-race` clean, `go vet` clean, UI 100 tests,
+Playwright e2e 23/24 (1 skipped), `make verify` green, gitleaks clean (420 commits),
+real-binary + OrbStack container smoke verified. Coverage **95.0%**.
 
 ---
 
