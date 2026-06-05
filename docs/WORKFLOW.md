@@ -2980,7 +2980,7 @@ max_agents: 1
 gate: "go test ./internal/providers/bedrock ./internal/providers/replicate ./api/handlers -run 'TestUnsupportedMethodsReturnErrors|TestChatCompletionStreamUnsupported|TestStreamInferenceUnsupportedProviderUsesStableError' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T05:50:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BZ-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after commit"
+evaluation: "PASS external evaluator subagent 019e9597-fb38-7b50-beaa-7b05c999855b at commit b4385f2"
 gate_results:
   - "go test ./internal/providers/bedrock ./internal/providers/replicate ./api/handlers -run 'TestUnsupportedMethodsReturnErrors|TestChatCompletionStreamUnsupported|TestStreamInferenceUnsupportedProviderUsesStableError' -count=1: RED before implementation, providers.ErrStreamingUnsupported was undefined"
   - "go test ./internal/providers/bedrock ./internal/providers/replicate ./api/handlers -run 'TestUnsupportedMethodsReturnErrors|TestChatCompletionStreamUnsupported|TestStreamInferenceUnsupportedProviderUsesStableError' -count=1: PASS"
@@ -2992,6 +2992,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e9597-fb38-7b50-beaa-7b05c999855b: FAIL at commit 833204a on stale Stage 8 range in PLAN/ORCHESTRATION; PASS after docs remediation commit b4385f2"
 
 tasks:
   - id: "8.BZ.1"
