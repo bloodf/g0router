@@ -168,6 +168,52 @@ describe("ProvidersPage", () => {
     expect(window.confirm).toHaveBeenCalledWith("Delete provider connection created?");
   });
 
+  it("updates connection active state through the documented connection PUT endpoint without sending secrets", async () => {
+    const connections = [{ ...connectionEntry }];
+    const fetch = vi.fn(async (path: string, options?: RequestInit) => {
+      if (path === "/api/providers") {
+        return jsonResponse({ data: [providerEntry] });
+      }
+      if (path === "/api/connections/conn-openai" && options?.method === "PUT") {
+        const body = JSON.parse(String(options.body));
+        expect(body).toEqual({
+          provider: "openai",
+          name: "primary",
+          auth_type: "oauth",
+          expires_at: 1_799_000_000,
+          is_active: false,
+          provider_specific_data: {},
+          account_id: "acct-1",
+          email: "operator@example.com",
+          unavailable_until: null,
+          backoff_level: 0,
+          model_locks: {}
+        });
+        expect(String(options.body)).not.toMatch(/top-secret|provider-access-token|provider-refresh-token|provider-api-key/i);
+        connections[0] = { ...connections[0], IsActive: false };
+        return jsonResponse(connections[0]);
+      }
+      if (path === "/api/connections") {
+        return jsonResponse({ data: connections });
+      }
+      throw new Error(`unexpected path ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<ProvidersPage />);
+
+    const row = await screen.findByRole("row", { name: /primary openai operator@example.com oauth active/i });
+    fireEvent.click(within(row).getByRole("button", { name: "Deactivate primary" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/connections/conn-openai",
+        expect.objectContaining({ credentials: "same-origin", method: "PUT" })
+      );
+    });
+    expect(await screen.findByRole("row", { name: /primary openai operator@example.com oauth inactive/i })).toBeInTheDocument();
+  });
+
   it("creates Cloudflare AI Gateway connections with account ID metadata", async () => {
     const cloudflareProvider = {
       ...providerEntry,

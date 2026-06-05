@@ -94,6 +94,20 @@ export type CreateConnectionRequest = {
   is_active: boolean;
 };
 
+export type UpdateConnectionRequest = {
+  provider: string;
+  name: string;
+  auth_type: string;
+  expires_at?: number | null;
+  is_active: boolean;
+  provider_specific_data?: Record<string, unknown>;
+  account_id?: string | null;
+  email?: string | null;
+  unavailable_until?: number | null;
+  backoff_level: number;
+  model_locks?: Record<string, number>;
+};
+
 export type ConnectionTestResponse = {
   ok: boolean;
   provider: string;
@@ -507,6 +521,23 @@ export function createConnection(request: CreateConnectionRequest) {
   return apiFetch<ConnectionResponse>(getConnectionsPath(), { method: "POST", body: request });
 }
 
+export function updateConnection(connection: ConnectionResponse) {
+  const body: UpdateConnectionRequest = {
+    provider: connection.Provider,
+    name: connection.Name,
+    auth_type: connection.AuthType,
+    expires_at: connection.ExpiresAt ?? null,
+    is_active: connection.IsActive,
+    provider_specific_data: redactConnectionMetadata(connection.ProviderSpecificData ?? {}),
+    account_id: connection.AccountID ?? null,
+    email: connection.Email ?? null,
+    unavailable_until: connection.UnavailableUntil ?? null,
+    backoff_level: connection.BackoffLevel,
+    model_locks: connection.ModelLocks ?? {}
+  };
+  return apiFetch<ConnectionResponse>(`${getConnectionsPath()}/${encodeURIComponent(connection.ID)}`, { method: "PUT", body });
+}
+
 export function deleteConnection(id: string) {
   return apiFetch<void>(`${getConnectionsPath()}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
@@ -553,6 +584,13 @@ export function createAlias(alias: string, provider: string, model: string) {
   return apiFetch<ModelAliasResponse>(getAliasesPath(), { method: "POST", body: { alias, provider, model } });
 }
 
+export function updateAlias(alias: string, provider: string, model: string) {
+  return apiFetch<ModelAliasResponse>(`${getAliasesPath()}/${encodeURIComponent(alias)}`, {
+    method: "PUT",
+    body: { provider, model }
+  });
+}
+
 export function deleteAlias(alias: string) {
   return apiFetch<void>(`${getAliasesPath()}/${encodeURIComponent(alias)}`, { method: "DELETE" });
 }
@@ -582,6 +620,21 @@ export function deletePricingOverride(provider: string, model: string) {
   return apiFetch<void>(`${getPricingPath()}/${encodeURIComponent(provider)}/${encodeURIComponent(model)}`, { method: "DELETE" });
 }
 
+export function updatePricingOverride(
+  provider: string,
+  model: string,
+  inputCostPerToken: number,
+  outputCostPerToken: number
+) {
+  return apiFetch<PricingOverrideResponse>(`${getPricingPath()}/${encodeURIComponent(provider)}/${encodeURIComponent(model)}`, {
+    method: "PUT",
+    body: {
+      input_cost_per_token: inputCostPerToken,
+      output_cost_per_token: outputCostPerToken
+    }
+  });
+}
+
 export function getSettings() {
   return apiFetch<SettingsResponse>(getSettingsPath());
 }
@@ -608,6 +661,21 @@ export function listLogs() {
 
 export function listCombos() {
   return apiList<ComboResponse>(getCombosPath());
+}
+
+export function createCombo(name: string, steps: ComboStepResponse[], isActive: boolean) {
+  return apiFetch<ComboResponse>(getCombosPath(), { method: "POST", body: { name, steps, is_active: isActive } });
+}
+
+export function updateCombo(id: string, name: string, steps: ComboStepResponse[], isActive: boolean) {
+  return apiFetch<ComboResponse>(`${getCombosPath()}/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: { name, steps, is_active: isActive }
+  });
+}
+
+export function deleteCombo(id: string) {
+  return apiFetch<void>(`${getCombosPath()}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function listMCPClients() {
@@ -673,4 +741,24 @@ function errorMessage(response: Response, payload: unknown): string {
     }
   }
   return response.statusText || `request failed: ${response.status}`;
+}
+
+function redactConnectionMetadata(values: Record<string, unknown>): Record<string, unknown> {
+  const redacted: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (isSecretMetadataKey(key)) {
+      continue;
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      redacted[key] = redactConnectionMetadata(value as Record<string, unknown>);
+      continue;
+    }
+    redacted[key] = value;
+  }
+  return redacted;
+}
+
+function isSecretMetadataKey(key: string) {
+  const normalized = key.toLowerCase();
+  return ["token", "secret", "key", "authorization", "password"].some((marker) => normalized.includes(marker));
 }

@@ -292,7 +292,7 @@ Wave: {wave_id}
 | 5 | 2 | 3 | 5 |
 | 6 | 1 | 1 | 6 |
 | 7 | 13 | 8 | remediation Waves 7.A–7.M |
-| 8 | WORKFLOW-tracked | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.CD |
+| 8 | WORKFLOW-tracked | 8 | completion hardening tracked in WORKFLOW.md as Waves 8.L–8.CE |
 | **Total** | WORKFLOW-tracked | — | **77 original tasks + remediation + completion hardening** |
 
 With 8 agents, the original 77 tasks compressed into ~13 sequential merge
@@ -322,8 +322,9 @@ built-in Kagi/Tavily MCP search tools through Wave 8.BW, Responses and
 Messages streaming translation through Waves 8.BX and 8.BY, shared
 unsupported-streaming error classification through Wave 8.BZ, quota
 capability truth hardening through Wave 8.CA, real OpenRouter quota support
-through Wave 8.CB, provider quota matrix documentation through Wave 8.CC, and
-clean-checkout release gate bootstrap through Wave 8.CD.
+through Wave 8.CB, provider quota matrix documentation through Wave 8.CC,
+clean-checkout release gate bootstrap through Wave 8.CD, and dashboard
+update/state coverage through Wave 8.CE.
 Stage 8 has earlier conceptual plan labels in historical prompts,
 but `docs/WORKFLOW.md` tracks the committed implementation waves from 8.L
-through 8.CD.
+through 8.CE.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ApiError, apiFetch, asyncError, asyncSuccess, getCombosPath, listCombos, type AsyncState, type ComboResponse } from "../api";
+import { ApiError, asyncError, asyncSuccess, createCombo, deleteCombo, listCombos, updateCombo, type AsyncState, type ComboResponse } from "../api";
 import { EmptyState, ErrorState, LoadingState, Panel, StatusPill } from "../components/Primitives";
 
 type ComboForm = {
@@ -19,7 +19,8 @@ const emptyForm: ComboForm = {
 export function CombosPage() {
   const [combosState, setCombosState] = useState<AsyncState<ComboResponse[]>>({ status: "loading" });
   const [form, setForm] = useState<ComboForm>(emptyForm);
-  const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingComboID, setEditingComboID] = useState("");
   const [deletingID, setDeletingID] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<ApiError | null>(null);
 
@@ -37,26 +38,39 @@ export function CombosPage() {
     void loadCombos();
   }, [loadCombos]);
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMutationError(null);
-    setIsCreating(true);
+    setIsSaving(true);
+    const name = form.name.trim();
+    const steps = [{ provider: form.provider.trim(), model: form.model.trim() }];
     try {
-      await apiFetch<ComboResponse>(getCombosPath(), {
-        method: "POST",
-        body: {
-          name: form.name.trim(),
-          steps: [{ provider: form.provider.trim(), model: form.model.trim() }],
-          is_active: form.isActive
-        }
-      });
+      if (editingComboID) {
+        await updateCombo(editingComboID, name, steps, form.isActive);
+      } else {
+        await createCombo(name, steps, form.isActive);
+      }
       setForm(emptyForm);
+      setEditingComboID("");
       await loadCombos();
     } catch (error) {
       setMutationError(toApiError(error));
     } finally {
-      setIsCreating(false);
+      setIsSaving(false);
     }
+  }
+
+  function handleEdit(combo: ComboResponse) {
+    const firstStep = combo.Steps[0] ?? { model: "", provider: "" };
+    setMutationError(null);
+    setEditingComboID(combo.ID);
+    setForm({ isActive: combo.IsActive, model: firstStep.model, name: combo.Name, provider: firstStep.provider });
+  }
+
+  function handleCancelEdit() {
+    setMutationError(null);
+    setEditingComboID("");
+    setForm(emptyForm);
   }
 
   async function handleDelete(combo: ComboResponse) {
@@ -67,7 +81,7 @@ export function CombosPage() {
     setMutationError(null);
     setDeletingID(combo.ID);
     try {
-      await apiFetch<void>(`${getCombosPath()}/${encodeURIComponent(combo.ID)}`, { method: "DELETE" });
+      await deleteCombo(combo.ID);
       await loadCombos();
     } catch (error) {
       setMutationError(toApiError(error));
@@ -76,12 +90,12 @@ export function CombosPage() {
     }
   }
 
-  const canCreate = form.name.trim() !== "" && form.provider.trim() !== "" && form.model.trim() !== "" && !isCreating;
+  const canSave = form.name.trim() !== "" && form.provider.trim() !== "" && form.model.trim() !== "" && !isSaving;
 
   return (
     <Panel title="Combo routing" description="Reusable routing chains for fallback, round-robin, and account selection.">
       <div className="space-y-5">
-        <form className="rounded-md border border-zinc-200 p-4" onSubmit={handleCreate}>
+        <form className="rounded-md border border-zinc-200 p-4" onSubmit={handleSubmit}>
           <div className="grid gap-3 lg:grid-cols-[1.1fr_1fr_1.3fr_auto]">
             <label className="text-sm font-medium text-zinc-700">
               Combo name
@@ -119,11 +133,16 @@ export function CombosPage() {
               </label>
               <button
                 className="min-h-10 rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
-                disabled={!canCreate}
+                disabled={!canSave}
                 type="submit"
               >
-                {isCreating ? "Creating" : "Create combo"}
+                {isSaving ? "Saving" : editingComboID ? "Update combo" : "Create combo"}
               </button>
+              {editingComboID ? (
+                <button className="min-h-10 rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700" type="button" onClick={handleCancelEdit}>
+                  Cancel
+                </button>
+              ) : null}
             </div>
           </div>
         </form>
@@ -132,7 +151,7 @@ export function CombosPage() {
           <ErrorState title={mutationError.authExpired ? "Session expired" : "Could not change combo"} message={mutationError.message} />
         ) : null}
 
-        {renderCombosState(combosState, loadCombos, handleDelete, deletingID)}
+        {renderCombosState(combosState, loadCombos, handleDelete, handleEdit, deletingID)}
       </div>
     </Panel>
   );
@@ -142,6 +161,7 @@ function renderCombosState(
   state: AsyncState<ComboResponse[]>,
   onRetry: () => void,
   onDelete: (combo: ComboResponse) => void,
+  onEdit: (combo: ComboResponse) => void,
   deletingID: string | null
 ) {
   switch (state.status) {
@@ -160,18 +180,20 @@ function renderCombosState(
     case "auth-expired":
       return <ErrorState title="Session expired" message={state.error.message} onRetry={onRetry} />;
     case "success":
-      return <CombosTable combos={state.data} deletingID={deletingID} onDelete={onDelete} />;
+      return <CombosTable combos={state.data} deletingID={deletingID} onDelete={onDelete} onEdit={onEdit} />;
   }
 }
 
 function CombosTable({
   combos,
   deletingID,
-  onDelete
+  onDelete,
+  onEdit
 }: {
   combos: ComboResponse[];
   deletingID: string | null;
   onDelete: (combo: ComboResponse) => void;
+  onEdit: (combo: ComboResponse) => void;
 }) {
   return (
     <div className="overflow-x-auto rounded-md border border-zinc-200">
@@ -201,15 +223,26 @@ function CombosTable({
                 <StatusPill tone={combo.IsActive ? "good" : "neutral"}>{combo.IsActive ? "active" : "inactive"}</StatusPill>
               </td>
               <td className="px-4 py-3">
-                <button
-                  aria-label={`Delete ${combo.Name}`}
-                  className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
-                  disabled={deletingID === combo.ID}
-                  type="button"
-                  onClick={() => onDelete(combo)}
-                >
-                  {deletingID === combo.ID ? "Deleting" : "Delete"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    aria-label={`Edit ${combo.Name}`}
+                    className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+                    disabled={deletingID === combo.ID}
+                    type="button"
+                    onClick={() => onEdit(combo)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    aria-label={`Delete ${combo.Name}`}
+                    className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+                    disabled={deletingID === combo.ID}
+                    type="button"
+                    onClick={() => onDelete(combo)}
+                  >
+                    {deletingID === combo.ID ? "Deleting" : "Delete"}
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

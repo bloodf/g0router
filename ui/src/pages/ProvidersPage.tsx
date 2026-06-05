@@ -10,6 +10,7 @@ import {
   pollProviderOAuth,
   startProviderOAuth,
   testConnection,
+  updateConnection,
   type AsyncState,
   type ConnectionResponse,
   type ProviderOAuthStartResponse,
@@ -242,6 +243,22 @@ function ProviderTables({
     try {
       const result = await testConnection(connection.ID);
       setMutationMessage(`${result.name || label} is ${result.ok ? "active" : "inactive"}`);
+    } catch (error) {
+      setMutationError(toApiError(error).message);
+    } finally {
+      setBusyConnectionID("");
+    }
+  }
+
+  async function handleToggleConnection(connection: ConnectionResponse) {
+    const label = connection.Name || connection.ID;
+    setBusyConnectionID(connection.ID);
+    setMutationError("");
+    setMutationMessage("");
+    try {
+      await updateConnection({ ...connection, IsActive: !connection.IsActive });
+      setMutationMessage(`${label} was ${connection.IsActive ? "deactivated" : "activated"}`);
+      await onReload();
     } catch (error) {
       setMutationError(toApiError(error).message);
     } finally {
@@ -495,6 +512,15 @@ function ProviderTables({
                             aria-label={`Test ${connection.Name || connection.ID}`}
                           >
                             Test
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleToggleConnection(connection)}
+                            disabled={busyConnectionID === connection.ID}
+                            className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400"
+                            aria-label={`${connection.IsActive ? "Deactivate" : "Activate"} ${connection.Name || connection.ID}`}
+                          >
+                            {connection.IsActive ? "Deactivate" : "Activate"}
                           </button>
                           <button
                             type="button"

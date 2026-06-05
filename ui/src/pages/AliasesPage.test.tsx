@@ -80,4 +80,40 @@ describe("AliasesPage", () => {
     });
     expect(await screen.findByText("No model aliases")).toBeInTheDocument();
   });
+
+  it("updates aliases through the documented PUT endpoint", async () => {
+    let aliases = [{ Alias: "fast", Provider: "openai", Model: "gpt-4o-mini" }];
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === getAliasesPath() && method === "GET") {
+        return jsonResponse({ data: aliases });
+      }
+      if (path === `${getAliasesPath()}/fast` && method === "PUT") {
+        aliases = [{ Alias: "fast", Provider: "anthropic", Model: "claude-sonnet-4" }];
+        return jsonResponse(aliases[0]);
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<AliasesPage />);
+
+    const row = await screen.findByRole("row", { name: /fast openai gpt-4o-mini/i });
+    fireEvent.click(within(row).getByRole("button", { name: "Edit fast" }));
+    fireEvent.change(screen.getByLabelText("Provider"), { target: { value: "anthropic" } });
+    fireEvent.change(screen.getByLabelText("Model"), { target: { value: "claude-sonnet-4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Update alias" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        `${getAliasesPath()}/fast`,
+        expect.objectContaining({
+          body: JSON.stringify({ provider: "anthropic", model: "claude-sonnet-4" }),
+          method: "PUT"
+        })
+      );
+    });
+    expect(await screen.findByRole("row", { name: /fast anthropic claude-sonnet-4/i })).toBeInTheDocument();
+  });
 });

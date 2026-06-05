@@ -14,6 +14,30 @@ describe("LogsPage", () => {
     vi.unstubAllGlobals();
   });
 
+  it("shows loading, empty, error, and auth-expired states", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => undefined)));
+
+    const { unmount } = render(<LogsPage />);
+    expect(screen.getByRole("status")).toHaveTextContent("Loading request logs");
+
+    unmount();
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ object: "list", data: [], limit: 50, offset: 0 })));
+    render(<LogsPage />);
+    expect(await screen.findByText("No request logs")).toBeInTheDocument();
+
+    unmount();
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ error: "logs unavailable" }, { status: 500, statusText: "Server Error" })));
+    render(<LogsPage />);
+    expect(await screen.findByText("Could not load logs")).toBeInTheDocument();
+    expect(screen.getByText("logs unavailable")).toBeInTheDocument();
+
+    unmount();
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ error: "control-plane auth required" }, { status: 401 })));
+    render(<LogsPage />);
+    expect(await screen.findByText("Session expired")).toBeInTheDocument();
+    expect(screen.getByText("control-plane auth required")).toBeInTheDocument();
+  });
+
   it("renders request logs and uses bounded query defaults", async () => {
     const fetch = vi.fn(async () =>
       jsonResponse({

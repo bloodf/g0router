@@ -6,6 +6,7 @@ import {
   createAlias,
   deleteAlias,
   listAliases,
+  updateAlias,
   type AsyncState,
   type ModelAliasResponse
 } from "../api";
@@ -22,6 +23,7 @@ const emptyForm: AliasForm = { alias: "", model: "", provider: "" };
 export function AliasesPage() {
   const [state, setState] = useState<AsyncState<ModelAliasResponse[]>>({ status: "loading" });
   const [form, setForm] = useState<AliasForm>(emptyForm);
+  const [editingAlias, setEditingAlias] = useState("");
   const [mutationError, setMutationError] = useState<ApiError | null>(null);
   const [busyAlias, setBusyAlias] = useState("");
 
@@ -38,7 +40,7 @@ export function AliasesPage() {
     void loadAliases();
   }, [loadAliases]);
 
-  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMutationError(null);
     const alias = form.alias.trim();
@@ -47,16 +49,34 @@ export function AliasesPage() {
     if (!alias || !provider || !model) {
       return;
     }
-    setBusyAlias(alias);
+    const targetAlias = editingAlias || alias;
+    setBusyAlias(targetAlias);
     try {
-      await createAlias(alias, provider, model);
+      if (editingAlias) {
+        await updateAlias(editingAlias, provider, model);
+      } else {
+        await createAlias(alias, provider, model);
+      }
       setForm(emptyForm);
+      setEditingAlias("");
       await loadAliases();
     } catch (error) {
       setMutationError(toApiError(error));
     } finally {
       setBusyAlias("");
     }
+  }
+
+  function handleEdit(alias: ModelAliasResponse) {
+    setMutationError(null);
+    setEditingAlias(alias.Alias);
+    setForm({ alias: alias.Alias, provider: alias.Provider, model: alias.Model });
+  }
+
+  function handleCancelEdit() {
+    setMutationError(null);
+    setEditingAlias("");
+    setForm(emptyForm);
   }
 
   async function handleDelete(alias: ModelAliasResponse) {
@@ -76,26 +96,31 @@ export function AliasesPage() {
     }
   }
 
-  const canCreate = form.alias.trim() !== "" && form.provider.trim() !== "" && form.model.trim() !== "" && busyAlias === "";
+  const canSubmit = form.alias.trim() !== "" && form.provider.trim() !== "" && form.model.trim() !== "" && busyAlias === "";
 
   return (
     <Panel title="Model aliases" description="Named model routes that resolve to provider and upstream model pairs.">
       <div className="space-y-5">
-        <form className="rounded-md border border-zinc-200 p-4" onSubmit={handleCreate}>
+        <form className="rounded-md border border-zinc-200 p-4" onSubmit={handleSubmit}>
           <div className="grid gap-3 lg:grid-cols-[1fr_1fr_1.3fr_auto]">
-            <TextField label="Alias" value={form.alias} onChange={(alias) => setForm((current) => ({ ...current, alias }))} />
+            <TextField label="Alias" value={form.alias} disabled={editingAlias !== ""} onChange={(alias) => setForm((current) => ({ ...current, alias }))} />
             <TextField label="Provider" value={form.provider} onChange={(provider) => setForm((current) => ({ ...current, provider }))} />
             <TextField label="Model" value={form.model} onChange={(model) => setForm((current) => ({ ...current, model }))} />
-            <div className="flex items-end">
-              <button className="min-h-10 rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300" disabled={!canCreate} type="submit">
-                Create alias
+            <div className="flex items-end gap-2">
+              <button className="min-h-10 rounded-md bg-zinc-950 px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300" disabled={!canSubmit} type="submit">
+                {editingAlias ? "Update alias" : "Create alias"}
               </button>
+              {editingAlias ? (
+                <button className="min-h-10 rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700" type="button" onClick={handleCancelEdit}>
+                  Cancel
+                </button>
+              ) : null}
             </div>
           </div>
         </form>
 
         {mutationError ? <ErrorState title={mutationError.authExpired ? "Session expired" : "Could not change alias"} message={mutationError.message} /> : null}
-        {renderAliases(state, loadAliases, handleDelete, busyAlias)}
+        {renderAliases(state, loadAliases, handleDelete, handleEdit, busyAlias)}
       </div>
     </Panel>
   );
@@ -105,6 +130,7 @@ function renderAliases(
   state: AsyncState<ModelAliasResponse[]>,
   onRetry: () => void,
   onDelete: (alias: ModelAliasResponse) => void,
+  onEdit: (alias: ModelAliasResponse) => void,
   busyAlias: string
 ) {
   switch (state.status) {
@@ -118,11 +144,21 @@ function renderAliases(
     case "auth-expired":
       return <ErrorState title="Session expired" message={state.error.message} onRetry={onRetry} />;
     case "success":
-      return <AliasesTable aliases={state.data} busyAlias={busyAlias} onDelete={onDelete} />;
+      return <AliasesTable aliases={state.data} busyAlias={busyAlias} onDelete={onDelete} onEdit={onEdit} />;
   }
 }
 
-function AliasesTable({ aliases, busyAlias, onDelete }: { aliases: ModelAliasResponse[]; busyAlias: string; onDelete: (alias: ModelAliasResponse) => void }) {
+function AliasesTable({
+  aliases,
+  busyAlias,
+  onDelete,
+  onEdit
+}: {
+  aliases: ModelAliasResponse[];
+  busyAlias: string;
+  onDelete: (alias: ModelAliasResponse) => void;
+  onEdit: (alias: ModelAliasResponse) => void;
+}) {
   return (
     <div className="overflow-x-auto rounded-md border border-zinc-200">
       <table aria-label="Model aliases" className="min-w-[620px] w-full text-left text-sm">
@@ -141,9 +177,14 @@ function AliasesTable({ aliases, busyAlias, onDelete }: { aliases: ModelAliasRes
               <td className="px-4 py-3 text-zinc-600">{alias.Provider}</td>
               <td className="px-4 py-3 font-mono text-xs text-zinc-600">{alias.Model}</td>
               <td className="px-4 py-3">
-                <button className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400" disabled={busyAlias === alias.Alias} type="button" aria-label={`Delete ${alias.Alias}`} onClick={() => onDelete(alias)}>
-                  Delete
-                </button>
+                <div className="flex items-center gap-2">
+                  <button className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400" disabled={busyAlias === alias.Alias} type="button" aria-label={`Edit ${alias.Alias}`} onClick={() => onEdit(alias)}>
+                    Edit
+                  </button>
+                  <button className="rounded-md border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 disabled:cursor-not-allowed disabled:text-zinc-400" disabled={busyAlias === alias.Alias} type="button" aria-label={`Delete ${alias.Alias}`} onClick={() => onDelete(alias)}>
+                    Delete
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
@@ -153,11 +194,11 @@ function AliasesTable({ aliases, busyAlias, onDelete }: { aliases: ModelAliasRes
   );
 }
 
-function TextField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+function TextField({ disabled = false, label, onChange, value }: { disabled?: boolean; label: string; onChange: (value: string) => void; value: string }) {
   return (
     <label className="text-sm font-medium text-zinc-700">
       {label}
-      <input className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input className="mt-1 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-950 disabled:bg-zinc-50 disabled:text-zinc-500" disabled={disabled} value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }

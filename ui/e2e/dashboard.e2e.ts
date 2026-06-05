@@ -154,6 +154,8 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("e2e-provider-secret")).not.toBeVisible();
     await page.getByRole("button", { name: "Test OpenAI e2e" }).click();
     await expect(page.getByText("OpenAI e2e is active")).toBeVisible();
+    await page.getByRole("button", { name: "Deactivate OpenAI e2e" }).click();
+    await expect(page.getByRole("row", { name: /OpenAI e2e openai local api_key inactive/i })).toBeVisible();
     await clickWithConfirm(page, "Delete provider connection OpenAI e2e?", () =>
       page.getByRole("button", { name: "Delete OpenAI e2e" }).click()
     );
@@ -165,10 +167,17 @@ test.describe("dashboard control plane", () => {
     await page.getByLabel("Step model").fill("gpt-5-mini");
     await page.getByRole("button", { name: "Create combo" }).click();
     await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("fast-fallback");
-    await clickWithConfirm(page, "Delete combo fast-fallback?", () =>
-      page.getByRole("button", { name: "Delete fast-fallback" }).click()
+    await page.getByRole("button", { name: "Edit fast-fallback" }).click();
+    await page.getByLabel("Combo name").fill("fast-updated");
+    await page.getByLabel("Step model").fill("gpt-4o");
+    await page.getByLabel("Active").uncheck();
+    await page.getByRole("button", { name: "Update combo" }).click();
+    await expect(page.getByRole("table", { name: "Combo routes" })).toContainText("fast-updated");
+    await expect(page.getByRole("row", { name: /fast-updated openai \/ gpt-4o inactive/i })).toBeVisible();
+    await clickWithConfirm(page, "Delete combo fast-updated?", () =>
+      page.getByRole("button", { name: "Delete fast-updated" }).click()
     );
-    await expect(page.getByRole("table", { name: "Combo routes" })).not.toContainText("fast-fallback");
+    await expect(page.getByRole("table", { name: "Combo routes" })).not.toContainText("fast-updated");
 
     await navigateTo(page, "Aliases");
     await page.getByRole("textbox", { exact: true, name: "Alias" }).fill("cheap");
@@ -176,6 +185,11 @@ test.describe("dashboard control plane", () => {
     await page.getByRole("textbox", { exact: true, name: "Model" }).fill("llama-3.3-70b-versatile");
     await page.getByRole("button", { name: "Create alias" }).click();
     await expect(page.getByRole("table", { name: "Model aliases" })).toContainText("cheap");
+    await page.getByRole("button", { name: "Edit cheap" }).click();
+    await page.getByRole("textbox", { exact: true, name: "Provider" }).fill("openai");
+    await page.getByRole("textbox", { exact: true, name: "Model" }).fill("gpt-4o");
+    await page.getByRole("button", { name: "Update alias" }).click();
+    await expect(page.getByRole("row", { name: /cheap openai gpt-4o/i })).toBeVisible();
     await clickWithConfirm(page, "Delete alias cheap?", () => page.getByRole("button", { name: "Delete cheap" }).click());
     await expect(page.getByRole("table", { name: "Model aliases" })).not.toContainText("cheap");
 
@@ -186,6 +200,11 @@ test.describe("dashboard control plane", () => {
     await page.getByLabel("Output cost per token").fill("0.000015");
     await page.getByRole("button", { name: "Create override" }).click();
     await expect(page.getByRole("table", { name: "Pricing overrides" })).toContainText("claude-sonnet");
+    await page.getByRole("button", { name: "Edit anthropic claude-sonnet" }).click();
+    await page.getByLabel("Input cost per token").fill("0.000004");
+    await page.getByLabel("Output cost per token").fill("0.000016");
+    await page.getByRole("button", { name: "Update override" }).click();
+    await expect(page.getByRole("row", { name: /anthropic claude-sonnet 0.000004 0.000016/i })).toBeVisible();
     await clickWithConfirm(page, "Delete pricing override anthropic/claude-sonnet?", () =>
       page.getByRole("button", { name: "Delete anthropic claude-sonnet" }).click()
     );
@@ -517,6 +536,18 @@ test.describe("dashboard control plane", () => {
     await navigateTo(page, "Models");
     await expect(page.getByText("Session expired")).toBeVisible();
 
+    await navigateTo(page, "Pricing");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
+    await navigateTo(page, "Usage");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
+    await navigateTo(page, "Logs");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
+    await navigateTo(page, "Quotas");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
     await navigateTo(page, "Combos/Routing");
     await expect(page.getByText("Session expired")).toBeVisible();
 
@@ -533,6 +564,9 @@ test.describe("dashboard control plane", () => {
     await expect(page.getByText("MCP session expired")).toBeVisible();
 
     await navigateTo(page, "Settings/Security");
+    await expect(page.getByText("Session expired")).toBeVisible();
+
+    await navigateTo(page, "Diagnostics");
     await expect(page.getByText("Session expired")).toBeVisible();
   });
 });
@@ -657,6 +691,16 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     return { status: 200, body: { ok: true, provider: "openai", name: "OpenAI e2e" } };
   }
 
+  if (method === "PUT" && path.startsWith("/api/connections/")) {
+    const id = decodeURIComponent(path.slice("/api/connections/".length));
+    const request = body as { is_active?: boolean };
+    state.connections = state.connections.map((connection) =>
+      connection.ID === id ? { ...connection, IsActive: request.is_active ?? connection.IsActive } : connection
+    );
+    const connection = state.connections.find((entry) => entry.ID === id);
+    return connection ? { status: 200, body: connection } : { status: 404, body: { error: "not found" } };
+  }
+
   if (method === "POST" && path === "/api/oauth/openai/authorize") {
     return {
       status: 200,
@@ -765,11 +809,41 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     return { status: 201, body: combo };
   }
 
+  if (method === "PUT" && path.startsWith("/api/combos/")) {
+    const id = decodeURIComponent(path.slice("/api/combos/".length));
+    const request = body as { is_active?: boolean; name?: string; steps?: Array<{ model: string; provider: string }> };
+    state.combos = state.combos.map((combo) =>
+      combo.ID === id
+        ? {
+            ...combo,
+            Name: request.name ?? combo.Name,
+            Steps: request.steps ?? combo.Steps,
+            IsActive: request.is_active ?? combo.IsActive,
+            UpdatedAt: "2026-06-03T11:30:00Z"
+          }
+        : combo
+    );
+    const combo = state.combos.find((entry) => entry.ID === id);
+    return combo ? { status: 200, body: combo } : { status: 404, body: { error: "not found" } };
+  }
+
   if (method === "POST" && path === "/api/aliases") {
     const request = body as { alias?: string; model?: string; provider?: string };
     const alias = { Alias: request.alias ?? "created", Provider: request.provider ?? "openai", Model: request.model ?? "gpt-5-mini" };
     state.aliases = [...state.aliases, alias];
     return { status: 201, body: alias };
+  }
+
+  if (method === "PUT" && path.startsWith("/api/aliases/")) {
+    const aliasID = decodeURIComponent(path.slice("/api/aliases/".length));
+    const request = body as { model?: string; provider?: string };
+    state.aliases = state.aliases.map((alias) =>
+      alias.Alias === aliasID
+        ? { ...alias, Provider: request.provider ?? alias.Provider, Model: request.model ?? alias.Model }
+        : alias
+    );
+    const alias = state.aliases.find((entry) => entry.Alias === aliasID);
+    return alias ? { status: 200, body: alias } : { status: 404, body: { error: "not found" } };
   }
 
   if (method === "DELETE" && path.startsWith("/api/aliases/")) {
@@ -793,6 +867,22 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
     };
     state.pricing = [...state.pricing, override];
     return { status: 201, body: override };
+  }
+
+  if (method === "PUT" && path.startsWith("/api/pricing/")) {
+    const [provider, model] = path.slice("/api/pricing/".length).split("/").map(decodeURIComponent);
+    const request = body as { input_cost_per_token?: number; output_cost_per_token?: number };
+    state.pricing = state.pricing.map((override) =>
+      override.Provider === provider && override.Model === model
+        ? {
+            ...override,
+            InputCostPerToken: request.input_cost_per_token ?? override.InputCostPerToken,
+            OutputCostPerToken: request.output_cost_per_token ?? override.OutputCostPerToken
+          }
+        : override
+    );
+    const override = state.pricing.find((entry) => entry.Provider === provider && entry.Model === model);
+    return override ? { status: 200, body: override } : { status: 404, body: { error: "not found" } };
   }
 
   if (method === "DELETE" && path.startsWith("/api/pricing/")) {

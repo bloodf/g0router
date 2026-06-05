@@ -30,8 +30,8 @@
 ```yaml
 project_status: PARITY_HARDENING
 current_stage: 8
-current_wave: "8.CD"
-last_updated: "2026-06-05T07:35:00Z"
+current_wave: "8.CE"
+last_updated: "2026-06-05T08:05:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -3190,6 +3190,52 @@ tasks:
 ```
 
 **Checkpoint**: Wave 8.CD fixes the clean-checkout release gate ordering found by the docs/release audit. `make verify` now installs UI development dependencies before raw UI unit/build/E2E gates, then runs the Go gates, binary build, `make build`, and whitespace check as one documented release verification command.
+
+---
+
+### Wave 8.CE — Dashboard Update Controls And Negative-State Coverage
+
+```yaml
+wave: "8.CE"
+status: DONE
+max_agents: 1
+gate: "npm --prefix ui test -- --run src/api.test.ts src/pages/AliasesPage.test.tsx src/pages/CombosPage.test.tsx src/pages/PricingPage.test.tsx src/pages/ProvidersPage.test.tsx src/pages/LogsPage.test.tsx src/pages/DiagnosticsPage.test.tsx && npm --prefix ui run e2e && make verify"
+completed_at: "2026-06-05T08:05:00Z"
+evaluator_prompt: "docs/evaluations/wave-8CE-evaluator-prompt.md"
+evaluation: "PENDING external evaluator run"
+gate_results:
+  - "focused dashboard update/state tests before implementation: RED, updateConnection helper missing and Edit/Deactivate controls absent"
+  - "focused dashboard update/state tests after implementation: PASS, 7 files and 41 tests"
+  - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
+  - "make verify: PASS; bootstrapped UI deps, passed go test, go vet, go build, UI unit/build/E2E, make build, and git diff --check"
+
+tasks:
+  - id: "8.CE.1"
+    name: "Add dashboard update controls and complete state coverage"
+    status: DONE
+    agent: "orchestrator"
+    commit: "PENDING"
+    files_owned:
+      - ui/src/api.ts
+      - ui/src/api.test.ts
+      - ui/src/pages/AliasesPage.tsx
+      - ui/src/pages/AliasesPage.test.tsx
+      - ui/src/pages/CombosPage.tsx
+      - ui/src/pages/CombosPage.test.tsx
+      - ui/src/pages/PricingPage.tsx
+      - ui/src/pages/PricingPage.test.tsx
+      - ui/src/pages/ProvidersPage.tsx
+      - ui/src/pages/ProvidersPage.test.tsx
+      - ui/src/pages/LogsPage.test.tsx
+      - ui/src/pages/DiagnosticsPage.test.tsx
+      - ui/e2e/dashboard.e2e.ts
+      - docs/PLAN.md
+      - docs/ORCHESTRATION.md
+      - docs/WORKFLOW.md
+      - docs/evaluations/wave-8CE-evaluator-prompt.md
+```
+
+**Checkpoint**: Wave 8.CE closes the dashboard audit gaps for documented update endpoints and state coverage. Connections can be activated/deactivated through `PUT /api/connections/:id`, aliases, combos, and pricing overrides can be edited through their documented PUT routes, connection metadata is scrubbed before dashboard PUT serialization, Pricing/Logs/Diagnostics have explicit negative-state tests, and mocked dashboard E2E covers update actions plus auth-expired coverage for Pricing, Usage, Logs, Quotas, and Diagnostics.
 
 ---
 

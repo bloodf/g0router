@@ -154,6 +154,67 @@ describe("CombosPage", () => {
     expect(await screen.findByRole("row", { name: /fast-fallback/i })).toBeInTheDocument();
   });
 
+  it("updates combos through the documented combo PUT endpoint", async () => {
+    let combos = [
+      {
+        ID: "combo-1",
+        Name: "research-chain",
+        Steps: [{ provider: "anthropic", model: "claude-sonnet-4" }],
+        IsActive: true,
+        CreatedAt: "2026-06-03T05:00:00Z",
+        UpdatedAt: "2026-06-03T05:00:00Z"
+      }
+    ];
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === getCombosPath() && method === "GET") {
+        return jsonResponse({ data: combos });
+      }
+      if (path === `${getCombosPath()}/combo-1` && method === "PUT") {
+        combos = [
+          {
+            ...combos[0],
+            Name: "research-fallback",
+            Steps: [{ provider: "openai", model: "gpt-4o" }],
+            IsActive: false
+          }
+        ];
+        return jsonResponse(combos[0]);
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<CombosPage />);
+
+    const row = await screen.findByRole("row", { name: /research-chain/i });
+    fireEvent.click(within(row).getByRole("button", { name: "Edit research-chain" }));
+    fireEvent.change(screen.getByLabelText("Combo name"), { target: { value: "research-fallback" } });
+    fireEvent.change(screen.getByLabelText("Step provider"), { target: { value: "openai" } });
+    fireEvent.change(screen.getByLabelText("Step model"), { target: { value: "gpt-4o" } });
+    fireEvent.click(screen.getByLabelText("Active"));
+    fireEvent.click(screen.getByRole("button", { name: "Update combo" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        `${getCombosPath()}/combo-1`,
+        expect.objectContaining({
+          body: JSON.stringify({
+            name: "research-fallback",
+            steps: [{ provider: "openai", model: "gpt-4o" }],
+            is_active: false
+          }),
+          credentials: "same-origin",
+          method: "PUT"
+        })
+      );
+    });
+    const updatedRow = await screen.findByRole("row", { name: /research-fallback/i });
+    expect(within(updatedRow).getByText("openai / gpt-4o")).toBeInTheDocument();
+    expect(within(updatedRow).getByText("inactive")).toBeInTheDocument();
+  });
+
   it("renders recoverable errors and auth-expired errors", async () => {
     const fetch = vi
       .fn()

@@ -20,7 +20,11 @@ import {
   getUsagePath,
   getUsageSummaryPath,
   isAuthExpiredError,
-  listProviders
+  listProviders,
+  updateAlias,
+  updateCombo,
+  updateConnection,
+  updatePricingOverride
 } from "./api";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -98,6 +102,72 @@ describe("apiFetch", () => {
     expect(providers).toHaveLength(1);
     expect(providers[0].id).toBe("openai");
     expect(fetch).toHaveBeenCalledWith("/api/providers", expect.any(Object));
+  });
+
+  it("sends dashboard update requests to documented PUT endpoints", async () => {
+    const fetch = vi.fn(async () => jsonResponse({ ok: true }));
+    vi.stubGlobal("fetch", fetch);
+
+    await updateConnection({
+      ID: "conn 1",
+      Provider: "openai",
+      Name: "primary",
+      AuthType: "oauth",
+      ExpiresAt: null,
+      IsActive: false,
+      ProviderSpecificData: { account: "work" },
+      AccountID: "acct-1",
+      Email: "operator@example.com",
+      UnavailableUntil: null,
+      BackoffLevel: 0,
+      ModelLocks: {},
+      CreatedAt: "2026-06-04T00:00:00Z",
+      UpdatedAt: "2026-06-04T00:00:00Z"
+    });
+    await updateAlias("fast/model", "openai", "gpt-4o");
+    await updateCombo("combo 1", "fallback", [{ provider: "openai", model: "gpt-4o" }], true);
+    await updatePricingOverride("openai", "gpt 4o", 0.000001, 0.000002);
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/connections/conn%201",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          provider: "openai",
+          name: "primary",
+          auth_type: "oauth",
+          expires_at: null,
+          is_active: false,
+          provider_specific_data: { account: "work" },
+          account_id: "acct-1",
+          email: "operator@example.com",
+          unavailable_until: null,
+          backoff_level: 0,
+          model_locks: {}
+        })
+      })
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/aliases/fast%2Fmodel",
+      expect.objectContaining({ method: "PUT", body: JSON.stringify({ provider: "openai", model: "gpt-4o" }) })
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/combos/combo%201",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ name: "fallback", steps: [{ provider: "openai", model: "gpt-4o" }], is_active: true })
+      })
+    );
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/pricing/openai/gpt%204o",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          input_cost_per_token: 0.000001,
+          output_cost_per_token: 0.000002
+        })
+      })
+    );
   });
 
   it("sends the saved control-plane key as a bearer token", async () => {
