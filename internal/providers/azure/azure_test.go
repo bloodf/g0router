@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -406,3 +408,404 @@ const deploymentsResponseJSON = `{
 		{"id": "embedding-prod", "object": "deployment", "created_at": 1710000002, "model": "text-embedding-3-large"}
 	]
 }`
+
+// ---- additional coverage tests ----
+
+func TestNameReturnsAzure(t *testing.T) {
+	p := New("", "")
+	if p.Name() != providers.ProviderAzure {
+		t.Fatalf("Name = %q, want azure", p.Name())
+	}
+}
+
+func TestNewDefaultsAPIVersion(t *testing.T) {
+	p := New("", "")
+	if p.apiVersion != defaultAPIVersion {
+		t.Fatalf("apiVersion = %q, want default", p.apiVersion)
+	}
+}
+
+func TestRateLimitErrorWithRetryAfter(t *testing.T) {
+	err := &RateLimitError{Message: "slow down", RetryAfter: 5}
+	if !errors.Is(err, ErrRateLimit) {
+		t.Fatal("expected ErrRateLimit sentinel")
+	}
+	if !strings.Contains(err.Error(), "retry after 5s") {
+		t.Fatalf("error = %q, want retry after in message", err.Error())
+	}
+}
+
+func TestRateLimitErrorNoRetryAfter(t *testing.T) {
+	err := &RateLimitError{Message: "slow down"}
+	if !strings.Contains(err.Error(), "slow down") {
+		t.Fatalf("error = %q, want message", err.Error())
+	}
+}
+
+func TestRateLimitErrorEmpty(t *testing.T) {
+	err := &RateLimitError{}
+	if err.Error() != ErrRateLimit.Error() {
+		t.Fatalf("blank error = %q, want %q", err.Error(), ErrRateLimit.Error())
+	}
+}
+
+func TestParseError403(t *testing.T) {
+	server := jsonServer(t, http.StatusForbidden, `{"error":{"message":"forbidden"}}`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if !errors.Is(err, ErrAuth) {
+		t.Fatalf("expected ErrAuth, got %v", err)
+	}
+}
+
+func TestParseError400(t *testing.T) {
+	server := jsonServer(t, http.StatusBadRequest, `{"error":{"message":"bad request"}}`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "bad request") {
+		t.Fatalf("error = %q", err)
+	}
+}
+
+func TestParseErrorEmptyBody(t *testing.T) {
+	server := jsonServer(t, http.StatusInternalServerError, ``, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if !errors.Is(err, ErrServer) {
+		t.Fatalf("expected ErrServer, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "empty response") {
+		t.Fatalf("error = %q, want empty response", err.Error())
+	}
+}
+
+func TestParseErrorNonJSONBody(t *testing.T) {
+	server := jsonServer(t, http.StatusInternalServerError, `plain text`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if !errors.Is(err, ErrServer) {
+		t.Fatalf("expected ErrServer, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "plain text") {
+		t.Fatalf("error = %q, want plain text", err.Error())
+	}
+}
+
+func TestListModels401(t *testing.T) {
+	server := jsonServer(t, http.StatusUnauthorized, `{"error":{"message":"bad key"}}`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ListModels(context.Background(), testKey())
+	if !errors.Is(err, ErrAuth) {
+		t.Fatalf("expected ErrAuth, got %v", err)
+	}
+}
+
+func TestListModels500(t *testing.T) {
+	server := jsonServer(t, http.StatusInternalServerError, `{"error":{"message":"server error"}}`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ListModels(context.Background(), testKey())
+	if !errors.Is(err, ErrServer) {
+		t.Fatalf("expected ErrServer, got %v", err)
+	}
+}
+
+func TestStreamHTTPError(t *testing.T) {
+	server := jsonServer(t, http.StatusUnauthorized, `{"error":{"message":"bad stream key"}}`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if !errors.Is(err, ErrAuth) {
+		t.Fatalf("expected ErrAuth, got %v", err)
+	}
+}
+
+func TestStreamHTTPErrorWithRetryAfter(t *testing.T) {
+	server := jsonServer(t, http.StatusTooManyRequests, `{"error":{"message":"rate limited"}}`, map[string]string{"Retry-After": "3"})
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if !errors.Is(err, ErrRateLimit) {
+		t.Fatalf("expected ErrRateLimit, got %v", err)
+	}
+	var rl *RateLimitError
+	if !errors.As(err, &rl) || rl.RetryAfter != 3 {
+		t.Fatalf("retry after = %+v", rl)
+	}
+}
+
+func TestChatCompletionCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	provider := New("http://127.0.0.1:1", "2024-02-15-preview")
+	_, err := provider.ChatCompletion(ctx, testKey(), testChatRequest())
+	if err == nil {
+		t.Fatal("expected error for cancelled context")
+	}
+}
+
+func TestStreamSSEDone(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: [DONE]\n\n"))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL, "2024-02-15-preview")
+	chunks, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+	got := collectChunks(chunks)
+	if len(got) != 0 {
+		t.Fatalf("chunks = %+v, want none after DONE", got)
+	}
+}
+
+func TestRetryAfterSecondsInvalidValue(t *testing.T) {
+	result := retryAfterSeconds("not-a-number")
+	if result != 0 {
+		t.Fatalf("retryAfterSeconds = %d, want 0", result)
+	}
+}
+
+func TestRetryAfterSecondsEmpty(t *testing.T) {
+	result := retryAfterSeconds("")
+	if result != 0 {
+		t.Fatalf("retryAfterSeconds = %d, want 0", result)
+	}
+}
+
+func TestDoWithDeadline(t *testing.T) {
+	server := jsonServer(t, http.StatusOK, chatResponseJSON, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := provider.ChatCompletion(ctx, testKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletion with deadline: %v", err)
+	}
+}
+
+func TestDoAlreadyExpiredDeadline(t *testing.T) {
+	provider := New("http://127.0.0.1:1", "2024-02-15-preview")
+	ctx, cancel := context.WithTimeout(context.Background(), 0)
+	defer cancel()
+	<-ctx.Done()
+	_, err := provider.ChatCompletion(ctx, testKey(), testChatRequest())
+	if err == nil {
+		t.Fatal("expected error for expired deadline")
+	}
+}
+
+func TestStreamSSETrailingData(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		// No trailing blank line — pending data processed at EOF
+		_, _ = w.Write([]byte("data: " + streamChunkContentJSON))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL, "2024-02-15-preview")
+	chunks, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+	got := collectChunks(chunks)
+	if len(got) == 0 {
+		t.Fatal("expected at least one chunk from trailing data")
+	}
+}
+
+func TestNewJSONRequestNilBody(t *testing.T) {
+	provider := New("http://127.0.0.1", "2024-02-15-preview")
+	req, err := provider.newJSONRequest("GET", "/test", testKey(), nil)
+	if err != nil {
+		t.Fatalf("newJSONRequest nil body: %v", err)
+	}
+	defer fasthttp.ReleaseRequest(req)
+}
+
+func TestChatCompletionStreamInvalidURL(t *testing.T) {
+	provider := New("http://invalid\x00host", "2024-02-15-preview")
+	_, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if err == nil {
+		t.Fatal("expected error for invalid URL")
+	}
+	if !strings.Contains(err.Error(), "create azure request") && !strings.Contains(err.Error(), "invalid") {
+		t.Fatalf("error = %v, want URL error", err)
+	}
+}
+
+func TestNewHTTPJSONRequestNilBody(t *testing.T) {
+	provider := New("http://127.0.0.1", "2024-02-15-preview")
+	req, err := provider.newHTTPJSONRequest(context.Background(), "GET", "/test", testKey(), nil)
+	if err != nil {
+		t.Fatalf("newHTTPJSONRequest nil body: %v", err)
+	}
+	_ = req
+}
+
+func TestChatCompletionInvalidJSONResponse(t *testing.T) {
+	server := jsonServer(t, http.StatusOK, `not-json`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if err == nil || !strings.Contains(err.Error(), "parse azure chat response") {
+		t.Fatalf("error = %v, want parse error", err)
+	}
+}
+
+func TestListModelsInvalidJSONResponse(t *testing.T) {
+	server := jsonServer(t, http.StatusOK, `not-json`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ListModels(context.Background(), testKey())
+	if err == nil || !strings.Contains(err.Error(), "parse azure deployments response") {
+		t.Fatalf("error = %v, want parse deployments error", err)
+	}
+}
+
+func TestStreamHTTPError500(t *testing.T) {
+	server := jsonServer(t, http.StatusServiceUnavailable, `{"error":{"message":"down"}}`, nil)
+	provider := New(server.URL, "2024-02-15-preview")
+
+	_, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if !errors.Is(err, ErrServer) {
+		t.Fatalf("expected ErrServer, got %v", err)
+	}
+}
+
+func TestParseSSEScannerError(t *testing.T) {
+	pr, pw := io.Pipe()
+	chunks := make(chan providers.StreamChunk, 10)
+	go func() {
+		_, _ = pw.Write([]byte("data: " + streamChunkContentJSON + "\n\n"))
+		pw.CloseWithError(fmt.Errorf("simulated read error"))
+	}()
+	parseSSE(pr, chunks)
+	close(chunks)
+	var got []providers.StreamChunk
+	for c := range chunks {
+		got = append(got, c)
+	}
+	hasError := false
+	for _, c := range got {
+		if c.Error != nil && c.Error.Code == "upstream_stream_error" {
+			hasError = true
+		}
+	}
+	if !hasError {
+		t.Fatalf("chunks = %+v, want upstream_stream_error", got)
+	}
+}
+
+func TestHandleSSEDataEmpty(t *testing.T) {
+	ch := make(chan providers.StreamChunk, 1)
+	done, failed := handleSSEData(nil, ch)
+	if done || failed {
+		t.Fatalf("expected false,false for nil data")
+	}
+}
+
+func TestNewJSONRequestWithBody(t *testing.T) {
+	provider := New("http://127.0.0.1", "2024-02-15-preview")
+	req, err := provider.newJSONRequest("POST", "/test", testKey(), &providers.ChatRequest{Model: "x"})
+	if err != nil {
+		t.Fatalf("newJSONRequest with body: %v", err)
+	}
+	defer fasthttp.ReleaseRequest(req)
+}
+
+func TestChatCompletionNetworkError(t *testing.T) {
+	provider := New("http://127.0.0.1:1", "2024-02-15-preview")
+	_, err := provider.ChatCompletion(context.Background(), testKey(), testChatRequest())
+	if err == nil {
+		t.Fatal("expected network error")
+	}
+	if !strings.Contains(err.Error(), "azure chat completion") {
+		t.Fatalf("error = %v, want azure chat completion", err)
+	}
+}
+
+func TestListModelsNetworkError(t *testing.T) {
+	provider := New("http://127.0.0.1:1", "2024-02-15-preview")
+	_, err := provider.ListModels(context.Background(), testKey())
+	if err == nil {
+		t.Fatal("expected network error")
+	}
+	if !strings.Contains(err.Error(), "azure list models") {
+		t.Fatalf("error = %v, want azure list models", err)
+	}
+}
+
+func TestStreamNetworkError(t *testing.T) {
+	provider := New("http://127.0.0.1:1", "2024-02-15-preview")
+	_, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if err == nil {
+		t.Fatal("expected network error")
+	}
+	if !strings.Contains(err.Error(), "azure chat completion stream") {
+		t.Fatalf("error = %v, want azure chat completion stream", err)
+	}
+}
+
+func TestChatCompletionStreamBodyReadError(t *testing.T) {
+	// Stream endpoint returns non-2xx with body — covers read azure error response path
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"bad req"}}`))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL, "2024-02-15-preview")
+	_, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if err == nil {
+		t.Fatal("expected error for stream 400")
+	}
+	if !strings.Contains(err.Error(), "bad req") && !strings.Contains(err.Error(), "400") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestStreamSSETrailingMalformedData(t *testing.T) {
+	// Malformed JSON in trailing data (no blank line at end) hits the failed return
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = w.Write([]byte("data: {not-json}"))
+	}))
+	t.Cleanup(server.Close)
+
+	provider := New(server.URL, "2024-02-15-preview")
+	chunks, err := provider.ChatCompletionStream(context.Background(), testKey(), testChatRequest())
+	if err != nil {
+		t.Fatalf("ChatCompletionStream: %v", err)
+	}
+	got := collectChunks(chunks)
+	if len(got) != 1 || got[0].Error == nil {
+		t.Fatalf("chunks = %+v, want one error chunk", got)
+	}
+	if got[0].Error.Code != "upstream_stream_malformed" {
+		t.Fatalf("error code = %q", got[0].Error.Code)
+	}
+}
+
+func TestListModelsCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	provider := New("http://127.0.0.1:1", "2024-02-15-preview")
+	_, err := provider.ListModels(ctx, testKey())
+	if err == nil {
+		t.Fatal("expected error for cancelled context")
+	}
+}
