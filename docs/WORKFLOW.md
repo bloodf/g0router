@@ -32,7 +32,7 @@ project_status: COMPLETE
 current_stage: 8
 current_wave: "COMPLETE"
 last_completed_wave: "8.CI"
-last_updated: "2026-06-05T04:34:56Z"
+last_updated: "2026-06-05T04:45:14Z"
 last_agent: "orchestrator"
 ```
 
@@ -3356,10 +3356,12 @@ max_agents: 1
 gate: "npm --prefix ui test -- --run src/pages/McpSplitPages.test.tsx && make verify"
 completed_at: "2026-06-05T04:34:56Z"
 evaluator_prompt: "docs/evaluations/wave-8CI-evaluator-prompt.md"
-evaluation: "PENDING external evaluator after workflow record commit"
+evaluation: "PENDING re-evaluator after fix commit 6d02935; initial evaluator 019e9612-1d32-7d20-ad63-1ff9ab3da303 failed because make verify hit a Playwright MCP create-flow race before fix"
 gate_results:
   - "npm --prefix ui test -- --run src/pages/McpSplitPages.test.tsx: PASS, 1 file and 6 tests"
-  - "make verify: PASS, includes npm ci --prefix ui --include=dev; go test ./... -count=1; go vet ./...; go build ./cmd/g0router; npm --prefix ui test -- --run with 20 files and 97 tests; npm --prefix ui run build; npm --prefix ui run e2e with 23 passed and 1 skipped; make build; git diff --check"
+  - "initial external evaluator 019e9612-1d32-7d20-ad63-1ff9ab3da303: FAIL before E2E fix; make verify failed in Playwright at dashboard control plane > creates MCP instances with advanced launch fields while waiting for the MCP instances table"
+  - "npm --prefix ui run e2e -- --project=chromium -g 'creates MCP instances with advanced launch fields': PASS after fix, 1 test"
+  - "make verify: PASS after fix, includes npm ci --prefix ui --include=dev; go test ./... -count=1; go vet ./...; go build ./cmd/g0router; npm --prefix ui test -- --run with 20 files and 97 tests; npm --prefix ui run build; npm --prefix ui run e2e with 23 passed and 1 skipped; make build; git diff --check"
 
 tasks:
   - id: "8.CI.1"
@@ -3367,8 +3369,10 @@ tasks:
     status: DONE
     agent: "orchestrator"
     commit: "ff51b3e"
+    fix_commit: "6d02935"
     files_owned:
       - ui/src/pages/McpSplitPages.test.tsx
+      - ui/e2e/dashboard.e2e.ts
       - docs/README.md
       - docs/PLAN.md
       - docs/ORCHESTRATION.md
