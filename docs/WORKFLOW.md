@@ -3202,12 +3202,13 @@ max_agents: 1
 gate: "npm --prefix ui test -- --run src/api.test.ts src/pages/AliasesPage.test.tsx src/pages/CombosPage.test.tsx src/pages/PricingPage.test.tsx src/pages/ProvidersPage.test.tsx src/pages/LogsPage.test.tsx src/pages/DiagnosticsPage.test.tsx && npm --prefix ui run e2e && make verify"
 completed_at: "2026-06-05T08:05:00Z"
 evaluator_prompt: "docs/evaluations/wave-8CE-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS replacement external evaluator thread 019e95ea-0676-7761-8373-a07074aaeeaf at commit 87d674c; original evaluator 019e95e3-eb96-7f91-beda-b104451480cb stalled after successful gates"
 gate_results:
   - "focused dashboard update/state tests before implementation: RED, updateConnection helper missing and Edit/Deactivate controls absent"
   - "focused dashboard update/state tests after implementation: PASS, 7 files and 41 tests"
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make verify: PASS; bootstrapped UI deps, passed go test, go vet, go build, UI unit/build/E2E, make build, and git diff --check"
+  - "replacement external evaluator 019e95ea-0676-7761-8373-a07074aaeeaf: focused UI tests PASS, E2E PASS, make verify PASS, standalone git diff --check PASS; no blocking findings surfaced before final report stall"
 
 tasks:
   - id: "8.CE.1"
