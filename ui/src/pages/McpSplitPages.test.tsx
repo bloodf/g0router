@@ -79,8 +79,8 @@ describe("split MCP dashboard pages", () => {
     render(<McpAccountsPage />);
 
     expect(await screen.findByRole("heading", { level: 3, name: "MCP accounts" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Start OAuth" })).toBeInTheDocument();
-    expect(screen.getByText("ops@example.com")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Start OAuth" })).toBeInTheDocument();
+    expect(await screen.findByText("ops@example.com")).toBeInTheDocument();
     expect(screen.queryByRole("table", { name: "MCP instances" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Execute tool" })).not.toBeInTheDocument();
   });
@@ -118,10 +118,10 @@ describe("split MCP dashboard pages", () => {
     render(<McpAccountsPage />);
 
     expect(await screen.findByRole("heading", { level: 3, name: "MCP accounts" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Resource URI"), { target: { value: "https://mcp.linear.app" } });
+    fireEvent.change(await screen.findByLabelText("Resource URI"), { target: { value: "https://mcp.linear.app" } });
 
     expect(screen.getByLabelText("Authorization URL")).not.toBeRequired();
-    fireEvent.click(screen.getByRole("button", { name: "Start OAuth" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start OAuth" }));
 
     await waitFor(() => expect(postBodies).toHaveLength(1));
     expect(postBodies[0]).toMatchObject({
@@ -158,7 +158,7 @@ describe("split MCP dashboard pages", () => {
     render(<McpAccountsPage />);
 
     expect(await screen.findByRole("heading", { level: 3, name: "MCP accounts" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Start OAuth" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start OAuth" }));
 
     expect(await screen.findByText("Authorization URL or Resource URI is required.")).toBeInTheDocument();
     expect(postBodies).toHaveLength(0);
