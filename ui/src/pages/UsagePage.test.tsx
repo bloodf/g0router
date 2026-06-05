@@ -252,4 +252,63 @@ describe("UsagePage", () => {
     // Usage page still loads (empty state), summary section absent or shows no error banner from main state
     expect(await screen.findByText("No usage or logs yet")).toBeInTheDocument();
   });
+
+  it("renders a time-series chart with one bar per day when records span multiple days", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === getUsageSummaryPath()) {
+        return jsonResponse({ request_count: 3, total_tokens: 2000, total_cost_usd: 0.1 });
+      }
+      if (path === "/api/keys") {
+        return jsonResponse({ data: [] });
+      }
+      if (path.startsWith("/api/usage")) {
+        return jsonResponse({
+          object: "list",
+          data: [
+            { id: 10, request_id: "r1", timestamp: "2026-06-01T08:00:00Z", provider: "openai", model: "gpt-4o", total_tokens: 500, cost_usd: 0.02, status_code: 200, auth_type: "api_key" },
+            { id: 11, request_id: "r2", timestamp: "2026-06-01T20:00:00Z", provider: "openai", model: "gpt-4o", total_tokens: 300, cost_usd: 0.01, status_code: 200, auth_type: "api_key" },
+            { id: 12, request_id: "r3", timestamp: "2026-06-03T15:00:00Z", provider: "anthropic", model: "claude-sonnet", total_tokens: 700, cost_usd: 0.05, status_code: 200, auth_type: "oauth" }
+          ],
+          limit: 100,
+          offset: 0,
+          total: 3
+        });
+      }
+      if (path === "/api/logs") {
+        return jsonResponse({ object: "list", data: [], limit: 0, offset: 0 });
+      }
+      return jsonResponse({ error: `missing ${path}` }, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<UsagePage />);
+
+    // Chart heading appears
+    expect(await screen.findByText("Tokens over time")).toBeInTheDocument();
+
+    // Two distinct day buckets: 2026-06-01 and 2026-06-03
+    // The SVG should contain at least 2 <rect> elements for the token bars
+    const chart = await screen.findByRole("img", { name: /tokens over time/i });
+    const rects = chart.querySelectorAll("rect");
+    expect(rects.length).toBeGreaterThanOrEqual(2);
+
+    // Day labels appear (short form of each distinct date)
+    expect(screen.getByText("06-01")).toBeInTheDocument();
+    expect(screen.getByText("06-03")).toBeInTheDocument();
+  });
+
+  it("shows an empty placeholder in the time-series chart when no records exist", async () => {
+    stubFetch({
+      "/api/usage": jsonResponse({ object: "list", data: [], limit: 0, offset: 0 }),
+      "/api/logs": jsonResponse({ object: "list", data: [], limit: 0, offset: 0 })
+    });
+
+    render(<UsagePage />);
+
+    // Empty state: chart section heading still appears
+    expect(await screen.findByText("Tokens over time")).toBeInTheDocument();
+    // No-data message in chart
+    expect(screen.getByText("No usage in range")).toBeInTheDocument();
+  });
 });

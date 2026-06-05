@@ -94,10 +94,16 @@ export function UsagePage() {
     };
   }, [filters]);
 
+  const allRecords =
+    state.status === "success" || state.status === "empty"
+      ? [...state.data.usage, ...state.data.logs]
+      : [];
+
   return (
     <div className="space-y-6">
       {state.status === "success" ? <UsageMetrics data={state.data} /> : null}
       <UsageSummarySection summaryState={summaryState} />
+      <UsageTimeSeriesSection records={allRecords} />
 
       <Panel
         title="Usage history"
@@ -321,6 +327,86 @@ function UsageSummaryBarChart({ data }: { data: UsageSummaryResponse }) {
             <rect x={x} y={y} width={barW} height={barH} fill={bar.color} rx={3} />
             <text x={x + barW / 2} y={chartH + 16} textAnchor="middle" fontSize={10} fill="#71717a">
               {bar.label}
+            </text>
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+type DayBucket = {
+  date: string; // "YYYY-MM-DD" UTC
+  label: string; // "MM-DD"
+  totalTokens: number;
+  totalCost: number;
+  requestCount: number;
+};
+
+function bucketByDay(records: UsageLogRecord[]): DayBucket[] {
+  const map = new Map<string, DayBucket>();
+  for (const record of records) {
+    if (!record.timestamp) continue;
+    const date = record.timestamp.slice(0, 10); // "YYYY-MM-DD"
+    const existing = map.get(date);
+    if (existing) {
+      map.set(date, {
+        ...existing,
+        totalTokens: existing.totalTokens + (record.total_tokens ?? 0),
+        totalCost: existing.totalCost + (record.cost_usd ?? 0),
+        requestCount: existing.requestCount + 1
+      });
+    } else {
+      map.set(date, {
+        date,
+        label: date.slice(5), // "MM-DD"
+        totalTokens: record.total_tokens ?? 0,
+        totalCost: record.cost_usd ?? 0,
+        requestCount: 1
+      });
+    }
+  }
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
+}
+
+function UsageTimeSeriesSection({ records }: { records: UsageLogRecord[] }) {
+  const buckets = bucketByDay(records);
+  return (
+    <Panel title="Tokens over time" description="Daily token usage derived from loaded records.">
+      {buckets.length === 0 ? (
+        <p className="text-sm text-zinc-500">No usage in range</p>
+      ) : (
+        <UsageTimeSeriesChart buckets={buckets} />
+      )}
+    </Panel>
+  );
+}
+
+function UsageTimeSeriesChart({ buckets }: { buckets: DayBucket[] }) {
+  const chartW = Math.max(300, buckets.length * 60);
+  const chartH = 100;
+  const labelH = 20;
+  const maxTokens = Math.max(...buckets.map((b) => b.totalTokens), 1);
+  const barW = Math.max(20, Math.min(50, Math.floor((chartW / buckets.length) * 0.6)));
+  const slotW = chartW / buckets.length;
+
+  return (
+    <svg
+      aria-label="Tokens over time"
+      role="img"
+      width={chartW}
+      height={chartH + labelH}
+      className="overflow-visible"
+    >
+      {buckets.map((bucket, i) => {
+        const barH = Math.max(2, Math.round((bucket.totalTokens / maxTokens) * chartH));
+        const x = i * slotW + (slotW - barW) / 2;
+        const y = chartH - barH;
+        return (
+          <g key={bucket.date}>
+            <rect x={x} y={y} width={barW} height={barH} fill="#0ea5e9" rx={2} />
+            <text x={x + barW / 2} y={chartH + 14} textAnchor="middle" fontSize={10} fill="#71717a">
+              {bucket.label}
             </text>
           </g>
         );
