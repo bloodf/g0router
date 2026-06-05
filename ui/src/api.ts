@@ -150,13 +150,14 @@ export type CreateAPIKeyResponse = {
 };
 
 export type SettingsResponse = {
-  RequireAPIKey: boolean;
-  RTKEnabled: boolean;
-  CavemanEnabled: boolean;
-  CavemanLevel: string;
-  EnableRequestLogs: boolean;
-  ProxyURL: string;
-  DataDir: string;
+  require_api_key: boolean;
+  rtk_enabled: boolean;
+  caveman_enabled: boolean;
+  caveman_level: string;
+  enable_request_logs: boolean;
+  proxy_url: string;
+  data_dir: string;
+  log_retention_days: number;
 };
 
 export type UsageLogRecord = {
@@ -191,6 +192,20 @@ export type UsageListResponse = {
   data: UsageLogRecord[];
   limit: number;
   offset: number;
+  total: number;
+};
+
+export type LogQuery = {
+  limit?: number;
+  offset?: number;
+  provider?: string;
+  model?: string;
+  auth_type?: string;
+  source_format?: string;
+  status_class?: string;
+  search?: string;
+  start?: string;
+  end?: string;
 };
 
 export type UsageSummaryResponse = {
@@ -430,6 +445,32 @@ export function getQuotaPath(provider: string) {
 
 export function getLogsPath() {
   return apiPaths.logs;
+}
+
+export function buildLogsPath(query: LogQuery = {}): string {
+  const params = new URLSearchParams();
+  const append = (key: string, value: string | undefined) => {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      params.set(key, trimmed);
+    }
+  };
+  if (query.limit != null) {
+    params.set("limit", String(query.limit));
+  }
+  if (query.offset != null) {
+    params.set("offset", String(query.offset));
+  }
+  append("provider", query.provider);
+  append("model", query.model);
+  append("auth_type", query.auth_type);
+  append("source_format", query.source_format);
+  append("status_class", query.status_class);
+  append("search", query.search);
+  append("start", query.start);
+  append("end", query.end);
+  const qs = params.toString();
+  return qs ? `${apiPaths.logs}?${qs}` : apiPaths.logs;
 }
 
 export function getCombosPath() {

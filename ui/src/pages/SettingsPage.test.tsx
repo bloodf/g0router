@@ -4,13 +4,14 @@ import { getSettingsPath, type SettingsResponse } from "../api";
 import { SettingsPage } from "./SettingsPage";
 
 const settings: SettingsResponse = {
-  RequireAPIKey: true,
-  RTKEnabled: true,
-  CavemanEnabled: false,
-  CavemanLevel: "full",
-  EnableRequestLogs: false,
-  ProxyURL: "http://localhost:8081",
-  DataDir: "/var/lib/g0router"
+  require_api_key: true,
+  rtk_enabled: true,
+  caveman_enabled: false,
+  caveman_level: "full",
+  enable_request_logs: false,
+  proxy_url: "http://localhost:8081",
+  data_dir: "/var/lib/g0router",
+  log_retention_days: 30
 };
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
@@ -53,11 +54,12 @@ describe("SettingsPage", () => {
       if (path === getSettingsPath() && method === "PUT") {
         return jsonResponse({
           ...settings,
-          RequireAPIKey: false,
-          CavemanEnabled: true,
-          CavemanLevel: "minimal",
-          EnableRequestLogs: true,
-          ProxyURL: "http://proxy.internal:9000"
+          require_api_key: false,
+          caveman_enabled: true,
+          caveman_level: "minimal",
+          enable_request_logs: true,
+          proxy_url: "http://proxy.internal:9000",
+          log_retention_days: 90
         });
       }
       throw new Error(`unexpected ${method} ${path}`);
@@ -73,12 +75,14 @@ describe("SettingsPage", () => {
     expect(screen.getByLabelText("Enable request logs")).not.toBeChecked();
     expect(screen.getByLabelText("Proxy URL")).toHaveValue("http://localhost:8081");
     expect(screen.getByLabelText("Data directory")).toHaveValue("/var/lib/g0router");
+    expect(screen.getByLabelText("Log retention")).toHaveValue("30");
 
     fireEvent.click(screen.getByLabelText("Require API key"));
     fireEvent.click(screen.getByLabelText("Caveman enabled"));
     fireEvent.change(screen.getByLabelText("Caveman level"), { target: { value: "minimal" } });
     fireEvent.click(screen.getByLabelText("Enable request logs"));
     fireEvent.change(screen.getByLabelText("Proxy URL"), { target: { value: "http://proxy.internal:9000" } });
+    fireEvent.change(screen.getByLabelText("Log retention"), { target: { value: "90" } });
     fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
 
     await waitFor(() => {
@@ -86,13 +90,14 @@ describe("SettingsPage", () => {
         getSettingsPath(),
         expect.objectContaining({
           body: JSON.stringify({
-            RequireAPIKey: false,
-            RTKEnabled: true,
-            CavemanEnabled: true,
-            CavemanLevel: "minimal",
-            EnableRequestLogs: true,
-            ProxyURL: "http://proxy.internal:9000",
-            DataDir: "/var/lib/g0router"
+            require_api_key: false,
+            rtk_enabled: true,
+            caveman_enabled: true,
+            caveman_level: "minimal",
+            enable_request_logs: true,
+            proxy_url: "http://proxy.internal:9000",
+            data_dir: "/var/lib/g0router",
+            log_retention_days: 90
           }),
           credentials: "same-origin",
           method: "PUT"
@@ -100,6 +105,37 @@ describe("SettingsPage", () => {
       );
     });
     expect(await screen.findByText("Settings saved")).toBeInTheDocument();
+  });
+
+  it("supports a custom log retention value", async () => {
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (path === getSettingsPath() && method === "GET") {
+        return jsonResponse(settings);
+      }
+      if (path === getSettingsPath() && method === "PUT") {
+        return jsonResponse({ ...settings, log_retention_days: 7 });
+      }
+      throw new Error(`unexpected ${method} ${path}`);
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    render(<SettingsPage />);
+
+    fireEvent.change(await screen.findByLabelText("Log retention"), { target: { value: "custom" } });
+    fireEvent.change(screen.getByLabelText("Custom retention days"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        getSettingsPath(),
+        expect.objectContaining({
+          body: JSON.stringify({ ...settings, log_retention_days: 7 }),
+          method: "PUT"
+        })
+      );
+    });
   });
 
   it("renders recoverable errors and auth-expired errors", async () => {

@@ -135,18 +135,19 @@ function stubDashboardFetch() {
         return jsonResponse({ data: [] });
       case "/api/usage":
       case "/api/logs":
-        return jsonResponse({ object: "list", data: [], limit: 0, offset: 0 });
+        return jsonResponse({ object: "list", data: [], limit: 0, offset: 0, total: 0 });
       case "/api/usage/summary":
         return jsonResponse({ request_count: 0, total_tokens: 0, total_cost_usd: 0 });
       case "/api/settings":
         return jsonResponse({
-          RequireAPIKey: true,
-          RTKEnabled: true,
-          CavemanEnabled: false,
-          CavemanLevel: "full",
-          EnableRequestLogs: false,
-          ProxyURL: "",
-          DataDir: ""
+          require_api_key: true,
+          rtk_enabled: true,
+          caveman_enabled: false,
+          caveman_level: "full",
+          enable_request_logs: false,
+          proxy_url: "",
+          data_dir: "",
+          log_retention_days: 30
         });
       case "/api/keys":
         return jsonResponse({ data: [] });

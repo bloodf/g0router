@@ -73,7 +73,7 @@ test.describe("dashboard control plane", () => {
 
     await navigateTo(page, "Logs");
     await expect(page.getByRole("heading", { exact: true, name: "Logs" })).toBeVisible();
-    await expect(page.getByRole("table", { name: "Request logs" })).toContainText("req_001");
+    await expect(page.getByRole("table", { name: "Request logs" })).toContainText("gpt-5-mini");
 
     await navigateTo(page, "Quotas");
     await expect(page.getByRole("heading", { exact: true, name: "Quotas" })).toBeVisible();
@@ -271,6 +271,51 @@ test.describe("dashboard control plane", () => {
     await page.getByLabel("Enable request logs").check();
     await page.getByRole("button", { name: "Save settings" }).click();
     await expect(page.getByText("Settings saved")).toBeVisible();
+  });
+
+  test("filters, paginates, and searches the logs viewer", async ({ page }) => {
+    await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "Logs");
+
+    const logsTable = page.getByRole("table", { name: "Request logs" });
+    await expect(logsTable).toContainText("gpt-5-mini");
+    await expect(page.getByText("Showing 1–3 of 3")).toBeVisible();
+
+    await page.getByLabel("Kind").selectOption("server_error");
+    await expect(logsTable).toContainText("claude-sonnet-4");
+    await expect(logsTable).not.toContainText("gpt-5-mini");
+    await expect(page.getByText("Showing 1–1 of 1")).toBeVisible();
+
+    await page.getByLabel("Kind").selectOption("");
+    await page.getByLabel("Search logs").fill("llama-3.3-70b");
+    await expect(logsTable).toContainText("llama-3.3-70b");
+    await expect(logsTable).not.toContainText("gpt-5-mini");
+    await expect(page.getByText("Showing 1–1 of 1")).toBeVisible();
+
+    await page.getByLabel("Search logs").fill("");
+    await expect(page.getByText("Showing 1–3 of 3")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Prev" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Next" })).toBeDisabled();
+  });
+
+  test("persists log retention in settings", async ({ page }) => {
+    const apiRequests = await mockAPI(page);
+
+    await page.goto("/");
+    await navigateTo(page, "Settings");
+
+    await expect(page.getByLabel("Log retention")).toHaveValue("30");
+    await page.getByLabel("Log retention").selectOption("90");
+    await page.getByRole("button", { name: "Save settings" }).click();
+    await expect(page.getByText("Settings saved")).toBeVisible();
+
+    await expect
+      .poll(() => apiRequests.find((request) => request.method === "PUT" && request.path === "/api/settings")?.body)
+      .toMatchObject({ log_retention_days: 90 });
+
+    await expect(page.getByLabel("Log retention")).toHaveValue("90");
   });
 
   test("creates MCP instances with advanced launch fields", async ({ page }) => {
@@ -601,7 +646,7 @@ async function mockAPI(page: Page, options: { mode?: MockMode } = {}) {
     if (url.origin === "http://127.0.0.1:5173" && url.pathname.startsWith("/api/")) {
       const body = parseRequestBody(request);
       apiRequests.push(recordAPIRequest(request, url, body));
-      const response = apiResponse(state, url.pathname, request.method(), body, mode);
+      const response = apiResponse(state, url.pathname, request.method(), body, mode, url.searchParams);
       await route.fulfill({
         contentType: "application/json",
         status: response.status,
@@ -638,7 +683,7 @@ function parseRequestBody(request: Request): unknown {
   return request.postDataJSON();
 }
 
-function apiResponse(state: MockAPIState, path: string, method: string, body: unknown, mode: MockMode): MockAPIResponse {
+function apiResponse(state: MockAPIState, path: string, method: string, body: unknown, mode: MockMode, params?: URLSearchParams): MockAPIResponse {
   if (mode === "auth-expired") {
     return { status: 401, body: { error: "control-plane auth required" } };
   }
@@ -649,6 +694,10 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
 
   if (mode === "empty" && method === "GET") {
     return emptyAPIResponse(path);
+  }
+
+  if (method === "GET" && path === "/api/logs") {
+    return logsResponse(params ?? new URLSearchParams());
   }
 
   if (method === "POST" && path === "/api/keys") {
@@ -990,7 +1039,7 @@ function apiResponse(state: MockAPIState, path: string, method: string, body: un
       return { status: 200, body: { data: state.pricing } };
     case "/api/usage":
     case "/api/logs":
-      return { status: 200, body: { object: "list", data: usageRows, limit: 25, offset: 0 } };
+      return { status: 200, body: { object: "list", data: usageRows, limit: 25, offset: 0, total: usageRows.length } };
     case "/api/usage/summary":
       return { status: 200, body: { request_count: 2, total_tokens: 1250, total_cost_usd: 0.034 } };
     case "/api/usage/quota/openai":
@@ -1045,7 +1094,7 @@ function emptyAPIResponse(path: string): MockAPIResponse {
       return { status: 200, body: { data: [] } };
     case "/api/usage":
     case "/api/logs":
-      return { status: 200, body: { object: "list", data: [], limit: 25, offset: 0 } };
+      return { status: 200, body: { object: "list", data: [], limit: 25, offset: 0, total: 0 } };
     case "/api/usage/summary":
       return { status: 200, body: { request_count: 0, total_tokens: 0, total_cost_usd: 0 } };
     case "/api/settings":
@@ -1185,6 +1234,83 @@ const usageRows = [
   }
 ];
 
+const logRecords = [
+  {
+    id: 1,
+    request_id: "req_001",
+    timestamp: "2026-06-03T10:00:00Z",
+    provider: "openai",
+    model: "gpt-5-mini",
+    auth_type: "api_key",
+    total_tokens: 1250,
+    cost_usd: 0.034,
+    latency_ms: 320,
+    status_code: 200,
+    source_format: "openai",
+    target_format: "openai",
+    client_tool: "codex",
+    combo_name: "research-stack"
+  },
+  {
+    id: 2,
+    request_id: "req_500_oops",
+    timestamp: "2026-06-03T10:05:00Z",
+    provider: "anthropic",
+    model: "claude-sonnet-4",
+    auth_type: "oauth",
+    total_tokens: 80,
+    cost_usd: 0.002,
+    latency_ms: 900,
+    status_code: 500,
+    error: "upstream exploded",
+    source_format: "anthropic",
+    target_format: "anthropic",
+    client_tool: "claude-code",
+    combo_name: "research-stack"
+  },
+  {
+    id: 3,
+    request_id: "req_paginated",
+    timestamp: "2026-06-03T10:10:00Z",
+    provider: "groq",
+    model: "llama-3.3-70b",
+    auth_type: "api_key",
+    total_tokens: 12,
+    cost_usd: 0.0001,
+    latency_ms: 40,
+    status_code: 200,
+    source_format: "openai",
+    target_format: "openai",
+    client_tool: "curl",
+    combo_name: "research-stack"
+  }
+];
+
+function logsResponse(params: URLSearchParams): MockAPIResponse {
+  const limit = Number(params.get("limit") ?? "50");
+  const offset = Number(params.get("offset") ?? "0");
+  const statusClass = params.get("status_class") ?? "";
+  const provider = params.get("provider") ?? "";
+  const search = params.get("search") ?? "";
+  let filtered = logRecords;
+  if (provider) {
+    filtered = filtered.filter((row) => row.provider.includes(provider));
+  }
+  if (statusClass === "success") {
+    filtered = filtered.filter((row) => row.status_code < 400);
+  } else if (statusClass === "client_error") {
+    filtered = filtered.filter((row) => row.status_code >= 400 && row.status_code < 500);
+  } else if (statusClass === "server_error") {
+    filtered = filtered.filter((row) => row.status_code >= 500);
+  }
+  if (search) {
+    filtered = filtered.filter((row) => row.request_id.includes(search) || row.model.includes(search));
+  }
+  const total = filtered.length;
+  const page = limit > 0 ? filtered.slice(offset, offset + limit) : filtered;
+  return { status: 200, body: { object: "list", data: page, limit, offset, total } };
+}
+
 const combos = [
   {
     ID: "combo-1",
@@ -1249,11 +1375,12 @@ const mcpTools = [
 ];
 
 const settings = {
-  RequireAPIKey: true,
-  RTKEnabled: true,
-  CavemanEnabled: false,
-  CavemanLevel: "full",
-  EnableRequestLogs: true,
-  ProxyURL: "http://127.0.0.1:8080",
-  DataDir: "/var/lib/g0router"
+  require_api_key: true,
+  rtk_enabled: true,
+  caveman_enabled: false,
+  caveman_level: "full",
+  enable_request_logs: true,
+  proxy_url: "http://127.0.0.1:8080",
+  data_dir: "/var/lib/g0router",
+  log_retention_days: 30
 };

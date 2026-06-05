@@ -18,13 +18,14 @@ describe("SettingsSecurityPage", () => {
   it("loads security-sensitive settings from the real settings endpoint", async () => {
     const fetch = vi.fn(async () =>
       jsonResponse({
-        RequireAPIKey: true,
-        RTKEnabled: true,
-        CavemanEnabled: false,
-        CavemanLevel: "full",
-        EnableRequestLogs: true,
-        ProxyURL: "http://127.0.0.1:8080",
-        DataDir: "/tmp/g0router"
+        require_api_key: true,
+        rtk_enabled: true,
+        caveman_enabled: false,
+        caveman_level: "full",
+        enable_request_logs: true,
+        proxy_url: "http://127.0.0.1:8080",
+        data_dir: "/tmp/g0router",
+        log_retention_days: 30
       })
     );
     vi.stubGlobal("fetch", fetch);

@@ -99,9 +99,9 @@ function DiagnosticsSummary({ data }: { data: DiagnosticsData }) {
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <DiagnosticRow label="Control plane protected" ok={data.settings.RequireAPIKey} />
+        <DiagnosticRow label="Control plane protected" ok={data.settings.require_api_key} />
         <DiagnosticRow label="Request logs endpoint" ok={Array.isArray(data.logs.data)} />
-        <DiagnosticRow label="Request logs enabled" ok={data.settings.EnableRequestLogs} />
+        <DiagnosticRow label="Request logs enabled" ok={data.settings.enable_request_logs} />
         <DiagnosticRow label="MCP health known" ok={data.mcpInstances.every((instance) => instance.HealthStatus !== "")} />
       </div>
     </div>
