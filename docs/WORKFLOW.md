@@ -2853,7 +2853,7 @@ max_agents: 2
 gate: "go test ./internal/search ./internal/cli ./internal/provider ./api/handlers -run 'Test(KagiSearchTool|TavilySearchTool|SearchToolRequiresActiveAPIKey|SearchToolErrorsAreSanitized|BuiltInSearchTools|DefaultServerConfigRegistersBuiltInSearchTools|ProviderMatrixKeepsSearchProvidersAuthOnly|ProviderMatrixMarksSearchCredentialsAuthOnly)' -count=1 && go test ./... -count=1 && go vet ./... && go build ./cmd/g0router && npm --prefix ui test -- --run && npm --prefix ui run build && npm --prefix ui run e2e && make build && git diff --check"
 completed_at: "2026-06-05T04:40:00Z"
 evaluator_prompt: "docs/evaluations/wave-8BW-evaluator-prompt.md"
-evaluation: "PENDING external evaluator run"
+evaluation: "PASS external evaluator subagent 019e9571-7c63-73c0-8793-d6f2d5893758 at commit 079a576"
 gate_results:
   - "focused internal/search tests: RED before implementation, search package API and startup registration did not exist"
   - "focused internal/search and internal/cli startup registration tests: PASS"
@@ -2865,6 +2865,7 @@ gate_results:
   - "npm --prefix ui run e2e: PASS, 23 tests passed and 1 real-server mobile skip"
   - "make build: PASS"
   - "git diff --check: PASS"
+  - "external evaluator 019e9571-7c63-73c0-8793-d6f2d5893758: PASS, no blocking findings"
 
 tasks:
   - id: "8.BW.1"
