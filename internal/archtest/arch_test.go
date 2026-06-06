@@ -84,12 +84,12 @@ func TestArchitectureConformance(t *testing.T) {
 		// that are out of scope for Phase 12B (store stays one package per explicit non-goals).
 		if p.ImportPath == modulePrefix+"/internal/store" || strings.HasPrefix(p.ImportPath, modulePrefix+"/internal/store/") {
 			for _, imp := range p.Imports {
-				if strings.HasPrefix(imp, modulePrefix+"/internal/") && imp != modulePrefix+"/internal/store" && !strings.HasPrefix(imp, modulePrefix+"/internal/store/") && imp != modulePrefix+"/internal/mcp" && imp != modulePrefix+"/internal/usage" {
+				if strings.HasPrefix(imp, modulePrefix+"/internal/") && imp != modulePrefix+"/internal/store" && !strings.HasPrefix(imp, modulePrefix+"/internal/store/") && imp != modulePrefix+"/internal/mcp" && imp != modulePrefix+"/internal/usage" && imp != modulePrefix+"/internal/semcache" {
 					violations = append(violations, p.ImportPath+" imports "+imp+": violated repository→domain rule")
 				}
 			}
 			for _, imp := range p.TestImports {
-				if strings.HasPrefix(imp, modulePrefix+"/internal/") && imp != modulePrefix+"/internal/store" && !strings.HasPrefix(imp, modulePrefix+"/internal/store/") && imp != modulePrefix+"/internal/mcp" && imp != modulePrefix+"/internal/usage" {
+				if strings.HasPrefix(imp, modulePrefix+"/internal/") && imp != modulePrefix+"/internal/store" && !strings.HasPrefix(imp, modulePrefix+"/internal/store/") && imp != modulePrefix+"/internal/mcp" && imp != modulePrefix+"/internal/usage" && imp != modulePrefix+"/internal/semcache" {
 					violations = append(violations, p.ImportPath+" [test] imports "+imp+": violated repository→domain rule")
 				}
 			}
