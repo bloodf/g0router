@@ -295,6 +295,15 @@ func (s *Store) migrate() error {
 			last_error TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS chat_sessions (
+			id INTEGER PRIMARY KEY,
+			title TEXT,
+			model TEXT,
+			provider TEXT,
+			messages_json TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, stmt := range ddl {
