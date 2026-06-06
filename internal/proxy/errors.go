@@ -28,6 +28,8 @@ func ClassifyDispatchError(err error) DispatchErrorClass {
 		return DispatchErrorClass{StatusCode: http.StatusNotFound, Message: "provider not found", Type: "invalid_request_error", Code: "provider_not_found"}
 	case errors.Is(err, ErrProviderInferenceUnavailable):
 		return DispatchErrorClass{StatusCode: http.StatusNotFound, Message: "provider inference unavailable", Type: "invalid_request_error", Code: "provider_inference_unavailable"}
+	case errors.Is(err, ErrModelDisabled):
+		return DispatchErrorClass{StatusCode: http.StatusBadRequest, Message: err.Error(), Type: "invalid_request_error", Code: "model_disabled"}
 	case errors.Is(err, ErrNoConnections):
 		return DispatchErrorClass{StatusCode: http.StatusServiceUnavailable, Message: "no active provider connections", Type: "server_error", Code: "no_active_connections"}
 	case errors.Is(err, ErrQuotaExhausted):

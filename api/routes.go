@@ -185,6 +185,37 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.Pricing(ctx, s.config.Store, parts[2], parts[3])
 		})},
+		{method: "", pattern: "/api/models/disabled", match: apiExactMatch("/api/models/disabled"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			switch string(ctx.Method()) {
+			case fasthttp.MethodGet:
+				handlers.DisabledModelsList(ctx, s.config.Store)
+			case fasthttp.MethodPost:
+				handlers.DisabledModelsCreate(ctx, s.config.Store, s.config.Store)
+			case fasthttp.MethodDelete:
+				handlers.DisabledModelsDelete(ctx, s.config.Store, s.config.Store)
+			default:
+				ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+			}
+		})},
+		{method: "", pattern: "/api/models/custom", match: apiExactMatch("/api/models/custom"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			switch string(ctx.Method()) {
+			case fasthttp.MethodGet:
+				handlers.CustomModelsList(ctx, s.config.Store)
+			case fasthttp.MethodPost:
+				handlers.CustomModelsCreate(ctx, s.config.Store, s.config.Store)
+			default:
+				ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+			}
+		})},
+		{method: "", pattern: "/api/models/custom/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "models" && parts[2] == "custom"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodDelete) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.CustomModelsDelete(ctx, s.config.Store, s.config.Store, parts[3])
+		})},
 		{method: "GET", pattern: "/api/oauth/callback", match: apiExactMatch("/api/oauth/callback"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			if !requireMethod(ctx, fasthttp.MethodGet) {
 				return

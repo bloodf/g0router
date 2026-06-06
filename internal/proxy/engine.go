@@ -28,6 +28,8 @@ var (
 	// ErrCapabilityUnsupported is returned when the resolved provider does not
 	// implement the optional capability (embeddings, images, audio) requested.
 	ErrCapabilityUnsupported = errors.New("capability unsupported")
+	// ErrModelDisabled is returned when the requested model is disabled.
+	ErrModelDisabled = errors.New("model is disabled")
 )
 
 // tokenLikePattern matches long alphanumeric/base64 blobs that look like tokens.
@@ -64,6 +66,8 @@ type EngineStore interface {
 	ProviderModelStats(time.Time) (map[string]store.ModelStat, error)
 	GetConnectionProxyPoolID(string) (*string, error)
 	GetProxyPool(string) (*store.ProxyPool, error)
+	IsModelDisabled(provider, model string) (bool, error)
+	ListCustomModels() ([]store.CustomModel, error)
 }
 
 type proxyConfigurable interface {
@@ -344,6 +348,22 @@ func (e *Engine) ListModels(ctx context.Context) ([]providers.Model, error) {
 		}
 		models = append(models, providerModels...)
 	}
+	if e.store != nil {
+		customModels, err := e.store.ListCustomModels()
+		if err != nil {
+			log.Printf("proxy: list custom models: %v", err)
+		} else {
+			for _, cm := range customModels {
+				models = append(models, providers.Model{
+					ID:       cm.Model,
+					Object:   "model",
+					OwnedBy:  cm.Provider,
+					Provider: providers.ModelProvider(cm.Provider),
+					IsCustom: true,
+				})
+			}
+		}
+	}
 	return models, nil
 }
 
@@ -355,7 +375,7 @@ func (e *Engine) providerModels(ctx context.Context, providerName providers.Mode
 
 	key, err := e.keyFor(ctx, providerName)
 	if errors.Is(err, ErrNoConnections) {
-		return catalogModels(providerName), nil
+		return e.filterDisabledModels(providerName, catalogModels(providerName)), nil
 	}
 	if err != nil {
 		return nil, err
@@ -363,12 +383,30 @@ func (e *Engine) providerModels(ctx context.Context, providerName providers.Mode
 
 	models, err := provider.ListModels(ctx, key)
 	if err == nil && len(models) > 0 {
-		return models, nil
+		return e.filterDisabledModels(providerName, models), nil
 	}
 	if err != nil {
 		log.Printf("proxy: provider %s list models, falling back to catalog: %v", providerName, err)
 	}
-	return catalogModels(providerName), nil
+	return e.filterDisabledModels(providerName, catalogModels(providerName)), nil
+}
+
+func (e *Engine) filterDisabledModels(providerName providers.ModelProvider, models []providers.Model) []providers.Model {
+	if e.store == nil {
+		return models
+	}
+	filtered := make([]providers.Model, 0, len(models))
+	for _, m := range models {
+		disabled, err := e.store.IsModelDisabled(providerName.String(), m.ID)
+		if err != nil {
+			log.Printf("proxy: check disabled (%s/%s): %v", providerName, m.ID, err)
+			continue
+		}
+		if !disabled {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered
 }
 
 func catalogModels(providerName providers.ModelProvider) []providers.Model {
@@ -450,22 +488,22 @@ func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {
 		return modelRoute{}, err
 	}
 	if ok {
-		return routableModelRoute(modelRoute{
+		return e.routableModelRoute(modelRoute{
 			Provider: providers.ModelProvider(providercore.CanonicalProviderID(alias.Provider)),
 			Model:    alias.Model,
 		})
 	}
 
 	if route, ok := modelcatalog.NewCatalog().RouteForModel(model); ok {
-		return routableModelRoute(modelRoute{Provider: route.Provider, Model: route.UpstreamModel})
+		return e.routableModelRoute(modelRoute{Provider: route.Provider, Model: route.UpstreamModel})
 	}
 
 	if route, ok := providerQualifiedDynamicRoute(model); ok {
-		return routableModelRoute(route)
+		return e.routableModelRoute(route)
 	}
 
 	if provider, ok := resolveProvider(model); ok {
-		return routableModelRoute(modelRoute{Provider: provider, Model: model})
+		return e.routableModelRoute(modelRoute{Provider: provider, Model: model})
 	}
 
 	return modelRoute{}, ErrProviderNotFound
@@ -497,13 +535,22 @@ func (e *Engine) resolveComboStepRoute(step ComboStep) (modelRoute, error) {
 	if err != nil && !errors.Is(err, ErrProviderNotFound) {
 		return modelRoute{}, err
 	}
-	return routableModelRoute(modelRoute{Provider: step.Provider, Model: step.Model})
+	return e.routableModelRoute(modelRoute{Provider: step.Provider, Model: step.Model})
 }
 
-func routableModelRoute(route modelRoute) (modelRoute, error) {
+func (e *Engine) routableModelRoute(route modelRoute) (modelRoute, error) {
 	entry, ok := providercore.ProviderMatrix().Provider(route.Provider.String())
 	if ok && !entry.Inference {
 		return modelRoute{}, fmt.Errorf("%w: %s", ErrProviderInferenceUnavailable, route.Provider)
+	}
+	if e.store != nil {
+		disabled, err := e.store.IsModelDisabled(route.Provider.String(), route.Model)
+		if err != nil {
+			return modelRoute{}, fmt.Errorf("check model disabled: %w", err)
+		}
+		if disabled {
+			return modelRoute{}, fmt.Errorf("model %s is disabled: %w", route.Model, ErrModelDisabled)
+		}
 	}
 	return route, nil
 }

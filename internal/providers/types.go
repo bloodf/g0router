@@ -78,6 +78,7 @@ type Model struct {
 	Created  int64         `json:"created"`
 	OwnedBy  string        `json:"owned_by"`
 	Provider ModelProvider `json:"-"`
+	IsCustom bool          `json:"is_custom,omitempty"`
 }
 
 type ChatRequest struct {
