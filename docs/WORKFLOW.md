@@ -29,11 +29,11 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 18A
-current_wave: "Phase 18A — Virtual Keys, Teams, Governance"
-last_completed_wave: "Phase 18A checkpoint"
-last_updated: "2026-06-06T16:32:00Z"
-last_agent: "coverage-recovery"
+current_stage: 18B
+current_wave: "Phase 18B — Routing Rules, Model Limits"
+last_completed_wave: "Phase 18B checkpoint"
+last_updated: "2026-06-06T14:50:00Z"
+last_agent: "orchestrator"
 ```
 
 ---
@@ -249,6 +249,30 @@ completed_at: "2026-06-06T16:32:00Z"
 - task-4: middleware — `validVirtualKey` integrated into `validAPIKey` chain (`api/middleware.go`, `middleware_virtualkey_test.go`)
 - task-5: policy — `recordVirtualKeyUsage` wired into inference logging (`api/policy.go`)
 - task-coverage: error branch coverage for nil store, store DB errors, validation errors, middleware rejections, governance edge cases (`*_coverage_test.go` files)
+
+---
+
+## Phase 18B — Routing Rules, Model Limits
+
+```yaml
+phase: 18B
+status: DONE
+summary: "TTL-cached routing rules with priority-ordered evaluation, model limits with RPM tracking and key allowlists, wired into proxy dispatch before alias/combo resolution."
+commit_range: "8545f54..464500d"
+completed_at: "2026-06-06T14:50:00Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-4: store — `routing_rules` + `model_limits` CRUD with migrations (`internal/store/routing.go`, `routing_test.go`)
+- task-5: proxy — TTL-cached rule evaluator, model limit checker with RPM tracker, dispatch wiring (`internal/proxy/routing.go`, `dispatch.go`, `routing_test.go`, `dispatch_test.go`)
+- task-coverage: MethodNotAllowed handlers, store error paths, previewResolveProvider fallback, loadRules store error (`*_coverage_test.go` files)
 
 ---
 
