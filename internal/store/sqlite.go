@@ -367,6 +367,22 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS alert_channels (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			channel_type TEXT NOT NULL,
+			config_enc TEXT NOT NULL,
+			events_json TEXT NOT NULL DEFAULT '[]',
+			is_active INTEGER DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS feature_flags (
+			id INTEGER PRIMARY KEY,
+			key TEXT NOT NULL UNIQUE,
+			enabled INTEGER DEFAULT 0,
+			description TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, stmt := range ddl {

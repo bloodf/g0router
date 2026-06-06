@@ -24,6 +24,8 @@ func TestRoutesSnapshot(t *testing.T) {
 
 	want := []string{
 		"/*",
+		"/api/alert-channels",
+		"/api/alert-channels/:id",
 		"/api/aliases",
 		"/api/aliases/:id",
 		"/api/audit",
@@ -91,6 +93,7 @@ func TestRoutesSnapshot(t *testing.T) {
 		"GET /healthz",
 		"GET /metrics",
 		"GET /v1/models",
+		"POST /api/alert-channels/:id/test",
 		"POST /api/auth/login",
 		"POST /api/auth/logout",
 		"POST /api/auth/setup",

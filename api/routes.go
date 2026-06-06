@@ -419,6 +419,24 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.MCPToolGroups(ctx, s.config.Store, parts[3])
 		})},
+		{method: "", pattern: "/api/alert-channels", match: apiExactMatch("/api/alert-channels"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.AlertChannels(ctx, s.config.Store, "")
+		})},
+		{method: "", pattern: "/api/alert-channels/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "alert-channels"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.AlertChannels(ctx, s.config.Store, parts[2])
+		})},
+		{method: "POST", pattern: "/api/alert-channels/:id/test", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "alert-channels" && parts[3] == "test"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.AlertChannelsTest(ctx, s.config.Store, parts[2])
+		})},
 		{method: "GET", pattern: "/api/mcp/oauth/callback", match: apiExactMatch("/api/mcp/oauth/callback"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			if !requireMethod(ctx, fasthttp.MethodGet) {
 				return
