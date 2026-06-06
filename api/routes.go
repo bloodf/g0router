@@ -279,6 +279,33 @@ func (s *Server) routes() []route {
 			}
 			handlers.AuthStatus(ctx, s.config.Store, s.config.Store, s.runtimeSettings().RequireLogin)
 		})},
+		{method: "PUT", pattern: "/api/auth/password", match: apiExactMatch("/api/auth/password"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPut) {
+				return
+			}
+			handlers.AuthPasswordChange(ctx, s.config.Store, s.config.Store, s.config.Store)
+		})},
+		{method: "GET", pattern: "/api/auth/users", match: apiExactMatch("/api/auth/users"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.AuthUsersList(ctx, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/auth/users", match: apiExactMatch("/api/auth/users"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.AuthUsersCreate(ctx, s.config.Store, s.config.Store)
+		})},
+		{method: "", pattern: "/api/auth/users/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "auth" && parts[2] == "users"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodDelete) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.AuthUsersDelete(ctx, s.config.Store, s.config.Store, s.config.Store, parts[3])
+		})},
 
 		// catch-all
 		{method: "", pattern: "/*", match: func(rawPath, method string) bool { return true }, handler: func(ctx *fasthttp.RequestCtx) {

@@ -27,6 +27,18 @@ type authLoginRequest struct {
 	Password string `json:"password"`
 }
 
+type authPasswordChangeRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+type authUsersCreateRequest struct {
+	Username    string `json:"username"`
+	Password    string `json:"password"`
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
+}
+
 type authStatusResponse struct {
 	RequireLogin  bool   `json:"require_login"`
 	HasUsers      bool   `json:"has_users"`
@@ -54,12 +66,15 @@ type dashboardUserStore interface {
 	GetDashboardUserByUsername(username string) (*store.DashboardUser, error)
 	VerifyDashboardUserPassword(user *store.DashboardUser, password string) bool
 	GetDashboardUser(id string) (*store.DashboardUser, error)
+	UpdateDashboardUserPassword(id string, newPassword string) error
+	DeleteDashboardUser(id string) error
 }
 
 type dashboardSessionStore interface {
 	CreateDashboardSession(userID int64, rawToken, userAgent, ip string, expiresAt time.Time) error
 	GetDashboardSessionByTokenHash(tokenHash string) (*store.DashboardSession, error)
 	DeleteDashboardSession(tokenHash string) error
+	DeleteDashboardSessionsByUserID(userID int64) error
 }
 
 type auditWriter interface {
@@ -287,6 +302,242 @@ func AuthStatus(ctx *fasthttp.RequestCtx, users dashboardUserStore, sessions das
 	}
 
 	writeJSON(ctx, fasthttp.StatusOK, map[string]any{"data": resp})
+}
+
+// AuthPasswordChange updates the current user's password and invalidates other sessions.
+func AuthPasswordChange(ctx *fasthttp.RequestCtx, users dashboardUserStore, sessions dashboardSessionStore, audit auditWriter) {
+	if isStoreNil(users) || isStoreNil(sessions) || isStoreNil(audit) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+
+	userID, ok := ctx.UserValue("g0router.session_user_id").(string)
+	if !ok || userID == "" {
+		writeError(ctx, fasthttp.StatusUnauthorized, "session required")
+		return
+	}
+
+	user, err := users.GetDashboardUser(userID)
+	if err != nil {
+		log.Printf("get dashboard user: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to load user")
+		return
+	}
+
+	var req authPasswordChangeRequest
+	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	if !users.VerifyDashboardUserPassword(user, req.CurrentPassword) {
+		writeError(ctx, fasthttp.StatusForbidden, "incorrect current password")
+		return
+	}
+
+	if err := users.UpdateDashboardUserPassword(userID, req.NewPassword); err != nil {
+		if errors.Is(err, store.ErrInvalidDashboardUserPassword) {
+			writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+			return
+		}
+		log.Printf("update dashboard user password: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to update password")
+		return
+	}
+
+	uidInt, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		log.Printf("parse user id: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to update password")
+		return
+	}
+
+	if err := sessions.DeleteDashboardSessionsByUserID(uidInt); err != nil {
+		log.Printf("delete dashboard sessions by user id: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to invalidate sessions")
+		return
+	}
+
+	rawToken, err := generateSessionToken()
+	if err != nil {
+		log.Printf("generate session token: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to create session")
+		return
+	}
+
+	expiresAt := time.Now().UTC().Add(7 * 24 * time.Hour)
+	if err := sessions.CreateDashboardSession(uidInt, rawToken, string(ctx.UserAgent()), clientIPFromCtx(ctx), expiresAt); err != nil {
+		log.Printf("create dashboard session: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to create session")
+		return
+	}
+
+	setSessionCookie(ctx, rawToken)
+
+	if err := audit.AppendAudit(store.AuditEntry{
+		Action: "auth.password_change",
+		Target: user.Username,
+	}); err != nil {
+		log.Printf("append audit: %v", err)
+	}
+
+	updatedUser, err := users.GetDashboardUser(userID)
+	if err != nil {
+		log.Printf("get updated user: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to load updated user")
+		return
+	}
+
+	writeJSON(ctx, fasthttp.StatusOK, map[string]any{"data": newAuthUserResponse(*updatedUser)})
+}
+
+// AuthUsersList returns all dashboard users (admin only).
+func AuthUsersList(ctx *fasthttp.RequestCtx, users dashboardUserStore) {
+	if isStoreNil(users) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+
+	role, _ := ctx.UserValue("g0router.session_role").(string)
+	if role != "admin" {
+		writeError(ctx, fasthttp.StatusForbidden, "admin access required")
+		return
+	}
+
+	list, err := users.ListDashboardUsers()
+	if err != nil {
+		log.Printf("list dashboard users: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to list users")
+		return
+	}
+
+	resp := make([]authUserResponse, 0, len(list))
+	for _, u := range list {
+		resp = append(resp, newAuthUserResponse(u))
+	}
+
+	writeJSON(ctx, fasthttp.StatusOK, map[string]any{"data": resp})
+}
+
+// AuthUsersCreate creates a new dashboard user (admin only).
+func AuthUsersCreate(ctx *fasthttp.RequestCtx, users dashboardUserStore, audit auditWriter) {
+	if isStoreNil(users) || isStoreNil(audit) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+
+	role, _ := ctx.UserValue("g0router.session_role").(string)
+	if role != "admin" {
+		writeError(ctx, fasthttp.StatusForbidden, "admin access required")
+		return
+	}
+
+	var req authUsersCreateRequest
+	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
+		return
+	}
+
+	if req.Role == "" {
+		req.Role = "user"
+	}
+
+	user, err := users.CreateDashboardUser(req.Username, req.Password, req.DisplayName, req.Role)
+	if err != nil {
+		if errors.Is(err, store.ErrDashboardUserExists) {
+			writeError(ctx, fasthttp.StatusConflict, "username already exists")
+			return
+		}
+		if errors.Is(err, store.ErrInvalidDashboardUserPassword) || errors.Is(err, store.ErrInvalidDashboardUserRole) {
+			writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+			return
+		}
+		log.Printf("create dashboard user: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to create user")
+		return
+	}
+
+	if err := audit.AppendAudit(store.AuditEntry{
+		Action: "auth.user.create",
+		Target: req.Username,
+	}); err != nil {
+		log.Printf("append audit: %v", err)
+	}
+
+	writeJSON(ctx, fasthttp.StatusCreated, map[string]any{"data": newAuthUserResponse(*user)})
+}
+
+// AuthUsersDelete deletes a dashboard user (admin only), with last-admin guard.
+func AuthUsersDelete(ctx *fasthttp.RequestCtx, users dashboardUserStore, sessions dashboardSessionStore, audit auditWriter, id string) {
+	if isStoreNil(users) || isStoreNil(sessions) || isStoreNil(audit) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+
+	role, _ := ctx.UserValue("g0router.session_role").(string)
+	if role != "admin" {
+		writeError(ctx, fasthttp.StatusForbidden, "admin access required")
+		return
+	}
+
+	if id == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "user id required")
+		return
+	}
+
+	user, err := users.GetDashboardUser(id)
+	if err != nil {
+		log.Printf("get dashboard user: %v", err)
+		writeError(ctx, fasthttp.StatusNotFound, "user not found")
+		return
+	}
+
+	if user.Role == "admin" {
+		allUsers, err := users.ListDashboardUsers()
+		if err != nil {
+			log.Printf("list dashboard users: %v", err)
+			writeError(ctx, fasthttp.StatusInternalServerError, "failed to check admin count")
+			return
+		}
+		adminCount := 0
+		for _, u := range allUsers {
+			if u.Role == "admin" {
+				adminCount++
+			}
+		}
+		if adminCount <= 1 {
+			writeError(ctx, fasthttp.StatusConflict, "cannot delete last admin")
+			return
+		}
+	}
+
+	userID, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		log.Printf("parse user id: %v", err)
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid user id")
+		return
+	}
+
+	if err := sessions.DeleteDashboardSessionsByUserID(userID); err != nil {
+		log.Printf("delete dashboard sessions by user id: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to delete user sessions")
+		return
+	}
+
+	if err := users.DeleteDashboardUser(id); err != nil {
+		log.Printf("delete dashboard user: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to delete user")
+		return
+	}
+
+	if err := audit.AppendAudit(store.AuditEntry{
+		Action: "auth.user.delete",
+		Target: user.Username,
+	}); err != nil {
+		log.Printf("append audit: %v", err)
+	}
+
+	ctx.SetStatusCode(fasthttp.StatusNoContent)
 }
 
 func clientIPFromCtx(ctx *fasthttp.RequestCtx) string {

@@ -68,6 +68,10 @@ func TestRoutesSnapshot(t *testing.T) {
 		"POST /api/auth/login",
 		"POST /api/auth/logout",
 		"GET /api/auth/status",
+		"PUT /api/auth/password",
+		"GET /api/auth/users",
+		"POST /api/auth/users",
+		"/api/auth/users/:id",
 		"/*",
 	}
 	sort.Strings(want)
