@@ -39,6 +39,7 @@ import (
 type ServerConfig struct {
 	Port                int
 	Version             string
+	BuildDate           string
 	EnableRequestLogs   bool
 	RequireAPIKey       bool
 	APIKeySecret        string

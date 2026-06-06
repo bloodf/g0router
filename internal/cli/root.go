@@ -27,8 +27,9 @@ import (
 )
 
 type rootConfig struct {
-	Version string
-	Serve   serveRunner
+	Version   string
+	BuildDate string
+	Serve     serveRunner
 }
 
 type serveConfig struct {
@@ -36,6 +37,7 @@ type serveConfig struct {
 	BindAddress       string
 	DataDir           string
 	Version           string
+	BuildDate         string
 	RequireAPIKey     bool
 	APIKeySecret      string
 	EnableRequestLogs bool
@@ -45,9 +47,15 @@ type serveRunner func(context.Context, serveConfig) error
 
 // NewRootCommand builds the g0router CLI command tree.
 func NewRootCommand(version string) *cobra.Command {
+	return NewRootCommandWithBuildDate(version, "")
+}
+
+// NewRootCommandWithBuildDate builds the g0router CLI command tree with build date.
+func NewRootCommandWithBuildDate(version, buildDate string) *cobra.Command {
 	return newRootCommand(rootConfig{
-		Version: version,
-		Serve:   runServer,
+		Version:   version,
+		BuildDate: buildDate,
+		Serve:     runServer,
 	})
 }
 
@@ -82,12 +90,12 @@ func newRootCommand(config rootConfig) *cobra.Command {
 	cmd.AddCommand(newVersionCommand(config.Version))
 	cmd.AddCommand(NewInstallCommand())
 	cmd.AddCommand(newUninstallCommand())
-	cmd.AddCommand(newServeCommand(config.Version, config.Serve, &dataDir))
+	cmd.AddCommand(newServeCommand(config.Version, config.BuildDate, config.Serve, &dataDir))
 
 	return cmd
 }
 
-func newServeCommand(version string, serve serveRunner, rootDataDir *string) *cobra.Command {
+func newServeCommand(version, buildDate string, serve serveRunner, rootDataDir *string) *cobra.Command {
 	port := 20128
 
 	cmd := &cobra.Command{
@@ -108,6 +116,7 @@ func newServeCommand(version string, serve serveRunner, rootDataDir *string) *co
 				BindAddress:       loaded.BindAddress,
 				DataDir:           loaded.DataDir,
 				Version:           version,
+				BuildDate:         buildDate,
 				RequireAPIKey:     loaded.RequireAPIKey,
 				APIKeySecret:      loaded.APIKeySecret,
 				EnableRequestLogs: loaded.EnableRequestLogs,
@@ -217,6 +226,7 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store, tu
 	return api.ServerConfig{
 		Port:                  config.Port,
 		Version:               config.Version,
+		BuildDate:             config.BuildDate,
 		EnableRequestLogs:     config.EnableRequestLogs,
 		RequireAPIKey:         config.RequireAPIKey,
 		APIKeySecret:          config.APIKeySecret,

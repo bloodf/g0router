@@ -7,6 +7,7 @@ import (
 
 	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/mcp"
+	"github.com/bloodf/g0router/internal/update"
 	"github.com/valyala/fasthttp"
 )
 
@@ -639,6 +640,39 @@ func (s *Server) routes() []route {
 			}
 			handlers.Restore(ctx, s.config.Store)
 		})},
+		{method: "GET", pattern: "/api/version", match: apiExactMatch("/api/version"), handler: func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.Version(ctx, s.config.Version, s.config.BuildDate)
+		}},
+		{method: "POST", pattern: "/api/update/check", match: apiExactMatch("/api/update/check"), handler: func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.UpdateCheck(ctx, s.config.Version, update.NewChecker())
+		}},
+		{method: "POST", pattern: "/api/update/apply", match: apiExactMatch("/api/update/apply"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			settings := s.config.Store
+			var dataDir string
+			if settings != nil {
+				cfg, _ := settings.GetSettings()
+				dataDir = cfg.DataDir
+			}
+			handlers.UpdateApply(ctx, s.config.Version, update.NewUpdater(), dataDir, settings, settings)
+		})},
+		{method: "", pattern: "/api/locale", match: apiExactMatch("/api/locale"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.Locale(ctx, s.config.Store)
+		})},
+		{method: "GET", pattern: "/api/skills", match: apiExactMatch("/api/skills"), handler: func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.Skills(ctx)
+		}},
 
 		// catch-all
 		{method: "", pattern: "/*", match: func(rawPath, method string) bool { return true }, handler: func(ctx *fasthttp.RequestCtx) {

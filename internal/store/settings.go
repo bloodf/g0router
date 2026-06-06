@@ -32,6 +32,7 @@ type Settings struct {
 	NotifyOnReauth    bool     `json:"notify_on_reauth"`
 	CacheEnabled      bool     `json:"cache_enabled"`
 	CacheTTLSeconds   int      `json:"cache_ttl_seconds"`
+	Locale            string   `json:"locale"`
 }
 
 // validSourceClasses enumerates the connection-source classes an operator may
@@ -122,6 +123,7 @@ func (s *Store) UpdateSettings(settings Settings) error {
 		"notify_on_reauth":     boolString(settings.NotifyOnReauth),
 		"cache_enabled":        boolString(settings.CacheEnabled),
 		"cache_ttl_seconds":    strconv.Itoa(settings.CacheTTLSeconds),
+		"locale":               settings.Locale,
 	}
 
 	for key, value := range values {
@@ -158,6 +160,7 @@ func defaultSettings() Settings {
 		NotifyOnReauth:    true,
 		CacheEnabled:      false,
 		CacheTTLSeconds:   300,
+		Locale:            "en",
 	}
 }
 
@@ -197,6 +200,8 @@ func applySetting(settings *Settings, key, value string) {
 		if parsed, err := strconv.Atoi(value); err == nil {
 			settings.CacheTTLSeconds = parsed
 		}
+	case "locale":
+		settings.Locale = value
 	}
 }
 
