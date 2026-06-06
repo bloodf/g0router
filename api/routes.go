@@ -370,6 +370,33 @@ func (s *Server) routes() []route {
 			handlers.ProxyPoolTest(ctx, s.config.Store, parts[2])
 		})},
 
+		// Chat session routes
+		{method: "", pattern: "/api/chat-sessions", match: apiExactMatch("/api/chat-sessions"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			switch string(ctx.Method()) {
+			case fasthttp.MethodGet:
+				handlers.ChatSessionList(ctx, s.config.Store)
+			case fasthttp.MethodPost:
+				handlers.ChatSessionCreate(ctx, s.config.Store, s.config.Store)
+			default:
+				ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+			}
+		})},
+		{method: "", pattern: "/api/chat-sessions/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "chat-sessions"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			switch string(ctx.Method()) {
+			case fasthttp.MethodGet:
+				handlers.ChatSessionGet(ctx, s.config.Store, parts[2])
+			case fasthttp.MethodPut:
+				handlers.ChatSessionUpdate(ctx, s.config.Store, s.config.Store, parts[2])
+			case fasthttp.MethodDelete:
+				handlers.ChatSessionDelete(ctx, s.config.Store, s.config.Store, parts[2])
+			default:
+				ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+			}
+		})},
+
 		// Auth routes
 		{method: "POST", pattern: "/api/auth/setup", match: apiExactMatch("/api/auth/setup"), handler: s.withAudit(s.withClientIP(func(ctx *fasthttp.RequestCtx) {
 			if !requireMethod(ctx, fasthttp.MethodPost) {

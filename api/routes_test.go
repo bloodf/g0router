@@ -25,6 +25,8 @@ func TestRoutesSnapshot(t *testing.T) {
 		"/api/aliases/:id",
 		"/api/audit",
 		"/api/auth/users/:id",
+		"/api/chat-sessions",
+		"/api/chat-sessions/:id",
 		"/api/combos",
 		"/api/combos/:id",
 		"/api/connections",
