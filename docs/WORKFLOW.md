@@ -29,10 +29,10 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 14
-current_wave: "Phase 14 — Providers & Testing"
-last_completed_wave: "Phase 14 checkpoint"
-last_updated: "2026-06-06T09:57:00Z"
+current_stage: 16
+current_wave: "Phase 16 — Chat & Console"
+last_completed_wave: "Phase 16 checkpoint"
+last_updated: "2026-06-06T11:20:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -168,7 +168,33 @@ completed_at: "2026-06-06T09:57:00Z"
 - Supply-chain: ✅ Cloudflared download pinned version + SHA-256 per OS/arch; checksum verified before chmod+exec; HTTPS from GitHub releases only
 - Privilege requirements: ✅ Tailscale not downloaded by g0router; requires preinstalled binary on PATH; returns 409 with instructions if absent
 
-**Next:** Phase 16 — Chat & Console
+---
+
+## Phase 16 — Chat & Console
+
+```yaml
+phase: 16
+status: DONE
+summary: "SQLite-backed chat sessions with base64 image attachment validation, live console log streaming via SSE, ring buffer broker, slog tee handler, and log clearing endpoint."
+commit_range: "81999c6..e5b9ce1"
+completed_at: "2026-06-06T11:20:00Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-1: `internal/console/` — ring buffer + slog handler + broker + tests
+- task-2: store — `chat_sessions` repository + `messages_json` validation + tests
+- task-3: handlers — chat sessions CRUD + tests
+- task-4: handlers — console SSE stream + clear + startup wiring + tests
+- task-coverage: nil-store guards, levelString, dead code removal, proxy SOCKS5, encryption empty key
+
+**Next:** Phase 17 — Usage & Analytics
 
 ---
 
