@@ -190,6 +190,24 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.Teams(ctx, s.config.Store, parts[2])
 		})},
+		{method: "", pattern: "/api/routing-rules", match: apiExactMatch("/api/routing-rules"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.RoutingRules(ctx, s.config.Store, "")
+		})},
+		{method: "", pattern: "/api/routing-rules/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "routing-rules"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.RoutingRules(ctx, s.config.Store, parts[2])
+		})},
+		{method: "", pattern: "/api/model-limits", match: apiExactMatch("/api/model-limits"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.ModelLimits(ctx, s.config.Store, "")
+		})},
+		{method: "", pattern: "/api/model-limits/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "model-limits"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.ModelLimits(ctx, s.config.Store, parts[2])
+		})},
 		{method: "", pattern: "/api/combos", match: apiExactMatch("/api/combos"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.Combos(ctx, s.config.Store, "")
 		})},

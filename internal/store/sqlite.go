@@ -329,6 +329,27 @@ func (s *Store) migrate() error {
 			is_active INTEGER DEFAULT 1,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS routing_rules (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			priority INTEGER NOT NULL DEFAULT 0,
+			cond_field TEXT NOT NULL,
+			cond_operator TEXT NOT NULL,
+			cond_value TEXT NOT NULL,
+			target_provider TEXT NOT NULL,
+			target_model TEXT,
+			is_active INTEGER DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS model_limits (
+			id INTEGER PRIMARY KEY,
+			model TEXT NOT NULL,
+			max_tokens INTEGER,
+			max_rpm INTEGER,
+			allowed_key_ids TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(model)
+		)`,
 	}
 
 	for _, stmt := range ddl {

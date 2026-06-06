@@ -1210,14 +1210,16 @@ func (s *Server) handleMetrics(ctx *fasthttp.RequestCtx) {
 // auditedResources are the top-level /api/{resource} segments whose successful
 // mutations (POST/PUT/DELETE) are recorded in the admin audit log.
 var auditedResources = map[string]bool{
-	"settings":     true,
-	"keys":         true,
-	"connections":  true,
-	"combos":       true,
-	"aliases":      true,
-	"pricing":      true,
-	"virtual-keys": true,
-	"teams":        true,
+	"settings":      true,
+	"keys":          true,
+	"connections":   true,
+	"combos":        true,
+	"aliases":       true,
+	"pricing":       true,
+	"virtual-keys":  true,
+	"teams":         true,
+	"routing-rules": true,
+	"model-limits":  true,
 }
 
 // recordAuditIfMutation appends an audit-log entry after a successful mutating
