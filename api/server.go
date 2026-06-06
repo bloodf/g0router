@@ -16,18 +16,19 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/api/handlers"
+	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/cache"
 	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/metrics"
 	"github.com/bloodf/g0router/internal/modelcatalog"
-	"github.com/bloodf/g0router/internal/traffic"
 	"github.com/bloodf/g0router/internal/notify"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/ratelimit"
 	"github.com/bloodf/g0router/internal/rtk"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/traffic"
 	"github.com/bloodf/g0router/internal/usage"
 	"github.com/valyala/fasthttp"
 )
@@ -76,6 +77,8 @@ type Server struct {
 	settingsCache *store.Settings
 
 	limiter *ratelimit.Limiter
+
+	loginRateLimiter *auth.LoginRateLimiter
 
 	metrics *metrics.Collector
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/bloodf/g0router"
+	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/metrics"
 	"github.com/bloodf/g0router/internal/notify"
 	"github.com/bloodf/g0router/internal/ratelimit"
@@ -16,6 +17,7 @@ func NewServer(config ServerConfig) *Server {
 		uiFS:                      uiFS,
 		uiErr:                     err,
 		limiter:                   ratelimit.NewLimiter(),
+		loginRateLimiter:          auth.NewLoginRateLimiter(),
 		metrics:                   metrics.NewCollector(),
 		trafficBroker:             traffic.NewBroker(256),
 		logRetentionInterval:      logRetentionInterval,

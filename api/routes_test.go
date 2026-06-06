@@ -64,6 +64,10 @@ func TestRoutesSnapshot(t *testing.T) {
 		"/api/mcp/tools/:id/execute",
 		"GET /api/mcp/oauth/callback",
 		"POST /api/mcp/instances/:id/oauth/complete",
+		"POST /api/auth/setup",
+		"POST /api/auth/login",
+		"POST /api/auth/logout",
+		"GET /api/auth/status",
 		"/*",
 	}
 	sort.Strings(want)

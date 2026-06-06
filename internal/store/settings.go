@@ -9,6 +9,8 @@ import (
 
 type Settings struct {
 	RequireAPIKey     bool     `json:"require_api_key"`
+	RequireLogin      bool     `json:"require_login"`
+	TrustProxyHeaders bool     `json:"trust_proxy_headers"`
 	RTKEnabled        bool     `json:"rtk_enabled"`
 	CavemanEnabled    bool     `json:"caveman_enabled"`
 	CavemanLevel      string   `json:"caveman_level"`
@@ -86,19 +88,21 @@ func (s *Store) UpdateSettings(settings Settings) error {
 	defer tx.Rollback()
 
 	values := map[string]string{
-		"require_api_key":     boolString(settings.RequireAPIKey),
-		"rtk_enabled":         boolString(settings.RTKEnabled),
-		"caveman_enabled":     boolString(settings.CavemanEnabled),
-		"caveman_level":       settings.CavemanLevel,
-		"enable_request_logs": boolString(settings.EnableRequestLogs),
-		"proxy_url":           settings.ProxyURL,
-		"data_dir":            settings.DataDir,
-		"log_retention_days":  strconv.Itoa(settings.LogRetentionDays),
-		"allowed_sources":     strings.Join(settings.AllowedSources, ","),
-		"notify_webhook_url":  settings.NotifyWebhookURL,
-		"notify_on_reauth":    boolString(settings.NotifyOnReauth),
-		"cache_enabled":       boolString(settings.CacheEnabled),
-		"cache_ttl_seconds":   strconv.Itoa(settings.CacheTTLSeconds),
+		"require_api_key":      boolString(settings.RequireAPIKey),
+		"require_login":        boolString(settings.RequireLogin),
+		"trust_proxy_headers":  boolString(settings.TrustProxyHeaders),
+		"rtk_enabled":          boolString(settings.RTKEnabled),
+		"caveman_enabled":      boolString(settings.CavemanEnabled),
+		"caveman_level":        settings.CavemanLevel,
+		"enable_request_logs":  boolString(settings.EnableRequestLogs),
+		"proxy_url":            settings.ProxyURL,
+		"data_dir":             settings.DataDir,
+		"log_retention_days":   strconv.Itoa(settings.LogRetentionDays),
+		"allowed_sources":      strings.Join(settings.AllowedSources, ","),
+		"notify_webhook_url":   settings.NotifyWebhookURL,
+		"notify_on_reauth":     boolString(settings.NotifyOnReauth),
+		"cache_enabled":        boolString(settings.CacheEnabled),
+		"cache_ttl_seconds":    strconv.Itoa(settings.CacheTTLSeconds),
 	}
 
 	for key, value := range values {
@@ -121,6 +125,8 @@ func (s *Store) UpdateSettings(settings Settings) error {
 func defaultSettings() Settings {
 	return Settings{
 		RequireAPIKey:     true,
+		RequireLogin:      false,
+		TrustProxyHeaders: false,
 		RTKEnabled:        true,
 		CavemanEnabled:    false,
 		CavemanLevel:      "full",
@@ -140,6 +146,10 @@ func applySetting(settings *Settings, key, value string) {
 	switch key {
 	case "require_api_key":
 		settings.RequireAPIKey = value == "true"
+	case "require_login":
+		settings.RequireLogin = value == "true"
+	case "trust_proxy_headers":
+		settings.TrustProxyHeaders = value == "true"
 	case "rtk_enabled":
 		settings.RTKEnabled = value == "true"
 	case "caveman_enabled":

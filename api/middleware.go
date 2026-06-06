@@ -2,12 +2,15 @@ package api
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -34,11 +37,14 @@ type APIKeyIdentityValidator interface {
 }
 
 const (
-	requestIDHeader       = "X-Request-ID"
+	requestIDHeader        = "X-Request-ID"
 	requestAuthTypeKey     = "g0router.auth_type"
 	requestAPIKeyIDKey     = "g0router.api_key_id"
 	requestAPIKeyPolicyKey = "g0router.api_key_policy"
-	requestAuthTypeAPIKey  = "api_key"
+	requestSessionUserIDKey = "g0router.session_user_id"
+	requestSessionRoleKey   = "g0router.session_role"
+	requestAuthTypeAPIKey   = "api_key"
+	requestAuthTypeSession  = "session"
 )
 
 func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
@@ -68,7 +74,21 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 			return false
 		}
 		if !ok {
-			ctx.SetStatusCode(fasthttp.StatusUnauthorized)
+			ok, err = s.validSession(ctx)
+			if err != nil {
+				ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+				return false
+			}
+			if !ok {
+				ctx.SetStatusCode(fasthttp.StatusUnauthorized)
+				return false
+			}
+		}
+	}
+
+	if s.requiresCSRFCheck(ctx) {
+		if !s.originMatchesHost(ctx) {
+			ctx.SetStatusCode(fasthttp.StatusForbidden)
 			return false
 		}
 	}
@@ -114,6 +134,14 @@ func (s *Server) requiresAuth(ctx *fasthttp.RequestCtx) bool {
 	if strings.HasPrefix(requestPath, "/v1/") {
 		return true
 	}
+	if isExemptRoute(requestPath) {
+		return false
+	}
+	// When require_login is enabled, the management plane and metrics require
+	// authentication (bearer or session).
+	if s.runtimeSettings().RequireLogin {
+		return requestPath == "/api" || strings.HasPrefix(requestPath, "/api/") || requestPath == "/metrics"
+	}
 	// The management plane stays gated by the RequireAPIKey toggle.
 	if !s.config.RequireAPIKey {
 		return false
@@ -121,8 +149,16 @@ func (s *Server) requiresAuth(ctx *fasthttp.RequestCtx) bool {
 	return isProtectedManagementPath(requestPath)
 }
 
+func isExemptRoute(requestPath string) bool {
+	switch requestPath {
+	case "/api/oauth/callback", "/api/mcp/oauth/callback", "/api/auth/setup", "/api/auth/login", "/api/auth/status":
+		return true
+	}
+	return false
+}
+
 func isProtectedManagementPath(requestPath string) bool {
-	if requestPath == "/api/oauth/callback" || requestPath == "/api/mcp/oauth/callback" {
+	if isExemptRoute(requestPath) {
 		return false
 	}
 	// /metrics is a management path: scrapers pass the API key via bearer just
@@ -227,6 +263,82 @@ func (s *Server) validAPIKey(ctx *fasthttp.RequestCtx) (bool, error) {
 		ctx.SetUserValue(requestAuthTypeKey, requestAuthTypeAPIKey)
 	}
 	return ok, nil
+}
+
+func (s *Server) validSession(ctx *fasthttp.RequestCtx) (bool, error) {
+	if s.config.Store == nil {
+		return false, nil
+	}
+	rawToken := string(ctx.Request.Header.Cookie("g0router_session"))
+	if rawToken == "" {
+		return false, nil
+	}
+	session, err := s.config.Store.GetDashboardSessionByRawToken(rawToken)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return false, nil
+		}
+		return false, fmt.Errorf("get dashboard session: %w", err)
+	}
+	expiresAt, err := time.Parse(time.RFC3339, session.ExpiresAt)
+	if err != nil {
+		return false, nil
+	}
+	if time.Now().UTC().After(expiresAt) {
+		return false, nil
+	}
+	user, err := s.config.Store.GetDashboardUser(strconv.FormatInt(session.UserID, 10))
+	if err != nil {
+		return false, nil
+	}
+	ctx.SetUserValue(requestAuthTypeKey, requestAuthTypeSession)
+	ctx.SetUserValue(requestSessionUserIDKey, strconv.FormatInt(session.UserID, 10))
+	ctx.SetUserValue(requestSessionRoleKey, user.Role)
+	if err := s.config.Store.TouchDashboardSession(session.TokenHash); err != nil {
+		return false, fmt.Errorf("touch dashboard session: %w", err)
+	}
+	return true, nil
+}
+
+func (s *Server) requiresCSRFCheck(ctx *fasthttp.RequestCtx) bool {
+	authType, _ := ctx.UserValue(requestAuthTypeKey).(string)
+	if authType != requestAuthTypeSession {
+		return false
+	}
+	method := string(ctx.Method())
+	switch method {
+	case fasthttp.MethodPost, fasthttp.MethodPut, fasthttp.MethodDelete, fasthttp.MethodPatch:
+		return true
+	}
+	return false
+}
+
+func (s *Server) originMatchesHost(ctx *fasthttp.RequestCtx) bool {
+	origin := string(ctx.Request.Header.Peek("Origin"))
+	if origin == "" {
+		origin = string(ctx.Request.Header.Peek("Referer"))
+	}
+	if origin == "" {
+		return false
+	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return parsed.Host == string(ctx.Request.Header.Peek("Host"))
+}
+
+func (s *Server) clientIP(ctx *fasthttp.RequestCtx) string {
+	if s.runtimeSettings().TrustProxyHeaders {
+		xff := string(ctx.Request.Header.Peek("X-Forwarded-For"))
+		if xff != "" {
+			if idx := strings.Index(xff, ","); idx != -1 {
+				return strings.TrimSpace(xff[:idx])
+			}
+			return strings.TrimSpace(xff)
+		}
+	}
+	return ctx.RemoteIP().String()
 }
 
 func bearerToken(header string) string {

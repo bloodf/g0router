@@ -47,6 +47,13 @@ func (s *Server) withAudit(handler func(*fasthttp.RequestCtx)) func(*fasthttp.Re
 	}
 }
 
+func (s *Server) withClientIP(handler func(*fasthttp.RequestCtx)) func(*fasthttp.RequestCtx) {
+	return func(ctx *fasthttp.RequestCtx) {
+		ctx.SetUserValue("g0router.client_ip", s.clientIP(ctx))
+		handler(ctx)
+	}
+}
+
 func (s *Server) routes() []route {
 	return []route{
 		{method: "GET", pattern: "/healthz", match: exactMatch("/healthz"), handler: func(ctx *fasthttp.RequestCtx) {
@@ -245,6 +252,32 @@ func (s *Server) routes() []route {
 			}
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.MCPOAuthComplete(ctx, mcp.NewOAuthEngine(s.config.Store, nil), s.config.MCPInstanceRuntime, s.config.Store, parts[3])
+		})},
+
+		// Auth routes
+		{method: "POST", pattern: "/api/auth/setup", match: apiExactMatch("/api/auth/setup"), handler: s.withAudit(s.withClientIP(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.AuthSetup(ctx, s.config.Store, s.config.Store, s.config.Store)
+		}))},
+		{method: "POST", pattern: "/api/auth/login", match: apiExactMatch("/api/auth/login"), handler: s.withAudit(s.withClientIP(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.AuthLogin(ctx, s.config.Store, s.config.Store, s.loginRateLimiter, s.config.Store)
+		}))},
+		{method: "POST", pattern: "/api/auth/logout", match: apiExactMatch("/api/auth/logout"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.AuthLogout(ctx, s.config.Store)
+		})},
+		{method: "GET", pattern: "/api/auth/status", match: apiExactMatch("/api/auth/status"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.AuthStatus(ctx, s.config.Store, s.config.Store, s.runtimeSettings().RequireLogin)
 		})},
 
 		// catch-all

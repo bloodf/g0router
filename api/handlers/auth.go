@@ -129,7 +129,7 @@ func AuthSetup(ctx *fasthttp.RequestCtx, users dashboardUserStore, sessions dash
 	}
 
 	expiresAt := time.Now().UTC().Add(7 * 24 * time.Hour)
-	if err := sessions.CreateDashboardSession(userID, rawToken, string(ctx.UserAgent()), ctx.RemoteIP().String(), expiresAt); err != nil {
+	if err := sessions.CreateDashboardSession(userID, rawToken, string(ctx.UserAgent()), clientIPFromCtx(ctx), expiresAt); err != nil {
 		log.Printf("create dashboard session: %v", err)
 		writeError(ctx, fasthttp.StatusInternalServerError, "failed to create session")
 		return
@@ -155,7 +155,7 @@ func AuthLogin(ctx *fasthttp.RequestCtx, users dashboardUserStore, sessions dash
 		return
 	}
 
-	ip := ctx.RemoteIP().String()
+	ip := clientIPFromCtx(ctx)
 	if limiter != nil {
 		allowed, retryAfter := limiter.Check(ip)
 		if !allowed {
@@ -287,6 +287,13 @@ func AuthStatus(ctx *fasthttp.RequestCtx, users dashboardUserStore, sessions das
 	}
 
 	writeJSON(ctx, fasthttp.StatusOK, map[string]any{"data": resp})
+}
+
+func clientIPFromCtx(ctx *fasthttp.RequestCtx) string {
+	if ip, ok := ctx.UserValue("g0router.client_ip").(string); ok && ip != "" {
+		return ip
+	}
+	return ctx.RemoteIP().String()
 }
 
 func generateSessionToken() (string, error) {
