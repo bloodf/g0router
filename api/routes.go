@@ -254,6 +254,48 @@ func (s *Server) routes() []route {
 			handlers.MCPOAuthComplete(ctx, mcp.NewOAuthEngine(s.config.Store, nil), s.config.MCPInstanceRuntime, s.config.Store, parts[3])
 		})},
 
+		// Proxy pool routes
+		{method: "", pattern: "/api/proxy-pools", match: apiExactMatch("/api/proxy-pools"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			switch string(ctx.Method()) {
+			case fasthttp.MethodGet:
+				handlers.ProxyPoolList(ctx, s.config.Store)
+			case fasthttp.MethodPost:
+				handlers.ProxyPoolCreate(ctx, s.config.Store, s.config.Store)
+			default:
+				ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+			}
+		})},
+		{method: "POST", pattern: "/api/proxy-pools/batch", match: apiExactMatch("/api/proxy-pools/batch"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.ProxyPoolBatchImport(ctx, s.config.Store, s.config.Store)
+		})},
+		{method: "", pattern: "/api/proxy-pools/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "proxy-pools"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			switch string(ctx.Method()) {
+			case fasthttp.MethodGet:
+				handlers.ProxyPoolGet(ctx, s.config.Store, parts[2])
+			case fasthttp.MethodPut:
+				handlers.ProxyPoolUpdate(ctx, s.config.Store, s.config.Store, parts[2])
+			case fasthttp.MethodDelete:
+				handlers.ProxyPoolDelete(ctx, s.config.Store, s.config.Store, parts[2])
+			default:
+				ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+			}
+		})},
+		{method: "POST", pattern: "/api/proxy-pools/:id/test", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "proxy-pools" && parts[3] == "test"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.ProxyPoolTest(ctx, s.config.Store, parts[2])
+		})},
+
 		// Auth routes
 		{method: "POST", pattern: "/api/auth/setup", match: apiExactMatch("/api/auth/setup"), handler: s.withAudit(s.withClientIP(func(ctx *fasthttp.RequestCtx) {
 			if !requireMethod(ctx, fasthttp.MethodPost) {
