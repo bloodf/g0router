@@ -29,10 +29,10 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 18B
-current_wave: "Phase 18B — Routing Rules, Model Limits"
-last_completed_wave: "Phase 18B checkpoint"
-last_updated: "2026-06-06T14:50:00Z"
+current_stage: 18C
+current_wave: "Phase 18C — Guardrails, PII, Prompts, MCP Tool Groups"
+last_completed_wave: "Phase 18C checkpoint"
+last_updated: "2026-06-06T15:20:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -273,6 +273,31 @@ completed_at: "2026-06-06T14:50:00Z"
 - task-4: store — `routing_rules` + `model_limits` CRUD with migrations (`internal/store/routing.go`, `routing_test.go`)
 - task-5: proxy — TTL-cached rule evaluator, model limit checker with RPM tracker, dispatch wiring (`internal/proxy/routing.go`, `dispatch.go`, `routing_test.go`, `dispatch_test.go`)
 - task-coverage: MethodNotAllowed handlers, store error paths, previewResolveProvider fallback, loadRules store error (`*_coverage_test.go` files)
+
+---
+
+## Phase 18C — Guardrails, PII, Prompts, MCP Tool Groups
+
+```yaml
+phase: 18C
+status: DONE
+summary: "Blocklist + PII redaction guardrails wired into dispatch pipeline, prompt templates with {{var}} extraction, MCP tool groups for filtering injected tool sets."
+commit_range: "e268c4b..ac55b59"
+completed_at: "2026-06-06T15:20:00Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-6: guardrails — blocklist + PII redaction domain, settings-backed config, dispatch wiring, test endpoint (`internal/guardrails/`, `api/handlers/guardrails.go`)
+- task-7: prompt templates — store + CRUD handlers + `{{var}}` extraction (`internal/store/prompttemplates.go`, `api/handlers/prompttemplates.go`)
+- task-8: mcp tool groups — store + CRUD handlers + injection filtering (`internal/store/mcptoolgroups.go`, `api/handlers/mcptoolgroups.go`, `internal/mcp/inject.go`)
+- task-coverage: guardrails error branches, PII types, prompt template validation, tool group resolution, pipeline wiring (`*_coverage_test.go` files)
 
 ---
 
