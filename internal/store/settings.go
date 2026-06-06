@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -244,4 +245,79 @@ func boolString(value bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+// GuardrailsConfig holds guardrails and PII redaction settings.
+type GuardrailsConfig struct {
+	GuardrailsEnabled   bool
+	GuardrailsBlocklist []string
+	PIIRedactionEnabled bool
+	PIIRedactionTypes   []string
+}
+
+// GetGuardrailsConfig reads guardrails settings from the settings table.
+func (s *Store) GetGuardrailsConfig() (GuardrailsConfig, error) {
+	cfg := GuardrailsConfig{}
+
+	rows, err := s.db.Query(
+		"SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?)",
+		"guardrails_enabled", "guardrails_blocklist_json", "pii_redaction_enabled", "pii_types_json",
+	)
+	if err != nil {
+		return GuardrailsConfig{}, fmt.Errorf("query guardrails settings: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return GuardrailsConfig{}, fmt.Errorf("scan guardrails setting: %w", err)
+		}
+		switch key {
+		case "guardrails_enabled":
+			cfg.GuardrailsEnabled = value == "true"
+		case "guardrails_blocklist_json":
+			_ = json.Unmarshal([]byte(value), &cfg.GuardrailsBlocklist)
+		case "pii_redaction_enabled":
+			cfg.PIIRedactionEnabled = value == "true"
+		case "pii_types_json":
+			_ = json.Unmarshal([]byte(value), &cfg.PIIRedactionTypes)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return GuardrailsConfig{}, fmt.Errorf("iterate guardrails settings: %w", err)
+	}
+
+	return cfg, nil
+}
+
+// UpdateGuardrailsConfig writes guardrails settings to the settings table.
+func (s *Store) UpdateGuardrailsConfig(cfg GuardrailsConfig) error {
+	blocklistJSON, _ := json.Marshal(cfg.GuardrailsBlocklist)
+	typesJSON, _ := json.Marshal(cfg.PIIRedactionTypes)
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin guardrails update: %w", err)
+	}
+	defer tx.Rollback()
+
+	values := map[string]string{
+		"guardrails_enabled":        boolString(cfg.GuardrailsEnabled),
+		"guardrails_blocklist_json": string(blocklistJSON),
+		"pii_redaction_enabled":     boolString(cfg.PIIRedactionEnabled),
+		"pii_types_json":            string(typesJSON),
+	}
+
+	for key, value := range values {
+		_, err := tx.Exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", key, value)
+		if err != nil {
+			return fmt.Errorf("upsert guardrails setting %q: %w", key, err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit guardrails update: %w", err)
+	}
+	return nil
 }

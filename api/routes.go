@@ -224,6 +224,15 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.ModelLimits(ctx, s.config.Store, parts[2])
 		})},
+		{method: "", pattern: "/api/guardrails", match: apiExactMatch("/api/guardrails"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.Guardrails(ctx, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/guardrails/test", match: apiExactMatch("/api/guardrails/test"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.GuardrailsTest(ctx, s.config.Store)
+		})},
 		{method: "", pattern: "/api/combos", match: apiExactMatch("/api/combos"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.Combos(ctx, s.config.Store, "")
 		})},

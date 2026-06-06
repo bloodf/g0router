@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bloodf/g0router/internal/guardrails"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -179,3 +180,25 @@ func (f *fakeEngineStore) IsModelDisabled(provider, model string) (bool, error) 
 func (f *fakeEngineStore) ListCustomModels() ([]store.CustomModel, error) { return nil, nil }
 func (f *fakeEngineStore) ListRoutingRules() ([]store.RoutingRule, error) { return nil, nil }
 func (f *fakeEngineStore) GetModelLimitByModel(model string) (*store.ModelLimit, error) { return nil, nil }
+
+func TestClassifyGuardrailsError(t *testing.T) {
+	cases := []struct {
+		name  string
+		err   error
+		wantS int
+		wantM string
+	}{
+		{"blocklist", guardrails.ErrBlocklistMatch, 400, guardrails.ErrBlocklistMatch.Error()},
+		{"unknown", errors.New("boom"), 500, "guardrails check failed: boom"},
+		{"nil", nil, 0, ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotS, gotM := classifyGuardrailsError(tc.err)
+			if gotS != tc.wantS || gotM != tc.wantM {
+				t.Fatalf("status=%d msg=%q, want status=%d msg=%q", gotS, gotM, tc.wantS, tc.wantM)
+			}
+		})
+	}
+}

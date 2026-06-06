@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bloodf/g0router/internal/guardrails"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -80,4 +81,18 @@ func classifyModelLimitError(err error) (status int, message string) {
 
 func isError(err, target error) bool {
 	return err == target
+}
+
+// classifyGuardrailsError maps guardrails errors to HTTP status codes
+// and user-facing messages.
+func classifyGuardrailsError(err error) (status int, message string) {
+	if err == nil {
+		return 0, ""
+	}
+	switch {
+	case isError(err, guardrails.ErrBlocklistMatch):
+		return 400, err.Error()
+	default:
+		return 500, fmt.Sprintf("guardrails check failed: %v", err)
+	}
 }

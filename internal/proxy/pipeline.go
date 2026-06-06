@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/bloodf/g0router/internal/guardrails"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/rtk"
 )
@@ -18,6 +19,10 @@ type SettingsProvider interface {
 	RTKEnabled() bool
 	CavemanEnabled() bool
 	CavemanLevel() string
+	GuardrailsEnabled() bool
+	GuardrailsBlocklist() []string
+	PIIRedactionEnabled() bool
+	PIIRedactionTypes() []string
 }
 
 // ToolProvider supplies MCP tools for a request.
@@ -30,9 +35,10 @@ type ToolProvider interface {
 //
 // Stages (in order):
 //   1. Model resolution (alias → combo → catalog route)
-//   2. RTK compression
-//   3. Caveman injection
-//   4. MCP tool injection
+//   2. Guardrails (blocklist + PII redaction)
+//   3. RTK compression
+//   4. Caveman injection
+//   5. MCP tool injection
 type Pipeline struct {
 	resolver ModelResolver
 	settings SettingsProvider
@@ -63,11 +69,45 @@ func (p *Pipeline) Process(ctx context.Context, req *providers.ChatRequest) (*pr
 		return nil, fmt.Errorf("pipeline resolve model: %w", err)
 	}
 
+	processed, err = p.applyGuardrails(processed)
+	if err != nil {
+		return nil, err
+	}
+
 	processed = p.compressRTK(processed)
 	processed = p.injectCaveman(processed)
 	processed = p.injectTools(ctx, processed)
 
 	return &processed, nil
+}
+
+// applyGuardrails is stage 2: check blocklist and redact PII when enabled.
+func (p *Pipeline) applyGuardrails(req providers.ChatRequest) (providers.ChatRequest, error) {
+	if p.settings == nil {
+		return req, nil
+	}
+
+	grCfg := guardrails.Config{
+		Enabled:   p.settings.GuardrailsEnabled(),
+		Blocklist: p.settings.GuardrailsBlocklist(),
+	}
+	blocked, _, err := guardrails.CheckRequest(grCfg, &req)
+	if err != nil {
+		return providers.ChatRequest{}, err
+	}
+	if blocked {
+		return providers.ChatRequest{}, guardrails.ErrBlocklistMatch
+	}
+
+	piiCfg := guardrails.PIIConfig{
+		Enabled: p.settings.PIIRedactionEnabled(),
+		Types:   p.settings.PIIRedactionTypes(),
+	}
+	redacted := guardrails.RedactRequest(piiCfg, &req)
+	if redacted != nil {
+		return *redacted, nil
+	}
+	return req, nil
 }
 
 // resolveModel is stage 1: alias → combo → catalog route → provider.

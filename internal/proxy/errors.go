@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/bloodf/g0router/internal/guardrails"
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/anthropic"
 	"github.com/bloodf/g0router/internal/providers/azure"
@@ -30,6 +31,8 @@ func ClassifyDispatchError(err error) DispatchErrorClass {
 		return DispatchErrorClass{StatusCode: http.StatusNotFound, Message: "provider inference unavailable", Type: "invalid_request_error", Code: "provider_inference_unavailable"}
 	case errors.Is(err, ErrModelDisabled):
 		return DispatchErrorClass{StatusCode: http.StatusBadRequest, Message: err.Error(), Type: "invalid_request_error", Code: "model_disabled"}
+	case errors.Is(err, guardrails.ErrBlocklistMatch):
+		return DispatchErrorClass{StatusCode: http.StatusBadRequest, Message: err.Error(), Type: "invalid_request_error", Code: "guardrails_blocklist"}
 	case errors.Is(err, ErrNoConnections):
 		return DispatchErrorClass{StatusCode: http.StatusServiceUnavailable, Message: "no active provider connections", Type: "server_error", Code: "no_active_connections"}
 	case errors.Is(err, ErrQuotaExhausted):

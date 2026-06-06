@@ -19,14 +19,22 @@ func (f *fakeModelResolver) ResolveModel(ctx context.Context, model string) (str
 
 // fakeSettingsProvider is a test fake for SettingsProvider.
 type fakeSettingsProvider struct {
-	rtkEnabled     bool
-	cavemanEnabled bool
-	cavemanLevel   string
+	rtkEnabled          bool
+	cavemanEnabled      bool
+	cavemanLevel        string
+	guardrailsEnabled   bool
+	guardrailsBlocklist []string
+	piiRedactionEnabled bool
+	piiRedactionTypes   []string
 }
 
-func (f *fakeSettingsProvider) RTKEnabled() bool     { return f.rtkEnabled }
-func (f *fakeSettingsProvider) CavemanEnabled() bool { return f.cavemanEnabled }
-func (f *fakeSettingsProvider) CavemanLevel() string { return f.cavemanLevel }
+func (f *fakeSettingsProvider) RTKEnabled() bool              { return f.rtkEnabled }
+func (f *fakeSettingsProvider) CavemanEnabled() bool          { return f.cavemanEnabled }
+func (f *fakeSettingsProvider) CavemanLevel() string          { return f.cavemanLevel }
+func (f *fakeSettingsProvider) GuardrailsEnabled() bool       { return f.guardrailsEnabled }
+func (f *fakeSettingsProvider) GuardrailsBlocklist() []string { return f.guardrailsBlocklist }
+func (f *fakeSettingsProvider) PIIRedactionEnabled() bool     { return f.piiRedactionEnabled }
+func (f *fakeSettingsProvider) PIIRedactionTypes() []string   { return f.piiRedactionTypes }
 
 // fakeToolProvider is a test fake for ToolProvider.
 type fakeToolProvider struct {
@@ -301,5 +309,86 @@ func TestPipeline_Process_NoSettings(t *testing.T) {
 	}
 	if len(got.Messages) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(got.Messages))
+	}
+}
+
+func TestPipeline_GuardrailsBlocklist(t *testing.T) {
+	settings := &fakeSettingsProvider{
+		guardrailsEnabled:   true,
+		guardrailsBlocklist: []string{"badword"},
+	}
+	p := NewPipeline(nil, settings, nil)
+
+	req := &providers.ChatRequest{
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello badword world"},
+		},
+	}
+	_, err := p.Process(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected error for blocklist match")
+	}
+}
+
+func TestPipeline_GuardrailsBlocklistDisabled(t *testing.T) {
+	settings := &fakeSettingsProvider{
+		guardrailsEnabled:   false,
+		guardrailsBlocklist: []string{"badword"},
+	}
+	p := NewPipeline(nil, settings, nil)
+
+	req := &providers.ChatRequest{
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello badword world"},
+		},
+	}
+	got, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Messages[0].Content != "hello badword world" {
+		t.Errorf("content = %q, want unchanged", got.Messages[0].Content)
+	}
+}
+
+func TestPipeline_PIIRedaction(t *testing.T) {
+	settings := &fakeSettingsProvider{
+		piiRedactionEnabled: true,
+		piiRedactionTypes:   []string{"email"},
+	}
+	p := NewPipeline(nil, settings, nil)
+
+	req := &providers.ChatRequest{
+		Messages: []providers.Message{
+			{Role: "user", Content: "Email: user@example.com"},
+		},
+	}
+	got, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Messages[0].Content != "Email: [REDACTED:email]" {
+		t.Errorf("content = %q, want redacted email", got.Messages[0].Content)
+	}
+}
+
+func TestPipeline_PIIRedactionDisabled(t *testing.T) {
+	settings := &fakeSettingsProvider{
+		piiRedactionEnabled: false,
+		piiRedactionTypes:   []string{"email"},
+	}
+	p := NewPipeline(nil, settings, nil)
+
+	req := &providers.ChatRequest{
+		Messages: []providers.Message{
+			{Role: "user", Content: "Email: user@example.com"},
+		},
+	}
+	got, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Messages[0].Content != "Email: user@example.com" {
+		t.Errorf("content = %q, want unchanged", got.Messages[0].Content)
 	}
 }

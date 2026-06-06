@@ -562,6 +562,13 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 			base:     engine,
 			settings: s.runtimeSettings,
 			tools:    s.config.MCPToolManager,
+			guardrails: func() store.GuardrailsConfig {
+				if s.config.Store == nil {
+					return store.GuardrailsConfig{}
+				}
+				cfg, _ := s.config.Store.GetGuardrailsConfig()
+				return cfg
+			},
 		}
 		// Snapshot request-scoped data from the pooled ctx on the request
 		// goroutine. The streaming-complete callback fires from the capture
@@ -738,9 +745,10 @@ func statusClassFor(statusCode int) string {
 }
 
 type pipelineInferenceEngine struct {
-	base     handlers.InferenceEngine
-	settings func() store.Settings
-	tools    *mcp.ToolManager
+	base       handlers.InferenceEngine
+	settings   func() store.Settings
+	tools      *mcp.ToolManager
+	guardrails func() store.GuardrailsConfig
 }
 
 func (e pipelineInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
@@ -769,22 +777,38 @@ func (e pipelineInferenceEngine) pipeline() *proxy.Pipeline {
 	if e.tools != nil {
 		tools = e.tools
 	}
+	grCfg := store.GuardrailsConfig{}
+	if e.guardrails != nil {
+		grCfg = e.guardrails()
+	}
 	return proxy.NewPipeline(nil, snapshotSettings{
-		rtkEnabled:     s.RTKEnabled,
-		cavemanEnabled: s.CavemanEnabled,
-		cavemanLevel:   s.CavemanLevel,
+		rtkEnabled:          s.RTKEnabled,
+		cavemanEnabled:      s.CavemanEnabled,
+		cavemanLevel:        s.CavemanLevel,
+		guardrailsEnabled:   grCfg.GuardrailsEnabled,
+		guardrailsBlocklist: grCfg.GuardrailsBlocklist,
+		piiRedactionEnabled: grCfg.PIIRedactionEnabled,
+		piiRedactionTypes:   grCfg.PIIRedactionTypes,
 	}, tools)
 }
 
 type snapshotSettings struct {
-	rtkEnabled     bool
-	cavemanEnabled bool
-	cavemanLevel   string
+	rtkEnabled          bool
+	cavemanEnabled      bool
+	cavemanLevel        string
+	guardrailsEnabled   bool
+	guardrailsBlocklist []string
+	piiRedactionEnabled bool
+	piiRedactionTypes   []string
 }
 
-func (s snapshotSettings) RTKEnabled() bool     { return s.rtkEnabled }
-func (s snapshotSettings) CavemanEnabled() bool { return s.cavemanEnabled }
-func (s snapshotSettings) CavemanLevel() string { return s.cavemanLevel }
+func (s snapshotSettings) RTKEnabled() bool              { return s.rtkEnabled }
+func (s snapshotSettings) CavemanEnabled() bool          { return s.cavemanEnabled }
+func (s snapshotSettings) CavemanLevel() string          { return s.cavemanLevel }
+func (s snapshotSettings) GuardrailsEnabled() bool       { return s.guardrailsEnabled }
+func (s snapshotSettings) GuardrailsBlocklist() []string { return s.guardrailsBlocklist }
+func (s snapshotSettings) PIIRedactionEnabled() bool     { return s.piiRedactionEnabled }
+func (s snapshotSettings) PIIRedactionTypes() []string   { return s.piiRedactionTypes }
 
 type capturingInferenceEngine struct {
 	base             handlers.InferenceEngine
