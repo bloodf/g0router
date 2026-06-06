@@ -19,6 +19,7 @@ import (
 	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/cache"
+	"github.com/bloodf/g0router/internal/console"
 	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/metrics"
@@ -53,6 +54,7 @@ type ServerConfig struct {
 	MCPToolManager      *mcp.ToolManager
 	MCPInstanceRuntime  handlers.MCPInstanceRuntime
 	TunnelManager       handlers.TunnelManager
+	ConsoleBroker       *console.Broker
 }
 
 // logRetentionInterval is how often the background cleanup job runs.
@@ -92,6 +94,7 @@ type Server struct {
 	metrics *metrics.Collector
 
 	trafficBroker *traffic.Broker
+	consoleBroker *console.Broker
 
 	logRetentionInterval time.Duration
 	// runRetention performs a single retention pass. It is a field so tests can
@@ -1392,4 +1395,28 @@ func (s *Server) handleTrafficStream(ctx *fasthttp.RequestCtx) {
 			}
 		}
 	})
+}
+
+func (s *Server) handleConsoleLogsStream(ctx *fasthttp.RequestCtx) {
+	if string(ctx.Method()) != fasthttp.MethodGet {
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+		return
+	}
+	if s.consoleBroker == nil {
+		ctx.SetStatusCode(fasthttp.StatusServiceUnavailable)
+		return
+	}
+	handlers.ConsoleLogsStream(ctx, s.consoleBroker, s.stopCh)
+}
+
+func (s *Server) handleConsoleLogsClear(ctx *fasthttp.RequestCtx) {
+	if string(ctx.Method()) != fasthttp.MethodDelete {
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+		return
+	}
+	if s.consoleBroker == nil {
+		ctx.SetStatusCode(fasthttp.StatusServiceUnavailable)
+		return
+	}
+	handlers.ConsoleLogsClear(ctx, s.consoleBroker, s.config.Store)
 }

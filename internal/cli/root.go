@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/bloodf/g0router/api"
 	"github.com/bloodf/g0router/api/handlers"
 	appconfig "github.com/bloodf/g0router/internal/config"
+	"github.com/bloodf/g0router/internal/console"
 	"github.com/bloodf/g0router/internal/mcp"
 	providerinfo "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
@@ -181,7 +183,10 @@ func runServer(ctx context.Context, config serveConfig) error {
 	}
 
 	tunnelMgr := tunnel.NewManager(s, dataDir)
-	server := api.NewServer(newServerConfig(ctx, config, s, tunnelMgr))
+	consoleBroker := console.NewBroker(1000)
+	baseHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})
+	slog.SetDefault(slog.New(console.NewTeeHandler(baseHandler, consoleBroker, slog.LevelDebug)))
+	server := api.NewServer(newServerConfig(ctx, config, s, tunnelMgr, consoleBroker))
 	server.StartLogRetention(ctx)
 	server.StartConnectionRefresh(ctx)
 	server.StartTunnelHealth(ctx)
@@ -198,7 +203,7 @@ func runServer(ctx context.Context, config serveConfig) error {
 	return nil
 }
 
-func newServerConfig(ctx context.Context, config serveConfig, s *store.Store, tunnelMgr handlers.TunnelManager) api.ServerConfig {
+func newServerConfig(ctx context.Context, config serveConfig, s *store.Store, tunnelMgr handlers.TunnelManager, consoleBroker *console.Broker) api.ServerConfig {
 	engine := newDefaultInferenceEngine(s)
 	mcpRuntime := newDefaultMCPRuntime()
 	rehydrateMCPRuntime(ctx, s, mcpRuntime)
@@ -227,6 +232,7 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store, tu
 		MCPToolManager:        mcpRuntime.tools,
 		MCPInstanceRuntime:    mcpRuntime,
 		TunnelManager:         tunnelMgr,
+		ConsoleBroker:         consoleBroker,
 	}
 }
 

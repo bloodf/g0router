@@ -335,7 +335,7 @@ func TestDefaultServerConfigWiresWave4ADependencies(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
 
-	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil, nil)
 	if cfg.OAuthFlows["minimax"] == nil {
 		t.Fatal("minimax oauth flow should be wired")
 	}
@@ -363,7 +363,7 @@ func TestDefaultServerConfigWrapsDefaultQuotaFetchersWithCache(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
 
-	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil, nil)
 	fetcher := cfg.QuotaFetchers[providers.ProviderOpenAI]
 	if _, ok := fetcher.(*usage.CachingQuotaFetcher); !ok {
 		t.Fatalf("openai quota fetcher is %T, want cached fetcher", fetcher)
@@ -379,7 +379,7 @@ func TestDefaultServerConfigRegistersOpenRouterQuotaFetcher(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
 
-	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil, nil)
 	fetcher := cfg.QuotaFetchers[providers.ProviderOpenRouter]
 	if fetcher == nil {
 		t.Fatal("openrouter quota fetcher should be wired")
@@ -445,7 +445,7 @@ func TestDefaultServerConfigWiresWave7BRuntime(t *testing.T) {
 		Version:       "test",
 		RequireAPIKey: true,
 		APIKeySecret:  "env-secret",
-	}, s, nil)
+	}, s, nil, nil)
 	if cfg.InferenceEngine == nil {
 		t.Fatal("InferenceEngine is nil")
 	}
@@ -531,7 +531,7 @@ func TestDefaultServerConfigServesGatewayAndMCPRuntime(t *testing.T) {
 	s := openCLIStoreForTest(t, t.TempDir())
 	defer s.Close()
 
-	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil, nil)
 	_, baseURL := startCLITestServer(t, cfg)
 
 	// The proxy always requires a valid API key; mint one and send it.
@@ -655,7 +655,7 @@ func TestDefaultServerConfigRehydratesActiveMCPInstances(t *testing.T) {
 		t.Fatalf("CreateMCPInstance: %v", err)
 	}
 
-	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil, nil)
 
 	tools := cfg.MCPToolManager.CompactTools()
 	if len(tools) != 1 || tools[0].Function.Name != instance.ID+"__search" {
@@ -691,7 +691,7 @@ func TestDefaultServerConfigRegistersBuiltInSearchTools(t *testing.T) {
 		}
 	}
 
-	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil, nil)
 
 	tools := cfg.MCPToolManager.CompactTools()
 	got := make(map[string]bool, len(tools))
@@ -787,7 +787,7 @@ func TestDefaultServerConfigRehydratesMCPInstanceWithPersistedOAuth(t *testing.T
 		t.Fatalf("UpsertMCPOAuthAccount: %v", err)
 	}
 
-	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil)
+	cfg := newServerConfig(context.Background(), serveConfig{Port: 20128, Version: "test"}, s, nil, nil)
 
 	tools := cfg.MCPToolManager.CompactTools()
 	if len(tools) != 1 || tools[0].Function.Name != instance.ID+"__search" {
@@ -811,7 +811,7 @@ func TestDefaultServerConfigUsesAuthEnvironment(t *testing.T) {
 		Version:       "test",
 		RequireAPIKey: true,
 		APIKeySecret:  "env-secret",
-	}, s, nil)
+	}, s, nil, nil)
 	if !cfg.RequireAPIKey {
 		t.Fatal("RequireAPIKey = false, want true")
 	}
@@ -843,7 +843,7 @@ func TestDefaultServerConfigPassesRequestLoggingToggle(t *testing.T) {
 		Port:              20128,
 		Version:           "test",
 		EnableRequestLogs: true,
-	}, s, nil)
+	}, s, nil, nil)
 
 	if !cfg.EnableRequestLogs {
 		t.Fatal("EnableRequestLogs = false, want true")

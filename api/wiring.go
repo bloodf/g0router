@@ -20,6 +20,7 @@ func NewServer(config ServerConfig) *Server {
 		loginRateLimiter:          auth.NewLoginRateLimiter(),
 		metrics:                   metrics.NewCollector(),
 		trafficBroker:             traffic.NewBroker(256),
+		consoleBroker:             config.ConsoleBroker,
 		logRetentionInterval:      logRetentionInterval,
 		connectionRefreshInterval: connectionRefreshInterval,
 		tunnelHealthInterval:      tunnelHealthInterval,

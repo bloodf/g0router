@@ -267,6 +267,12 @@ func (s *Server) routes() []route {
 		{method: "", pattern: "/api/traffic/stream", match: apiExactMatch("/api/traffic/stream"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			s.handleTrafficStream(ctx)
 		})},
+		{method: "", pattern: "/api/console-logs/stream", match: apiExactMatch("/api/console-logs/stream"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			s.handleConsoleLogsStream(ctx)
+		})},
+		{method: "", pattern: "/api/console-logs", match: apiExactMatch("/api/console-logs"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			s.handleConsoleLogsClear(ctx)
+		})},
 		{method: "", pattern: "/api/mcp/clients", match: apiExactMatch("/api/mcp/clients"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, "")
 		})},

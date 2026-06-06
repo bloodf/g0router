@@ -32,6 +32,8 @@ func TestRoutesSnapshot(t *testing.T) {
 		"/api/connections",
 		"/api/connections/:id",
 		"/api/connections/:id/test",
+		"/api/console-logs",
+		"/api/console-logs/stream",
 		"/api/keys",
 		"/api/keys/:id",
 		"/api/logs",
