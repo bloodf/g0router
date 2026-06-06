@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -44,7 +43,7 @@ func Messages(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 }
 
 func streamMessages(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *providers.ChatRequest) {
-	streamCtx, cancel := context.WithCancel(context.Background())
+	streamCtx, cancel := streamContext(ctx)
 	stream, err := engine.DispatchStream(streamCtx, req)
 	if err != nil {
 		cancel()

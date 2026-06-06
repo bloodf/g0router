@@ -68,6 +68,8 @@ type EngineStore interface {
 	GetProxyPool(string) (*store.ProxyPool, error)
 	IsModelDisabled(provider, model string) (bool, error)
 	ListCustomModels() ([]store.CustomModel, error)
+	ListRoutingRules() ([]store.RoutingRule, error)
+	GetModelLimitByModel(model string) (*store.ModelLimit, error)
 }
 
 type proxyConfigurable interface {
@@ -75,20 +77,22 @@ type proxyConfigurable interface {
 }
 
 type Engine struct {
-	store          EngineStore
-	pool           providerPool
-	registryMu     sync.RWMutex
-	refreshers     map[oauth.ProviderID]oauthRefresher
-	refreshManager *providercore.RefreshManager
-	fallback       *providercore.FallbackManager
-	quotaFetchers  map[providers.ModelProvider]usage.QuotaFetcher
-	mcpTools       *mcp.ToolManager
-	aliasCache     *aliasCache
-	comboResolver  *ComboResolver
-	refreshWindow  time.Duration
-	now            func() time.Time
-	proxyCacheMu   sync.RWMutex
-	proxyCache     map[string]providers.Provider
+	store             EngineStore
+	pool              providerPool
+	registryMu        sync.RWMutex
+	refreshers        map[oauth.ProviderID]oauthRefresher
+	refreshManager    *providercore.RefreshManager
+	fallback          *providercore.FallbackManager
+	quotaFetchers     map[providers.ModelProvider]usage.QuotaFetcher
+	mcpTools          *mcp.ToolManager
+	aliasCache        *aliasCache
+	comboResolver     *ComboResolver
+	refreshWindow     time.Duration
+	now               func() time.Time
+	proxyCacheMu      sync.RWMutex
+	proxyCache        map[string]providers.Provider
+	ruleEvaluator     *RoutingRuleEvaluator
+	modelLimitChecker *ModelLimitChecker
 }
 
 func NewEngine(s EngineStore) *Engine {
@@ -158,6 +162,8 @@ func (e *Engine) GetProvider(name providers.ModelProvider) (providers.Provider, 
 }
 
 func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	e.applyRoutingRules(ctx, req)
+
 	if comboName, ok := comboModelName(req.Model); ok {
 		return e.comboResolver.Dispatch(ctx, e, comboName, req)
 	}
@@ -170,6 +176,8 @@ func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*pro
 }
 
 func (e *Engine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	e.applyRoutingRules(ctx, req)
+
 	if comboName, ok := comboModelName(req.Model); ok {
 		return e.comboResolver.DispatchStream(ctx, e, comboName, req)
 	}
@@ -182,6 +190,10 @@ func (e *Engine) DispatchStream(ctx context.Context, req *providers.ChatRequest)
 }
 
 func (e *Engine) dispatchRoute(ctx context.Context, route modelRoute, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	if err := e.checkModelLimits(ctx, req, route.Model); err != nil {
+		return nil, err
+	}
+
 	var lastErr error
 	for attempt := 0; attempt < e.maxConnectionAttempts(route.Provider); attempt++ {
 		provider, key, conn, upstreamModel, err := e.providerForRoute(ctx, route)
@@ -240,6 +252,10 @@ func (e *Engine) shouldRunMCPAgent(ctx context.Context, req *providers.ChatReque
 }
 
 func (e *Engine) dispatchStreamRoute(ctx context.Context, route modelRoute, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	if err := e.checkModelLimits(ctx, req, route.Model); err != nil {
+		return nil, err
+	}
+
 	var lastErr error
 	for attempt := 0; attempt < e.maxConnectionAttempts(route.Provider); attempt++ {
 		provider, key, conn, upstreamModel, err := e.providerForRoute(ctx, route)

@@ -3,6 +3,9 @@ package api
 import (
 	"sort"
 	"testing"
+
+	"github.com/bloodf/g0router/internal/proxy"
+	"github.com/valyala/fasthttp"
 )
 
 func TestRoutesSnapshot(t *testing.T) {
@@ -115,6 +118,51 @@ func TestRoutesSnapshot(t *testing.T) {
 	for i := range gotPairs {
 		if gotPairs[i] != want[i] {
 			t.Fatalf("route mismatch at %d:\ngot:  %q\nwant: %q", i, gotPairs[i], want[i])
+		}
+	}
+}
+
+type fakeEngineForInvalidation struct {
+	proxy.Engine
+	invalidated bool
+}
+
+func (f *fakeEngineForInvalidation) InvalidateRoutingRules() {
+	f.invalidated = true
+}
+
+func TestWithRoutingInvalidation(t *testing.T) {
+	eng := &fakeEngineForInvalidation{}
+	s := NewServer(ServerConfig{InferenceEngine: eng})
+
+	cases := []struct {
+		method      string
+		status      int
+		wantInvalid bool
+	}{
+		{fasthttp.MethodPost, 201, true},
+		{fasthttp.MethodPut, 200, true},
+		{fasthttp.MethodDelete, 204, true},
+		{fasthttp.MethodPost, 400, false},
+		{fasthttp.MethodGet, 200, false},
+	}
+
+	for _, tc := range cases {
+		eng.invalidated = false
+		ctx := &fasthttp.RequestCtx{}
+		ctx.Request.Header.SetMethod(tc.method)
+		ctx.Response.SetStatusCode(tc.status)
+
+		handlerCalled := false
+		s.withRoutingInvalidation(func(ctx *fasthttp.RequestCtx) {
+			handlerCalled = true
+		})(ctx)
+
+		if !handlerCalled {
+			t.Fatalf("%s: handler not called", tc.method)
+		}
+		if eng.invalidated != tc.wantInvalid {
+			t.Fatalf("%s status=%d: invalidated=%v, want %v", tc.method, tc.status, eng.invalidated, tc.wantInvalid)
 		}
 	}
 }

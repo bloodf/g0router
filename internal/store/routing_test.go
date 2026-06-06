@@ -315,4 +315,79 @@ func TestDeleteModelLimit(t *testing.T) {
 	}
 }
 
+func TestCreateModelLimitEmptyAllowedKeyIDs(t *testing.T) {
+	s := openTestStore(t)
+
+	limit, err := s.CreateModelLimit("gpt-4o", nil, nil, []string{})
+	if err != nil {
+		t.Fatalf("CreateModelLimit: %v", err)
+	}
+	if len(limit.AllowedKeyIDs) != 0 {
+		t.Fatalf("AllowedKeyIDs = %v, want empty", limit.AllowedKeyIDs)
+	}
+}
+
+func TestUpdateModelLimitToEmptyAllowedKeyIDs(t *testing.T) {
+	s := openTestStore(t)
+
+	created, err := s.CreateModelLimit("gpt-4o", nil, nil, []string{"key-1"})
+	if err != nil {
+		t.Fatalf("CreateModelLimit: %v", err)
+	}
+
+	if err := s.UpdateModelLimit(created.ID, "gpt-4o", nil, nil, []string{}); err != nil {
+		t.Fatalf("UpdateModelLimit: %v", err)
+	}
+
+	got, err := s.GetModelLimit(created.ID)
+	if err != nil {
+		t.Fatalf("GetModelLimit: %v", err)
+	}
+	if len(got.AllowedKeyIDs) != 0 {
+		t.Fatalf("AllowedKeyIDs = %v, want empty", got.AllowedKeyIDs)
+	}
+}
+
+func TestGetModelLimitByModelNotFound(t *testing.T) {
+	s := openTestStore(t)
+
+	_, err := s.GetModelLimitByModel("nonexistent")
+	if err == nil {
+		t.Fatal("GetModelLimitByModel should error for missing model")
+	}
+}
+
+func TestCreateRoutingRuleNoTargetModel(t *testing.T) {
+	s := openTestStore(t)
+
+	rule, err := s.CreateRoutingRule("rule-1", 0, "model", "equals", "gpt-4o", "openai", nil)
+	if err != nil {
+		t.Fatalf("CreateRoutingRule: %v", err)
+	}
+	if rule.TargetModel != nil {
+		t.Fatalf("TargetModel = %v, want nil", rule.TargetModel)
+	}
+}
+
+func TestUpdateRoutingRuleNoTargetModel(t *testing.T) {
+	s := openTestStore(t)
+
+	created, err := s.CreateRoutingRule("rule-1", 0, "model", "equals", "gpt-4o", "openai", stringPtr("gpt-4o"))
+	if err != nil {
+		t.Fatalf("CreateRoutingRule: %v", err)
+	}
+
+	if err := s.UpdateRoutingRule(created.ID, "rule-1", 0, "model", "equals", "gpt-4o", "openai", nil, true); err != nil {
+		t.Fatalf("UpdateRoutingRule: %v", err)
+	}
+
+	got, err := s.GetRoutingRule(created.ID)
+	if err != nil {
+		t.Fatalf("GetRoutingRule: %v", err)
+	}
+	if got.TargetModel != nil {
+		t.Fatalf("TargetModel = %v, want nil", got.TargetModel)
+	}
+}
+
 

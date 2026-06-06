@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -38,7 +37,7 @@ func Inference(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 }
 
 func streamInference(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *providers.ChatRequest) {
-	streamCtx, cancel := context.WithCancel(context.Background())
+	streamCtx, cancel := streamContext(ctx)
 	stream, err := engine.DispatchStream(streamCtx, req)
 	if err != nil {
 		cancel()
@@ -103,7 +102,7 @@ func Responses(ctx *fasthttp.RequestCtx, engine InferenceEngine) {
 }
 
 func streamResponses(ctx *fasthttp.RequestCtx, engine InferenceEngine, req *providers.ChatRequest) {
-	streamCtx, cancel := context.WithCancel(context.Background())
+	streamCtx, cancel := streamContext(ctx)
 	stream, err := engine.DispatchStream(streamCtx, req)
 	if err != nil {
 		cancel()

@@ -10,6 +10,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/valyala/fasthttp"
 )
 
 // TestClassifySourceIPNilReturnsPublic exercises the ip==nil branch (line 163)
@@ -160,4 +161,52 @@ func TestStartConnectionRefreshNilRunFallsBack(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	cancel()
+}
+
+// TestOriginMatchesHostEmptyReturnsFalse exercises the empty origin branch
+// when both Origin and Referer headers are absent.
+func TestOriginMatchesHostEmptyReturnsFalse(t *testing.T) {
+	srv := NewServer(ServerConfig{})
+	ctx := &fasthttp.RequestCtx{}
+	ctx.Request.Header.Set("Host", "localhost")
+	if srv.originMatchesHost(ctx) {
+		t.Fatal("originMatchesHost should return false with no origin/referer")
+	}
+}
+
+// TestOriginMatchesHostBadURLReturnsFalse exercises the url.Parse error branch.
+func TestOriginMatchesHostBadURLReturnsFalse(t *testing.T) {
+	srv := NewServer(ServerConfig{})
+	ctx := &fasthttp.RequestCtx{}
+	ctx.Request.Header.Set("Host", "localhost")
+	ctx.Request.Header.Set("Origin", "://bad-url")
+	if srv.originMatchesHost(ctx) {
+		t.Fatal("originMatchesHost should return false for unparseable origin")
+	}
+}
+
+// TestOriginMatchesHostRefererUsed exercises the fallback to Referer header.
+func TestOriginMatchesHostRefererUsed(t *testing.T) {
+	srv := NewServer(ServerConfig{})
+	ctx := &fasthttp.RequestCtx{}
+	ctx.Request.Header.Set("Host", "localhost:8080")
+	ctx.Request.Header.Set("Referer", "http://localhost:8080/page")
+	if !srv.originMatchesHost(ctx) {
+		t.Fatal("originMatchesHost should return true when referer matches host")
+	}
+}
+
+// TestValidSessionStoreError exercises the GetDashboardSessionByRawToken error
+// branch (non-ErrNotFound) in validSession.
+func TestValidSessionStoreError(t *testing.T) {
+	s := newAPITestStore(t)
+	s.Close()
+
+	srv := NewServer(ServerConfig{Store: s})
+	ctx := &fasthttp.RequestCtx{}
+	ctx.Request.Header.Set("Cookie", "g0router_session=token")
+	_, err := srv.validSession(ctx)
+	if err == nil {
+		t.Fatal("expected error for closed db")
+	}
 }

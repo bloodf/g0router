@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"strings"
 
+	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/valyala/fasthttp"
 )
 
@@ -21,5 +23,24 @@ import (
 // cancellation anyway. Detaching to context.Background() drops nothing of value
 // and removes the racy Value()/cancellation chain into the recyclable ctx.
 func requestContext(ctx *fasthttp.RequestCtx) context.Context {
-	return context.Background()
+	return buildRequestContext(context.Background(), ctx)
+}
+
+// streamContext returns a cancellable context for streaming requests that
+// preserves API key ID and routing headers from the fasthttp request.
+func streamContext(ctx *fasthttp.RequestCtx) (context.Context, context.CancelFunc) {
+	return context.WithCancel(buildRequestContext(context.Background(), ctx))
+}
+
+func buildRequestContext(base context.Context, ctx *fasthttp.RequestCtx) context.Context {
+	c := base
+	if id, ok := ctx.UserValue("g0router.api_key_id").(string); ok && id != "" {
+		c = proxy.WithAPIKeyID(c, id)
+	}
+	headers := make(map[string]string)
+	ctx.Request.Header.VisitAll(func(key, value []byte) {
+		headers[strings.ToLower(string(key))] = string(value)
+	})
+	c = proxy.WithRoutingHeaders(c, headers)
+	return c
 }

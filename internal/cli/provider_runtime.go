@@ -23,6 +23,8 @@ import (
 
 func newDefaultInferenceEngine(s proxy.EngineStore) *proxy.Engine {
 	engine := proxy.NewEngine(s)
+	engine.RegisterRoutingRuleEvaluator(s)
+	engine.RegisterModelLimitChecker(s)
 	registerOAuthRefreshers(engine)
 	engine.Register(openai.New(""))
 	engine.Register(anthropic.New(""))

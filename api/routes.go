@@ -56,6 +56,22 @@ func (s *Server) withClientIP(handler func(*fasthttp.RequestCtx)) func(*fasthttp
 	}
 }
 
+func (s *Server) withRoutingInvalidation(handler func(*fasthttp.RequestCtx)) func(*fasthttp.RequestCtx) {
+	return func(ctx *fasthttp.RequestCtx) {
+		handler(ctx)
+		method := string(ctx.Method())
+		if method != fasthttp.MethodPost && method != fasthttp.MethodPut && method != fasthttp.MethodDelete {
+			return
+		}
+		if status := ctx.Response.StatusCode(); status < 200 || status >= 400 {
+			return
+		}
+		if eng, ok := s.config.InferenceEngine.(interface{ InvalidateRoutingRules() }); ok {
+			eng.InvalidateRoutingRules()
+		}
+	}
+}
+
 func (s *Server) routes() []route {
 	return []route{
 		{method: "GET", pattern: "/healthz", match: exactMatch("/healthz"), handler: func(ctx *fasthttp.RequestCtx) {
@@ -190,15 +206,15 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.Teams(ctx, s.config.Store, parts[2])
 		})},
-		{method: "", pattern: "/api/routing-rules", match: apiExactMatch("/api/routing-rules"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+		{method: "", pattern: "/api/routing-rules", match: apiExactMatch("/api/routing-rules"), handler: s.withAudit(s.withRoutingInvalidation(func(ctx *fasthttp.RequestCtx) {
 			handlers.RoutingRules(ctx, s.config.Store, "")
-		})},
+		}))},
 		{method: "", pattern: "/api/routing-rules/:id", match: apiPathMatch(func(parts []string) bool {
 			return len(parts) == 3 && parts[0] == "api" && parts[1] == "routing-rules"
-		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+		}), handler: s.withAudit(s.withRoutingInvalidation(func(ctx *fasthttp.RequestCtx) {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.RoutingRules(ctx, s.config.Store, parts[2])
-		})},
+		}))},
 		{method: "", pattern: "/api/model-limits", match: apiExactMatch("/api/model-limits"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.ModelLimits(ctx, s.config.Store, "")
 		})},

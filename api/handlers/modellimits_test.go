@@ -191,3 +191,66 @@ func TestModelLimitsDeleteError(t *testing.T) {
 		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
 	}
 }
+
+func TestModelLimitsCreateError(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPost, `{"model":"gpt-4o"}`, func(ctx *fasthttp.RequestCtx) {
+		ModelLimits(ctx, &fakeModelLimitStore{createErr: errors.New("boom")}, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+}
+
+func TestModelLimitsGetInvalidID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		ModelLimits(ctx, &fakeModelLimitStore{}, "abc")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestModelLimitsPutInvalidID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPut, `{"model":"x"}`, func(ctx *fasthttp.RequestCtx) {
+		ModelLimits(ctx, &fakeModelLimitStore{}, "abc")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestModelLimitsPutGenericError(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPut, `{"model":"x"}`, func(ctx *fasthttp.RequestCtx) {
+		ModelLimits(ctx, &fakeModelLimitStore{updateErr: errors.New("boom")}, "1")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+}
+
+func TestModelLimitsPutMissingID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPut, `{"model":"x"}`, func(ctx *fasthttp.RequestCtx) {
+		ModelLimits(ctx, &fakeModelLimitStore{}, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestModelLimitsDeleteInvalidID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodDelete, "", func(ctx *fasthttp.RequestCtx) {
+		ModelLimits(ctx, &fakeModelLimitStore{}, "abc")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestModelLimitsDeleteMissingID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodDelete, "", func(ctx *fasthttp.RequestCtx) {
+		ModelLimits(ctx, &fakeModelLimitStore{}, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}

@@ -196,3 +196,66 @@ func TestRoutingRulesDeleteError(t *testing.T) {
 		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
 	}
 }
+
+func TestRoutingRulesCreateError(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPost, `{"name":"r","priority":0,"cond_field":"model","cond_operator":"equals","cond_value":"x","target_provider":"openai"}`, func(ctx *fasthttp.RequestCtx) {
+		RoutingRules(ctx, &fakeRoutingRuleStore{createErr: errors.New("boom")}, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+}
+
+func TestRoutingRulesGetInvalidID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		RoutingRules(ctx, &fakeRoutingRuleStore{}, "abc")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestRoutingRulesPutInvalidID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPut, `{"name":"x","priority":0,"cond_field":"model","cond_operator":"equals","cond_value":"x","target_provider":"openai"}`, func(ctx *fasthttp.RequestCtx) {
+		RoutingRules(ctx, &fakeRoutingRuleStore{}, "abc")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestRoutingRulesPutGenericError(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPut, `{"name":"x","priority":0,"cond_field":"model","cond_operator":"equals","cond_value":"x","target_provider":"openai"}`, func(ctx *fasthttp.RequestCtx) {
+		RoutingRules(ctx, &fakeRoutingRuleStore{updateErr: errors.New("boom")}, "1")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+}
+
+func TestRoutingRulesPutMissingID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPut, `{"name":"x","priority":0,"cond_field":"model","cond_operator":"equals","cond_value":"x","target_provider":"openai"}`, func(ctx *fasthttp.RequestCtx) {
+		RoutingRules(ctx, &fakeRoutingRuleStore{}, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestRoutingRulesDeleteInvalidID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodDelete, "", func(ctx *fasthttp.RequestCtx) {
+		RoutingRules(ctx, &fakeRoutingRuleStore{}, "abc")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestRoutingRulesDeleteMissingID(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodDelete, "", func(ctx *fasthttp.RequestCtx) {
+		RoutingRules(ctx, &fakeRoutingRuleStore{}, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
