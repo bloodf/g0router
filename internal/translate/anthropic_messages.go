@@ -115,19 +115,19 @@ func AnthropicMessageResponse(resp *providers.ChatResponse) AnthropicMessageBody
 func AnthropicMessagesRequest(body []byte) (*providers.ChatRequest, error) {
 	var req providers.ChatRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal chat request: %w", err)
 	}
 
 	var envelope AnthropicRequestEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal anthropic envelope: %w", err)
 	}
 
 	messages := make([]providers.Message, 0, len(envelope.Messages))
 	for _, inbound := range envelope.Messages {
 		translated, err := TranslateAnthropicInboundMessage(inbound)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("translate inbound message: %w", err)
 		}
 		messages = append(messages, translated...)
 	}
@@ -135,13 +135,13 @@ func AnthropicMessagesRequest(body []byte) (*providers.ChatRequest, error) {
 
 	tools, err := TranslateAnthropicTools(envelope.Tools)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("translate anthropic tools: %w", err)
 	}
 	req.Tools = tools
 
 	choice, err := TranslateAnthropicToolChoice(envelope.ToolChoice)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("translate anthropic tool choice: %w", err)
 	}
 	req.ToolChoice = choice
 
@@ -186,7 +186,7 @@ func TranslateAnthropicToolChoice(raw json.RawMessage) (any, error) {
 	if trimmed[0] == '"' {
 		var s string
 		if err := json.Unmarshal(trimmed, &s); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("unmarshal tool choice string: %w", err)
 		}
 		return s, nil
 	}
@@ -195,7 +195,7 @@ func TranslateAnthropicToolChoice(raw json.RawMessage) (any, error) {
 		Name string `json:"name"`
 	}
 	if err := json.Unmarshal(trimmed, &choice); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal tool choice object: %w", err)
 	}
 	switch choice.Type {
 	case "auto":
@@ -218,7 +218,7 @@ func TranslateAnthropicInboundMessage(inbound AnthropicInboundMessage) ([]provid
 		var content any
 		if len(trimmed) > 0 && string(trimmed) != "null" {
 			if err := json.Unmarshal(trimmed, &content); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("unmarshal inbound content: %w", err)
 			}
 		}
 		return []providers.Message{{Role: inbound.Role, Content: content}}, nil
@@ -226,7 +226,7 @@ func TranslateAnthropicInboundMessage(inbound AnthropicInboundMessage) ([]provid
 
 	var blocks []AnthropicInboundBlock
 	if err := json.Unmarshal(trimmed, &blocks); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal inbound blocks: %w", err)
 	}
 
 	var textParts []string
