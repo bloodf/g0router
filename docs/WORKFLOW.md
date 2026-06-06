@@ -29,10 +29,10 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 18C
-current_wave: "Phase 18C — Guardrails, PII, Prompts, MCP Tool Groups"
-last_completed_wave: "Phase 18C checkpoint"
-last_updated: "2026-06-06T15:20:00Z"
+current_stage: 18D
+current_wave: "Phase 18D — Alerts, Feature Flags, Backup/Restore"
+last_completed_wave: "Phase 18D checkpoint"
+last_updated: "2026-06-06T16:45:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -298,6 +298,39 @@ completed_at: "2026-06-06T15:20:00Z"
 - task-7: prompt templates — store + CRUD handlers + `{{var}}` extraction (`internal/store/prompttemplates.go`, `api/handlers/prompttemplates.go`)
 - task-8: mcp tool groups — store + CRUD handlers + injection filtering (`internal/store/mcptoolgroups.go`, `api/handlers/mcptoolgroups.go`, `internal/mcp/inject.go`)
 - task-coverage: guardrails error branches, PII types, prompt template validation, tool group resolution, pipeline wiring (`*_coverage_test.go` files)
+
+---
+
+## Phase 18D — Alerts, Feature Flags, Backup/Restore
+
+```yaml
+phase: 18D
+status: DONE
+summary: "Alert channels with encrypted config and webhook/discord/telegram dispatch, feature flags with seeded defaults, backup/restore with secret redaction and schema validation."
+commit_range: "bc17c60..e6dd251"
+completed_at: "2026-06-06T16:45:00Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-9: alert channels — store with `config_enc` encryption, alerts domain dispatch, CRUD + test handlers (`internal/store/alertchannels.go`, `internal/alerts/alerts.go`, `api/handlers/alertchannels.go`)
+- task-10: feature flags — store with seeded defaults, toggle-only handlers (`internal/store/featureflags.go`, `api/handlers/featureflags.go`)
+- task-11: backup/restore — export with secret redaction (`redacted_fields` manifest), restore with schema validation and null-placeholder secret preservation (`api/handlers/backup.go`, `internal/store/backup.go`)
+- task-coverage: alert dispatch errors, flag edge cases, backup/restore error branches (`*_coverage_test.go` files)
+
+**Security Review (mandatory):**
+- Input validation: ✅ Alert channel names validated; backup schema version checked; restore rejects unknown shapes
+- Authn/authz: ✅ All mutations require admin-session or bearer auth; backup/restore audited
+- Secrets at rest: ✅ Alert config encrypted with AES-GCM (`config_enc`); backup exports null placeholders for secrets
+- Secrets in logs: ✅ No tokens/passwords in alert dispatch logs; redacted backup manifest
+- Supply-chain: ✅ No external downloads in this phase
+- Privilege requirements: ✅ Backup/restore admin-only; feature flags read-only for non-admin
 
 ---
 
