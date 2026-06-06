@@ -378,7 +378,7 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 	engine := s.config.InferenceEngine
 	var captured *capturingInferenceEngine
 	if engine != nil {
-		engine = preprocessingInferenceEngine{
+		engine = pipelineInferenceEngine{
 			base:     engine,
 			settings: s.runtimeSettings,
 			tools:    s.config.MCPToolManager,
@@ -555,41 +555,54 @@ func statusClassFor(statusCode int) string {
 	}
 }
 
-type preprocessingInferenceEngine struct {
+type pipelineInferenceEngine struct {
 	base     handlers.InferenceEngine
 	settings func() store.Settings
 	tools    *mcp.ToolManager
 }
 
-func (e preprocessingInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
-	return e.base.Dispatch(ctx, e.preprocess(ctx, req))
+func (e pipelineInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	processed, err := e.pipeline().Process(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return e.base.Dispatch(ctx, processed)
 }
 
-func (e preprocessingInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
-	return e.base.DispatchStream(ctx, e.preprocess(ctx, req))
+func (e pipelineInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	processed, err := e.pipeline().Process(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return e.base.DispatchStream(ctx, processed)
 }
 
-func (e preprocessingInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
+func (e pipelineInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
 	return e.base.ListModels(ctx)
 }
 
-func (e preprocessingInferenceEngine) preprocess(ctx context.Context, req *providers.ChatRequest) *providers.ChatRequest {
-	if req == nil {
-		return nil
+func (e pipelineInferenceEngine) pipeline() *proxy.Pipeline {
+	s := e.settings()
+	var tools proxy.ToolProvider
+	if e.tools != nil {
+		tools = e.tools
 	}
-	settings := e.settings()
-	processed := *req
-	if settings.RTKEnabled {
-		processed = rtk.CompressRequest(processed)
-	}
-	if settings.CavemanEnabled {
-		processed = rtk.InjectCaveman(processed, rtk.CavemanLevel(settings.CavemanLevel))
-	}
-	if len(processed.Tools) == 0 && e.tools != nil {
-		processed.Tools = e.tools.CompactToolsForRequest(ctx)
-	}
-	return &processed
+	return proxy.NewPipeline(nil, snapshotSettings{
+		rtkEnabled:     s.RTKEnabled,
+		cavemanEnabled: s.CavemanEnabled,
+		cavemanLevel:   s.CavemanLevel,
+	}, tools)
 }
+
+type snapshotSettings struct {
+	rtkEnabled     bool
+	cavemanEnabled bool
+	cavemanLevel   string
+}
+
+func (s snapshotSettings) RTKEnabled() bool     { return s.rtkEnabled }
+func (s snapshotSettings) CavemanEnabled() bool { return s.cavemanEnabled }
+func (s snapshotSettings) CavemanLevel() string { return s.cavemanLevel }
 
 type capturingInferenceEngine struct {
 	base             handlers.InferenceEngine

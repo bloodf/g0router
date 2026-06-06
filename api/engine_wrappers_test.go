@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/store"
 )
 
@@ -86,13 +87,13 @@ func TestUpdateSettingsStoreError(t *testing.T) {
 	}
 }
 
-func TestPreprocessingEngineWrappers(t *testing.T) {
+func TestPipelineEngineWrappers(t *testing.T) {
 	base := &wrapperEngine{
 		dispatchResp: &providers.ChatResponse{Model: "m"},
 		models:       []providers.Model{{ID: "m1"}},
 	}
 	settings := store.Settings{RTKEnabled: true, CavemanEnabled: true, CavemanLevel: "full"}
-	eng := preprocessingInferenceEngine{
+	eng := pipelineInferenceEngine{
 		base:     base,
 		settings: func() store.Settings { return settings },
 	}
@@ -119,9 +120,10 @@ func TestPreprocessingEngineWrappers(t *testing.T) {
 		t.Fatalf("ListModels = %+v", models)
 	}
 
-	// nil request path through preprocess
-	if got := eng.preprocess(ctx, nil); got != nil {
-		t.Fatalf("preprocess(nil) = %+v", got)
+	// nil request path through pipeline
+	pipeline := proxy.NewPipeline(nil, nil, nil)
+	if got, err := pipeline.Process(ctx, nil); err != nil || got != nil {
+		t.Fatalf("pipeline.Process(nil) = %+v, %v", got, err)
 	}
 }
 
