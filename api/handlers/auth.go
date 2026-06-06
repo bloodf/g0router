@@ -129,7 +129,7 @@ func AuthSetup(ctx *fasthttp.RequestCtx, users dashboardUserStore, sessions dash
 		return
 	}
 
-	rawToken, err := generateSessionToken()
+	rawToken, err := generateSessionTokenFunc()
 	if err != nil {
 		log.Printf("generate session token: %v", err)
 		writeError(ctx, fasthttp.StatusInternalServerError, "failed to create session")
@@ -212,7 +212,7 @@ func AuthLogin(ctx *fasthttp.RequestCtx, users dashboardUserStore, sessions dash
 		return
 	}
 
-	rawToken, err := generateSessionToken()
+	rawToken, err := generateSessionTokenFunc()
 	if err != nil {
 		log.Printf("generate session token: %v", err)
 		writeError(ctx, fasthttp.StatusInternalServerError, "failed to create session")
@@ -358,7 +358,7 @@ func AuthPasswordChange(ctx *fasthttp.RequestCtx, users dashboardUserStore, sess
 		return
 	}
 
-	rawToken, err := generateSessionToken()
+	rawToken, err := generateSessionTokenFunc()
 	if err != nil {
 		log.Printf("generate session token: %v", err)
 		writeError(ctx, fasthttp.StatusInternalServerError, "failed to create session")
@@ -546,6 +546,8 @@ func clientIPFromCtx(ctx *fasthttp.RequestCtx) string {
 	}
 	return ctx.RemoteIP().String()
 }
+
+var generateSessionTokenFunc = generateSessionToken
 
 func generateSessionToken() (string, error) {
 	b := make([]byte, 32)
