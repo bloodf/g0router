@@ -270,6 +270,21 @@ func (s *Store) migrate() error {
 			last_check_status TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS disabled_models (
+			id INTEGER PRIMARY KEY,
+			provider TEXT NOT NULL,
+			model TEXT NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(provider, model)
+		)`,
+		`CREATE TABLE IF NOT EXISTS custom_models (
+			id INTEGER PRIMARY KEY,
+			provider TEXT NOT NULL,
+			model TEXT NOT NULL,
+			display_name TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(provider, model)
+		)`,
 	}
 
 	for _, stmt := range ddl {
