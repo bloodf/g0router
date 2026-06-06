@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/store"
 )
 
 // fakeModelResolver is a test fake for ModelResolver.
@@ -43,6 +44,15 @@ type fakeToolProvider struct {
 
 func (f *fakeToolProvider) CompactToolsForRequest(ctx context.Context) []providers.Tool {
 	return f.tools
+}
+
+// fakePromptTemplateProvider is a test fake for PromptTemplateProvider.
+type fakePromptTemplateProvider struct {
+	templates []store.PromptTemplate
+}
+
+func (f *fakePromptTemplateProvider) ListPromptTemplates() ([]store.PromptTemplate, error) {
+	return f.templates, nil
 }
 
 func TestPipeline_Process_NilRequest(t *testing.T) {
@@ -390,5 +400,98 @@ func TestPipeline_PIIRedactionDisabled(t *testing.T) {
 	}
 	if got.Messages[0].Content != "Email: user@example.com" {
 		t.Errorf("content = %q, want unchanged", got.Messages[0].Content)
+	}
+}
+
+func TestPipeline_PromptTemplateInjection(t *testing.T) {
+	templates := &fakePromptTemplateProvider{
+		templates: []store.PromptTemplate{
+			{Name: "default", SystemPrompt: "Be concise.", Models: []string{"gpt-4"}, IsActive: true},
+		},
+	}
+	p := NewPipelineWithTemplates(nil, nil, nil, templates)
+
+	req := &providers.ChatRequest{
+		Model: "gpt-4",
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+	got, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Messages) != 2 {
+		t.Fatalf("expected 2 messages, got %d", len(got.Messages))
+	}
+	if got.Messages[0].Role != "system" {
+		t.Errorf("first message role = %q, want system", got.Messages[0].Role)
+	}
+	if got.Messages[0].Content != "Be concise." {
+		t.Errorf("system prompt = %q, want Be concise.", got.Messages[0].Content)
+	}
+}
+
+func TestPipeline_PromptTemplateNoMatch(t *testing.T) {
+	templates := &fakePromptTemplateProvider{
+		templates: []store.PromptTemplate{
+			{Name: "default", SystemPrompt: "Be concise.", Models: []string{"gpt-4"}, IsActive: true},
+		},
+	}
+	p := NewPipelineWithTemplates(nil, nil, nil, templates)
+
+	req := &providers.ChatRequest{
+		Model: "other-model",
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+	got, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(got.Messages))
+	}
+}
+
+func TestPipeline_PromptTemplateInactive(t *testing.T) {
+	templates := &fakePromptTemplateProvider{
+		templates: []store.PromptTemplate{
+			{Name: "default", SystemPrompt: "Be concise.", Models: []string{"gpt-4"}, IsActive: false},
+		},
+	}
+	p := NewPipelineWithTemplates(nil, nil, nil, templates)
+
+	req := &providers.ChatRequest{
+		Model: "gpt-4",
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+	got, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(got.Messages))
+	}
+}
+
+func TestPipeline_PromptTemplateNilProvider(t *testing.T) {
+	p := NewPipeline(nil, nil, nil)
+
+	req := &providers.ChatRequest{
+		Model: "gpt-4",
+		Messages: []providers.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+	got, err := p.Process(context.Background(), req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got.Messages) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(got.Messages))
 	}
 }

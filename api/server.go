@@ -558,6 +558,10 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 	engine := s.config.InferenceEngine
 	var captured *capturingInferenceEngine
 	if engine != nil {
+		var templates proxy.PromptTemplateProvider
+		if s.config.Store != nil {
+			templates = s.config.Store
+		}
 		engine = pipelineInferenceEngine{
 			base:     engine,
 			settings: s.runtimeSettings,
@@ -569,6 +573,7 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 				cfg, _ := s.config.Store.GetGuardrailsConfig()
 				return cfg
 			},
+			templates: templates,
 		}
 		// Snapshot request-scoped data from the pooled ctx on the request
 		// goroutine. The streaming-complete callback fires from the capture
@@ -745,10 +750,11 @@ func statusClassFor(statusCode int) string {
 }
 
 type pipelineInferenceEngine struct {
-	base       handlers.InferenceEngine
-	settings   func() store.Settings
-	tools      *mcp.ToolManager
-	guardrails func() store.GuardrailsConfig
+	base        handlers.InferenceEngine
+	settings    func() store.Settings
+	tools       *mcp.ToolManager
+	guardrails  func() store.GuardrailsConfig
+	templates   proxy.PromptTemplateProvider
 }
 
 func (e pipelineInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
@@ -781,7 +787,7 @@ func (e pipelineInferenceEngine) pipeline() *proxy.Pipeline {
 	if e.guardrails != nil {
 		grCfg = e.guardrails()
 	}
-	return proxy.NewPipeline(nil, snapshotSettings{
+	return proxy.NewPipelineWithTemplates(nil, snapshotSettings{
 		rtkEnabled:          s.RTKEnabled,
 		cavemanEnabled:      s.CavemanEnabled,
 		cavemanLevel:        s.CavemanLevel,
@@ -789,7 +795,7 @@ func (e pipelineInferenceEngine) pipeline() *proxy.Pipeline {
 		guardrailsBlocklist: grCfg.GuardrailsBlocklist,
 		piiRedactionEnabled: grCfg.PIIRedactionEnabled,
 		piiRedactionTypes:   grCfg.PIIRedactionTypes,
-	}, tools)
+	}, tools, e.templates)
 }
 
 type snapshotSettings struct {

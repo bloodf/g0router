@@ -233,6 +233,21 @@ func (s *Server) routes() []route {
 			}
 			handlers.GuardrailsTest(ctx, s.config.Store)
 		})},
+		{method: "", pattern: "/api/prompt-templates", match: apiExactMatch("/api/prompt-templates"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.PromptTemplates(ctx, s.config.Store, "")
+		})},
+		{method: "", pattern: "/api/prompt-templates/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "prompt-templates"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.PromptTemplates(ctx, s.config.Store, parts[2])
+		})},
+		{method: "POST", pattern: "/api/prompt-templates/test", match: apiExactMatch("/api/prompt-templates/test"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.PromptTemplatesTest(ctx, s.config.Store)
+		})},
 		{method: "", pattern: "/api/combos", match: apiExactMatch("/api/combos"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.Combos(ctx, s.config.Store, "")
 		})},

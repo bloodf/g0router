@@ -350,6 +350,15 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(model)
 		)`,
+		`CREATE TABLE IF NOT EXISTS prompt_templates (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			system_prompt TEXT NOT NULL,
+			models_json TEXT NOT NULL,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, stmt := range ddl {
