@@ -510,16 +510,22 @@ func restoreSettingsTx(tx *sql.Tx, settings Settings) error {
 }
 
 func restoreConnectionTx(s *Store, tx *sql.Tx, r Connection) error {
+	var existingID string
+	existsErr := tx.QueryRow("SELECT id FROM connections WHERE id = ?", r.ID).Scan(&existingID)
+
 	var existing Connection
-	row := tx.QueryRow("SELECT access_token, refresh_token, api_key, provider_specific_data FROM connections WHERE id = ?", r.ID)
-	var at, rt, ak sql.NullString
-	var psd string
-	scanErr := row.Scan(&at, &rt, &ak, &psd)
-	if scanErr == nil {
-		existing.AccessToken = stringPtrFromNull(at)
-		existing.RefreshToken = stringPtrFromNull(rt)
-		existing.APIKey = stringPtrFromNull(ak)
-		_ = json.Unmarshal([]byte(psd), &existing.ProviderSpecificData)
+	if existsErr == nil {
+		row := tx.QueryRow("SELECT access_token, refresh_token, api_key, provider_specific_data FROM connections WHERE id = ?", r.ID)
+		var at, rt, ak sql.NullString
+		var psd sql.NullString
+		if err := row.Scan(&at, &rt, &ak, &psd); err == nil {
+			existing.AccessToken = stringPtrFromNull(at)
+			existing.RefreshToken = stringPtrFromNull(rt)
+			existing.APIKey = stringPtrFromNull(ak)
+			if psd.Valid {
+				_ = json.Unmarshal([]byte(psd.String), &existing.ProviderSpecificData)
+			}
+		}
 	}
 
 	providerData, _ := encodeJSON(r.ProviderSpecificData)
@@ -529,20 +535,40 @@ func restoreConnectionTx(s *Store, tx *sql.Tx, r Connection) error {
 	}
 	modelLocks, _ := encodeJSON(r.ModelLocks)
 
-	_, err := tx.Exec(`INSERT OR REPLACE INTO connections (
+	if existsErr == nil {
+		_, err := tx.Exec(`UPDATE connections SET
+			provider = ?, name = ?, auth_type = ?, access_token = ?, refresh_token = ?,
+			expires_at = ?, api_key = ?, is_active = ?, provider_specific_data = ?,
+			account_id = ?, email = ?, unavailable_until = ?, backoff_level = ?,
+			model_locks = ?, needs_reauth = ?, last_refresh_error = ?,
+			quota_limit = ?, quota_remaining = ?
+			WHERE id = ?`,
+			r.Provider, r.Name, r.AuthType,
+			coalesceStringPtr(r.AccessToken, existing.AccessToken),
+			coalesceStringPtr(r.RefreshToken, existing.RefreshToken),
+			r.ExpiresAt, coalesceStringPtr(r.APIKey, existing.APIKey), boolToInt(r.IsActive),
+			providerData, r.AccountID, r.Email, r.UnavailableUntil, r.BackoffLevel, modelLocks,
+			r.NeedsReauth, r.LastRefreshError, r.QuotaLimit, r.QuotaRemaining,
+			r.ID,
+		)
+		if err != nil {
+			return fmt.Errorf("update connection %q: %w", r.ID, err)
+		}
+		return nil
+	}
+
+	_, err := tx.Exec(`INSERT INTO connections (
 		id, provider, name, auth_type, access_token, refresh_token, expires_at, api_key, is_active,
 		provider_specific_data, account_id, email, unavailable_until, backoff_level, model_locks,
 		needs_reauth, last_refresh_error, quota_limit, quota_remaining
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.ID, r.Provider, r.Name, r.AuthType,
-		coalesceStringPtr(r.AccessToken, existing.AccessToken),
-		coalesceStringPtr(r.RefreshToken, existing.RefreshToken),
-		r.ExpiresAt, coalesceStringPtr(r.APIKey, existing.APIKey), boolToInt(r.IsActive),
-		providerData, r.AccountID, r.Email, r.UnavailableUntil, r.BackoffLevel, modelLocks,
+		r.ID, r.Provider, r.Name, r.AuthType, r.AccessToken, r.RefreshToken,
+		r.ExpiresAt, r.APIKey, boolToInt(r.IsActive), providerData, r.AccountID,
+		r.Email, r.UnavailableUntil, r.BackoffLevel, modelLocks,
 		r.NeedsReauth, r.LastRefreshError, r.QuotaLimit, r.QuotaRemaining,
 	)
 	if err != nil {
-		return fmt.Errorf("restore connection %q: %w", r.ID, err)
+		return fmt.Errorf("insert connection %q: %w", r.ID, err)
 	}
 	return nil
 }
@@ -775,8 +801,9 @@ func restoreRoutingRuleTx(tx *sql.Tx, r RoutingRule) error {
 }
 
 func restoreModelLimitTx(tx *sql.Tx, r ModelLimit) error {
+	allowedJSON, _ := json.Marshal(r.AllowedKeyIDs)
 	_, err := tx.Exec(`INSERT OR REPLACE INTO model_limits (id, model, max_tokens, max_rpm, allowed_key_ids, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		r.ID, r.Model, r.MaxTokens, r.MaxRPM, r.AllowedKeyIDs, r.CreatedAt)
+		r.ID, r.Model, r.MaxTokens, r.MaxRPM, string(allowedJSON), r.CreatedAt)
 	if err != nil {
 		return fmt.Errorf("restore model limit %q: %w", r.Model, err)
 	}

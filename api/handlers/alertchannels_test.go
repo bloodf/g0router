@@ -346,3 +346,52 @@ func TestAlertChannelsTestEndpointNotFound(t *testing.T) {
 		t.Fatalf("status = %d, want 404", ctx.Response.StatusCode())
 	}
 }
+
+func TestAlertChannelsTestEndpointStoreNil(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPost, "", func(ctx *fasthttp.RequestCtx) {
+		AlertChannelsTest(ctx, nil, "1")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", ctx.Response.StatusCode())
+	}
+}
+
+func TestAlertChannelsTestEndpointMissingID(t *testing.T) {
+	fs := &fakeAlertChannelStore{}
+	ctx, _ := runHandler(t, fasthttp.MethodPost, "", func(ctx *fasthttp.RequestCtx) {
+		AlertChannelsTest(ctx, fs, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
+	}
+}
+
+func TestAlertChannelsTestEndpointGetError(t *testing.T) {
+	fs := &fakeAlertChannelStore{getErr: errors.New("db error")}
+	ctx, _ := runHandler(t, fasthttp.MethodPost, "", func(ctx *fasthttp.RequestCtx) {
+		AlertChannelsTest(ctx, fs, "1")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+}
+
+func TestAlertChannelsUpdateError(t *testing.T) {
+	fs := &fakeAlertChannelStore{updateErr: errors.New("db error")}
+	ctx, _ := runHandler(t, fasthttp.MethodPut, `{"name":"ops","channel_type":"webhook","config":{},"events":[]}`, func(ctx *fasthttp.RequestCtx) {
+		AlertChannels(ctx, fs, "1")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+}
+
+func TestAlertChannelsGetError(t *testing.T) {
+	fs := &fakeAlertChannelStore{getErr: errors.New("db error")}
+	ctx, _ := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		AlertChannels(ctx, fs, "1")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
+		t.Fatalf("status = %d, want 404", ctx.Response.StatusCode())
+	}
+}

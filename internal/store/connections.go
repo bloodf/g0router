@@ -501,6 +501,9 @@ func encodeJSON(value any) (*string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if string(data) == "null" {
+		return nil, nil
+	}
 	encoded := string(data)
 	return &encoded, nil
 }

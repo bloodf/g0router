@@ -166,3 +166,23 @@ func TestFeatureFlagsToggleError(t *testing.T) {
 		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
 	}
 }
+
+func TestFeatureFlagsGetError(t *testing.T) {
+	fs := &fakeFeatureFlagStore{getErr: errors.New("db error")}
+	ctx, _ := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		FeatureFlags(ctx, fs, "1")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+}
+
+func TestFeatureFlagsToggleGetError(t *testing.T) {
+	fs := &fakeFeatureFlagStore{toggleErr: nil, getErr: errors.New("db error")}
+	ctx, _ := runHandler(t, fasthttp.MethodPut, `{"enabled":true}`, func(ctx *fasthttp.RequestCtx) {
+		FeatureFlags(ctx, fs, "1")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
+		t.Fatalf("status = %d, want 404", ctx.Response.StatusCode())
+	}
+}

@@ -167,3 +167,23 @@ func TestRestoreHandlerImportError(t *testing.T) {
 		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
 	}
 }
+
+func TestBackupHandlerMethodNotAllowed(t *testing.T) {
+	s := newHandlerStore(t)
+	ctx, _ := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		Backup(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", ctx.Response.StatusCode())
+	}
+}
+
+func TestRestoreHandlerMethodNotAllowed(t *testing.T) {
+	s := newHandlerStore(t)
+	ctx, _ := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		Restore(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", ctx.Response.StatusCode())
+	}
+}
