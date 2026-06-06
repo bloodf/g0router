@@ -245,6 +245,17 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_dashboard_users_created_at ON dashboard_users(created_at)`,
+		`CREATE TABLE IF NOT EXISTS dashboard_sessions (
+			token_hash TEXT PRIMARY KEY,
+			user_id INTEGER NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			expires_at DATETIME NOT NULL,
+			user_agent TEXT,
+			ip TEXT
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_user_id ON dashboard_sessions(user_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expires_at ON dashboard_sessions(expires_at)`,
 	}
 
 	for _, stmt := range ddl {
