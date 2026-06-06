@@ -109,6 +109,9 @@ func buildProxyAddr(pool *store.ProxyPool) string {
 	return fmt.Sprintf("%s://%s:%d", pool.Protocol, pool.Host, pool.Port)
 }
 
+// socks5Constructor is swappable for tests.
+var socks5Constructor = proxy.SOCKS5
+
 func socks5Dialer(pool *store.ProxyPool) (proxy.ContextDialer, error) {
 	addr := net.JoinHostPort(pool.Host, fmt.Sprintf("%d", pool.Port))
 	var auth *proxy.Auth
@@ -118,7 +121,7 @@ func socks5Dialer(pool *store.ProxyPool) (proxy.ContextDialer, error) {
 			Password: pool.Password,
 		}
 	}
-	d, err := proxy.SOCKS5("tcp", addr, auth, proxy.Direct)
+	d, err := socks5Constructor("tcp", addr, auth, proxy.Direct)
 	if err != nil {
 		return nil, err
 	}
