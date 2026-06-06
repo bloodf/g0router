@@ -158,6 +158,10 @@ func ChatSessionUpdate(ctx *fasthttp.RequestCtx, s chatSessionStore, audit audit
 		s := string(req.Messages)
 		messagesPtr = &s
 	}
+	if titlePtr == nil && messagesPtr == nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "nothing to update")
+		return
+	}
 	if err := s.UpdateChatSession(id, titlePtr, messagesPtr); err != nil {
 		if errors.Is(err, store.ErrInvalidMessagesJSON) {
 			writeError(ctx, fasthttp.StatusBadRequest, err.Error())

@@ -135,6 +135,63 @@ func TestStartProxyPoolHealthTickerFires(t *testing.T) {
 	time.Sleep(5 * time.Millisecond) // let goroutine exit
 }
 
+// TestRunTunnelHealthOnceUpdateErrorOnSuccess exercises the UpdateTunnelStatus
+// error-log branch when the health check succeeds but the store update fails.
+func TestRunTunnelHealthOnceUpdateErrorOnSuccess(t *testing.T) {
+	s := newAPITestStore(t)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Delay the response so the store can be closed while the request is in flight.
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	if err := s.UpsertTunnelConfig(store.TunnelConfig{
+		Type:      "cloudflare",
+		IsEnabled: true,
+		URL:       ts.URL,
+		Status:    "inactive",
+	}); err != nil {
+		t.Fatalf("UpsertTunnelConfig: %v", err)
+	}
+
+	srv := NewServer(ServerConfig{Store: s})
+
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		s.Close()
+	}()
+
+	// Must not panic even when UpdateTunnelStatus errors.
+	srv.runTunnelHealthOnce()
+}
+
+// TestRunTunnelHealthOnceUpdateErrorOnHTTPError exercises the UpdateTunnelStatus
+// error-log branch inside the HTTP-error path.
+func TestRunTunnelHealthOnceUpdateErrorOnHTTPError(t *testing.T) {
+	s := newAPITestStore(t)
+	if err := s.UpsertTunnelConfig(store.TunnelConfig{
+		Type:      "tailscale",
+		IsEnabled: true,
+		URL:       "http://127.0.0.1:1",
+		Status:    "inactive",
+	}); err != nil {
+		t.Fatalf("UpsertTunnelConfig: %v", err)
+	}
+
+	srv := NewServer(ServerConfig{Store: s})
+
+	go func() {
+		// The unreachable check returns almost instantly; close the store
+		// right after runTunnelHealthOnce starts.
+		time.Sleep(5 * time.Millisecond)
+		s.Close()
+	}()
+
+	// Must not panic even when UpdateTunnelStatus errors.
+	srv.runTunnelHealthOnce()
+}
+
 func TestRunProxyPoolHealthOnceNilStore(t *testing.T) {
 	srv := NewServer(ServerConfig{})
 	srv.runProxyPoolHealthOnce()

@@ -595,3 +595,167 @@ func stringPtr(value string) *string {
 func timePtr(value time.Time) *time.Time {
 	return &value
 }
+
+func TestGetUsageChartDayAggregation(t *testing.T) {
+	s := openTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	// Seed entries across 3 days with gaps.
+	base := time.Date(2026, 6, 3, 10, 0, 0, 0, time.UTC)
+	entries := []RequestLogEntry{
+		makeChartEntry("req-a", base, 10, 5, 0.50),
+		makeChartEntry("req-b", base.Add(2*time.Hour), 20, 10, 1.00),
+		makeChartEntry("req-c", base.Add(24*time.Hour), 5, 2, 0.25),
+		makeChartEntry("req-d", base.Add(48*time.Hour), 15, 8, 0.75),
+	}
+	logUsageEntries(t, s, entries)
+
+	chart, err := s.GetUsageChart("7d", "day", now)
+	if err != nil {
+		t.Fatalf("GetUsageChart: %v", err)
+	}
+
+	// Buckets from 2026-05-30 through 2026-06-06 (8 days) when using [now-7d, now].
+	if len(chart.Buckets) != 8 {
+		t.Fatalf("buckets len = %d, want 8; buckets=%v", len(chart.Buckets), chart.Buckets)
+	}
+
+	// Find indices for the days with data.
+	idx := make(map[string]int)
+	for i, b := range chart.Buckets {
+		idx[b] = i
+	}
+
+	// June 3 has 2 entries: 30 requests in, 15 out, 1.50 cost
+	if chart.Requests[idx["2026-06-03"]] != 2 {
+		t.Fatalf("june 3 requests = %d, want 2", chart.Requests[idx["2026-06-03"]])
+	}
+	if chart.TokensInput[idx["2026-06-03"]] != 30 {
+		t.Fatalf("june 3 tokens_input = %d, want 30", chart.TokensInput[idx["2026-06-03"]])
+	}
+	if chart.TokensOutput[idx["2026-06-03"]] != 15 {
+		t.Fatalf("june 3 tokens_output = %d, want 15", chart.TokensOutput[idx["2026-06-03"]])
+	}
+	if chart.Costs[idx["2026-06-03"]] != 1.50 {
+		t.Fatalf("june 3 cost = %f, want 1.50", chart.Costs[idx["2026-06-03"]])
+	}
+
+	// June 4 has 1 entry.
+	if chart.Requests[idx["2026-06-04"]] != 1 {
+		t.Fatalf("june 4 requests = %d, want 1", chart.Requests[idx["2026-06-04"]])
+	}
+
+	// June 6 has 0 entries (gap) — verify zero-fill.
+	if chart.Requests[idx["2026-06-06"]] != 0 {
+		t.Fatalf("june 6 requests = %d, want 0", chart.Requests[idx["2026-06-06"]])
+	}
+	if chart.Costs[idx["2026-06-06"]] != 0 {
+		t.Fatalf("june 6 cost = %f, want 0", chart.Costs[idx["2026-06-06"]])
+	}
+
+	// Arrays must be aligned.
+	if len(chart.Buckets) != len(chart.Requests) || len(chart.Buckets) != len(chart.TokensInput) ||
+		len(chart.Buckets) != len(chart.TokensOutput) || len(chart.Buckets) != len(chart.Costs) {
+		t.Fatalf("array lengths misaligned: buckets=%d requests=%d tokens_input=%d tokens_output=%d costs=%d",
+			len(chart.Buckets), len(chart.Requests), len(chart.TokensInput), len(chart.TokensOutput), len(chart.Costs))
+	}
+}
+
+func TestGetUsageChartHourAggregation(t *testing.T) {
+	s := openTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	entries := []RequestLogEntry{
+		makeChartEntry("req-a", base, 10, 5, 0.50),
+		makeChartEntry("req-b", base.Add(30*time.Minute), 20, 10, 1.00),
+		makeChartEntry("req-c", base.Add(2*time.Hour), 5, 2, 0.25),
+	}
+	logUsageEntries(t, s, entries)
+
+	chart, err := s.GetUsageChart("today", "hour", now)
+	if err != nil {
+		t.Fatalf("GetUsageChart: %v", err)
+	}
+
+	// Buckets from 00:00 through 14:00 = 15 buckets.
+	if len(chart.Buckets) != 15 {
+		t.Fatalf("buckets len = %d, want 15; buckets=%v", len(chart.Buckets), chart.Buckets)
+	}
+
+	idx := make(map[string]int)
+	for i, b := range chart.Buckets {
+		idx[b] = i
+	}
+
+	// 10:00 has 2 entries.
+	if chart.Requests[idx["2026-06-06T10:00"]] != 2 {
+		t.Fatalf("10:00 requests = %d, want 2", chart.Requests[idx["2026-06-06T10:00"]])
+	}
+	if chart.TokensInput[idx["2026-06-06T10:00"]] != 30 {
+		t.Fatalf("10:00 tokens_input = %d, want 30", chart.TokensInput[idx["2026-06-06T10:00"]])
+	}
+
+	// 12:00 has 1 entry.
+	if chart.Requests[idx["2026-06-06T12:00"]] != 1 {
+		t.Fatalf("12:00 requests = %d, want 1", chart.Requests[idx["2026-06-06T12:00"]])
+	}
+
+	// 11:00 is a gap — zero-filled.
+	if chart.Requests[idx["2026-06-06T11:00"]] != 0 {
+		t.Fatalf("11:00 requests = %d, want 0", chart.Requests[idx["2026-06-06T11:00"]])
+	}
+}
+
+func TestGetUsageChartEmptyTable(t *testing.T) {
+	s := openTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	chart, err := s.GetUsageChart("7d", "day", now)
+	if err != nil {
+		t.Fatalf("GetUsageChart: %v", err)
+	}
+
+	// Should return all-zero series, not nil/empty.
+	if len(chart.Buckets) == 0 {
+		t.Fatalf("buckets should not be empty")
+	}
+	for i := range chart.Buckets {
+		if chart.Requests[i] != 0 || chart.TokensInput[i] != 0 || chart.TokensOutput[i] != 0 || chart.Costs[i] != 0 {
+			t.Fatalf("all values should be zero at index %d", i)
+		}
+	}
+}
+
+func TestGetUsageChartInvalidPeriod(t *testing.T) {
+	s := openTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	_, err := s.GetUsageChart("invalid", "day", now)
+	if err == nil {
+		t.Fatal("expected error for invalid period")
+	}
+}
+
+func TestGetUsageChartInvalidGranularity(t *testing.T) {
+	s := openTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	_, err := s.GetUsageChart("7d", "week", now)
+	if err == nil {
+		t.Fatal("expected error for invalid granularity")
+	}
+}
+
+func makeChartEntry(requestID string, ts time.Time, inputTokens, outputTokens int, cost float64) RequestLogEntry {
+	return RequestLogEntry{
+		RequestID:    requestID,
+		Timestamp:    ts,
+		Provider:     "openai",
+		Model:        "gpt-4o",
+		AuthType:     "api_key",
+		InputTokens:  &inputTokens,
+		OutputTokens: &outputTokens,
+		CostUSD:      &cost,
+	}
+}

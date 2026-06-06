@@ -25,6 +25,16 @@ func TestRtkBytesSavedReturnsPositiveGain(t *testing.T) {
 	}
 }
 
+func TestRtkBytesSavedMarshalError(t *testing.T) {
+	req := &providers.ChatRequest{
+		Model: "m",
+		Stop:  make(chan int), // channels cannot be JSON-marshaled
+	}
+	if got := rtkBytesSaved(store.Settings{RTKEnabled: true}, req); got != nil {
+		t.Fatalf("expected nil on marshal error, got %v", got)
+	}
+}
+
 func TestStatusClassForAllClasses(t *testing.T) {
 	cases := []struct {
 		code int

@@ -72,6 +72,14 @@ type UsageSummary struct {
 	TotalCostUSD float64
 }
 
+type UsageChart struct {
+	Buckets      []string
+	Requests     []int64
+	TokensInput  []int64
+	TokensOutput []int64
+	Costs        []float64
+}
+
 func (s *Store) LogRequest(entry *RequestLogEntry) error {
 	timestamp := entry.Timestamp
 	if timestamp.IsZero() {
@@ -182,6 +190,127 @@ func (s *Store) GetUsageSummary(filter UsageFilter) (*UsageSummary, error) {
 	}
 
 	return &summary, nil
+}
+
+func (s *Store) GetUsageChart(period, granularity string, now time.Time) (*UsageChart, error) {
+	start, end, err := chartTimeRange(period, now)
+	if err != nil {
+		return nil, err
+	}
+
+	var bucketExpr string
+	switch granularity {
+	case "day":
+		bucketExpr = "strftime('%Y-%m-%d', timestamp)"
+	case "hour":
+		bucketExpr = "strftime('%Y-%m-%dT%H:00', timestamp)"
+	default:
+		return nil, fmt.Errorf("invalid granularity: %q", granularity)
+	}
+
+	query := fmt.Sprintf(
+		`SELECT %s as bucket,
+			COUNT(*) as requests,
+			COALESCE(SUM(input_tokens), 0) as tokens_input,
+			COALESCE(SUM(output_tokens), 0) as tokens_output,
+			COALESCE(SUM(cost_usd), 0) as cost
+		FROM request_log
+		WHERE timestamp >= ? AND timestamp <= ?
+		GROUP BY bucket
+		ORDER BY bucket`,
+		bucketExpr,
+	)
+
+	rows, err := s.db.Query(query, start.Format(time.RFC3339), end.Format(time.RFC3339))
+	if err != nil {
+		return nil, fmt.Errorf("query usage chart: %w", err)
+	}
+	defer rows.Close()
+
+	data := make(map[string]struct {
+		requests     int64
+		tokensInput  int64
+		tokensOutput int64
+		cost         float64
+	})
+	for rows.Next() {
+		var bucket string
+		var requests, tokensInput, tokensOutput int64
+		var cost float64
+		if err := rows.Scan(&bucket, &requests, &tokensInput, &tokensOutput, &cost); err != nil {
+			return nil, fmt.Errorf("scan usage chart: %w", err)
+		}
+		data[bucket] = struct {
+			requests     int64
+			tokensInput  int64
+			tokensOutput int64
+			cost         float64
+		}{requests, tokensInput, tokensOutput, cost}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate usage chart: %w", err)
+	}
+
+	buckets := generateBuckets(start, end, granularity)
+	chart := &UsageChart{
+		Buckets:      buckets,
+		Requests:     make([]int64, len(buckets)),
+		TokensInput:  make([]int64, len(buckets)),
+		TokensOutput: make([]int64, len(buckets)),
+		Costs:        make([]float64, len(buckets)),
+	}
+	for i, b := range buckets {
+		if d, ok := data[b]; ok {
+			chart.Requests[i] = d.requests
+			chart.TokensInput[i] = d.tokensInput
+			chart.TokensOutput[i] = d.tokensOutput
+			chart.Costs[i] = d.cost
+		}
+	}
+
+	return chart, nil
+}
+
+func chartTimeRange(period string, now time.Time) (time.Time, time.Time, error) {
+	now = now.UTC()
+	switch period {
+	case "today":
+		start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		return start, now, nil
+	case "24h":
+		return now.Add(-24 * time.Hour), now, nil
+	case "7d":
+		return now.Add(-7 * 24 * time.Hour), now, nil
+	case "30d":
+		return now.Add(-30 * 24 * time.Hour), now, nil
+	case "60d":
+		return now.Add(-60 * 24 * time.Hour), now, nil
+	default:
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid period: %q", period)
+	}
+}
+
+func generateBuckets(start, end time.Time, granularity string) []string {
+	start = start.UTC()
+	end = end.UTC()
+	var buckets []string
+	switch granularity {
+	case "day":
+		start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+		end = time.Date(end.Year(), end.Month(), end.Day(), 0, 0, 0, 0, time.UTC)
+		for !start.After(end) {
+			buckets = append(buckets, start.Format("2006-01-02"))
+			start = start.Add(24 * time.Hour)
+		}
+	case "hour":
+		start = start.Truncate(time.Hour)
+		end = end.Truncate(time.Hour)
+		for !start.After(end) {
+			buckets = append(buckets, start.Format("2006-01-02T15:00"))
+			start = start.Add(time.Hour)
+		}
+	}
+	return buckets
 }
 
 // CountUsage returns the total number of rows matching the filter, ignoring
