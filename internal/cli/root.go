@@ -17,7 +17,6 @@ import (
 	"github.com/bloodf/g0router/internal/mcp"
 	providerinfo "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
-	"github.com/bloodf/g0router/internal/providers/vertex"
 	"github.com/bloodf/g0router/internal/search"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
@@ -37,9 +36,6 @@ type serveConfig struct {
 	RequireAPIKey     bool
 	APIKeySecret      string
 	EnableRequestLogs bool
-	HTTPSProxy        string
-	VertexProjectID   string
-	VertexLocation    string
 }
 
 type serveRunner func(context.Context, serveConfig) error
@@ -112,9 +108,6 @@ func newServeCommand(version string, serve serveRunner, rootDataDir *string) *co
 				RequireAPIKey:     loaded.RequireAPIKey,
 				APIKeySecret:      loaded.APIKeySecret,
 				EnableRequestLogs: loaded.EnableRequestLogs,
-				HTTPSProxy:        loaded.HTTPSProxy,
-				VertexProjectID:   loaded.VertexProjectID,
-				VertexLocation:    loaded.VertexLocation,
 			})
 		},
 	}
@@ -179,21 +172,6 @@ func runServer(ctx context.Context, config serveConfig) error {
 	}
 	defer s.Close()
 
-	keys, err := s.ListAPIKeys()
-	if err != nil {
-		return fmt.Errorf("list api keys: %w", err)
-	}
-	if len(keys) == 0 {
-		_, _, err := s.CreateAPIKeyWithRaw("admin", "123456", config.APIKeySecret)
-		if err != nil {
-			return fmt.Errorf("create default admin key: %w", err)
-		}
-		fmt.Println("╔══════════════════════════════════════════════════════════════╗")
-		fmt.Println("║  First startup — default admin key created                   ║")
-		fmt.Println("║  Control-plane password: 123456                              ║")
-		fmt.Println("╚══════════════════════════════════════════════════════════════╝")
-	}
-
 	listenAddress := net.JoinHostPort(config.BindAddress, strconv.Itoa(config.Port))
 	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
@@ -216,10 +194,7 @@ func runServer(ctx context.Context, config serveConfig) error {
 }
 
 func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) api.ServerConfig {
-	engine := newDefaultInferenceEngine(s, vertex.Config{
-		ProjectID: config.VertexProjectID,
-		Location:  config.VertexLocation,
-	})
+	engine := newDefaultInferenceEngine(s)
 	mcpRuntime := newDefaultMCPRuntime()
 	rehydrateMCPRuntime(ctx, s, mcpRuntime)
 	_ = search.RegisterBuiltInTools(ctx, s, mcpRuntime.tools, search.Config{})
@@ -248,14 +223,7 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) ap
 	}
 }
 
-type mcpRehydrateStore interface {
-	handlers.MCPRuntimeStore
-	ListActiveMCPInstances() ([]*store.MCPInstance, error)
-	UpdateMCPInstanceHealth(id, status string) error
-	UpdateMCPInstanceManifest(id string, manifest mcp.Manifest) error
-}
-
-func rehydrateMCPRuntime(ctx context.Context, s mcpRehydrateStore, runtime *defaultMCPRuntime) {
+func rehydrateMCPRuntime(ctx context.Context, s *store.Store, runtime *defaultMCPRuntime) {
 	if s == nil || runtime == nil {
 		return
 	}
@@ -282,7 +250,7 @@ func rehydrateMCPRuntime(ctx context.Context, s mcpRehydrateStore, runtime *defa
 	}
 }
 
-func mcpInstanceForRuntime(ctx context.Context, s handlers.MCPRuntimeStore, instance *store.MCPInstance) (*store.MCPInstance, error) {
+func mcpInstanceForRuntime(ctx context.Context, s *store.Store, instance *store.MCPInstance) (*store.MCPInstance, error) {
 	account, ok, err := selectMCPRuntimeOAuthAccount(s, instance)
 	if err != nil || !ok {
 		return instance, err
@@ -331,7 +299,7 @@ func mcpInstanceForRuntime(ctx context.Context, s handlers.MCPRuntimeStore, inst
 	return &runtime, nil
 }
 
-func selectMCPRuntimeOAuthAccount(s handlers.MCPRuntimeStore, instance *store.MCPInstance) (*store.MCPOAuthAccount, bool, error) {
+func selectMCPRuntimeOAuthAccount(s *store.Store, instance *store.MCPInstance) (*store.MCPOAuthAccount, bool, error) {
 	accounts, err := s.ListMCPOAuthAccounts(instance.ID)
 	if err != nil {
 		return nil, false, err
@@ -380,12 +348,8 @@ func shouldRefreshMCPAccount(account mcp.OAuthAccount) bool {
 	return account.AccessToken == "" || (!account.ExpiresAt.IsZero() && time.Now().Add(5*time.Minute).After(account.ExpiresAt))
 }
 
-type apiKeyValidatorStore interface {
-	ValidateAPIKey(key, secret string) (*store.APIKey, bool, error)
-}
-
 type storeAPIKeyValidator struct {
-	s apiKeyValidatorStore
+	s *store.Store
 }
 
 func (v storeAPIKeyValidator) ValidateAPIKey(key, secret string) (bool, error) {

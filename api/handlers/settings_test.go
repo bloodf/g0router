@@ -7,47 +7,6 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-type fakeSettingsStore struct {
-	settings store.Settings
-}
-
-func (f *fakeSettingsStore) GetSettings() (store.Settings, error) {
-	return f.settings, nil
-}
-
-func (f *fakeSettingsStore) UpdateSettings(s store.Settings) error {
-	f.settings = s
-	return nil
-}
-
-func TestSettingsWithFakeStore(t *testing.T) {
-	fake := &fakeSettingsStore{settings: store.Settings{RequireAPIKey: true, RTKEnabled: true}}
-
-	ctx, body := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
-		Settings(ctx, fake)
-	})
-	if ctx.Response.StatusCode() != fasthttp.StatusOK {
-		t.Fatalf("get status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
-	}
-	var got store.Settings
-	decodeJSON(t, body, &got)
-	if !got.RequireAPIKey || !got.RTKEnabled {
-		t.Fatalf("got = %+v", got)
-	}
-
-	ctx, body = runHandler(t, fasthttp.MethodPut, `{"require_api_key":false,"rtk_enabled":false,"caveman_enabled":true,"caveman_level":"lite","enable_request_logs":true,"proxy_url":"http://proxy.local:8080","data_dir":"/tmp/g0router","log_retention_days":15}`, func(ctx *fasthttp.RequestCtx) {
-		Settings(ctx, fake)
-	})
-	if ctx.Response.StatusCode() != fasthttp.StatusOK {
-		t.Fatalf("put status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
-	}
-	var updated store.Settings
-	decodeJSON(t, body, &updated)
-	if updated.RequireAPIKey || updated.RTKEnabled || !updated.CavemanEnabled {
-		t.Fatalf("updated = %+v", updated)
-	}
-}
-
 func TestSettingsGetAndUpdate(t *testing.T) {
 	s := newHandlerStore(t)
 

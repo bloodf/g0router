@@ -52,20 +52,8 @@ func (c engineClock) Now() time.Time {
 	return c.engine.now()
 }
 
-type EngineStore interface {
-	ResolveModelAlias(string) (store.ModelAlias, error)
-	GetActiveConnections(string) ([]*store.Connection, error)
-	MarkConnectionRefreshFailure(id string, reason string) error
-	UpdateConnectionCredentials(id string, accessToken, refreshToken *string, expiresAt *int64) error
-	ClearConnectionRefreshFailure(id string) error
-	ListConnections() ([]*store.Connection, error)
-	GetActiveCombo(name string) (*store.Combo, error)
-	UpdateConnection(conn *store.Connection) error
-	ProviderModelStats(since time.Time) (map[string]store.ModelStat, error)
-}
-
 type Engine struct {
-	store          EngineStore
+	store          *store.Store
 	pool           providerPool
 	registryMu     sync.RWMutex
 	refreshers     map[oauth.ProviderID]oauthRefresher
@@ -79,7 +67,7 @@ type Engine struct {
 	now            func() time.Time
 }
 
-func NewEngine(s EngineStore) *Engine {
+func NewEngine(s *store.Store) *Engine {
 	engine := &Engine{
 		store:          s,
 		pool:           newProviderPool(),

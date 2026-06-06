@@ -29,9 +29,9 @@ func runStoreClosed500(t *testing.T, method, body string, call func(ctx *fasthtt
 	assertNoInternalDetail(t, respBody)
 }
 
-func runNilStore503(t *testing.T, call func(ctx *fasthttp.RequestCtx)) {
+func runNilStore503(t *testing.T, call func(ctx *fasthttp.RequestCtx, s *store.Store)) {
 	t.Helper()
-	ctx, _ := runHandler(t, fasthttp.MethodGet, "", call)
+	ctx, _ := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) { call(ctx, nil) })
 	if ctx.Response.StatusCode() != fasthttp.StatusServiceUnavailable {
 		t.Fatalf("nil store status = %d, want 503", ctx.Response.StatusCode())
 	}
@@ -50,7 +50,7 @@ func runMethodNotAllowed(t *testing.T, call func(ctx *fasthttp.RequestCtx, s *st
 
 func TestAliasesNilMethodAndErrorPaths(t *testing.T) {
 	call := func(ctx *fasthttp.RequestCtx, s *store.Store) { Aliases(ctx, s, "") }
-	runNilStore503(t, func(ctx *fasthttp.RequestCtx) { Aliases(ctx, nil, "") })
+	runNilStore503(t, call)
 	runMethodNotAllowed(t, call)
 	runStoreClosed500(t, fasthttp.MethodGet, "", call)
 	runStoreClosed500(t, fasthttp.MethodPost, `{"alias":"a","provider":"openai","model":"gpt-4o"}`, call)
@@ -91,7 +91,7 @@ func TestAliasesNilMethodAndErrorPaths(t *testing.T) {
 
 func TestCombosNilMethodAndErrorPaths(t *testing.T) {
 	call := func(ctx *fasthttp.RequestCtx, s *store.Store) { Combos(ctx, s, "") }
-	runNilStore503(t, func(ctx *fasthttp.RequestCtx) { Combos(ctx, nil, "") })
+	runNilStore503(t, call)
 	runMethodNotAllowed(t, call)
 	runStoreClosed500(t, fasthttp.MethodGet, "", call)
 	runStoreClosed500(t, fasthttp.MethodPost, `{"name":"c","steps":[],"is_active":true}`, call)
@@ -119,7 +119,7 @@ func TestCombosNilMethodAndErrorPaths(t *testing.T) {
 
 func TestPricingNilMethodAndErrorPaths(t *testing.T) {
 	call := func(ctx *fasthttp.RequestCtx, s *store.Store) { Pricing(ctx, s, "", "") }
-	runNilStore503(t, func(ctx *fasthttp.RequestCtx) { Pricing(ctx, nil, "", "") })
+	runNilStore503(t, call)
 	runMethodNotAllowed(t, call)
 	runStoreClosed500(t, fasthttp.MethodGet, "", call)
 	runStoreClosed500(t, fasthttp.MethodPost, `{"provider":"openai","model":"gpt-4o"}`, call)
@@ -154,7 +154,7 @@ func TestPricingNilMethodAndErrorPaths(t *testing.T) {
 
 func TestAPIKeysNilMethodAndErrorPaths(t *testing.T) {
 	call := func(ctx *fasthttp.RequestCtx, s *store.Store) { APIKeys(ctx, s, "secret", "") }
-	runNilStore503(t, func(ctx *fasthttp.RequestCtx) { APIKeys(ctx, nil, "secret", "") })
+	runNilStore503(t, call)
 	runMethodNotAllowed(t, call)
 	runStoreClosed500(t, fasthttp.MethodGet, "", call)
 	runStoreClosed500(t, fasthttp.MethodPost, `{"name":"k"}`, call)
@@ -186,7 +186,7 @@ func TestAPIKeysNilMethodAndErrorPaths(t *testing.T) {
 
 func TestSettingsNilMethodAndErrorPaths(t *testing.T) {
 	call := func(ctx *fasthttp.RequestCtx, s *store.Store) { Settings(ctx, s) }
-	runNilStore503(t, func(ctx *fasthttp.RequestCtx) { Settings(ctx, nil) })
+	runNilStore503(t, call)
 	runMethodNotAllowed(t, call)
 	runStoreClosed500(t, fasthttp.MethodGet, "", call)
 	runStoreClosed500(t, fasthttp.MethodPut, `{}`, call)

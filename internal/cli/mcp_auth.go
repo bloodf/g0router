@@ -286,11 +286,7 @@ func newMCPAuthCompleteCommand(dataDir *string) *cobra.Command {
 	}
 }
 
-type mcpInstanceByNameStore interface {
-	ListMCPInstances() ([]*store.MCPInstance, error)
-}
-
-func findMCPInstanceByName(s mcpInstanceByNameStore, name string) (*store.MCPInstance, error) {
+func findMCPInstanceByName(s *store.Store, name string) (*store.MCPInstance, error) {
 	instances, err := s.ListMCPInstances()
 	if err != nil {
 		return nil, fmt.Errorf("list mcp instances: %w", err)

@@ -19,9 +19,10 @@ import (
 	"github.com/bloodf/g0router/internal/providers/vertex"
 	"github.com/bloodf/g0router/internal/providers/xiaomi"
 	"github.com/bloodf/g0router/internal/proxy"
+	"github.com/bloodf/g0router/internal/store"
 )
 
-func newDefaultInferenceEngine(s proxy.EngineStore, vertexCfg vertex.Config) *proxy.Engine {
+func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
 	engine := proxy.NewEngine(s)
 	registerOAuthRefreshers(engine)
 	engine.Register(openai.New(""))
@@ -30,7 +31,10 @@ func newDefaultInferenceEngine(s proxy.EngineStore, vertexCfg vertex.Config) *pr
 	engine.Register(azure.New("", ""))
 	engine.Register(bedrock.New(""))
 	engine.Register(cloudflare.New(""))
-	engine.Register(vertex.New("", vertexCfg))
+	engine.Register(vertex.New("", vertex.Config{
+		ProjectID: envString("VERTEX_PROJECT_ID", ""),
+		Location:  envString("VERTEX_LOCATION", "us-central1"),
+	}))
 	registerOpenAICompatible(engine)
 	registerProvider(engine, func() (providers.Provider, error) {
 		return mistral.NewDefault()

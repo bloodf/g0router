@@ -76,7 +76,7 @@ func (f *fakeMCPInstanceRuntime) CloseInstance(instanceID string) error {
 	return f.closeErr
 }
 
-func (f *fakeMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s MCPRuntimeStore, instanceID string) (mcp.Manifest, error) {
+func (f *fakeMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
 	f.reapplied = append(f.reapplied, instanceID)
 	return f.manifest, nil
 }

@@ -15,13 +15,7 @@ type pricingRequest struct {
 	OutputCostPerToken float64 `json:"output_cost_per_token"`
 }
 
-type pricingStore interface {
-	ListPricingOverrides() ([]store.PricingOverride, error)
-	SetPricingOverride(store.PricingOverride) error
-	DeletePricingOverride(provider, model string) error
-}
-
-func Pricing(ctx *fasthttp.RequestCtx, s pricingStore, provider, model string) {
+func Pricing(ctx *fasthttp.RequestCtx, s *store.Store, provider, model string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return

@@ -17,22 +17,22 @@ type listResponse[T any] struct {
 }
 
 type connectionResponse struct {
-	ID                   string         `json:"id"`
-	Provider             string         `json:"provider"`
-	Name                 string         `json:"name"`
-	AuthType             store.AuthType `json:"auth_type"`
-	ExpiresAt            *int64         `json:"expires_at"`
-	IsActive             bool           `json:"is_active"`
-	ProviderSpecificData map[string]any `json:"provider_specific_data"`
-	AccountID            *string        `json:"account_id"`
-	Email                *string        `json:"email"`
-	UnavailableUntil     *int64         `json:"unavailable_until"`
-	BackoffLevel         int            `json:"backoff_level"`
-	ModelLocks           map[string]int64 `json:"model_locks"`
-	NeedsReauth          bool           `json:"needs_reauth"`
-	LastRefreshError     *string        `json:"last_refresh_error,omitempty"`
-	CreatedAt            string         `json:"created_at"`
-	UpdatedAt            string         `json:"updated_at"`
+	ID                   string
+	Provider             string
+	Name                 string
+	AuthType             store.AuthType
+	ExpiresAt            *int64
+	IsActive             bool
+	ProviderSpecificData map[string]any
+	AccountID            *string
+	Email                *string
+	UnavailableUntil     *int64
+	BackoffLevel         int
+	ModelLocks           map[string]int64
+	NeedsReauth          bool    `json:"needs_reauth"`
+	LastRefreshError     *string `json:"last_refresh_error,omitempty"`
+	CreatedAt            string
+	UpdatedAt            string
 }
 
 type connectionRequest struct {
@@ -52,15 +52,7 @@ type connectionRequest struct {
 	ModelLocks           map[string]int64 `json:"model_locks"`
 }
 
-type connectionStore interface {
-	ListConnections() ([]*store.Connection, error)
-	CreateConnection(*store.Connection) error
-	UpdateConnection(*store.Connection) error
-	GetConnection(id string) (*store.Connection, error)
-	DeleteConnection(id string) error
-}
-
-func Connections(ctx *fasthttp.RequestCtx, s connectionStore, id string) {
+func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
@@ -121,7 +113,7 @@ func Connections(ctx *fasthttp.RequestCtx, s connectionStore, id string) {
 	}
 }
 
-func ConnectionTest(ctx *fasthttp.RequestCtx, s connectionStore, id string) {
+func ConnectionTest(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
@@ -247,7 +239,7 @@ func isConnectionSecretKey(key string) bool {
 	return false
 }
 
-func listConnections(s connectionStore) ([]*store.Connection, error) {
+func listConnections(s *store.Store) ([]*store.Connection, error) {
 	connections, err := s.ListConnections()
 	if err != nil {
 		return nil, err

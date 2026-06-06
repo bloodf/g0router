@@ -148,7 +148,7 @@ func (r *reapplyFailRuntime) RegisterInstance(ctx context.Context, instance *sto
 
 func (r *reapplyFailRuntime) CloseInstance(instanceID string) error { return nil }
 
-func (r *reapplyFailRuntime) ReapplyInstanceCredentials(ctx context.Context, s MCPRuntimeStore, instanceID string) (mcp.Manifest, error) {
+func (r *reapplyFailRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
 	return mcp.Manifest{}, r.reapplyErr
 }
 
