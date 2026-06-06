@@ -59,6 +59,7 @@ func TestRoutesSnapshot(t *testing.T) {
 		"/api/settings",
 		"/api/traffic/stream",
 		"/api/usage",
+		"/api/usage/chart",
 		"/api/usage/quota/*",
 		"/api/usage/summary",
 		"DELETE /api/tunnels/cloudflare",

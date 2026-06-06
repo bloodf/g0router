@@ -78,6 +78,9 @@ func (f failingCountStore) GetUsageSummary(filter store.UsageFilter) (*store.Usa
 func (f failingCountStore) CountUsage(filter store.UsageFilter) (int, error) {
 	return 0, errors.New("count: db locked at /secret/path")
 }
+func (f failingCountStore) GetUsageChart(period, granularity string, now time.Time) (*store.UsageChart, error) {
+	return nil, errors.New("chart: db error")
+}
 
 func TestLogsCountFailureReturns500Redacted(t *testing.T) {
 	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/logs")

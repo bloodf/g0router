@@ -190,6 +190,7 @@ func TestManagementRoutesDispatchThroughServer(t *testing.T) {
 		{method: http.MethodPost, path: "/api/oauth/minimax/authorize", want: http.StatusOK},
 		{method: http.MethodGet, path: "/api/usage", want: http.StatusOK},
 		{method: http.MethodGet, path: "/api/usage/summary", want: http.StatusOK},
+		{method: http.MethodGet, path: "/api/usage/chart?period=today", want: http.StatusOK},
 		{method: http.MethodGet, path: "/api/usage/quota/openai", want: http.StatusOK},
 		{method: http.MethodGet, path: "/api/logs", want: http.StatusOK},
 	}
@@ -1279,6 +1280,9 @@ func (f failingRequestLogStore) GetUsageSummary(filter store.UsageFilter) (*stor
 
 func (f failingRequestLogStore) CountUsage(filter store.UsageFilter) (int, error) {
 	return 0, nil
+}
+func (f failingRequestLogStore) GetUsageChart(period, granularity string, now time.Time) (*store.UsageChart, error) {
+	return nil, f.err
 }
 
 func (f failingRequestLogStore) LogRequest(entry *store.RequestLogEntry) error {

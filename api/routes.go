@@ -3,6 +3,7 @@ package api
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/mcp"
@@ -252,6 +253,9 @@ func (s *Server) routes() []route {
 		})},
 		{method: "", pattern: "/api/usage/summary", match: apiExactMatch("/api/usage/summary"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.UsageSummary(ctx, s.config.UsageStore)
+		})},
+		{method: "", pattern: "/api/usage/chart", match: apiExactMatch("/api/usage/chart"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.UsageChart(ctx, s.config.UsageStore, time.Now().UTC())
 		})},
 		{method: "", pattern: "/api/usage/quota/*", match: func(rawPath, method string) bool {
 			return strings.HasPrefix(strings.TrimRight(rawPath, "/"), "/api/usage/quota/")

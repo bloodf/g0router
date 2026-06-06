@@ -149,6 +149,7 @@ func TestManagementRoutesRequireAPIKey(t *testing.T) {
 		{method: http.MethodPost, path: "/api/oauth/minimax/exchange"},
 		{method: http.MethodGet, path: "/api/usage"},
 		{method: http.MethodGet, path: "/api/usage/summary"},
+		{method: http.MethodGet, path: "/api/usage/chart?period=today"},
 		{method: http.MethodGet, path: "/api/usage/quota/openai"},
 		{method: http.MethodGet, path: "/api/logs"},
 		{method: http.MethodGet, path: "/api/mcp/clients"},

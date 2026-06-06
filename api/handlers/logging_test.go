@@ -155,6 +155,9 @@ func (f failingLogsStore) GetUsageSummary(filter store.UsageFilter) (*store.Usag
 func (f failingLogsStore) CountUsage(filter store.UsageFilter) (int, error) {
 	return 0, f.err
 }
+func (f failingLogsStore) GetUsageChart(period, granularity string, now time.Time) (*store.UsageChart, error) {
+	return nil, f.err
+}
 
 func TestLogsStoreFailureRedacted(t *testing.T) {
 	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/logs")

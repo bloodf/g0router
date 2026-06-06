@@ -18,6 +18,7 @@ type UsageStore interface {
 	GetUsage(filter store.UsageFilter) ([]store.RequestLogEntry, error)
 	GetUsageSummary(filter store.UsageFilter) (*store.UsageSummary, error)
 	CountUsage(filter store.UsageFilter) (int, error)
+	GetUsageChart(period, granularity string, now time.Time) (*store.UsageChart, error)
 }
 
 type usageListResponse struct {
@@ -38,6 +39,14 @@ type usageSummaryResponse struct {
 	RequestCount int64   `json:"request_count"`
 	TotalTokens  int64   `json:"total_tokens"`
 	TotalCostUSD float64 `json:"total_cost_usd"`
+}
+
+type usageChartResponse struct {
+	Buckets      []string  `json:"buckets"`
+	Requests     []int64   `json:"requests"`
+	TokensInput  []int64   `json:"tokens_input"`
+	TokensOutput []int64   `json:"tokens_output"`
+	Costs        []float64 `json:"costs"`
 }
 
 type usageLogResponse struct {
@@ -124,6 +133,54 @@ func UsageSummary(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 		RequestCount: summary.RequestCount,
 		TotalTokens:  summary.TotalTokens,
 		TotalCostUSD: summary.TotalCostUSD,
+	})
+}
+
+func UsageChart(ctx *fasthttp.RequestCtx, usageStore UsageStore, now time.Time) {
+	if usageStore == nil {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "usage store unavailable")
+		return
+	}
+
+	period := string(ctx.QueryArgs().Peek("period"))
+	if period == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "missing period")
+		return
+	}
+
+	granularity := string(ctx.QueryArgs().Peek("granularity"))
+	if granularity == "" {
+		if period == "today" || period == "24h" {
+			granularity = "hour"
+		} else {
+			granularity = "day"
+		}
+	}
+
+	validPeriods := map[string]struct{}{"today": {}, "24h": {}, "7d": {}, "30d": {}, "60d": {}}
+	if _, ok := validPeriods[period]; !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("invalid period: %q", period))
+		return
+	}
+	validGranularities := map[string]struct{}{"hour": {}, "day": {}}
+	if _, ok := validGranularities[granularity]; !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("invalid granularity: %q", granularity))
+		return
+	}
+
+	chart, err := usageStore.GetUsageChart(period, granularity, now)
+	if err != nil {
+		log.Printf("get usage chart: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get usage chart")
+		return
+	}
+
+	writeJSON(ctx, fasthttp.StatusOK, usageChartResponse{
+		Buckets:      chart.Buckets,
+		Requests:     chart.Requests,
+		TokensInput:  chart.TokensInput,
+		TokensOutput: chart.TokensOutput,
+		Costs:        chart.Costs,
 	})
 }
 

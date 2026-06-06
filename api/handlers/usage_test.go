@@ -439,3 +439,142 @@ func TestUsageNullAttributionFieldsReturnNull(t *testing.T) {
 		}
 	}
 }
+
+func TestUsageChartReturnsAggregatedData(t *testing.T) {
+	s := openHandlerTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	entries := []store.RequestLogEntry{
+		handlerChartEntry("req-a", base, 10, 5, 0.50),
+		handlerChartEntry("req-b", base.Add(30*time.Minute), 20, 10, 1.00),
+		handlerChartEntry("req-c", base.Add(2*time.Hour), 5, 2, 0.25),
+	}
+	logHandlerEntries(t, s, entries)
+
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/chart?period=today&granularity=hour")
+	UsageChart(ctx, s, now)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+
+	var decoded struct {
+		Buckets      []string  `json:"buckets"`
+		Requests     []int64   `json:"requests"`
+		TokensInput  []int64   `json:"tokens_input"`
+		TokensOutput []int64   `json:"tokens_output"`
+		Costs        []float64 `json:"costs"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if len(decoded.Buckets) != 15 {
+		t.Fatalf("buckets len = %d, want 15", len(decoded.Buckets))
+	}
+	if len(decoded.Buckets) != len(decoded.Requests) || len(decoded.Buckets) != len(decoded.TokensInput) ||
+		len(decoded.Buckets) != len(decoded.TokensOutput) || len(decoded.Buckets) != len(decoded.Costs) {
+		t.Fatalf("array lengths misaligned")
+	}
+
+	idx := make(map[string]int)
+	for i, b := range decoded.Buckets {
+		idx[b] = i
+	}
+
+	if decoded.Requests[idx["2026-06-06T10:00"]] != 2 {
+		t.Fatalf("10:00 requests = %d, want 2", decoded.Requests[idx["2026-06-06T10:00"]])
+	}
+	if decoded.TokensInput[idx["2026-06-06T10:00"]] != 30 {
+		t.Fatalf("10:00 tokens_input = %d, want 30", decoded.TokensInput[idx["2026-06-06T10:00"]])
+	}
+	if decoded.Requests[idx["2026-06-06T11:00"]] != 0 {
+		t.Fatalf("11:00 requests = %d, want 0", decoded.Requests[idx["2026-06-06T11:00"]])
+	}
+}
+
+func TestUsageChartInvalidPeriod(t *testing.T) {
+	s := openHandlerTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/chart?period=invalid&granularity=hour")
+	UsageChart(ctx, s, now)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+func TestUsageChartInvalidGranularity(t *testing.T) {
+	s := openHandlerTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/chart?period=7d&granularity=week")
+	UsageChart(ctx, s, now)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+func TestUsageChartDefaultsGranularityForToday(t *testing.T) {
+	s := openHandlerTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	base := time.Date(2026, 6, 6, 10, 0, 0, 0, time.UTC)
+	logHandlerEntries(t, s, []store.RequestLogEntry{handlerChartEntry("req-a", base, 10, 5, 0.50)})
+
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/chart?period=today")
+	UsageChart(ctx, s, now)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var decoded struct {
+		Buckets []string `json:"buckets"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(decoded.Buckets) != 15 {
+		t.Fatalf("today default granularity = %d buckets, want 15 (hour)", len(decoded.Buckets))
+	}
+}
+
+func TestUsageChartDefaultsGranularityFor7d(t *testing.T) {
+	s := openHandlerTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+
+	base := time.Date(2026, 6, 3, 10, 0, 0, 0, time.UTC)
+	logHandlerEntries(t, s, []store.RequestLogEntry{handlerChartEntry("req-a", base, 10, 5, 0.50)})
+
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/chart?period=7d")
+	UsageChart(ctx, s, now)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	var decoded struct {
+		Buckets []string `json:"buckets"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(decoded.Buckets) != 8 {
+		t.Fatalf("7d default granularity = %d buckets, want 8 (day)", len(decoded.Buckets))
+	}
+}
+
+func handlerChartEntry(requestID string, ts time.Time, inputTokens, outputTokens int, cost float64) store.RequestLogEntry {
+	return store.RequestLogEntry{
+		RequestID:    requestID,
+		Timestamp:    ts,
+		Provider:     "openai",
+		Model:        "gpt-4o",
+		AuthType:     "api_key",
+		InputTokens:  &inputTokens,
+		OutputTokens: &outputTokens,
+		CostUSD:      &cost,
+	}
+}
