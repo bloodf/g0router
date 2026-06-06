@@ -29,11 +29,11 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 17
-current_wave: "Phase 17 — Usage & Analytics"
-last_completed_wave: "Phase 17 checkpoint"
-last_updated: "2026-06-06T14:34:00Z"
-last_agent: "orchestrator"
+current_stage: 18A
+current_wave: "Phase 18A — Virtual Keys, Teams, Governance"
+last_completed_wave: "Phase 18A checkpoint"
+last_updated: "2026-06-06T16:32:00Z"
+last_agent: "coverage-recovery"
 ```
 
 ---
@@ -221,7 +221,34 @@ completed_at: "2026-06-06T14:34:00Z"
 - task-3: store + handlers — bulk disable/enable connections with `quota_limit`/`quota_remaining` columns, `BulkDisableConnectionsByThreshold`, `BulkEnableConnectionsWithQuota`, audit logging + tests (`internal/store/connections.go`, `connections_test.go`, `api/handlers/connections.go`, `connections_test.go`, `api/routes.go`, `internal/store/sqlite.go`)
 - task-coverage: error branch coverage for nil-store, missing period, store error, audit error paths; chartTimeRange all periods; closed-DB query error paths
 
-**Next:** Phase 18 — TBD
+**Next:** Phase 18B — TBD
+
+---
+
+## Phase 18A — Virtual Keys, Teams, Governance
+
+```yaml
+phase: 18A
+status: DONE
+summary: "Virtual keys with hashed storage, team-based budget/rate-limit grouping, governance domain with budget reset rollover, and middleware integration for virtual key auth on inference endpoints."
+commit_range: "9cc6c93..<current>"
+completed_at: "2026-06-06T16:32:00Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-1: store — `teams` + `virtual_keys` CRUD with budget tracking (`internal/store/governance.go`, `governance_test.go`)
+- task-2: domain — governance check with lazy budget reset, rate limits, team inheritance (`internal/governance/governance.go`, `budget.go`, `governance_test.go`)
+- task-3: handlers — `Teams` + `VirtualKeys` CRUD handlers (`api/handlers/teams.go`, `virtualkeys.go`, `teams_test.go`, `virtualkeys_test.go`)
+- task-4: middleware — `validVirtualKey` integrated into `validAPIKey` chain (`api/middleware.go`, `middleware_virtualkey_test.go`)
+- task-5: policy — `recordVirtualKeyUsage` wired into inference logging (`api/policy.go`)
+- task-coverage: error branch coverage for nil store, store DB errors, validation errors, middleware rejections, governance edge cases (`*_coverage_test.go` files)
 
 ---
 
