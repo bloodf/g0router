@@ -5423,7 +5423,7 @@ If project is in a broken state:
 
 ## Stage 12B-19 — DDD Refactor + UI Overhaul: 9Router + Bifrost Feature Integration
 
-> **Status**: PLANNING COMPLETE — phase docs + process doc + Lovable prompt written. Next: execute Phase 12B.
+> **Status**: PLANNING COMPLETE — phase docs + process doc + Lovable prompt written. Agentic-engineering framework adopted (strict profile); Plan-tier artifacts per phase under `docs/planning/<phase-slug>/` (Skeptic-reviewed, sign-off granted). Next: execute Phase 12B per `docs/planning/phase-12b-ddd-architecture-refactor/`.
 > **Started**: 2026-06-05
 > **Goal**: Refactor project to layered DDD architecture, then implement ~55 new backend features from 9Router and Bifrost. Lovable generates the new UI in parallel; integration deferred to phases 20-21.
 

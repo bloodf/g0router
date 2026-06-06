@@ -30,3 +30,24 @@ Thumbs.db
 # Go coverage profiles
 coverage.out
 *.coverprofile
+
+# Claude Code - local settings contain secrets
+.claude/settings.local.json
+
+# Agentic engineering runtime artifacts (must not be committed).
+# The .agentic/ directory holds BOTH runtime artifacts (runtime-only, gitignored)
+# AND tool-agnostic config files (qa.md, deploy.md, tracking.md)
+# that ARE checked in. The entries below ignore only the runtime artifacts.
+.agentic/loop-state.json
+.agentic/hud/
+.agentic/tasks.jsonl
+.agentic/events.jsonl
+.agentic/context.md
+.agentic/memory/
+.agentic/memory.md
+.agentic/wrap.lock/
+.agentic/preferences.json
+.agentic/compression-state.json
+.agentic/tracker-states.json
+.agentic/session-log/
+.agentic/worktrees/

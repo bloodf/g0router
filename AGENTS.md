@@ -1,91 +1,83 @@
-# AGENTS.md
+# g0router
 
-Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+Single-binary Go LLM gateway/proxy with 43+ providers, OAuth flows, RTK compression, MCP gateway, embedded React dashboard; CLI + Web UI control plane.
 
-**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+## Activation
+agentic-engineering: opt-in
+<!--
+  agentic-engineering governs how work is done in this project.
+  Run /agentic-status to see the resolved mode, profile, and whether it is active here.
 
-## 1. Think Before Coding
+  This project is opted in (global mode is opt-in). To turn it off for this
+  project only, remove the opt-in line above, or uncomment the marker line below.
+-->
+<!-- agentic-engineering: opt-out -->
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+<!--
+  Review strictness for this project (relaxed | default | strict).
+  Change the value below or remove the line to fall back to the global setting.
+-->
+agentic-engineering-profile: strict
 
-Before implementing:
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+## Decisions
+- SQLite WAL store with additive-only `ensureColumn` migrations.
+- Layered DDD architecture (transport→domain→repository) enforced by arch test (phase 12B).
+- All API responses use snake_case JSON with a `{data, error}` envelope.
+- Secrets encrypted at rest via reversible `*_enc` columns (pattern: `internal/store/oauthsessions.go`).
+- Usage data lives in the `request_log` table.
 
-## 2. Simplicity First
+## Repo structure
+- `ui/` — React dashboard track; has its own AGENTS.md with deeper context.
 
-**Minimum code that solves the problem. Nothing speculative.**
+## Tools
+- GitHub operations: use `gh` CLI — do not use GitHub MCP.
+- Database operations: use `sqlite3` against the data-dir DB.
+- Dependency audit: `govulncheck ./...` for Go; `npm audit --json` in `ui/`.
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
-- No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+## Docs
+- `docs/planning/` — Briefs, Plans, ADRs.
+- `docs/research/` — research notes and prior art.
+- `docs/technical/` — technical references and design docs.
+- `docs/overview/` — product vision and requirements (operator-owned).
+- `docs/WORKFLOW.md` — task log / current stage status.
+- `docs/phases/` — phase specs for stage 12B-19.
 
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+## Conventions
+- TDD always: write test first, see it fail, write minimum code to pass.
+- Every package gets `_test.go` files before implementation.
+- `go test ./...` and `go vet ./...` must pass green at every commit.
+- Match existing patterns — read 3 existing files before writing a new one.
+- No mocks — use interfaces and fakes; test real behavior.
+- No `init()` functions — explicit initialization via constructors.
+- Errors are values — return `error`, never panic; wrap with `fmt.Errorf("context: %w", err)`.
+- No global state — pass dependencies via struct fields or function params.
+- Naming: `camelCase` locals, `PascalCase` exports; package names lowercase singular nouns.
+- Ubiquitous Language: see `glossary.md` for domain terms.
+- No PR workflow — commit and push directly to `main`; quality gates run locally before every push.
+- Commit message format: `phase-N/task-M: <description>`.
+- Update `docs/WORKFLOW.md` after completing any task.
+- `.agentic/tasks.jsonl` is the task coordination surface for multi-unit orchestration plans.
 
-## 3. Surgical Changes
+## PR Workflow
+# NOTE: this project pushes directly to main — no PRs. Block kept for future use.
+<!--
+  PR_TARGET_BRANCH: main
+  PR_DRAFT: true
+  PR_REVIEWERS:
+  PR_LABELS:
+-->
 
-**Touch only what you must. Clean up only your own mess.**
-
-When editing existing code:
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
-
-When your changes create orphans:
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
-
-The test: Every changed line should trace directly to the user's request.
-
-## 4. Goal-Driven Execution
-
-**Define success criteria. Loop until verified.**
-
-Transform tasks into verifiable goals:
-- "Add validation" → "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" → "Write a test that reproduces it, then make it pass"
-- "Refactor X" → "Ensure tests pass before and after"
-
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
-
----
-
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
-
----
-
-## Project: g0router
-
-**What**: Single-binary Go LLM gateway/proxy with 43+ providers, OAuth flows, RTK compression, MCP gateway, and a React dashboard. CLI + Web UI control plane.
-
-### Development Rules
-
-1. **TDD always.** Write test first, see it fail, write minimum code to pass.
-2. **Every package gets `_test.go` files before implementation.** No exceptions.
-3. **`go test ./...` must pass at every commit.** Red tree = blocked.
-4. **`go vet ./...` must pass at every commit.**
-5. **Match existing patterns.** Read 3 existing files before writing a new one.
-6. **No mocks.** Use interfaces and fakes. Test real behavior.
-7. **No `init()` functions.** Explicit initialization via constructors.
-8. **Errors are values.** Return `error`, don't panic. Wrap with `fmt.Errorf("context: %w", err)`.
-9. **No global state.** Pass dependencies via struct fields or function params.
-10. **Naming**: `camelCase` locals, `PascalCase` exports. Package names are lowercase singular nouns.
-
-### Workflow Awareness
-
-- Read `docs/README.md` for the doc index, then `docs/WORKFLOW.md` for current task.
-- Update `docs/WORKFLOW.md` status after completing any task.
-- Run `go test ./...` before and after every change.
-- Commit after each green phase. Message: `phase-N/task-M: <description>`.
+## Session start
+- On the first interaction of a new session, silently check that `/init-project` scaffolding exists. Check each item only if its precondition holds:
+  - Root `AGENTS.md` has required sections (`## Tools`, `## Docs`, `## Conventions`, `## Session start`) - always check.
+  - `.claude/settings.json` - always check.
+  - `docs/{planning,research,technical,overview}/` - always check.
+  - `docs/overview/vision.md` and `docs/overview/requirements.md` - always check.
+  - Seeded `MEMORY.md` at `<cwd>/.agentic/memory/MEMORY.md` - always check.
+  - `.agentic/qa.md` (or legacy `.claude/qa.md`) - only if this project has a web UI.
+  - `.agentic/deploy.md` (or legacy `.claude/deploy.md`) - only if release signals apply to this project.
+  - `.agentic/learnings.md` - always check.
+- Filesystem existence only - no LLM reasoning pass. Per-track scaffolds are out of scope for this check - do not flag them.
+- Do NOT include `.agentic/preferences.json` or `.claude/settings.local.json` in the "missing" list - both are gitignored per-developer files.
+- If `.agentic/preferences.json` exists and contains `"skipScaffoldingCheck": true`, skip the check entirely.
+- If anything is missing, prompt the user ONCE per session on one line: `Scaffolding check: missing [list]. Re-run /init-project to fix? [y/N/never]`. `never` performs a read-modify-write on `.agentic/preferences.json` setting `skipScaffoldingCheck: true` without clobbering other keys.
