@@ -29,10 +29,10 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 13
-current_wave: "Phase 13 — Auth & Core Infrastructure"
-last_completed_wave: "Phase 13 checkpoint"
-last_updated: "2026-06-06T07:18:52Z"
+current_stage: 14
+current_wave: "Phase 14 — Providers & Testing"
+last_completed_wave: "Phase 14 task-6"
+last_updated: "2026-06-06T09:57:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -102,6 +102,21 @@ completed_at: "2026-06-06T07:18:52Z"
 - Privilege requirements: ✅ Admin role required for user management; last-admin guard prevents lockout; require_login lockout guard
 
 **Next:** Phase 14 — Providers & Testing
+
+---
+
+## Phase 14 — Providers & Testing
+
+```yaml
+phase: 14
+status: IN_PROGRESS
+summary: "Provider detail endpoints, model testing, proxy wiring, and connection health verification."
+```
+
+**Tasks:**
+- task-4: Proxy wiring into provider clients
+- task-5: Provider detail/connections/suggested handlers
+- task-6: Model test single and batch SSE handlers — `api/handlers/modeltest.go`, `api/handlers/modeltest_test.go`, `api/routes.go`
 
 ---
 
