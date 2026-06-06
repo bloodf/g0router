@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 
 	providerids "github.com/bloodf/g0router/internal/provider"
@@ -259,8 +260,10 @@ func isStoreNil(s interface{}) bool {
 	if s == nil {
 		return true
 	}
-	if st, ok := s.(*store.Store); ok {
-		return st == nil
+	rv := reflect.ValueOf(s)
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		return rv.IsNil()
 	}
 	return false
 }

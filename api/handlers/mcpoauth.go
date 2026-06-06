@@ -15,7 +15,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-type MCPOAuthCompleter interface {
+type mcpOAuthCompleter interface {
 	CompleteCallback(ctx context.Context, instanceID, callbackURL string) (mcp.OAuthAccount, error)
 }
 
@@ -37,7 +37,7 @@ type mcpOAuthCompletionStore interface {
 	SaveAccount(account mcp.OAuthAccount) error
 }
 
-func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompletionStore) {
+func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer mcpOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompletionStore) {
 	instanceID := decodeCallbackInstanceID(strings.TrimSpace(string(ctx.QueryArgs().Peek("instance_id"))))
 	if instanceID == "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "instance_id is required")
@@ -50,7 +50,7 @@ func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, run
 	completeMCPOAuth(ctx, completer, runtime, s, instanceID, callbackURL)
 }
 
-func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompletionStore, instanceID string) {
+func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer mcpOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompletionStore, instanceID string) {
 	if strings.TrimSpace(instanceID) == "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "instance id is required")
 		return
@@ -64,7 +64,7 @@ func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, run
 	completeMCPOAuth(ctx, completer, runtime, s, instanceID, req.CallbackURL)
 }
 
-func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompletionStore, instanceID, callbackURL string) {
+func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer mcpOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompletionStore, instanceID, callbackURL string) {
 	if completer == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "mcp oauth unavailable")
 		return
