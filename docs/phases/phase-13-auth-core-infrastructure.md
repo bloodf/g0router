@@ -137,5 +137,36 @@ endpoints write `audit_log` rows (never log passwords or tokens).
 `internal/store/apikeys.go`, `api/handlers/apikeys.go`, `api/middleware.go`,
 `internal/store/settings.go`, `internal/store/audit.go`
 
+## Outcome
+
+All 6 backend features implemented. Zero behavior change to existing `/v1/*` bearer auth or `/api/*` control plane when `require_login=false` (default).
+
+### Shipped
+- **task-1**: `internal/store/dashboard_users.go` — CRUD + bcrypt hash/verify with `golang.org/x/crypto/bcrypt`
+- **task-2**: `internal/store/dashboard_sessions.go` — create/get/touch/delete/purge with SHA-256 token hashing
+- **task-3**: `api/handlers/auth.go` — `AuthSetup`, `AuthLogin`, `AuthLogout`, `AuthStatus` with session cookie (`HttpOnly`, `SameSite=Strict`, `Secure` on TLS)
+- **task-4**: `api/middleware.go` — session validation coexisting with bearer auth, CSRF Origin check for cookie-authenticated mutating requests, exempt routes, `clientIP()` helper with `X-Forwarded-For` support
+- **task-5**: `api/handlers/auth.go` — `AuthPasswordChange` (invalidates other sessions), `AuthUsersList`, `AuthUsersCreate`, `AuthUsersDelete` with last-admin guard
+- **task-6**: `internal/store/settings.go` — `require_login` and `trust_proxy_headers` settings with lockout guard (cannot enable `require_login` without at least one dashboard user)
+- **coverage**: Auth handler error branches + audit handler tests to maintain 95.0% coverage
+
+### Security Review
+- Input validation on all new endpoints ✅
+- Authn/authz correct on every route ✅
+- Secrets at rest (bcrypt passwords, SHA-256 session hashes) ✅
+- Secrets never in logs ✅
+- No supply-chain changes ✅
+- Privilege requirements documented (admin role, last-admin guard, lockout guard) ✅
+
+### Gates
+- `go test ./... -count=1`: PASS
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+### Commit Range
+`401c4df` → `287d336`
+
 ## Commit Message (final)
 `phase-13/auth-core: dashboard users, sessions, csrf, login rate limit`

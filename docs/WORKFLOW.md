@@ -29,10 +29,10 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 12B
-current_wave: "Phase 12B — DDD & Architecture Refactor"
-last_completed_wave: "Phase 12B checkpoint"
-last_updated: "2026-06-06T01:24:55Z"
+current_stage: 13
+current_wave: "Phase 13 — Auth & Core Infrastructure"
+last_completed_wave: "Phase 13 checkpoint"
+last_updated: "2026-06-06T07:18:52Z"
 last_agent: "orchestrator"
 ```
 
@@ -64,6 +64,44 @@ completed_at: "2026-06-06T01:24:55Z"
 - task-6: Architecture conformance test — `internal/archtest/arch_test.go`
 
 **Next:** Phase 13 — Auth & Core Infrastructure
+
+---
+
+## Phase 13 — Auth & Core Infrastructure
+
+```yaml
+phase: 13
+status: DONE
+summary: "Password-based dashboard authentication with server-side sessions, CSRF protection, first-run setup, login rate limiting, and minimal user management. Coexists with existing bearer/X-API-Key auth."
+commit_range: "401c4df..287d336"
+completed_at: "2026-06-06T07:18:52Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all 45 packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-1: Store — `dashboard_users.go` CRUD + bcrypt (`internal/store/dashboard_users.go`, `dashboard_users_test.go`)
+- task-2: Store — `dashboard_sessions.go` CRUD + SHA-256 (`internal/store/dashboard_sessions.go`, `dashboard_sessions_test.go`)
+- task-3: Handlers — setup/login/logout/status (`api/handlers/auth.go`, `auth_test.go`)
+- task-4: Middleware — session validation + coexistence + exempt routes + Origin CSRF check (`api/middleware.go`, `middleware_session_test.go`)
+- task-5: Handlers — password change + users CRUD + last-admin guard (`api/handlers/auth.go`)
+- task-6: Settings — `require_login`, `trust_proxy_headers` + lockout guard (`internal/store/settings.go`, `api/handlers/settings.go`)
+- task-coverage: Auth handler error branch + audit handler coverage (`api/handlers/auth_test.go`, `audit_test.go`)
+
+**Security Review (mandatory):**
+- Input validation: ✅ All auth endpoints validate JSON and password length (min 8 chars)
+- Authn/authz: ✅ Every new route has correct auth — exempt routes public, admin routes require admin role, coexistence with bearer keys
+- Secrets at rest: ✅ Passwords hashed with bcrypt, session tokens SHA-256 hashed in DB
+- Secrets in logs: ✅ Passwords and tokens never logged; audit entries exclude sensitive data
+- Supply-chain: ✅ No external downloads; `golang.org/x/crypto/bcrypt` standard library
+- Privilege requirements: ✅ Admin role required for user management; last-admin guard prevents lockout; require_login lockout guard
+
+**Next:** Phase 14 — Providers & Testing
 
 ---
 
