@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/store"
@@ -97,5 +98,87 @@ func TestSettingsInvalidJSON(t *testing.T) {
 	})
 	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)
+	}
+}
+
+func TestSettingsRequireLoginRejectsNoUsers(t *testing.T) {
+	s := newHandlerStore(t)
+
+	ctx, body := runHandler(t, fasthttp.MethodPut, `{"require_login":true}`, func(ctx *fasthttp.RequestCtx) {
+		Settings(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusConflict {
+		t.Fatalf("status = %d, want 409; body=%s", ctx.Response.StatusCode(), body)
+	}
+	if !strings.Contains(string(body), "require_login cannot be enabled without at least one dashboard user") {
+		t.Fatalf("body = %s, want conflict message", body)
+	}
+}
+
+func TestSettingsRequireLoginAcceptsWithUsers(t *testing.T) {
+	s := newHandlerStore(t)
+
+	if _, err := s.CreateDashboardUser("admin", "password123", "Admin", "admin"); err != nil {
+		t.Fatalf("CreateDashboardUser: %v", err)
+	}
+
+	ctx, body := runHandler(t, fasthttp.MethodPut, `{"require_login":true}`, func(ctx *fasthttp.RequestCtx) {
+		Settings(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+	var updated store.Settings
+	decodeJSON(t, body, &updated)
+	if !updated.RequireLogin {
+		t.Fatalf("RequireLogin = false, want true")
+	}
+}
+
+func TestSettingsRequireLoginFalseAlwaysWorks(t *testing.T) {
+	s := newHandlerStore(t)
+
+	ctx, body := runHandler(t, fasthttp.MethodPut, `{"require_login":false}`, func(ctx *fasthttp.RequestCtx) {
+		Settings(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+	var updated store.Settings
+	decodeJSON(t, body, &updated)
+	if updated.RequireLogin {
+		t.Fatalf("RequireLogin = true, want false")
+	}
+}
+
+func TestSettingsGetIncludesRequireLoginAndTrustProxyHeaders(t *testing.T) {
+	s := newHandlerStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.RequireLogin = true
+	settings.TrustProxyHeaders = true
+	if _, err := s.CreateDashboardUser("admin", "password123", "Admin", "admin"); err != nil {
+		t.Fatalf("CreateDashboardUser: %v", err)
+	}
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	ctx, body := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		Settings(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("get status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+	var got store.Settings
+	decodeJSON(t, body, &got)
+	if !got.RequireLogin {
+		t.Error("RequireLogin missing or false in GET response")
+	}
+	if !got.TrustProxyHeaders {
+		t.Error("TrustProxyHeaders missing or false in GET response")
 	}
 }

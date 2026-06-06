@@ -1,6 +1,7 @@
 package store
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -308,5 +309,43 @@ func TestUpdateSettingsEmptyAllowedSourcesDefaultsToAll(t *testing.T) {
 	want := []string{"local", "lan", "tailscale", "public"}
 	if !reflect.DeepEqual(got.AllowedSources, want) {
 		t.Fatalf("AllowedSources = %v, want default %v", got.AllowedSources, want)
+	}
+}
+
+func TestUpdateSettingsRequireLoginRejectsNoUsers(t *testing.T) {
+	s := openTestStore(t)
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.RequireLogin = true
+	if err := s.UpdateSettings(settings); !errors.Is(err, ErrRequireLoginNoUsers) {
+		t.Fatalf("UpdateSettings = %v, want ErrRequireLoginNoUsers", err)
+	}
+}
+
+func TestUpdateSettingsRequireLoginAcceptsWithUsers(t *testing.T) {
+	s := openTestStore(t)
+
+	if _, err := s.CreateDashboardUser("admin", "password123", "Admin", "admin"); err != nil {
+		t.Fatalf("CreateDashboardUser: %v", err)
+	}
+
+	settings, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	settings.RequireLogin = true
+	if err := s.UpdateSettings(settings); err != nil {
+		t.Fatalf("UpdateSettings: %v", err)
+	}
+
+	got, err := s.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings: %v", err)
+	}
+	if !got.RequireLogin {
+		t.Error("RequireLogin = false, want true")
 	}
 }

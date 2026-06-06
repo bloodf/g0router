@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"log"
 
 	"github.com/bloodf/g0router/internal/store"
@@ -47,6 +48,10 @@ func Settings(ctx *fasthttp.RequestCtx, s settingsStore) {
 			return
 		}
 		if err := s.UpdateSettings(settings); err != nil {
+			if errors.Is(err, store.ErrRequireLoginNoUsers) {
+				writeError(ctx, fasthttp.StatusConflict, err.Error())
+				return
+			}
 			log.Printf("update settings: %v", err)
 			writeError(ctx, fasthttp.StatusInternalServerError, "failed to update settings")
 			return

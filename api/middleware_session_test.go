@@ -43,10 +43,21 @@ func createExpiredTestSession(t *testing.T, s *store.Store) string {
 	return rawToken
 }
 
-func setRequireLogin(t *testing.T, srv *Server, value bool) {
+func setRequireLogin(t *testing.T, srv *Server, s *store.Store, value bool) {
 	t.Helper()
 	settings := srv.runtimeSettings()
 	settings.RequireLogin = value
+	if value {
+		users, err := s.ListDashboardUsers()
+		if err != nil {
+			t.Fatalf("ListDashboardUsers: %v", err)
+		}
+		if len(users) == 0 {
+			if _, err := s.CreateDashboardUser("admin", "password123", "Admin", "admin"); err != nil {
+				t.Fatalf("CreateDashboardUser: %v", err)
+			}
+		}
+	}
 	if err := srv.UpdateSettings(settings); err != nil {
 		t.Fatalf("UpdateSettings: %v", err)
 	}
@@ -65,7 +76,7 @@ func TestSessionCookieGrantsAPIAccessWhenRequireLoginTrue(t *testing.T) {
 	s := newAPITestStore(t)
 	rawToken, _ := createTestSession(t, s)
 	srv, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test", Store: s, RequireAPIKey: false})
-	setRequireLogin(t, srv, true)
+	setRequireLogin(t, srv, s, true)
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/settings", nil)
 	if err != nil {
@@ -94,7 +105,7 @@ func TestBearerKeyWorksOnAPIWithRequireLoginTrue(t *testing.T) {
 			validKeys: map[string]bool{"g0r_valid": true},
 		},
 	})
-	setRequireLogin(t, srv, true)
+	setRequireLogin(t, srv, s, true)
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/settings", nil)
 	if err != nil {
@@ -114,7 +125,7 @@ func TestBearerKeyWorksOnAPIWithRequireLoginTrue(t *testing.T) {
 func TestExemptRoutesReachableWithoutAuthWhenRequireLoginTrue(t *testing.T) {
 	s := newAPITestStore(t)
 	srv, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test", Store: s, RequireAPIKey: false})
-	setRequireLogin(t, srv, true)
+	setRequireLogin(t, srv, s, true)
 
 	tests := []struct {
 		method string
@@ -154,7 +165,7 @@ func TestExemptRoutesReachableWithoutAuthWhenRequireLoginTrue(t *testing.T) {
 func TestGarbageSessionCookieReturns401WhenRequireLoginTrue(t *testing.T) {
 	s := newAPITestStore(t)
 	srv, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test", Store: s, RequireAPIKey: false})
-	setRequireLogin(t, srv, true)
+	setRequireLogin(t, srv, s, true)
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/settings", nil)
 	if err != nil {
@@ -175,7 +186,7 @@ func TestExpiredSessionCookieReturns401WhenRequireLoginTrue(t *testing.T) {
 	s := newAPITestStore(t)
 	rawToken := createExpiredTestSession(t, s)
 	srv, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test", Store: s, RequireAPIKey: false})
-	setRequireLogin(t, srv, true)
+	setRequireLogin(t, srv, s, true)
 
 	req, err := http.NewRequest(http.MethodGet, baseURL+"/api/settings", nil)
 	if err != nil {
@@ -196,7 +207,7 @@ func TestCookieMutatingRequestMismatchedOriginReturns403(t *testing.T) {
 	s := newAPITestStore(t)
 	rawToken, _ := createTestSession(t, s)
 	srv, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test", Store: s, RequireAPIKey: false})
-	setRequireLogin(t, srv, true)
+	setRequireLogin(t, srv, s, true)
 
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/connections", strings.NewReader(`{}`))
 	if err != nil {
@@ -227,7 +238,7 @@ func TestBearerMutatingRequestSkipsCSRFCheck(t *testing.T) {
 			validKeys: map[string]bool{"g0r_valid": true},
 		},
 	})
-	setRequireLogin(t, srv, true)
+	setRequireLogin(t, srv, s, true)
 
 	req, err := http.NewRequest(http.MethodPost, baseURL+"/api/connections", strings.NewReader(`{}`))
 	if err != nil {
@@ -250,7 +261,7 @@ func TestLogoutInvalidatesSession(t *testing.T) {
 	s := newAPITestStore(t)
 	rawToken, _ := createTestSession(t, s)
 	srv, baseURL := startTestServer(t, ServerConfig{Port: 0, Version: "test", Store: s, RequireAPIKey: false})
-	setRequireLogin(t, srv, true)
+	setRequireLogin(t, srv, s, true)
 
 	// Verify session works
 	req, _ := http.NewRequest(http.MethodGet, baseURL+"/api/settings", nil)

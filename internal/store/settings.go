@@ -1,15 +1,23 @@
 package store
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
 )
 
+// ErrRequireLoginNoUsers is returned when an operator tries to enable
+// require_login without creating at least one dashboard user first.
+var ErrRequireLoginNoUsers = errors.New("require_login cannot be enabled without at least one dashboard user")
+
 type Settings struct {
 	RequireAPIKey     bool     `json:"require_api_key"`
 	RequireLogin      bool     `json:"require_login"`
+	// TrustProxyHeaders controls whether X-Forwarded-For is trusted for client
+	// IP. Enable this when g0router sits behind Cloudflare, Tailscale tunnels,
+	// or another reverse proxy where the direct remote address is constant.
 	TrustProxyHeaders bool     `json:"trust_proxy_headers"`
 	RTKEnabled        bool     `json:"rtk_enabled"`
 	CavemanEnabled    bool     `json:"caveman_enabled"`
@@ -79,6 +87,16 @@ func (s *Store) UpdateSettings(settings Settings) error {
 
 	if err := validateNotifyWebhookURL(settings.NotifyWebhookURL); err != nil {
 		return err
+	}
+
+	if settings.RequireLogin {
+		users, err := s.ListDashboardUsers()
+		if err != nil {
+			return fmt.Errorf("update settings: %w", err)
+		}
+		if len(users) == 0 {
+			return ErrRequireLoginNoUsers
+		}
 	}
 
 	tx, err := s.db.Begin()
