@@ -39,7 +39,7 @@ func validateDashboardUserPassword(password string) error {
 
 func validateDashboardUserRole(role string) error {
 	if role == "" {
-		return nil
+		return ErrInvalidDashboardUserRole
 	}
 	if role != "admin" && role != "user" {
 		return ErrInvalidDashboardUserRole
@@ -47,6 +47,9 @@ func validateDashboardUserRole(role string) error {
 	return nil
 }
 
+// isUniqueConstraintError checks whether err is a SQLite unique-constraint
+// violation. It relies on the error string from modernc.org/sqlite; if the
+// driver changes its message format this helper will need updating.
 func isUniqueConstraintError(err error, table string) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: "+table)
 }

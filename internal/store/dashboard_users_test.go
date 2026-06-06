@@ -2,8 +2,9 @@ package store
 
 import (
 	"errors"
-	"strings"
 	"testing"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestCreateDashboardUser(t *testing.T) {
@@ -57,18 +58,21 @@ func TestCreateDashboardUserInvalidRole(t *testing.T) {
 func TestCreateDashboardUserEmptyPassword(t *testing.T) {
 	s := openTestStore(t)
 
-	cases := []string{
-		"",
-		"   ",
-		"\t\n",
-		"short",
-		"1234567",
+	cases := []struct {
+		username string
+		password string
+	}{
+		{"dave1", ""},
+		{"dave2", "   "},
+		{"dave3", "\t\n"},
+		{"dave4", "short"},
+		{"dave5", "1234567"},
 	}
 
-	for _, pw := range cases {
-		_, err := s.CreateDashboardUser("dave", pw, "Dave", "user")
+	for _, tc := range cases {
+		_, err := s.CreateDashboardUser(tc.username, tc.password, "Dave", "user")
 		if err == nil {
-			t.Fatalf("expected error for password %q", pw)
+			t.Fatalf("expected error for password %q", tc.password)
 		}
 	}
 }
@@ -252,6 +256,26 @@ func TestUpdateDashboardUserInvalidRole(t *testing.T) {
 	}
 }
 
+func TestUpdateDashboardUserNoFields(t *testing.T) {
+	s := openTestStore(t)
+
+	created, err := s.CreateDashboardUser("alice", "password123", "Alice", "user")
+	if err != nil {
+		t.Fatalf("CreateDashboardUser: %v", err)
+	}
+
+	updated, err := s.UpdateDashboardUser(created.ID, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("UpdateDashboardUser with no fields: %v", err)
+	}
+	if updated.ID != created.ID {
+		t.Errorf("ID changed: got %q, want %q", updated.ID, created.ID)
+	}
+	if updated.Username != created.Username {
+		t.Errorf("Username changed: got %q, want %q", updated.Username, created.Username)
+	}
+}
+
 func TestDeleteDashboardUser(t *testing.T) {
 	s := openTestStore(t)
 
@@ -283,6 +307,13 @@ func TestVerifyDashboardUserPassword(t *testing.T) {
 	}
 	if s.VerifyDashboardUserPassword(user, "wrongpassword") {
 		t.Error("VerifyDashboardUserPassword should return false for wrong password")
+	}
+}
+
+func TestVerifyDashboardUserPasswordNilUser(t *testing.T) {
+	s := openTestStore(t)
+	if s.VerifyDashboardUserPassword(nil, "password123") {
+		t.Error("VerifyDashboardUserPassword should return false for nil user")
 	}
 }
 
@@ -343,7 +374,7 @@ func TestDashboardUserPasswordHashIsBcrypt(t *testing.T) {
 		t.Fatalf("CreateDashboardUser: %v", err)
 	}
 
-	if !strings.HasPrefix(user.PasswordHash, "$2a$") && !strings.HasPrefix(user.PasswordHash, "$2b$") {
-		t.Errorf("PasswordHash should start with bcrypt prefix, got %q", user.PasswordHash)
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte("password123")) != nil {
+		t.Errorf("PasswordHash should be a valid bcrypt hash, got %q", user.PasswordHash)
 	}
 }
