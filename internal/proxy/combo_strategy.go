@@ -115,7 +115,11 @@ func telemetryKey(step ComboStep) string {
 // fetchTelemetryStats fetches provider/model stats from the store for the
 // standard telemetryWindow. On error it returns a nil map and logs nothing —
 // callers fall back to stored step order.
-func fetchTelemetryStats(s *store.Store) map[string]store.ModelStat {
+type TelemetryStore interface {
+	ProviderModelStats(since time.Time) (map[string]store.ModelStat, error)
+}
+
+func fetchTelemetryStats(s TelemetryStore) map[string]store.ModelStat {
 	if s == nil {
 		return nil
 	}

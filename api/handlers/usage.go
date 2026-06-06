@@ -132,7 +132,11 @@ func UsageSummary(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 	})
 }
 
-func UsageQuota(ctx *fasthttp.RequestCtx, s *store.Store, fetchers map[providers.ModelProvider]usage.QuotaFetcher, key providers.Key) {
+type quotaStore interface {
+	GetActiveConnections(provider string) ([]*store.Connection, error)
+}
+
+func UsageQuota(ctx *fasthttp.RequestCtx, s quotaStore, fetchers map[providers.ModelProvider]usage.QuotaFetcher, key providers.Key) {
 	provider := providers.ModelProvider(strings.TrimPrefix(string(ctx.Path()), "/api/usage/quota/"))
 	if provider == "" || string(provider) == string(ctx.Path()) {
 		writeError(ctx, fasthttp.StatusBadRequest, "missing provider")
@@ -160,7 +164,7 @@ func UsageQuota(ctx *fasthttp.RequestCtx, s *store.Store, fetchers map[providers
 	writeJSON(ctx, fasthttp.StatusOK, quota)
 }
 
-func quotaKeyForProvider(s *store.Store, provider providers.ModelProvider, fallback providers.Key) providers.Key {
+func quotaKeyForProvider(s quotaStore, provider providers.ModelProvider, fallback providers.Key) providers.Key {
 	if s != nil {
 		connections, err := s.GetActiveConnections(string(provider))
 		if err == nil {

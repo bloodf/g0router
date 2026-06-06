@@ -41,7 +41,14 @@ type oauthConnectionResponse struct {
 	Scopes    []string `json:"scopes,omitempty"`
 }
 
-func OAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
+type oauthStore interface {
+	CreateOAuthSession(*store.OAuthSession) error
+	ConsumeOAuthSession(string) (*store.OAuthSession, error)
+	GetOAuthSession(string) (*store.OAuthSession, error)
+	CreateConnection(*store.Connection) error
+}
+
+func OAuthStart(ctx *fasthttp.RequestCtx, s oauthStore, flows OAuthFlows) {
 	flow, runtimeProvider, ok := oauthFlowForPath(ctx, flows)
 	if !ok {
 		return
@@ -66,7 +73,7 @@ func OAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 	writeJSON(ctx, fasthttp.StatusOK, session)
 }
 
-func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
+func OAuthPoll(ctx *fasthttp.RequestCtx, s oauthStore, flows OAuthFlows) {
 	flow, runtimeProvider, ok := oauthFlowForPath(ctx, flows)
 	if !ok {
 		return
@@ -127,7 +134,7 @@ func OAuthPoll(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 	writeJSON(ctx, fasthttp.StatusOK, response)
 }
 
-func OAuthCallback(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
+func OAuthCallback(ctx *fasthttp.RequestCtx, s oauthStore, flows OAuthFlows) {
 	if oauthErr := strings.TrimSpace(string(ctx.QueryArgs().Peek("error"))); oauthErr != "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "oauth callback: "+oauthErr)
 		return
@@ -147,7 +154,7 @@ func OAuthCallback(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 	exchangeStoredOAuth(ctx, s, flows, state, code)
 }
 
-func OAuthExchange(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
+func OAuthExchange(ctx *fasthttp.RequestCtx, s oauthStore, flows OAuthFlows) {
 	flow, _, ok := oauthFlowForPath(ctx, flows)
 	if !ok {
 		return
@@ -184,7 +191,7 @@ func OAuthExchange(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows) {
 	exchangeOAuth(ctx, s, flow, session, req.Code)
 }
 
-func exchangeStoredOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFlows, state, code string) {
+func exchangeStoredOAuth(ctx *fasthttp.RequestCtx, s oauthStore, flows OAuthFlows, state, code string) {
 	session, err := consumeOAuthSession(s, state)
 	if err != nil {
 		log.Printf("consume oauth session (callback): %v", err)
@@ -198,7 +205,7 @@ func exchangeStoredOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flows OAuthFl
 	exchangeOAuth(ctx, s, flow, session, code)
 }
 
-func exchangeOAuth(ctx *fasthttp.RequestCtx, s *store.Store, flow oauth.Flow, session *store.OAuthSession, code string) {
+func exchangeOAuth(ctx *fasthttp.RequestCtx, s oauthStore, flow oauth.Flow, session *store.OAuthSession, code string) {
 	authSession := oauth.AuthSession{
 		Provider:  flow.ProviderID(),
 		SessionID: session.State,
@@ -264,7 +271,7 @@ func decodeOAuthStartRequest(ctx *fasthttp.RequestCtx) (oauthStartRequest, bool)
 	return req, true
 }
 
-func createOAuthSession(s *store.Store, session *oauth.AuthSession, accountLabel string) error {
+func createOAuthSession(s oauthStore, session *oauth.AuthSession, accountLabel string) error {
 	if s == nil || session.SessionID == "" {
 		return nil
 	}
@@ -287,14 +294,14 @@ func createOAuthSession(s *store.Store, session *oauth.AuthSession, accountLabel
 	return nil
 }
 
-func consumeOAuthSession(s *store.Store, state string) (*store.OAuthSession, error) {
+func consumeOAuthSession(s oauthStore, state string) (*store.OAuthSession, error) {
 	if s == nil {
 		return nil, fmt.Errorf("store unavailable")
 	}
 	return s.ConsumeOAuthSession(state)
 }
 
-func getOAuthSession(s *store.Store, state string) (*store.OAuthSession, error) {
+func getOAuthSession(s oauthStore, state string) (*store.OAuthSession, error) {
 	if s == nil {
 		return nil, nil
 	}
@@ -327,7 +334,7 @@ func redirectURIFromAuthURL(rawURL string) string {
 	return parsed.Query().Get("redirect_uri")
 }
 
-func persistOAuthConnection(s *store.Store, token oauth.TokenResult, accountLabel, runtimeProvider string) (*oauthConnectionResponse, error) {
+func persistOAuthConnection(s oauthStore, token oauth.TokenResult, accountLabel, runtimeProvider string) (*oauthConnectionResponse, error) {
 	if s == nil {
 		return nil, fmt.Errorf("store unavailable")
 	}

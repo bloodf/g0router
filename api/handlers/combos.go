@@ -15,7 +15,15 @@ type comboRequest struct {
 	IsActive bool              `json:"is_active"`
 }
 
-func Combos(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
+type comboStore interface {
+	ListCombos() ([]*store.Combo, error)
+	CreateCombo(*store.Combo) error
+	UpdateCombo(*store.Combo) error
+	GetCombo(id string) (*store.Combo, error)
+	DeleteCombo(id string) error
+}
+
+func Combos(ctx *fasthttp.RequestCtx, s comboStore, id string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return

@@ -8,7 +8,12 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func Settings(ctx *fasthttp.RequestCtx, s *store.Store) {
+type settingsStore interface {
+	GetSettings() (store.Settings, error)
+	UpdateSettings(store.Settings) error
+}
+
+func Settings(ctx *fasthttp.RequestCtx, s settingsStore) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return

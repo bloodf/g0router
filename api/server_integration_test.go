@@ -410,7 +410,7 @@ func (r *integrationMCPInstanceRuntime) CloseInstance(instanceID string) error {
 	return nil
 }
 
-func (r *integrationMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
+func (r *integrationMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s handlers.MCPRuntimeStore, instanceID string) (mcp.Manifest, error) {
 	r.reapplied = append(r.reapplied, instanceID)
 	manifest := r.manifest
 	manifest.ClientID = instanceID
@@ -557,9 +557,9 @@ func assertAuthenticatedConnectionsRedactSecrets(t *testing.T, baseURL, rawAPIKe
 	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/connections", http.StatusOK)
 	var decoded struct {
 		Data []struct {
-			Provider             string         `json:"Provider"`
+			Provider             string         `json:"provider"`
 			APIKey               *string        `json:"APIKey"`
-			ProviderSpecificData map[string]any `json:"ProviderSpecificData"`
+			ProviderSpecificData map[string]any `json:"provider_specific_data"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &decoded); err != nil {
@@ -718,12 +718,12 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 
 	createBody := `{"provider":"codex","name":"work","auth_type":"oauth","access_token":"access-secret","refresh_token":"refresh-secret","api_key":"api-secret","is_active":true,"provider_specific_data":{"region":"local","Authorization":"Bearer nested-secret","headers":{"X-API-Key":"nested-key","safe":"visible"}},"account_id":"acct-1","email":"work@example.test"}`
 	var created struct {
-		ID                   string         `json:"ID"`
-		Provider             string         `json:"Provider"`
-		Name                 string         `json:"Name"`
-		AuthType             store.AuthType `json:"AuthType"`
-		ProviderSpecificData map[string]any `json:"ProviderSpecificData"`
-		Email                *string        `json:"Email"`
+		ID                   string         `json:"id"`
+		Provider             string         `json:"provider"`
+		Name                 string         `json:"name"`
+		AuthType             store.AuthType `json:"auth_type"`
+		ProviderSpecificData map[string]any `json:"provider_specific_data"`
+		Email                *string        `json:"email"`
 	}
 	body := doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/connections", rawAPIKey, createBody, http.StatusCreated, &created)
 	assertConnectionResponseRedacted(t, body, created.ProviderSpecificData, "access-secret", "refresh-secret", "api-secret", "nested-secret", "nested-key")
@@ -767,9 +767,9 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 	assertConnectionResponseRedacted(t, listBody, nil, "access-secret", "refresh-secret", "api-secret", "nested-secret", "nested-key")
 	var listed struct {
 		Data []struct {
-			ID       string `json:"ID"`
-			Provider string `json:"Provider"`
-			Name     string `json:"Name"`
+			ID       string `json:"id"`
+			Provider string `json:"provider"`
+			Name     string `json:"name"`
 		} `json:"data"`
 	}
 	decodeIntegrationJSON(t, listBody, &listed)
@@ -779,12 +779,12 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 
 	updateBody := `{"provider":"anthropic","name":"work-updated","auth_type":"api_key","api_key":"updated-secret","is_active":false,"provider_specific_data":{"mode":"updated","token":"updated-nested-secret"}}`
 	var updated struct {
-		ID                   string         `json:"ID"`
-		Provider             string         `json:"Provider"`
-		Name                 string         `json:"Name"`
-		AuthType             store.AuthType `json:"AuthType"`
-		IsActive             bool           `json:"IsActive"`
-		ProviderSpecificData map[string]any `json:"ProviderSpecificData"`
+		ID                   string         `json:"id"`
+		Provider             string         `json:"provider"`
+		Name                 string         `json:"name"`
+		AuthType             store.AuthType `json:"auth_type"`
+		IsActive             bool           `json:"is_active"`
+		ProviderSpecificData map[string]any `json:"provider_specific_data"`
 	}
 	body = doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/connections/"+created.ID, rawAPIKey, updateBody, http.StatusOK, &updated)
 	assertConnectionResponseRedacted(t, body, updated.ProviderSpecificData, "updated-secret", "updated-nested-secret")
@@ -1220,9 +1220,9 @@ func containsCombo(combos []store.Combo, id, name string) bool {
 }
 
 func containsConnection(connections []struct {
-	ID       string `json:"ID"`
-	Provider string `json:"Provider"`
-	Name     string `json:"Name"`
+	ID       string `json:"id"`
+	Provider string `json:"provider"`
+	Name     string `json:"name"`
 }, id, provider, name string) bool {
 	for _, connection := range connections {
 		if connection.ID == id && connection.Provider == provider && connection.Name == name {

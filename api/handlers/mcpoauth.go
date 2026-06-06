@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/bloodf/g0router/internal/mcp"
-	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -28,7 +27,13 @@ type mcpOAuthCompleteResponse struct {
 	AccountLabel string `json:"account_label"`
 }
 
-func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s *store.Store) {
+type mcpOAuthCompleteStore interface {
+	MCPRuntimeStore
+	UpdateMCPInstanceHealth(id, status string) error
+	UpdateMCPInstanceManifest(id string, manifest mcp.Manifest) error
+}
+
+func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompleteStore) {
 	instanceID := decodeCallbackInstanceID(strings.TrimSpace(string(ctx.QueryArgs().Peek("instance_id"))))
 	if instanceID == "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "instance_id is required")
@@ -41,7 +46,7 @@ func MCPOAuthCallback(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, run
 	completeMCPOAuth(ctx, completer, runtime, s, instanceID, callbackURL)
 }
 
-func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s *store.Store, instanceID string) {
+func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompleteStore, instanceID string) {
 	if strings.TrimSpace(instanceID) == "" {
 		writeError(ctx, fasthttp.StatusBadRequest, "instance id is required")
 		return
@@ -55,7 +60,7 @@ func MCPOAuthComplete(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, run
 	completeMCPOAuth(ctx, completer, runtime, s, instanceID, req.CallbackURL)
 }
 
-func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s *store.Store, instanceID, callbackURL string) {
+func completeMCPOAuth(ctx *fasthttp.RequestCtx, completer MCPOAuthCompleter, runtime MCPInstanceRuntime, s mcpOAuthCompleteStore, instanceID, callbackURL string) {
 	if completer == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "mcp oauth unavailable")
 		return

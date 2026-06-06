@@ -73,13 +73,46 @@ type mcpToolExecuteRequest struct {
 	AllowedTools []string        `json:"allowed_tools"`
 }
 
+type mcpInstanceStore interface {
+	ListMCPInstances() ([]*store.MCPInstance, error)
+	CreateMCPInstance(*store.MCPInstance) error
+	DeleteMCPInstance(id string) error
+	UpdateMCPInstanceManifest(id string, manifest mcp.Manifest) error
+	GetMCPInstance(id string) (*store.MCPInstance, error)
+}
+
+type mcpOAuthStore interface {
+	CreateMCPOAuthFlow(*store.MCPOAuthFlow) error
+	ListMCPOAuthAccounts(instanceID string) ([]*store.MCPOAuthAccount, error)
+}
+
+type mcpClientStore interface {
+	ListMCPClients() ([]*store.MCPClient, error)
+	CreateMCPClient(*store.MCPClient) error
+	DeleteMCPClient(id string) error
+	UpdateMCPClientManifest(id string, manifest mcp.Manifest) error
+	GetMCPClient(id string) (*store.MCPClient, error)
+}
+
+type mcpToolStore interface {
+	ListMCPClients() ([]*store.MCPClient, error)
+	ListMCPInstances() ([]*store.MCPInstance, error)
+}
+
+type MCPRuntimeStore interface {
+	GetMCPInstance(id string) (*store.MCPInstance, error)
+	ListMCPOAuthAccounts(instanceID string) ([]*store.MCPOAuthAccount, error)
+	ConsumeFlow(instanceID, state string) (mcp.OAuthFlow, error)
+	SaveAccount(account mcp.OAuthAccount) error
+}
+
 type MCPInstanceRuntime interface {
 	RegisterInstance(ctx context.Context, instance *store.MCPInstance) (mcp.Manifest, error)
 	CloseInstance(instanceID string) error
-	ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error)
+	ReapplyInstanceCredentials(ctx context.Context, s MCPRuntimeStore, instanceID string) (mcp.Manifest, error)
 }
 
-func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, runtime MCPInstanceRuntime, id string) {
+func MCPInstances(ctx *fasthttp.RequestCtx, s mcpInstanceStore, runtime MCPInstanceRuntime, id string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
@@ -150,7 +183,7 @@ func MCPInstances(ctx *fasthttp.RequestCtx, s *store.Store, runtime MCPInstanceR
 	}
 }
 
-func MCPOAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) {
+func MCPOAuthStart(ctx *fasthttp.RequestCtx, s mcpOAuthStore, instanceID string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
@@ -210,7 +243,7 @@ func MCPOAuthStart(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) 
 	writeJSON(ctx, fasthttp.StatusCreated, mcpOAuthStartResponse{AuthorizationURL: flow.AuthorizationURL, ExpiresAt: flow.ExpiresAt.Format(time.RFC3339)})
 }
 
-func MCPOAuthAccounts(ctx *fasthttp.RequestCtx, s *store.Store, instanceID string) {
+func MCPOAuthAccounts(ctx *fasthttp.RequestCtx, s mcpOAuthStore, instanceID string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
@@ -244,7 +277,7 @@ func MCPOAuthAccounts(ctx *fasthttp.RequestCtx, s *store.Store, instanceID strin
 	writeJSON(ctx, fasthttp.StatusOK, listResponse[mcpOAuthAccountResponse]{Data: responses})
 }
 
-func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientManager, tools *mcp.ToolManager, id string) {
+func MCPClients(ctx *fasthttp.RequestCtx, s mcpClientStore, clients *mcp.ClientManager, tools *mcp.ToolManager, id string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
@@ -318,7 +351,7 @@ func MCPClients(ctx *fasthttp.RequestCtx, s *store.Store, clients *mcp.ClientMan
 	}
 }
 
-func MCPTools(ctx *fasthttp.RequestCtx, s *store.Store, tools *mcp.ToolManager, name string) {
+func MCPTools(ctx *fasthttp.RequestCtx, s mcpToolStore, tools *mcp.ToolManager, name string) {
 	switch string(ctx.Method()) {
 	case fasthttp.MethodGet:
 		instanceID := string(ctx.QueryArgs().Peek("instance_id"))
@@ -424,7 +457,7 @@ func registerMCPClient(ctx context.Context, clients *mcp.ClientManager, tools *m
 	return manifest, nil
 }
 
-func compactToolList(ctx context.Context, s *store.Store, tools *mcp.ToolManager, instanceID, accountLabel string, allowedTools []string) ([]providers.Tool, error) {
+func compactToolList(ctx context.Context, s mcpToolStore, tools *mcp.ToolManager, instanceID, accountLabel string, allowedTools []string) ([]providers.Tool, error) {
 	if tools != nil && instanceID == "" && accountLabel == "" {
 		return tools.CompactToolsForRequest(ctx), nil
 	}
@@ -464,7 +497,7 @@ func compactToolList(ctx context.Context, s *store.Store, tools *mcp.ToolManager
 	return filterCompactTools(compact, allowedTools), nil
 }
 
-func compactInstanceToolList(s *store.Store, instanceID, accountLabel string) ([]providers.Tool, error) {
+func compactInstanceToolList(s mcpToolStore, instanceID, accountLabel string) ([]providers.Tool, error) {
 	instances, err := s.ListMCPInstances()
 	if err != nil {
 		return nil, err

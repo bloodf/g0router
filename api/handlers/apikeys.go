@@ -73,7 +73,15 @@ func (r updateAPIKeyPolicyRequest) toPolicy() store.APIKeyPolicy {
 	}
 }
 
-func APIKeys(ctx *fasthttp.RequestCtx, s *store.Store, secret, id string) {
+type apiKeyStore interface {
+	ListAPIKeys() ([]store.APIKey, error)
+	CreateAPIKey(name, secret string) (*store.APIKey, string, error)
+	UpdateAPIKeyPolicy(id string, policy store.APIKeyPolicy) error
+	GetAPIKey(id string) (*store.APIKey, error)
+	DeleteAPIKey(id string) error
+}
+
+func APIKeys(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
 	if s == nil {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return

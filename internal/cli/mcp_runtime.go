@@ -12,6 +12,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -134,7 +135,7 @@ func (r *defaultMCPRuntime) CloseInstance(instanceID string) error {
 	return nil
 }
 
-func (r *defaultMCPRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
+func (r *defaultMCPRuntime) ReapplyInstanceCredentials(ctx context.Context, s handlers.MCPRuntimeStore, instanceID string) (mcp.Manifest, error) {
 	if s == nil {
 		return mcp.Manifest{}, store.ErrNotFound
 	}
