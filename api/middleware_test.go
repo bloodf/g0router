@@ -142,6 +142,8 @@ func TestManagementRoutesRequireAPIKey(t *testing.T) {
 		{method: http.MethodGet, path: "/api/settings"},
 		{method: http.MethodGet, path: "/api/connections"},
 		{method: http.MethodPut, path: "/api/connections/conn-1"},
+		{method: http.MethodPost, path: "/api/connections/bulk-disable"},
+		{method: http.MethodPost, path: "/api/connections/bulk-enable"},
 		{method: http.MethodGet, path: "/api/combos"},
 		{method: http.MethodDelete, path: "/api/combos/combo-1"},
 		{method: http.MethodPost, path: "/api/oauth/minimax/authorize"},

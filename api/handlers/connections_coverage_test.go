@@ -42,6 +42,12 @@ func (f *fakeConnectionStore) GetConnection(id string) (*store.Connection, error
 func (f *fakeConnectionStore) DeleteConnection(id string) error {
 	return f.deleteErr
 }
+func (f *fakeConnectionStore) BulkDisableConnectionsByThreshold(thresholdPercent int) ([]string, error) {
+	return nil, f.updateErr
+}
+func (f *fakeConnectionStore) BulkEnableConnectionsWithQuota() ([]string, error) {
+	return nil, f.updateErr
+}
 
 func TestConnectionsPutGetAfterUpdateError(t *testing.T) {
 	fs := &fakeConnectionStore{getErr: errors.New("db error")}

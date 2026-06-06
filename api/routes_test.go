@@ -79,6 +79,8 @@ func TestRoutesSnapshot(t *testing.T) {
 		"POST /api/auth/logout",
 		"POST /api/auth/setup",
 		"POST /api/auth/users",
+		"POST /api/connections/bulk-disable",
+		"POST /api/connections/bulk-enable",
 		"POST /api/mcp/instances/:id/auth/start",
 		"POST /api/mcp/instances/:id/oauth/complete",
 		"POST /api/oauth/:provider/authorize",

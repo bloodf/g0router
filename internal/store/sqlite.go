@@ -345,6 +345,12 @@ func (s *Store) migrate() error {
 	if err := s.ensureColumn("connections", "proxy_pool_id", "INTEGER"); err != nil {
 		return err
 	}
+	if err := s.ensureColumn("connections", "quota_limit", "REAL"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("connections", "quota_remaining", "REAL"); err != nil {
+		return err
+	}
 
 	return nil
 }

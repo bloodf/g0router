@@ -182,6 +182,8 @@ func TestManagementRoutesDispatchThroughServer(t *testing.T) {
 		{method: http.MethodGet, path: "/api/providers/openai/models", want: http.StatusOK},
 		{method: http.MethodGet, path: "/api/connections", want: http.StatusOK},
 		{method: http.MethodPost, path: "/api/connections/missing/test", want: http.StatusNotFound},
+		{method: http.MethodPost, path: "/api/connections/bulk-disable", want: http.StatusOK},
+		{method: http.MethodPost, path: "/api/connections/bulk-enable", want: http.StatusOK},
 		{method: http.MethodGet, path: "/api/settings", want: http.StatusOK},
 		{method: http.MethodGet, path: "/api/keys", want: http.StatusOK},
 		{method: http.MethodGet, path: "/api/combos", want: http.StatusOK},

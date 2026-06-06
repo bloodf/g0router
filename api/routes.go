@@ -136,6 +136,18 @@ func (s *Server) routes() []route {
 		{method: "", pattern: "/api/connections", match: apiExactMatch("/api/connections"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.Connections(ctx, s.config.Store, "")
 		})},
+		{method: "POST", pattern: "/api/connections/bulk-disable", match: apiExactMatch("/api/connections/bulk-disable"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.ConnectionsBulkDisable(ctx, s.config.Store, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/connections/bulk-enable", match: apiExactMatch("/api/connections/bulk-enable"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.ConnectionsBulkEnable(ctx, s.config.Store, s.config.Store)
+		})},
 		{method: "", pattern: "/api/connections/:id", match: apiPathMatch(func(parts []string) bool {
 			return len(parts) == 3 && parts[0] == "api" && parts[1] == "connections"
 		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {

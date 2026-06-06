@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/store"
@@ -321,4 +322,166 @@ func assertNoInternalDetail(t *testing.T, body []byte) {
 			t.Fatalf("response body leaked internal detail %q: %s", banned, body)
 		}
 	}
+}
+
+func TestConnectionsBulkDisable(t *testing.T) {
+	s := newHandlerStore(t)
+
+	// Seed connections with quota.
+	createConnWithQuota(t, s, "low", true, 100, 3)
+	createConnWithQuota(t, s, "at-threshold", true, 100, 5)
+	createConnWithQuota(t, s, "above", true, 100, 10)
+
+	ctx, body := runHandler(t, fasthttp.MethodPost, `{"threshold_percent":5}`, func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkDisable(ctx, s, nil)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+
+	var resp bulkActionResponse
+	decodeJSON(t, body, &resp)
+	if len(resp.Affected) != 2 {
+		t.Fatalf("affected = %d, want 2; ids=%v", len(resp.Affected), resp.Affected)
+	}
+
+	// Verify default threshold (5) when omitted.
+	createConnWithQuota(t, s, "default-threshold", true, 100, 4)
+	ctx, body = runHandler(t, fasthttp.MethodPost, `{}`, func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkDisable(ctx, s, nil)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+	var resp2 bulkActionResponse
+	decodeJSON(t, body, &resp2)
+	if len(resp2.Affected) != 1 {
+		t.Fatalf("default threshold affected = %d, want 1", len(resp2.Affected))
+	}
+}
+
+func TestConnectionsBulkDisableInvalidThreshold(t *testing.T) {
+	s := newHandlerStore(t)
+
+	ctx, body := runHandler(t, fasthttp.MethodPost, `{"threshold_percent":101}`, func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkDisable(ctx, s, nil)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)
+	}
+
+	ctx, body = runHandler(t, fasthttp.MethodPost, `{"threshold_percent":-1}`, func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkDisable(ctx, s, nil)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)
+	}
+}
+
+func TestConnectionsBulkDisableAudit(t *testing.T) {
+	s := newHandlerStore(t)
+	fakeAudit := &fakeConnectionAuditWriter{}
+
+	createConnWithQuota(t, s, "audit-low", true, 100, 2)
+
+	ctx, body := runHandler(t, fasthttp.MethodPost, `{"threshold_percent":5}`, func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkDisable(ctx, s, fakeAudit)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+
+	if len(fakeAudit.entries) != 1 {
+		t.Fatalf("audit entries = %d, want 1", len(fakeAudit.entries))
+	}
+	if fakeAudit.entries[0].Action != "connection.bulk_disable" {
+		t.Fatalf("action = %q, want connection.bulk_disable", fakeAudit.entries[0].Action)
+	}
+	if !strings.Contains(fakeAudit.entries[0].Details, "threshold=5") {
+		t.Fatalf("details missing threshold: %q", fakeAudit.entries[0].Details)
+	}
+}
+
+func TestConnectionsBulkEnable(t *testing.T) {
+	s := newHandlerStore(t)
+
+	createConnWithQuota(t, s, "has-quota", false, 100, 10)
+	createConnWithQuota(t, s, "no-quota", false, 100, 0)
+	createConnWithQuota(t, s, "already-active", true, 100, 10)
+
+	ctx, body := runHandler(t, fasthttp.MethodPost, "", func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkEnable(ctx, s, nil)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+
+	var resp bulkActionResponse
+	decodeJSON(t, body, &resp)
+	if len(resp.Affected) != 1 {
+		t.Fatalf("affected = %d, want 1; ids=%v", len(resp.Affected), resp.Affected)
+	}
+}
+
+func TestConnectionsBulkEnableAudit(t *testing.T) {
+	s := newHandlerStore(t)
+	fakeAudit := &fakeConnectionAuditWriter{}
+
+	createConnWithQuota(t, s, "audit-enable", false, 100, 10)
+
+	ctx, body := runHandler(t, fasthttp.MethodPost, "", func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkEnable(ctx, s, fakeAudit)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+
+	if len(fakeAudit.entries) != 1 {
+		t.Fatalf("audit entries = %d, want 1", len(fakeAudit.entries))
+	}
+	if fakeAudit.entries[0].Action != "connection.bulk_enable" {
+		t.Fatalf("action = %q, want connection.bulk_enable", fakeAudit.entries[0].Action)
+	}
+}
+
+func TestConnectionsBulkDisableNilStore(t *testing.T) {
+	ctx, body := runHandler(t, fasthttp.MethodPost, `{}`, func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkDisable(ctx, nil, nil)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body=%s", ctx.Response.StatusCode(), body)
+	}
+}
+
+func TestConnectionsBulkEnableNilStore(t *testing.T) {
+	ctx, body := runHandler(t, fasthttp.MethodPost, "", func(ctx *fasthttp.RequestCtx) {
+		ConnectionsBulkEnable(ctx, nil, nil)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503; body=%s", ctx.Response.StatusCode(), body)
+	}
+}
+
+func createConnWithQuota(t *testing.T, s *store.Store, name string, isActive bool, limit, remaining float64) {
+	t.Helper()
+	conn := &store.Connection{
+		Provider:       "openai",
+		Name:           name,
+		AuthType:       store.AuthTypeAPIKey,
+		IsActive:       isActive,
+		QuotaLimit:     &limit,
+		QuotaRemaining: &remaining,
+	}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection %q: %v", name, err)
+	}
+}
+
+type fakeConnectionAuditWriter struct {
+	entries []store.AuditEntry
+}
+
+func (f *fakeConnectionAuditWriter) AppendAudit(entry store.AuditEntry) error {
+	f.entries = append(f.entries, entry)
+	return nil
 }

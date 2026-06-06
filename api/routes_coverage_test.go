@@ -53,6 +53,8 @@ func TestRoutesWrongMethodCoverage(t *testing.T) {
 		{"/api/providers/:id/suggested-models", http.MethodPost},
 		{"/api/providers/:id", http.MethodPost},
 		{"/api/connections/:id/test", http.MethodPost},
+		{"/api/connections/bulk-disable", http.MethodGet},
+		{"/api/connections/bulk-enable", http.MethodGet},
 		{"/api/mcp/instances/:id/auth/start", http.MethodGet},
 		{"/api/mcp/instances/:id/accounts", http.MethodPost},
 		{"/api/mcp/oauth/callback", http.MethodPost},

@@ -59,6 +59,8 @@ type connectionStore interface {
 	UpdateConnection(*store.Connection) error
 	GetConnection(string) (*store.Connection, error)
 	DeleteConnection(string) error
+	BulkDisableConnectionsByThreshold(thresholdPercent int) ([]string, error)
+	BulkEnableConnectionsWithQuota() ([]string, error)
 }
 
 func Connections(ctx *fasthttp.RequestCtx, s connectionStore, id string) {
@@ -120,6 +122,89 @@ func Connections(ctx *fasthttp.RequestCtx, s connectionStore, id string) {
 	default:
 		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
 	}
+}
+
+type bulkDisableRequest struct {
+	ThresholdPercent int `json:"threshold_percent"`
+}
+
+type bulkActionResponse struct {
+	Affected []string `json:"affected"`
+}
+
+func ConnectionsBulkDisable(ctx *fasthttp.RequestCtx, s connectionStore, audit auditWriter) {
+	if isStoreNil(s) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+	if string(ctx.Method()) != fasthttp.MethodPost {
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+		return
+	}
+
+	var req bulkDisableRequest
+	if len(ctx.PostBody()) > 0 {
+		if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+			writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
+			return
+		}
+	}
+
+	threshold := req.ThresholdPercent
+	if threshold == 0 {
+		threshold = 5
+	}
+	if threshold < 0 || threshold > 100 {
+		writeError(ctx, fasthttp.StatusBadRequest, "threshold_percent must be between 0 and 100")
+		return
+	}
+
+	affected, err := s.BulkDisableConnectionsByThreshold(threshold)
+	if err != nil {
+		log.Printf("bulk disable connections: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to disable connections")
+		return
+	}
+
+	if audit != nil && len(affected) > 0 {
+		if err := audit.AppendAudit(store.AuditEntry{
+			Action:  "connection.bulk_disable",
+			Details: fmt.Sprintf("threshold=%d affected=%v", threshold, affected),
+		}); err != nil {
+			log.Printf("append audit: %v", err)
+		}
+	}
+
+	writeJSON(ctx, fasthttp.StatusOK, bulkActionResponse{Affected: affected})
+}
+
+func ConnectionsBulkEnable(ctx *fasthttp.RequestCtx, s connectionStore, audit auditWriter) {
+	if isStoreNil(s) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+	if string(ctx.Method()) != fasthttp.MethodPost {
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+		return
+	}
+
+	affected, err := s.BulkEnableConnectionsWithQuota()
+	if err != nil {
+		log.Printf("bulk enable connections: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to enable connections")
+		return
+	}
+
+	if audit != nil && len(affected) > 0 {
+		if err := audit.AppendAudit(store.AuditEntry{
+			Action:  "connection.bulk_enable",
+			Details: fmt.Sprintf("affected=%v", affected),
+		}); err != nil {
+			log.Printf("append audit: %v", err)
+		}
+	}
+
+	writeJSON(ctx, fasthttp.StatusOK, bulkActionResponse{Affected: affected})
 }
 
 func ConnectionTest(ctx *fasthttp.RequestCtx, s connectionStore, id string) {

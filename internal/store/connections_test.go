@@ -333,3 +333,115 @@ func TestConnectionUpdateProxyPoolNotFound(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+func TestBulkDisableConnectionsByThreshold(t *testing.T) {
+	s := openTestStore(t)
+
+	// Create connections with various quota states.
+	connLow := &Connection{Provider: "openai", Name: "low", AuthType: AuthTypeAPIKey, IsActive: true, QuotaLimit: floatPtr(100), QuotaRemaining: floatPtr(3)}
+	connAtThreshold := &Connection{Provider: "openai", Name: "at-threshold", AuthType: AuthTypeAPIKey, IsActive: true, QuotaLimit: floatPtr(100), QuotaRemaining: floatPtr(5)}
+	connAbove := &Connection{Provider: "openai", Name: "above", AuthType: AuthTypeAPIKey, IsActive: true, QuotaLimit: floatPtr(100), QuotaRemaining: floatPtr(6)}
+	connNoQuota := &Connection{Provider: "openai", Name: "no-quota", AuthType: AuthTypeAPIKey, IsActive: true}
+	connZeroLimit := &Connection{Provider: "openai", Name: "zero-limit", AuthType: AuthTypeAPIKey, IsActive: true, QuotaLimit: floatPtr(0), QuotaRemaining: floatPtr(0)}
+
+	for _, conn := range []*Connection{connLow, connAtThreshold, connAbove, connNoQuota, connZeroLimit} {
+		if err := s.CreateConnection(conn); err != nil {
+			t.Fatalf("CreateConnection: %v", err)
+		}
+	}
+
+	affected, err := s.BulkDisableConnectionsByThreshold(5)
+	if err != nil {
+		t.Fatalf("BulkDisableConnectionsByThreshold: %v", err)
+	}
+	if len(affected) != 2 {
+		t.Fatalf("affected = %d, want 2; ids=%v", len(affected), affected)
+	}
+
+	// Verify low and at-threshold are disabled.
+	for _, id := range affected {
+		conn, err := s.GetConnection(id)
+		if err != nil {
+			t.Fatalf("GetConnection: %v", err)
+		}
+		if conn.IsActive {
+			t.Fatalf("connection %s should be inactive", id)
+		}
+	}
+
+	// Verify above threshold remains active.
+	above, err := s.GetConnection(connAbove.ID)
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if !above.IsActive {
+		t.Fatalf("connection above threshold should remain active")
+	}
+}
+
+func TestBulkDisableConnectionsNoMatches(t *testing.T) {
+	s := openTestStore(t)
+
+	conn := &Connection{Provider: "openai", Name: "ok", AuthType: AuthTypeAPIKey, IsActive: true, QuotaLimit: floatPtr(100), QuotaRemaining: floatPtr(50)}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	affected, err := s.BulkDisableConnectionsByThreshold(5)
+	if err != nil {
+		t.Fatalf("BulkDisableConnectionsByThreshold: %v", err)
+	}
+	if len(affected) != 0 {
+		t.Fatalf("affected = %d, want 0", len(affected))
+	}
+}
+
+func TestBulkEnableConnectionsWithQuota(t *testing.T) {
+	s := openTestStore(t)
+
+	connHasQuota := &Connection{Provider: "openai", Name: "has-quota", AuthType: AuthTypeAPIKey, IsActive: false, QuotaLimit: floatPtr(100), QuotaRemaining: floatPtr(10)}
+	connNoQuota := &Connection{Provider: "openai", Name: "no-quota", AuthType: AuthTypeAPIKey, IsActive: false}
+	connZeroQuota := &Connection{Provider: "openai", Name: "zero-quota", AuthType: AuthTypeAPIKey, IsActive: false, QuotaLimit: floatPtr(100), QuotaRemaining: floatPtr(0)}
+	connAlreadyActive := &Connection{Provider: "openai", Name: "active", AuthType: AuthTypeAPIKey, IsActive: true, QuotaLimit: floatPtr(100), QuotaRemaining: floatPtr(10)}
+
+	for _, conn := range []*Connection{connHasQuota, connNoQuota, connZeroQuota, connAlreadyActive} {
+		if err := s.CreateConnection(conn); err != nil {
+			t.Fatalf("CreateConnection: %v", err)
+		}
+	}
+
+	affected, err := s.BulkEnableConnectionsWithQuota()
+	if err != nil {
+		t.Fatalf("BulkEnableConnectionsWithQuota: %v", err)
+	}
+	if len(affected) != 1 || affected[0] != connHasQuota.ID {
+		t.Fatalf("affected = %v, want [%s]", affected, connHasQuota.ID)
+	}
+
+	got, err := s.GetConnection(connHasQuota.ID)
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if !got.IsActive {
+		t.Fatalf("connection with quota should be active")
+	}
+}
+
+func TestBulkEnableConnectionsNoMatches(t *testing.T) {
+	s := openTestStore(t)
+
+	conn := &Connection{Provider: "openai", Name: "inactive-no-quota", AuthType: AuthTypeAPIKey, IsActive: false}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	affected, err := s.BulkEnableConnectionsWithQuota()
+	if err != nil {
+		t.Fatalf("BulkEnableConnectionsWithQuota: %v", err)
+	}
+	if len(affected) != 0 {
+		t.Fatalf("affected = %d, want 0", len(affected))
+	}
+}
+
+func floatPtr(f float64) *float64 { return &f }

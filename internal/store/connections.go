@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 type AuthType string
@@ -32,6 +33,8 @@ type Connection struct {
 	ModelLocks           map[string]int64
 	NeedsReauth          bool
 	LastRefreshError     *string
+	QuotaLimit           *float64
+	QuotaRemaining       *float64
 	CreatedAt            string
 	UpdatedAt            string
 }
@@ -51,8 +54,8 @@ func (s *Store) CreateConnection(conn *Connection) error {
 			provider, name, auth_type, access_token, refresh_token, expires_at,
 			api_key, is_active, provider_specific_data, account_id, email,
 			unavailable_until, backoff_level, model_locks,
-			needs_reauth, last_refresh_error
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			needs_reauth, last_refresh_error, quota_limit, quota_remaining
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		RETURNING id, created_at, updated_at`,
 		conn.Provider,
 		conn.Name,
@@ -70,6 +73,8 @@ func (s *Store) CreateConnection(conn *Connection) error {
 		modelLocks,
 		boolToInt(conn.NeedsReauth),
 		conn.LastRefreshError,
+		conn.QuotaLimit,
+		conn.QuotaRemaining,
 	)
 	if err := row.Scan(&conn.ID, &conn.CreatedAt, &conn.UpdatedAt); err != nil {
 		return fmt.Errorf("insert connection: %w", err)
@@ -126,6 +131,8 @@ func (s *Store) UpdateConnection(conn *Connection) error {
 			model_locks = ?,
 			needs_reauth = ?,
 			last_refresh_error = ?,
+			quota_limit = ?,
+			quota_remaining = ?,
 			updated_at = datetime('now')
 		WHERE id = ?`,
 		conn.Provider,
@@ -144,6 +151,8 @@ func (s *Store) UpdateConnection(conn *Connection) error {
 		modelLocks,
 		boolToInt(conn.NeedsReauth),
 		conn.LastRefreshError,
+		conn.QuotaLimit,
+		conn.QuotaRemaining,
 		conn.ID,
 	)
 	if err != nil {
@@ -258,6 +267,8 @@ func scanConnection(scanner connectionScanner) (*Connection, error) {
 	var modelLocks sql.NullString
 	var needsReauth int
 	var lastRefreshError sql.NullString
+	var quotaLimit sql.NullFloat64
+	var quotaRemaining sql.NullFloat64
 
 	err := scanner.Scan(
 		&conn.ID,
@@ -277,6 +288,8 @@ func scanConnection(scanner connectionScanner) (*Connection, error) {
 		&modelLocks,
 		&needsReauth,
 		&lastRefreshError,
+		&quotaLimit,
+		&quotaRemaining,
 		&conn.CreatedAt,
 		&conn.UpdatedAt,
 	)
@@ -297,6 +310,8 @@ func scanConnection(scanner connectionScanner) (*Connection, error) {
 	conn.UnavailableUntil = int64PtrFromNull(unavailableUntil)
 	conn.NeedsReauth = needsReauth != 0
 	conn.LastRefreshError = stringPtrFromNull(lastRefreshError)
+	conn.QuotaLimit = float64PtrFromNull(quotaLimit)
+	conn.QuotaRemaining = float64PtrFromNull(quotaRemaining)
 
 	if err := decodeJSON(providerData, &conn.ProviderSpecificData); err != nil {
 		return nil, fmt.Errorf("decode provider data: %w", err)
@@ -313,7 +328,7 @@ func connectionSelectSQL() string {
 		id, provider, name, auth_type, access_token, refresh_token, expires_at,
 		api_key, is_active, provider_specific_data, account_id, email,
 		unavailable_until, backoff_level, model_locks,
-		needs_reauth, last_refresh_error,
+		needs_reauth, last_refresh_error, quota_limit, quota_remaining,
 		created_at, updated_at
 		FROM connections`
 }
@@ -367,6 +382,106 @@ func (s *Store) ClearConnectionRefreshFailure(id string) error {
 	return requireRowsAffected(result)
 }
 
+// BulkDisableConnectionsByThreshold disables active connections whose
+// remaining quota is at or below the given threshold percent of their limit.
+// Only connections with a positive quota_limit are considered.
+func (s *Store) BulkDisableConnectionsByThreshold(thresholdPercent int) ([]string, error) {
+	rows, err := s.db.Query(
+		`SELECT id FROM connections
+		WHERE is_active = 1
+			AND quota_limit IS NOT NULL
+			AND quota_remaining IS NOT NULL
+			AND quota_limit > 0
+			AND (quota_remaining * 100.0 / quota_limit) <= ?`,
+		thresholdPercent,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query connections to disable: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan connection id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate connections to disable: %w", err)
+	}
+
+	if len(ids) == 0 {
+		return ids, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	_, err = s.db.Exec(
+		"UPDATE connections SET is_active = 0, updated_at = datetime('now') WHERE id IN ("+strings.Join(placeholders, ",")+")",
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("disable connections: %w", err)
+	}
+
+	return ids, nil
+}
+
+// BulkEnableConnectionsWithQuota enables inactive connections that have
+// remaining quota greater than zero.
+func (s *Store) BulkEnableConnectionsWithQuota() ([]string, error) {
+	rows, err := s.db.Query(
+		`SELECT id FROM connections
+		WHERE is_active = 0
+			AND quota_remaining IS NOT NULL
+			AND quota_remaining > 0`,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query connections to enable: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan connection id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate connections to enable: %w", err)
+	}
+
+	if len(ids) == 0 {
+		return ids, nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	_, err = s.db.Exec(
+		"UPDATE connections SET is_active = 1, updated_at = datetime('now') WHERE id IN ("+strings.Join(placeholders, ",")+")",
+		args...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("enable connections: %w", err)
+	}
+
+	return ids, nil
+}
+
 func requireRowsAffected(result sql.Result) error {
 	affected, err := result.RowsAffected()
 	if err != nil {
@@ -409,6 +524,13 @@ func int64PtrFromNull(value sql.NullInt64) *int64 {
 		return nil
 	}
 	return &value.Int64
+}
+
+func float64PtrFromNull(value sql.NullFloat64) *float64 {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Float64
 }
 
 func boolToInt(value bool) int {
