@@ -29,11 +29,11 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 18D
-current_wave: "Phase 18D — Alerts, Feature Flags, Backup/Restore"
+current_stage: 19
+current_wave: "Phase 19 — Advanced Features"
 last_completed_wave: "Phase 18D checkpoint"
-last_updated: "2026-06-06T16:45:00Z"
-last_agent: "orchestrator"
+last_updated: "2026-06-06T21:30:00Z"
+last_agent: "subagent"
 ```
 
 ---
@@ -331,6 +331,28 @@ completed_at: "2026-06-06T16:45:00Z"
 - Secrets in logs: ✅ No tokens/passwords in alert dispatch logs; redacted backup manifest
 - Supply-chain: ✅ No external downloads in this phase
 - Privilege requirements: ✅ Backup/restore admin-only; feature flags read-only for non-admin
+
+---
+
+## Phase 19 — Advanced Features
+
+```yaml
+phase: 19
+status: IN_PROGRESS
+summary: "Semantic cache, version check + auto-update, locale persistence, WebSocket chat, MITM proxy, skills catalog."
+```
+
+**Tasks:**
+- task-1: version/update-check + locale + skills endpoints + tests (`internal/update/`, `api/handlers/version.go`, `api/handlers/locale.go`, `api/handlers/skills.go`) — DONE
+- task-2: `internal/semcache/` domain + store + tests (`internal/semcache/semcache.go`, `internal/store/semcache.go`) — DONE
+- task-3: semantic cache dispatch wiring + handlers + tests — PENDING
+- task-4: WebSocket chat endpoint — PENDING
+- task-5: MITM proxy — PENDING
+
+**Security Review (pending at checkpoint):**
+- Auto-updater: checksum verification, staged swap, admin-only
+- MITM CA: ECDSA P-256, file mode 0600, per-host leaf certs
+- Semantic cache: embedding via existing provider, never blocks requests
 
 ---
 
@@ -5741,7 +5763,7 @@ architecture layers), gates, and the per-phase checkpoint protocol:
 | 16 | Chat & Console | `phase-16-chat-console.md` | PENDING |
 | 17 | Usage & Analytics | `phase-17-usage-analytics.md` | PENDING |
 | 18 | Bifrost Features (sub-stages 18A-18D) | `phase-18-bifrost-features.md` | PENDING |
-| 19 | Advanced Features | `phase-19-advanced-features.md` | PENDING |
+| 19 | Advanced Features | `phase-19-advanced-features.md` | IN_PROGRESS |
 | 20 | Lovable UI Generation | prompt: `docs/lovable-prompt.md` (DONE) — generation PENDING (user-driven) | PENDING |
 | 21 | UI Integration & Gates | TBD after Lovable output | PENDING |
 
