@@ -13,6 +13,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -22,17 +23,30 @@ type OpenAIProvider struct {
 	baseURL      string
 	client       *fasthttp.Client
 	streamClient *http.Client
+	proxyPool    *store.ProxyPool
 }
 
-func New(baseURL string) *OpenAIProvider {
+func New(baseURL string, proxyPool ...*store.ProxyPool) *OpenAIProvider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
+	var pool *store.ProxyPool
+	if len(proxyPool) > 0 {
+		pool = proxyPool[0]
+	}
+	client := utils.FasthttpClientForPool(pool)
+	client.ReadTimeout = 60 * time.Second
+	client.WriteTimeout = 60 * time.Second
 	return &OpenAIProvider{
 		baseURL:      strings.TrimRight(baseURL, "/"),
-		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient: utils.StreamHTTPClient(0),
+		client:       client,
+		streamClient: utils.StreamHTTPClientForPool(0, pool),
+		proxyPool:    pool,
 	}
+}
+
+func (p *OpenAIProvider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return New(p.baseURL, pool)
 }
 
 func (p *OpenAIProvider) Name() providers.ModelProvider {

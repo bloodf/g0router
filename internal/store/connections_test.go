@@ -278,4 +278,58 @@ func TestConnectionDeleteNotFound(t *testing.T) {
 	}
 }
 
+func TestConnectionUpdateProxyPool(t *testing.T) {
+	s := openTestStore(t)
+
+	conn := &Connection{Provider: "openai", AuthType: AuthTypeAPIKey, IsActive: true}
+	if err := s.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	poolID := "42"
+	if err := s.UpdateConnectionProxyPool(conn.ID, &poolID); err != nil {
+		t.Fatalf("UpdateConnectionProxyPool: %v", err)
+	}
+
+	got, err := s.GetConnectionProxyPoolID(conn.ID)
+	if err != nil {
+		t.Fatalf("GetConnectionProxyPoolID: %v", err)
+	}
+	if got == nil || *got != poolID {
+		t.Fatalf("proxy_pool_id = %v, want %q", got, poolID)
+	}
+
+	// Clear proxy pool.
+	if err := s.UpdateConnectionProxyPool(conn.ID, nil); err != nil {
+		t.Fatalf("UpdateConnectionProxyPool clear: %v", err)
+	}
+
+	got, err = s.GetConnectionProxyPoolID(conn.ID)
+	if err != nil {
+		t.Fatalf("GetConnectionProxyPoolID after clear: %v", err)
+	}
+	if got != nil {
+		t.Fatalf("proxy_pool_id = %v, want nil", got)
+	}
+}
+
+func TestConnectionGetProxyPoolIDNotFound(t *testing.T) {
+	s := openTestStore(t)
+
+	_, err := s.GetConnectionProxyPoolID("nonexistent")
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got: %v", err)
+	}
+}
+
+func TestConnectionUpdateProxyPoolNotFound(t *testing.T) {
+	s := openTestStore(t)
+
+	poolID := "42"
+	err := s.UpdateConnectionProxyPool("nonexistent", &poolID)
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got: %v", err)
+	}
+}
+
 func strPtr(s string) *string { return &s }

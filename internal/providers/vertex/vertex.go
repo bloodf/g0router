@@ -14,6 +14,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -46,18 +47,31 @@ type VertexProvider struct {
 	config       Config
 	client       *fasthttp.Client
 	streamClient *http.Client
+	proxyPool    *store.ProxyPool
 }
 
-func New(baseURL string, config Config) *VertexProvider {
+func New(baseURL string, config Config, proxyPool ...*store.ProxyPool) *VertexProvider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
+	var pool *store.ProxyPool
+	if len(proxyPool) > 0 {
+		pool = proxyPool[0]
+	}
+	client := utils.FasthttpClientForPool(pool)
+	client.ReadTimeout = 60 * time.Second
+	client.WriteTimeout = 60 * time.Second
 	return &VertexProvider{
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		config:       config,
-		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient: utils.StreamHTTPClient(0),
+		client:       client,
+		streamClient: utils.StreamHTTPClientForPool(0, pool),
+		proxyPool:    pool,
 	}
+}
+
+func (p *VertexProvider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return New(p.baseURL, p.config, pool)
 }
 
 func (p *VertexProvider) Name() providers.ModelProvider {

@@ -62,6 +62,12 @@ type EngineStore interface {
 	GetActiveCombo(string) (*store.Combo, error)
 	UpdateConnection(*store.Connection) error
 	ProviderModelStats(time.Time) (map[string]store.ModelStat, error)
+	GetConnectionProxyPoolID(string) (*string, error)
+	GetProxyPool(string) (*store.ProxyPool, error)
+}
+
+type proxyConfigurable interface {
+	WithProxyPool(pool *store.ProxyPool) providers.Provider
 }
 
 type Engine struct {
@@ -77,6 +83,8 @@ type Engine struct {
 	comboResolver  *ComboResolver
 	refreshWindow  time.Duration
 	now            func() time.Time
+	proxyCacheMu   sync.RWMutex
+	proxyCache     map[string]providers.Provider
 }
 
 func NewEngine(s EngineStore) *Engine {
@@ -90,6 +98,7 @@ func NewEngine(s EngineStore) *Engine {
 		comboResolver:  NewComboResolver(s),
 		refreshWindow:  defaultRefreshWindow,
 		now:            time.Now,
+		proxyCache:     make(map[string]providers.Provider),
 	}
 	engine.fallback = providercore.NewFallbackManagerWithClock(s, engineClock{engine: engine})
 	return engine
@@ -396,7 +405,39 @@ func (e *Engine) providerForRoute(ctx context.Context, route modelRoute) (provid
 	if err != nil {
 		return nil, providers.Key{}, nil, "", err
 	}
+
+	if conn != nil {
+		provider = e.providerWithProxy(provider, conn)
+	}
+
 	return provider, key, conn, route.Model, nil
+}
+
+func (e *Engine) providerWithProxy(provider providers.Provider, conn *store.Connection) providers.Provider {
+	proxyPoolID, err := e.store.GetConnectionProxyPoolID(conn.ID)
+	if err != nil || proxyPoolID == nil {
+		return provider
+	}
+	pc, ok := provider.(proxyConfigurable)
+	if !ok {
+		return provider
+	}
+	cacheKey := string(provider.Name()) + "#" + *proxyPoolID
+	e.proxyCacheMu.RLock()
+	cached, found := e.proxyCache[cacheKey]
+	e.proxyCacheMu.RUnlock()
+	if found {
+		return cached
+	}
+	proxyPool, err := e.store.GetProxyPool(*proxyPoolID)
+	if err != nil {
+		return provider
+	}
+	proxied := pc.WithProxyPool(proxyPool)
+	e.proxyCacheMu.Lock()
+	e.proxyCache[cacheKey] = proxied
+	e.proxyCacheMu.Unlock()
+	return proxied
 }
 
 func (e *Engine) resolveModelRoute(model string) (modelRoute, error) {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/anthropic"
+	"github.com/bloodf/g0router/internal/store"
 )
 
 const (
@@ -14,25 +15,37 @@ const (
 )
 
 type Provider struct {
-	standard  *anthropic.AnthropicProvider
-	tokenPlan *anthropic.AnthropicProvider
+	standard      *anthropic.AnthropicProvider
+	standardURL   string
+	tokenPlan     *anthropic.AnthropicProvider
+	tokenPlanURL  string
 }
 
-func New(standardBaseURL, tokenPlanBaseURL string) *Provider {
+func New(standardBaseURL, tokenPlanBaseURL string, proxyPool ...*store.ProxyPool) *Provider {
 	if strings.TrimSpace(standardBaseURL) == "" {
 		standardBaseURL = defaultStandardBaseURL
 	}
 	if strings.TrimSpace(tokenPlanBaseURL) == "" {
 		tokenPlanBaseURL = defaultTokenPlanBaseURL
 	}
+	var pool *store.ProxyPool
+	if len(proxyPool) > 0 {
+		pool = proxyPool[0]
+	}
 	return &Provider{
-		standard:  anthropic.NewForProvider(providers.ProviderXiaomi, standardBaseURL),
-		tokenPlan: anthropic.NewForProvider(providers.ProviderXiaomi, tokenPlanBaseURL),
+		standard:     anthropic.NewForProvider(providers.ProviderXiaomi, standardBaseURL, pool),
+		standardURL:  standardBaseURL,
+		tokenPlan:    anthropic.NewForProvider(providers.ProviderXiaomi, tokenPlanBaseURL, pool),
+		tokenPlanURL: tokenPlanBaseURL,
 	}
 }
 
 func NewDefault() *Provider {
 	return New("", "")
+}
+
+func (p *Provider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return New(p.standardURL, p.tokenPlanURL, pool)
 }
 
 func (p *Provider) Name() providers.ModelProvider {

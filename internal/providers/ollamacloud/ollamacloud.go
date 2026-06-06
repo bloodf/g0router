@@ -13,6 +13,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 )
 
 const defaultBaseURL = "https://ollama.com"
@@ -21,6 +22,7 @@ type Provider struct {
 	baseURL      string
 	client       *http.Client
 	streamClient *http.Client
+	proxyPool    *store.ProxyPool
 }
 
 type chatRequest struct {
@@ -81,20 +83,32 @@ type tagModel struct {
 	Model string `json:"model"`
 }
 
-func New(baseURL string) (*Provider, error) {
+func New(baseURL string, proxyPool ...*store.ProxyPool) (*Provider, error) {
 	baseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
+	var pool *store.ProxyPool
+	if len(proxyPool) > 0 {
+		pool = proxyPool[0]
+	}
+	client := utils.HTTPClientForPool(pool)
+	client.Timeout = 60 * time.Second
 	return &Provider{
 		baseURL:      baseURL,
-		client:       &http.Client{Timeout: 60 * time.Second},
-		streamClient: utils.StreamHTTPClient(0),
+		client:       client,
+		streamClient: utils.StreamHTTPClientForPool(0, pool),
+		proxyPool:    pool,
 	}, nil
 }
 
 func NewDefault() (*Provider, error) {
 	return New("")
+}
+
+func (p *Provider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	provider, _ := New(p.baseURL, pool)
+	return provider
 }
 
 func (p *Provider) Name() providers.ModelProvider {

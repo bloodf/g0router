@@ -15,6 +15,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -34,6 +35,7 @@ type AzureProvider struct {
 	apiVersion   string
 	client       *fasthttp.Client
 	streamClient *http.Client
+	proxyPool    *store.ProxyPool
 }
 
 type RateLimitError struct {
@@ -55,19 +57,31 @@ func (e *RateLimitError) Is(target error) bool {
 	return target == ErrRateLimit
 }
 
-func New(baseURL, apiVersion string) *AzureProvider {
+func New(baseURL, apiVersion string, proxyPool ...*store.ProxyPool) *AzureProvider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
 	if apiVersion == "" {
 		apiVersion = defaultAPIVersion
 	}
+	var pool *store.ProxyPool
+	if len(proxyPool) > 0 {
+		pool = proxyPool[0]
+	}
+	client := utils.FasthttpClientForPool(pool)
+	client.ReadTimeout = 60 * time.Second
+	client.WriteTimeout = 60 * time.Second
 	return &AzureProvider{
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		apiVersion:   apiVersion,
-		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient: utils.StreamHTTPClient(0),
+		client:       client,
+		streamClient: utils.StreamHTTPClientForPool(0, pool),
+		proxyPool:    pool,
 	}
+}
+
+func (p *AzureProvider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return New(p.baseURL, p.apiVersion, pool)
 }
 
 func (p *AzureProvider) Name() providers.ModelProvider {

@@ -156,6 +156,33 @@ func (s *Store) UpdateConnection(conn *Connection) error {
 	return nil
 }
 
+func (s *Store) UpdateConnectionProxyPool(connectionID string, proxyPoolID *string) error {
+	result, err := s.db.Exec(
+		`UPDATE connections SET proxy_pool_id = ?, updated_at = datetime('now') WHERE id = ?`,
+		proxyPoolID,
+		connectionID,
+	)
+	if err != nil {
+		return fmt.Errorf("update connection proxy pool: %w", err)
+	}
+	return requireRowsAffected(result)
+}
+
+func (s *Store) GetConnectionProxyPoolID(connectionID string) (*string, error) {
+	var proxyPoolID sql.NullString
+	err := s.db.QueryRow(`SELECT proxy_pool_id FROM connections WHERE id = ?`, connectionID).Scan(&proxyPoolID)
+	if err == sql.ErrNoRows {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get connection proxy pool id: %w", err)
+	}
+	if !proxyPoolID.Valid {
+		return nil, nil
+	}
+	return &proxyPoolID.String, nil
+}
+
 func (s *Store) UpdateConnectionCredentials(id string, accessToken, refreshToken *string, expiresAt *int64) error {
 	result, err := s.db.Exec(
 		`UPDATE connections SET

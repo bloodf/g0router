@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 )
 
 const (
@@ -24,6 +26,7 @@ type Config struct {
 	HTTPClient   *http.Client
 	PollInterval time.Duration
 	MaxPolls     int
+	ProxyPool    *store.ProxyPool
 }
 
 type Provider struct {
@@ -31,6 +34,7 @@ type Provider struct {
 	client       *http.Client
 	pollInterval time.Duration
 	maxPolls     int
+	proxyPool    *store.ProxyPool
 }
 
 type predictionCreateRequest struct {
@@ -54,7 +58,8 @@ func New(config Config) *Provider {
 	}
 	client := config.HTTPClient
 	if client == nil {
-		client = &http.Client{Timeout: 60 * time.Second}
+		client = utils.HTTPClientForPool(config.ProxyPool)
+		client.Timeout = 60 * time.Second
 	}
 	pollInterval := config.PollInterval
 	if pollInterval <= 0 {
@@ -64,11 +69,21 @@ func New(config Config) *Provider {
 	if maxPolls <= 0 {
 		maxPolls = defaultMaxPolls
 	}
-	return &Provider{baseURL: baseURL, client: client, pollInterval: pollInterval, maxPolls: maxPolls}
+	return &Provider{baseURL: baseURL, client: client, pollInterval: pollInterval, maxPolls: maxPolls, proxyPool: config.ProxyPool}
 }
 
 func NewDefault() *Provider {
 	return New(Config{})
+}
+
+func (p *Provider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return New(Config{
+		BaseURL:      p.baseURL,
+		HTTPClient:   nil,
+		PollInterval: p.pollInterval,
+		MaxPolls:     p.maxPolls,
+		ProxyPool:    pool,
+	})
 }
 
 func (p *Provider) Name() providers.ModelProvider {

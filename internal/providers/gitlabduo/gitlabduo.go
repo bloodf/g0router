@@ -15,6 +15,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/anthropic"
 	"github.com/bloodf/g0router/internal/providers/openaicompat"
+	"github.com/bloodf/g0router/internal/store"
 )
 
 const (
@@ -28,6 +29,7 @@ type Config struct {
 	GatewayURL string
 	HTTPClient *http.Client
 	Now        func() time.Time
+	ProxyPool  *store.ProxyPool
 }
 
 type Provider struct {
@@ -37,6 +39,7 @@ type Provider struct {
 	now        func() time.Time
 	mu         sync.Mutex
 	cache      map[string]directAccessToken
+	proxyPool  *store.ProxyPool
 }
 
 type directAccessToken struct {
@@ -91,11 +94,22 @@ func New(config Config) *Provider {
 		client:     client,
 		now:        now,
 		cache:      make(map[string]directAccessToken),
+		proxyPool:  config.ProxyPool,
 	}
 }
 
 func NewDefault() *Provider {
 	return New(Config{})
+}
+
+func (p *Provider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return New(Config{
+		GitLabURL:  p.gitLabURL,
+		GatewayURL: p.gatewayURL,
+		HTTPClient: p.client,
+		Now:        p.now,
+		ProxyPool:  pool,
+	})
 }
 
 func (p *Provider) Name() providers.ModelProvider {
@@ -116,16 +130,17 @@ func (p *Provider) ChatCompletion(ctx context.Context, key providers.Key, req *p
 	switch mapping.Provider {
 	case "openai":
 		provider, err := openaicompat.New(openaicompat.Config{
-			Provider: providers.ProviderGitLabDuo,
-			BaseURL:  p.gatewayURL + "/ai/v1/proxy/openai/v1",
-			Headers:  directAccess.Headers,
+			Provider:  providers.ProviderGitLabDuo,
+			BaseURL:   p.gatewayURL + "/ai/v1/proxy/openai/v1",
+			Headers:   directAccess.Headers,
+			ProxyPool: p.proxyPool,
 		})
 		if err != nil {
 			return nil, err
 		}
 		return provider.ChatCompletion(ctx, dispatchKey, dispatchReq)
 	case "anthropic":
-		provider := anthropic.NewForProviderWithHeaders(providers.ProviderGitLabDuo, p.gatewayURL+"/ai/v1/proxy/anthropic", directAccess.Headers)
+		provider := anthropic.NewForProviderWithHeaders(providers.ProviderGitLabDuo, p.gatewayURL+"/ai/v1/proxy/anthropic", directAccess.Headers, p.proxyPool)
 		return provider.ChatCompletion(ctx, dispatchKey, dispatchReq)
 	default:
 		return nil, fmt.Errorf("gitlab-duo unsupported mapped provider %q", mapping.Provider)
@@ -146,16 +161,17 @@ func (p *Provider) ChatCompletionStream(ctx context.Context, key providers.Key, 
 	switch mapping.Provider {
 	case "openai":
 		provider, err := openaicompat.New(openaicompat.Config{
-			Provider: providers.ProviderGitLabDuo,
-			BaseURL:  p.gatewayURL + "/ai/v1/proxy/openai/v1",
-			Headers:  directAccess.Headers,
+			Provider:  providers.ProviderGitLabDuo,
+			BaseURL:   p.gatewayURL + "/ai/v1/proxy/openai/v1",
+			Headers:   directAccess.Headers,
+			ProxyPool: p.proxyPool,
 		})
 		if err != nil {
 			return nil, err
 		}
 		return provider.ChatCompletionStream(ctx, dispatchKey, dispatchReq)
 	case "anthropic":
-		provider := anthropic.NewForProviderWithHeaders(providers.ProviderGitLabDuo, p.gatewayURL+"/ai/v1/proxy/anthropic", directAccess.Headers)
+		provider := anthropic.NewForProviderWithHeaders(providers.ProviderGitLabDuo, p.gatewayURL+"/ai/v1/proxy/anthropic", directAccess.Headers, p.proxyPool)
 		return provider.ChatCompletionStream(ctx, dispatchKey, dispatchReq)
 	default:
 		return nil, fmt.Errorf("gitlab-duo unsupported mapped provider %q", mapping.Provider)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -30,17 +31,18 @@ type AnthropicProvider struct {
 	headers      map[string]string
 	client       *fasthttp.Client
 	streamClient *http.Client
+	proxyPool    *store.ProxyPool
 }
 
-func New(baseURL string) *AnthropicProvider {
-	return NewForProvider(providers.ProviderAnthropic, baseURL)
+func New(baseURL string, proxyPool ...*store.ProxyPool) *AnthropicProvider {
+	return NewForProvider(providers.ProviderAnthropic, baseURL, proxyPool...)
 }
 
-func NewForProvider(name providers.ModelProvider, baseURL string) *AnthropicProvider {
-	return NewForProviderWithHeaders(name, baseURL, nil)
+func NewForProvider(name providers.ModelProvider, baseURL string, proxyPool ...*store.ProxyPool) *AnthropicProvider {
+	return NewForProviderWithHeaders(name, baseURL, nil, proxyPool...)
 }
 
-func NewForProviderWithHeaders(name providers.ModelProvider, baseURL string, headers map[string]string) *AnthropicProvider {
+func NewForProviderWithHeaders(name providers.ModelProvider, baseURL string, headers map[string]string, proxyPool ...*store.ProxyPool) *AnthropicProvider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
@@ -51,13 +53,25 @@ func NewForProviderWithHeaders(name providers.ModelProvider, baseURL string, hea
 		}
 		copiedHeaders[key] = value
 	}
+	var pool *store.ProxyPool
+	if len(proxyPool) > 0 {
+		pool = proxyPool[0]
+	}
+	client := utils.FasthttpClientForPool(pool)
+	client.ReadTimeout = 60 * time.Second
+	client.WriteTimeout = 60 * time.Second
 	return &AnthropicProvider{
 		name:         name,
 		baseURL:      strings.TrimRight(baseURL, "/"),
 		headers:      copiedHeaders,
-		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient: utils.StreamHTTPClient(0),
+		client:       client,
+		streamClient: utils.StreamHTTPClientForPool(0, pool),
+		proxyPool:    pool,
 	}
+}
+
+func (p *AnthropicProvider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return NewForProviderWithHeaders(p.name, p.baseURL, p.headers, pool)
 }
 
 func (p *AnthropicProvider) Name() providers.ModelProvider {

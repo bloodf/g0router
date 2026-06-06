@@ -323,6 +323,9 @@ func (s *Store) migrate() error {
 	if err := s.ensureColumn("api_keys", "daily_spend_cap_usd", "REAL"); err != nil {
 		return err
 	}
+	if err := s.ensureColumn("connections", "proxy_pool_id", "INTEGER"); err != nil {
+		return err
+	}
 
 	return nil
 }

@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 )
 
 const (
@@ -38,6 +40,7 @@ type BedrockProvider struct {
 	region       string
 	client       *http.Client
 	now          func() time.Time
+	proxyPool    *store.ProxyPool
 }
 
 type credentials struct {
@@ -56,18 +59,29 @@ type modelSummary struct {
 	ProviderName string `json:"providerName"`
 }
 
-func New(baseURL string) *BedrockProvider {
+func New(baseURL string, proxyPool ...*store.ProxyPool) *BedrockProvider {
 	if baseURL == "" {
 		baseURL = defaultRuntimeBaseURL
 	}
 	baseURL = strings.TrimRight(baseURL, "/")
+	var pool *store.ProxyPool
+	if len(proxyPool) > 0 {
+		pool = proxyPool[0]
+	}
+	client := utils.HTTPClientForPool(pool)
+	client.Timeout = 60 * time.Second
 	return &BedrockProvider{
 		baseURL:      baseURL,
 		modelBaseURL: modelEndpointFor(baseURL),
 		region:       defaultRegion,
-		client:       &http.Client{Timeout: 60 * time.Second},
+		client:       client,
 		now:          time.Now,
+		proxyPool:    pool,
 	}
+}
+
+func (p *BedrockProvider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return New(p.baseURL, pool)
 }
 
 func (p *BedrockProvider) Name() providers.ModelProvider {

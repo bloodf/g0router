@@ -14,6 +14,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -45,17 +46,30 @@ type GeminiProvider struct {
 	baseURL      string
 	client       *fasthttp.Client
 	streamClient *http.Client
+	proxyPool    *store.ProxyPool
 }
 
-func New(baseURL string) *GeminiProvider {
+func New(baseURL string, proxyPool ...*store.ProxyPool) *GeminiProvider {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
+	var pool *store.ProxyPool
+	if len(proxyPool) > 0 {
+		pool = proxyPool[0]
+	}
+	client := utils.FasthttpClientForPool(pool)
+	client.ReadTimeout = 60 * time.Second
+	client.WriteTimeout = 60 * time.Second
 	return &GeminiProvider{
 		baseURL:      strings.TrimRight(baseURL, "/"),
-		client:       &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient: utils.StreamHTTPClient(0),
+		client:       client,
+		streamClient: utils.StreamHTTPClientForPool(0, pool),
+		proxyPool:    pool,
 	}
+}
+
+func (p *GeminiProvider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	return New(p.baseURL, pool)
 }
 
 func (p *GeminiProvider) Name() providers.ModelProvider {

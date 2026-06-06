@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/providers/utils"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -28,6 +30,7 @@ type Config struct {
 	BaseURL             string
 	Headers             map[string]string
 	ChatCompletionsPath string
+	ProxyPool           *store.ProxyPool
 }
 
 type Provider struct {
@@ -37,6 +40,7 @@ type Provider struct {
 	chatCompletionsPath string
 	client              *fasthttp.Client
 	streamClient        *http.Client
+	proxyPool           *store.ProxyPool
 }
 
 type RateLimitError struct {
@@ -79,14 +83,35 @@ func New(config Config) (*Provider, error) {
 		}
 		headers[key] = value
 	}
+	client := utils.FasthttpClientForPool(config.ProxyPool)
+	client.ReadTimeout = 60 * time.Second
+	client.WriteTimeout = 60 * time.Second
+	var streamClient *http.Client
+	if config.ProxyPool != nil {
+		streamClient = utils.StreamHTTPClientForPool(0, config.ProxyPool)
+	} else {
+		streamClient = &http.Client{}
+	}
 	return &Provider{
 		provider:            config.Provider,
 		baseURL:             strings.TrimRight(config.BaseURL, "/"),
 		headers:             headers,
 		chatCompletionsPath: chatCompletionsPath,
-		client:              &fasthttp.Client{ReadTimeout: 60 * time.Second, WriteTimeout: 60 * time.Second},
-		streamClient:        &http.Client{},
+		client:              client,
+		streamClient:        streamClient,
+		proxyPool:           config.ProxyPool,
 	}, nil
+}
+
+func (p *Provider) WithProxyPool(pool *store.ProxyPool) providers.Provider {
+	provider, _ := New(Config{
+		Provider:            p.provider,
+		BaseURL:             p.baseURL,
+		Headers:             p.headers,
+		ChatCompletionsPath: p.chatCompletionsPath,
+		ProxyPool:           pool,
+	})
+	return provider
 }
 
 func (p *Provider) Name() providers.ModelProvider {
