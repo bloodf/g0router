@@ -1,6 +1,9 @@
 package usage
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type UsageFilter struct {
 	Provider     *string
@@ -64,11 +67,11 @@ type UsageReader interface {
 func ListUsage(reader UsageReader, filter UsageFilter) ([]UsageLog, int, error) {
 	logs, err := reader.GetUsage(filter)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("get usage: %w", err)
 	}
 	total, err := reader.CountUsage(filter)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("count usage: %w", err)
 	}
 	return logs, total, nil
 }
@@ -76,7 +79,7 @@ func ListUsage(reader UsageReader, filter UsageFilter) ([]UsageLog, int, error) 
 func GetSummary(reader UsageReader, filter UsageFilter) (UsageSummary, error) {
 	summary, err := reader.GetUsageSummary(filter)
 	if err != nil {
-		return UsageSummary{}, err
+		return UsageSummary{}, fmt.Errorf("get usage summary: %w", err)
 	}
 	if summary == nil {
 		return UsageSummary{}, nil

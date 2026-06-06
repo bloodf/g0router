@@ -322,7 +322,7 @@ type usageStoreAdapter struct {
 func (a *usageStoreAdapter) GetUsage(filter usage.UsageFilter) ([]usage.UsageLog, error) {
 	entries, err := a.store.GetUsage(toStoreFilter(filter))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("adapter get usage: %w", err)
 	}
 	logs := make([]usage.UsageLog, len(entries))
 	for i, e := range entries {
@@ -338,7 +338,7 @@ func (a *usageStoreAdapter) CountUsage(filter usage.UsageFilter) (int, error) {
 func (a *usageStoreAdapter) GetUsageSummary(filter usage.UsageFilter) (*usage.UsageSummary, error) {
 	summary, err := a.store.GetUsageSummary(toStoreFilter(filter))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("adapter get usage summary: %w", err)
 	}
 	return &usage.UsageSummary{
 		RequestCount: summary.RequestCount,

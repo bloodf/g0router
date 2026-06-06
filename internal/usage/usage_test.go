@@ -122,6 +122,17 @@ func TestGetSummaryPropagatesError(t *testing.T) {
 	}
 }
 
+func TestGetSummaryReturnsZeroWhenNil(t *testing.T) {
+	reader := &fakeUsageReader{summary: nil}
+	summary, err := usage.GetSummary(reader, usage.UsageFilter{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if summary.RequestCount != 0 || summary.TotalTokens != 0 || summary.TotalCostUSD != 0 {
+		t.Fatalf("summary = %+v, want zero", summary)
+	}
+}
+
 func intPtr(v int) *int {
 	return &v
 }
