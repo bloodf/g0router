@@ -9,6 +9,7 @@ import (
 	"log"
 	"mime"
 	"net"
+	"net/http"
 	"path"
 	"strconv"
 	"strings"
@@ -63,6 +64,12 @@ const responseCacheMaxEntries = 1000
 // connectionRefreshInterval is how often the proactive OAuth refresh job runs.
 const connectionRefreshInterval = time.Minute
 
+// tunnelHealthInterval is how often the background tunnel health check job runs.
+const tunnelHealthInterval = 60 * time.Second
+
+// proxyPoolHealthInterval is how often the background proxy pool health check job runs.
+const proxyPoolHealthInterval = 5 * time.Minute
+
 // ConnectionRefresher proactively refreshes OAuth connections whose tokens are
 // near expiry. It is satisfied by *proxy.Engine.
 type ConnectionRefresher interface {
@@ -106,6 +113,9 @@ type Server struct {
 	// stale episode, so we notify once per episode rather than every tick.
 	notifiedMu    sync.Mutex
 	notifiedStale map[string]bool
+
+	tunnelHealthInterval    time.Duration
+	proxyPoolHealthInterval time.Duration
 
 	// responseCacheMu guards the optional non-streaming response cache and the
 	// TTL it was built with. The cache TTL is fixed at construction, so when the
@@ -291,6 +301,166 @@ func (s *Server) notifyStale(webhookURL string, outcome proxy.RefreshOutcome) {
 	if err := notifier.Notify(context.Background(), event); err != nil {
 		log.Printf("stale connection notification failed for %s: %v", outcome.ConnectionID, err)
 	}
+}
+
+// StartTunnelHealth launches the background tunnel health check job.
+// It runs every 60s, stopping when ctx is cancelled.
+func (s *Server) StartTunnelHealth(ctx context.Context) {
+	if s.config.Store == nil {
+		return
+	}
+	interval := s.tunnelHealthInterval
+	if interval <= 0 {
+		interval = tunnelHealthInterval
+	}
+	go func() {
+		s.runTunnelHealthGuarded()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.runTunnelHealthGuarded()
+			}
+		}
+	}()
+}
+
+// runTunnelHealthGuarded runs one tunnel health pass and recovers from any panic
+// so a single failed cycle cannot kill the background loop.
+func (s *Server) runTunnelHealthGuarded() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("tunnel health panic recovered: %v", r)
+		}
+	}()
+	s.runTunnelHealthOnce()
+}
+
+// runTunnelHealthOnce performs a single tunnel health pass: it lists enabled
+// tunnels with non-empty URLs and checks /healthz on each.
+func (s *Server) runTunnelHealthOnce() {
+	if s.config.Store == nil {
+		return
+	}
+	configs, err := s.config.Store.ListTunnelConfigs()
+	if err != nil {
+		log.Printf("tunnel health: list configs: %v", err)
+		return
+	}
+	var wg sync.WaitGroup
+	for _, cfg := range configs {
+		if !cfg.IsEnabled || cfg.URL == "" {
+			continue
+		}
+		wg.Add(1)
+		go func(tunnelType, url string) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("tunnel health check panic for %s recovered: %v", tunnelType, r)
+				}
+			}()
+			client := &http.Client{Timeout: 5 * time.Second}
+			resp, err := client.Get(url + "/healthz")
+			if err != nil {
+				if updateErr := s.config.Store.UpdateTunnelStatus(tunnelType, "error", err.Error()); updateErr != nil {
+					log.Printf("tunnel health: update status for %s: %v", tunnelType, updateErr)
+				}
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				if updateErr := s.config.Store.UpdateTunnelStatus(tunnelType, "active", ""); updateErr != nil {
+					log.Printf("tunnel health: update status for %s: %v", tunnelType, updateErr)
+				}
+			} else {
+				if updateErr := s.config.Store.UpdateTunnelStatus(tunnelType, "error", fmt.Sprintf("status %d", resp.StatusCode)); updateErr != nil {
+					log.Printf("tunnel health: update status for %s: %v", tunnelType, updateErr)
+				}
+			}
+		}(cfg.Type, cfg.URL)
+	}
+	wg.Wait()
+}
+
+// StartProxyPoolHealth launches the background proxy pool health check job.
+// It runs every 5min, stopping when ctx is cancelled.
+func (s *Server) StartProxyPoolHealth(ctx context.Context) {
+	if s.config.Store == nil {
+		return
+	}
+	interval := s.proxyPoolHealthInterval
+	if interval <= 0 {
+		interval = proxyPoolHealthInterval
+	}
+	go func() {
+		s.runProxyPoolHealthGuarded()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.runProxyPoolHealthGuarded()
+			}
+		}
+	}()
+}
+
+// runProxyPoolHealthGuarded runs one proxy pool health pass and recovers from any panic
+// so a single failed cycle cannot kill the background loop.
+func (s *Server) runProxyPoolHealthGuarded() {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("proxy pool health panic recovered: %v", r)
+		}
+	}()
+	s.runProxyPoolHealthOnce()
+}
+
+// runProxyPoolHealthOnce performs a single proxy pool health pass: it lists
+// active pools and attempts a TCP dial to host:port on each.
+func (s *Server) runProxyPoolHealthOnce() {
+	if s.config.Store == nil {
+		return
+	}
+	pools, err := s.config.Store.ListProxyPools()
+	if err != nil {
+		log.Printf("proxy pool health: list pools: %v", err)
+		return
+	}
+	var wg sync.WaitGroup
+	for _, pool := range pools {
+		if !pool.IsActive {
+			continue
+		}
+		wg.Add(1)
+		go func(id, host string, port int) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("proxy pool health check panic for %s recovered: %v", id, r)
+				}
+			}()
+			addr := net.JoinHostPort(host, strconv.Itoa(port))
+			conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+			if err != nil {
+				if updateErr := s.config.Store.UpdateProxyPoolStatus(id, "error", err.Error()); updateErr != nil {
+					log.Printf("proxy pool health: update status for %s: %v", id, updateErr)
+				}
+				return
+			}
+			conn.Close()
+			if updateErr := s.config.Store.UpdateProxyPoolStatus(id, "ok", ""); updateErr != nil {
+				log.Printf("proxy pool health: update status for %s: %v", id, updateErr)
+			}
+		}(pool.ID, pool.Host, pool.Port)
+	}
+	wg.Wait()
 }
 
 func (s *Server) Serve(ln net.Listener) error {

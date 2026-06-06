@@ -22,6 +22,8 @@ func NewServer(config ServerConfig) *Server {
 		trafficBroker:             traffic.NewBroker(256),
 		logRetentionInterval:      logRetentionInterval,
 		connectionRefreshInterval: connectionRefreshInterval,
+		tunnelHealthInterval:      tunnelHealthInterval,
+		proxyPoolHealthInterval:   proxyPoolHealthInterval,
 		notifiedStale:             make(map[string]bool),
 		stopCh:                    make(chan struct{}),
 	}

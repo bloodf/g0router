@@ -137,6 +137,18 @@ func (s *Store) DeleteProxyPool(id string) error {
 	return nil
 }
 
+// UpdateProxyPoolStatus updates only the last_check_at and last_check_status fields for a proxy pool.
+func (s *Store) UpdateProxyPoolStatus(id string, status, lastError string) error {
+	_, err := s.db.Exec(
+		"UPDATE proxy_pools SET last_check_at = CURRENT_TIMESTAMP, last_check_status = ? WHERE id = ?",
+		status, id,
+	)
+	if err != nil {
+		return fmt.Errorf("update proxy pool status: %w", err)
+	}
+	return nil
+}
+
 // TestProxyPool is a placeholder for connectivity testing.
 func (s *Store) TestProxyPool(id string) (ok bool, latencyMs int, err error) {
 	return true, 0, nil

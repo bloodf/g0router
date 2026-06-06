@@ -184,6 +184,8 @@ func runServer(ctx context.Context, config serveConfig) error {
 	server := api.NewServer(newServerConfig(ctx, config, s, tunnelMgr))
 	server.StartLogRetention(ctx)
 	server.StartConnectionRefresh(ctx)
+	server.StartTunnelHealth(ctx)
+	server.StartProxyPoolHealth(ctx)
 
 	go func() {
 		<-ctx.Done()
