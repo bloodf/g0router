@@ -5417,3 +5417,68 @@ If project is in a broken state:
 3. Read WORKFLOW.md → identify the active wave/task if one exists
 4. Fix failing tests before proceeding
 5. Never skip a broken test — fix or revert
+
+
+---
+
+## Stage 12B-19 — DDD Refactor + UI Overhaul: 9Router + Bifrost Feature Integration
+
+> **Status**: PLANNING COMPLETE — phase docs + process doc + Lovable prompt written. Next: execute Phase 12B.
+> **Started**: 2026-06-05
+> **Goal**: Refactor project to layered DDD architecture, then implement ~55 new backend features from 9Router and Bifrost. Lovable generates the new UI in parallel; integration deferred to phases 20-21.
+
+### Process
+Single source of truth for execution process, cross-cutting contracts
+(snake_case, response envelope, audit, secrets-at-rest, feature flags,
+architecture layers), gates, and the per-phase checkpoint protocol:
+
+**`docs/phases/STAGE-13-19-PROCESS.md`** — read it before any phase work.
+
+### Phase Plan
+
+| Phase | Name | Doc | Status |
+|-------|------|-----|--------|
+| 12B | DDD & Architecture Refactor (whole project) | `phase-12b-ddd-architecture-refactor.md` | PENDING |
+| 13 | Auth & Core Infrastructure | `phase-13-auth-core-infrastructure.md` | PENDING |
+| 14 | Providers & Testing | `phase-14-providers-testing.md` | PENDING |
+| 15 | Tunnels & Network | `phase-15-tunnels-network.md` | PENDING |
+| 16 | Chat & Console | `phase-16-chat-console.md` | PENDING |
+| 17 | Usage & Analytics | `phase-17-usage-analytics.md` | PENDING |
+| 18 | Bifrost Features (sub-stages 18A-18D) | `phase-18-bifrost-features.md` | PENDING |
+| 19 | Advanced Features | `phase-19-advanced-features.md` | PENDING |
+| 20 | Lovable UI Generation | prompt: `docs/lovable-prompt.md` (DONE) — generation PENDING (user-driven) | PENDING |
+| 21 | UI Integration & Gates | TBD after Lovable output | PENDING |
+
+Execution order is strict: 12B before 13; 13 before all others (auth
+foundation); 14-17 may reorder if needed; 18 before 19. Checkpoint protocol
+(gates, WORKFLOW update, `## Outcome` section) at every phase end — see
+process doc §4.
+
+### Deferred (decided during planning — see phase docs for rationale)
+- Adaptive routing heuristic (duplicate of existing `auto` strategy classifier)
+- OTel distributed tracing
+- WebRTC realtime (WebSocket only)
+- 33-locale i18n (en + pt-BR real; rest fall back)
+- Automatic /etc/hosts editing for MITM (manual instructions instead)
+- Tailscale binary auto-install (drives preinstalled binary only)
+
+### New DB Tables
+- `dashboard_users`, `dashboard_sessions` (Phase 13)
+- `proxy_pools`, `disabled_models`, `custom_models` (Phase 14)
+- `tunnel_config` (Phase 15)
+- `chat_sessions` (Phase 16)
+- `teams`, `virtual_keys` (Phase 18A)
+- `routing_rules`, `model_limits` (Phase 18B)
+- `prompt_templates`, `mcp_tool_groups` (Phase 18C; guardrails config lives in settings)
+- `alert_channels`, `feature_flags` (Phase 18D)
+- `semantic_cache` (Phase 19)
+
+### Gates
+Per-commit: `go test ./... -count=1 && go vet ./... && go build ./cmd/g0router`
+Per-phase (checkpoint): adds `go test -race ./...` + coverage ≥ 95.0%.
+UI gates (`npm --prefix ui test -- --run`, `npm --prefix ui run build`) only
+when `ui/` touched. Stage exit: `make e2e-binary` + gitleaks clean.
+
+### Commit Pattern
+`phase-12b/task-1: routing table extraction`
+`phase-13/task-1: dashboard users store with bcrypt`
