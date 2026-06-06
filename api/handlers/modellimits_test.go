@@ -254,3 +254,12 @@ func TestModelLimitsDeleteMissingID(t *testing.T) {
 		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
 	}
 }
+
+func TestModelLimitsMethodNotAllowed(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPatch, "", func(ctx *fasthttp.RequestCtx) {
+		ModelLimits(ctx, &fakeModelLimitStore{}, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", ctx.Response.StatusCode())
+	}
+}

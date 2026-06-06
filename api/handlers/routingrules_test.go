@@ -259,3 +259,12 @@ func TestRoutingRulesDeleteMissingID(t *testing.T) {
 		t.Fatalf("status = %d, want 400", ctx.Response.StatusCode())
 	}
 }
+
+func TestRoutingRulesMethodNotAllowed(t *testing.T) {
+	ctx, _ := runHandler(t, fasthttp.MethodPatch, "", func(ctx *fasthttp.RequestCtx) {
+		RoutingRules(ctx, &fakeRoutingRuleStore{}, "")
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusMethodNotAllowed {
+		t.Fatalf("status = %d, want 405", ctx.Response.StatusCode())
+	}
+}

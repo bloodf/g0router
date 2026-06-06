@@ -519,3 +519,18 @@ func stringPtr(s string) *string {
 func intPtr(i int) *int {
 	return &i
 }
+
+func TestPreviewResolveProviderUnknownModel(t *testing.T) {
+	got := previewResolveProvider("nonexistent-model-xyz")
+	if got != "" {
+		t.Fatalf("previewResolveProvider = %q, want empty", got)
+	}
+}
+
+func TestLoadRulesStoreError(t *testing.T) {
+	eval := NewRoutingRuleEvaluator(&fakeRuleStore{err: errors.New("boom")})
+	_, ok := eval.Evaluate(&providers.ChatRequest{Model: "gpt-4"}, nil)
+	if ok {
+		t.Fatal("expected false from store error")
+	}
+}
