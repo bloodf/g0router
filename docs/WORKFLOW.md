@@ -136,6 +136,42 @@ completed_at: "2026-06-06T09:57:00Z"
 
 ---
 
+## Phase 15 — Tunnels & Network
+
+```yaml
+phase: 15
+status: DONE
+summary: "Cloudflare and Tailscale tunnel management with checksum-verified binary downloads, process supervision, tunnel health checks, proxy connectivity testing, and proxy pool auto health checks."
+commit_range: "f8e2943..39aa6d7"
+completed_at: "2026-06-06T09:57:00Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all 47 packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-1: Store — `tunnel_config` CRUD with encrypted config (`internal/store/tunnels.go`, `tunnels_test.go`)
+- task-2: Tunnel package — checksum-verified download, process supervisor, tunnel manager (`internal/tunnel/download.go`, `supervisor.go`, `tunnel.go`)
+- task-3: Handlers — tunnel CRUD/health + proxy-test (`api/handlers/tunnels.go`, `tunnels_test.go`)
+- task-4: Background health loops — tunnel (60s) + proxy pool (5min) (`api/server.go`, `server_health_test.go`)
+- task-coverage: Tunnel package error branch coverage
+
+**Security Review (mandatory):**
+- Input validation: ✅ Tunnel name `[a-z0-9-]{1,63}`; port validation; no shell interpolation
+- Authn/authz: ✅ All tunnel mutations require admin-session or bearer auth
+- Secrets at rest: ✅ Tunnel config encrypted with AES-GCM
+- Secrets in logs: ✅ CLI stderr discarded; tokens never logged
+- Supply-chain: ✅ Cloudflared download pinned version + SHA-256 per OS/arch; checksum verified before chmod+exec; HTTPS from GitHub releases only
+- Privilege requirements: ✅ Tailscale not downloaded by g0router; requires preinstalled binary on PATH; returns 409 with instructions if absent
+
+**Next:** Phase 16 — Chat & Console
+
+---
+
 ## Session S2 — Full release-readiness audit
 
 ```yaml

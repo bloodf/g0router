@@ -74,5 +74,34 @@ All tunnel mutations: admin-session or bearer auth + audit rows.
 - Config round-trips encrypted; API responses never expose tokens
 - Proxy-test returns `{ok, latency_ms, error}`, never 500 on bad proxy
 
+## Outcome
+
+All 7 features implemented. Supply-chain security enforced with pinned checksums. No privilege escalation.
+
+### Shipped
+- **task-1**: `internal/store/tunnels.go` — `tunnel_config` CRUD with AES-GCM encrypted `config_enc`
+- **task-2**: `internal/tunnel/download.go` — pinned `cloudflared` download with SHA-256 verification per OS/arch; `internal/tunnel/supervisor.go` — process supervisor with URL capture from stdout, context cancellation kill; `internal/tunnel/tunnel.go` — Manager orchestrating store + supervisor
+- **task-3**: `api/handlers/tunnels.go` — tunnel CRUD (cloudflare/tailscale create/delete), health check, proxy-test; `api/handlers/tunnels_test.go`
+- **task-4**: `api/server.go` — background tunnel health (60s) and proxy pool health (5min) loops with panic recovery
+- **task-coverage**: Tunnel package error branch coverage to maintain 95.0%
+
+### Security Review
+- Input validation: ✅ Tunnel names `[a-z0-9-]{1,63}`; port numeric validation; no shell interpolation
+- Authn/authz: ✅ Tunnel mutations require admin session or bearer auth + audit rows
+- Secrets at rest: ✅ Tunnel config encrypted with AES-GCM
+- Secrets in logs: ✅ CLI stderr discarded; tokens never logged
+- Supply-chain: ✅ Cloudflared pinned version + SHA-256; HTTPS from GitHub releases only; checksum verified before chmod+exec
+- Privilege requirements: ✅ Tailscale not downloaded by g0router; requires preinstalled binary on PATH; 409 with instructions if absent
+
+### Gates
+- `go test ./... -count=1`: PASS
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+### Commit Range
+`f8e2943` → `39aa6d7`
+
 ## Commit Message (final)
 `phase-15/tunnels-network: cloudflare, tailscale funnel, health loops`
