@@ -97,5 +97,34 @@ CREATE TABLE IF NOT EXISTS custom_models (
 - Batch test SSE emits one event per connection + terminal `done` event
 - Audit rows for pool create/update/delete and proxy assignment
 
+## Outcome
+
+All 9 features implemented. Proxy pool passwords encrypted at rest with AES-GCM. Disabled/custom model management wired into listings and routing.
+
+### Shipped
+- **task-1**: `internal/store/proxypools.go` — CRUD with AES-GCM encrypted `password_enc`; `internal/store/encryption.go` with reusable encrypt/decrypt helpers
+- **task-2**: `internal/store/models_mgmt.go` — `disabled_models` + `custom_models` with `UNIQUE(provider, model)` constraints
+- **task-3**: `api/handlers/proxypools.go` — proxy pools CRUD, connectivity test placeholder, batch import (parses `host:port`, `scheme://host:port`, `scheme://user:pass@host:port`)
+- **task-4**: `internal/providers/utils/proxy.go` — HTTP/HTTPS/SOCKS5 proxy wiring for both `net/http` and fasthttp clients; `internal/proxy/engine.go` caches proxied providers per connection
+- **task-5**: `api/handlers/providers.go` — provider detail (matrix + connection counts + health), provider connections filter, suggested-models live fetch
+- **task-6**: `api/handlers/modeltest.go` — single model test (`{ok, latency_ms, error}`), batch SSE test (one event per connection + terminal `done`)
+- **task-7**: `api/handlers/models_mgmt.go` + `internal/proxy/engine.go` — disabled models filtered from `/v1/models`/routing; custom models appended with `is_custom: true`
+- **task-coverage**: Error branch coverage for all new Phase 14 code to maintain 95.0%
+
+### Proxy Approach (fasthttp caveat)
+- Standard `net/http` clients: `http.ProxyURL` for HTTP/HTTPS, `golang.org/x/net/proxy.SOCKS5` for SOCKS5
+- fasthttp clients: `fasthttpproxy.FasthttpHTTPDialer` for HTTP/HTTPS, `fasthttpproxy.FasthttpSocksDialer` for SOCKS5
+- All 11 direct-dispatch provider adapters implement `WithProxyPool` method
+
+### Gates
+- `go test ./... -count=1`: PASS
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+### Commit Range
+`90c63b7` → `e567421`
+
 ## Commit Message (final)
 `phase-14/providers-testing: detail api, model tests, proxy pools, model mgmt`

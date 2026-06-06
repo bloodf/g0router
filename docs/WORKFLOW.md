@@ -31,7 +31,7 @@
 project_status: IN_PROGRESS
 current_stage: 14
 current_wave: "Phase 14 — Providers & Testing"
-last_completed_wave: "Phase 14 task-6"
+last_completed_wave: "Phase 14 checkpoint"
 last_updated: "2026-06-06T09:57:00Z"
 last_agent: "orchestrator"
 ```
@@ -109,14 +109,30 @@ completed_at: "2026-06-06T07:18:52Z"
 
 ```yaml
 phase: 14
-status: IN_PROGRESS
-summary: "Provider detail endpoints, model testing, proxy wiring, and connection health verification."
+status: DONE
+summary: "Provider detail APIs, model testing (single + batch SSE), proxy pools with encrypted credentials, disabled/custom model management, and proxy wiring into provider HTTP clients."
+commit_range: "90c63b7..e567421"
+completed_at: "2026-06-06T09:57:00Z"
 ```
 
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all 46 packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
 **Tasks:**
-- task-4: Proxy wiring into provider clients
-- task-5: Provider detail/connections/suggested handlers
-- task-6: Model test single and batch SSE handlers — `api/handlers/modeltest.go`, `api/handlers/modeltest_test.go`, `api/routes.go`
+- task-1: Store — `proxy_pools` CRUD with AES-GCM encrypted password (`internal/store/proxypools.go`, `proxypools_test.go`)
+- task-2: Store — `disabled_models` + `custom_models` CRUD (`internal/store/models_mgmt.go`, `models_mgmt_test.go`)
+- task-3: Handlers — proxy pools CRUD/test/batch import (`api/handlers/proxypools.go`, `proxypools_test.go`)
+- task-4: Proxy wiring — HTTP/HTTPS/SOCKS5 proxy into provider clients (`internal/providers/utils/proxy.go`, `proxy_test.go`)
+- task-5: Handlers — provider detail/connections/suggested-models (`api/handlers/providers.go`, `providers_test.go`)
+- task-6: Handlers — model test single + batch SSE (`api/handlers/modeltest.go`, `modeltest_test.go`)
+- task-7: Disabled/custom model filtering in listings and routing (`api/handlers/models_mgmt.go`, `internal/proxy/engine.go`)
+- task-coverage: Error branch coverage for all new Phase 14 code
+
+**Next:** Phase 15 — Tunnels & Network
 
 ---
 
