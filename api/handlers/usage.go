@@ -83,23 +83,17 @@ func Usage(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 		return
 	}
 
-	entries, err := usageStore.GetUsage(filter)
+	adapter := usageStoreAdapter{store: usageStore}
+	logs, total, err := usage.ListUsage(&adapter, toUsageFilter(filter))
 	if err != nil {
 		log.Printf("get usage: %v", err)
 		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get usage")
 		return
 	}
 
-	total, err := usageStore.CountUsage(filter)
-	if err != nil {
-		log.Printf("count usage: %v", err)
-		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get usage")
-		return
-	}
-
 	writeJSON(ctx, fasthttp.StatusOK, usageListResponse{
 		Object: "list",
-		Data:   usageLogResponses(entries),
+		Data:   toUsageLogResponses(logs),
 		Limit:  filter.Limit,
 		Offset: filter.Offset,
 		Total:  total,
@@ -118,7 +112,8 @@ func UsageSummary(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 		return
 	}
 
-	summary, err := usageStore.GetUsageSummary(filter)
+	adapter := usageStoreAdapter{store: usageStore}
+	summary, err := usage.GetSummary(&adapter, toUsageFilter(filter))
 	if err != nil {
 		log.Printf("get usage summary: %v", err)
 		writeError(ctx, fasthttp.StatusInternalServerError, "failed to get usage summary")
@@ -284,6 +279,144 @@ func parseNonNegativeIntArg(args *fasthttp.Args, name string) (int, error) {
 }
 
 func usageLogResponses(entries []store.RequestLogEntry) []usageLogResponse {
+	responses := make([]usageLogResponse, 0, len(entries))
+	for _, entry := range entries {
+		responses = append(responses, usageLogResponse{
+			ID:                 entry.ID,
+			RequestID:          entry.RequestID,
+			Timestamp:          entry.Timestamp.Format(time.RFC3339),
+			Provider:           entry.Provider,
+			Model:              entry.Model,
+			ConnectionID:       entry.ConnectionID,
+			AuthType:           entry.AuthType,
+			InputTokens:        entry.InputTokens,
+			OutputTokens:       entry.OutputTokens,
+			CacheReadTokens:    entry.CacheReadTokens,
+			CacheWriteTokens:   entry.CacheWriteTokens,
+			TotalTokens:        entry.TotalTokens,
+			CostUSD:            entry.CostUSD,
+			LatencyMS:          entry.LatencyMS,
+			StatusCode:         entry.StatusCode,
+			Error:              entry.Error,
+			SourceFormat:       entry.SourceFormat,
+			TargetFormat:       entry.TargetFormat,
+			RTKEnabled:         entry.RTKEnabled,
+			RTKBytesSaved:      entry.RTKBytesSaved,
+			CavemanEnabled:     entry.CavemanEnabled,
+			ComboName:          entry.ComboName,
+			APIKeyID:           entry.APIKeyID,
+			APIKeyName:         entry.APIKeyName,
+			ClientTool:         entry.ClientTool,
+			ConnectionName:     entry.ConnectionName,
+			ConnectionProvider: entry.ConnectionProvider,
+			AccountEmail:       entry.AccountEmail,
+		})
+	}
+	return responses
+}
+
+type usageStoreAdapter struct {
+	store UsageStore
+}
+
+func (a *usageStoreAdapter) GetUsage(filter usage.UsageFilter) ([]usage.UsageLog, error) {
+	entries, err := a.store.GetUsage(toStoreFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+	logs := make([]usage.UsageLog, len(entries))
+	for i, e := range entries {
+		logs[i] = toUsageLog(e)
+	}
+	return logs, nil
+}
+
+func (a *usageStoreAdapter) CountUsage(filter usage.UsageFilter) (int, error) {
+	return a.store.CountUsage(toStoreFilter(filter))
+}
+
+func (a *usageStoreAdapter) GetUsageSummary(filter usage.UsageFilter) (*usage.UsageSummary, error) {
+	summary, err := a.store.GetUsageSummary(toStoreFilter(filter))
+	if err != nil {
+		return nil, err
+	}
+	return &usage.UsageSummary{
+		RequestCount: summary.RequestCount,
+		TotalTokens:  summary.TotalTokens,
+		TotalCostUSD: summary.TotalCostUSD,
+	}, nil
+}
+
+func toUsageFilter(f store.UsageFilter) usage.UsageFilter {
+	return usage.UsageFilter{
+		Provider:     f.Provider,
+		Model:        f.Model,
+		AuthType:     f.AuthType,
+		APIKeyID:     f.APIKeyID,
+		SourceFormat: f.SourceFormat,
+		StatusClass:  f.StatusClass,
+		Search:       f.Search,
+		From:         f.From,
+		To:           f.To,
+		Start:        f.Start,
+		End:          f.End,
+		Limit:        f.Limit,
+		Offset:       f.Offset,
+	}
+}
+
+func toStoreFilter(f usage.UsageFilter) store.UsageFilter {
+	return store.UsageFilter{
+		Provider:     f.Provider,
+		Model:        f.Model,
+		AuthType:     f.AuthType,
+		APIKeyID:     f.APIKeyID,
+		SourceFormat: f.SourceFormat,
+		StatusClass:  f.StatusClass,
+		Search:       f.Search,
+		From:         f.From,
+		To:           f.To,
+		Start:        f.Start,
+		End:          f.End,
+		Limit:        f.Limit,
+		Offset:       f.Offset,
+	}
+}
+
+func toUsageLog(e store.RequestLogEntry) usage.UsageLog {
+	return usage.UsageLog{
+		ID:                 e.ID,
+		RequestID:          e.RequestID,
+		Timestamp:          e.Timestamp,
+		Provider:           e.Provider,
+		Model:              e.Model,
+		ConnectionID:       e.ConnectionID,
+		AuthType:           e.AuthType,
+		InputTokens:        e.InputTokens,
+		OutputTokens:       e.OutputTokens,
+		CacheReadTokens:    e.CacheReadTokens,
+		CacheWriteTokens:   e.CacheWriteTokens,
+		TotalTokens:        e.TotalTokens,
+		CostUSD:            e.CostUSD,
+		LatencyMS:          e.LatencyMS,
+		StatusCode:         e.StatusCode,
+		Error:              e.Error,
+		SourceFormat:       e.SourceFormat,
+		TargetFormat:       e.TargetFormat,
+		RTKEnabled:         e.RTKEnabled,
+		RTKBytesSaved:      e.RTKBytesSaved,
+		CavemanEnabled:     e.CavemanEnabled,
+		ComboName:          e.ComboName,
+		APIKeyID:           e.APIKeyID,
+		APIKeyName:         e.APIKeyName,
+		ClientTool:         e.ClientTool,
+		ConnectionName:     e.ConnectionName,
+		ConnectionProvider: e.ConnectionProvider,
+		AccountEmail:       e.AccountEmail,
+	}
+}
+
+func toUsageLogResponses(entries []usage.UsageLog) []usageLogResponse {
 	responses := make([]usageLogResponse, 0, len(entries))
 	for _, entry := range entries {
 		responses = append(responses, usageLogResponse{
