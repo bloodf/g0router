@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/bloodf/g0router"
 	"github.com/bloodf/g0router/api/handlers"
 	"github.com/bloodf/g0router/internal/cache"
 	"github.com/bloodf/g0router/internal/logging"
@@ -129,32 +128,6 @@ func (s *Server) UpdateSettings(settings store.Settings) error {
 	s.settingsCache = &settings
 	s.settingsMu.Unlock()
 	return nil
-}
-
-func NewServer(config ServerConfig) *Server {
-	uiFS, err := g0router.UI()
-	srv := &Server{
-		config:                    config,
-		uiFS:                      uiFS,
-		uiErr:                     err,
-		limiter:                   ratelimit.NewLimiter(),
-		metrics:                   metrics.NewCollector(),
-		trafficBroker:             traffic.NewBroker(256),
-		logRetentionInterval:      logRetentionInterval,
-		connectionRefreshInterval: connectionRefreshInterval,
-		notifiedStale:             make(map[string]bool),
-		stopCh:                    make(chan struct{}),
-	}
-	srv.runRetention = srv.runLogRetentionOnce
-	srv.runConnectionRefresh = srv.runConnectionRefreshOnce
-	srv.notifierFor = func(url string) notify.Notifier { return notify.NewNotifier(url, nil) }
-	if refresher, ok := config.InferenceEngine.(ConnectionRefresher); ok {
-		srv.connRefresher = refresher
-	}
-	srv.server = &fasthttp.Server{
-		Handler: srv.handle,
-	}
-	return srv
 }
 
 // StartLogRetention launches the background request-log cleanup job. It runs
@@ -344,51 +317,13 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 	if !s.applyMiddleware(ctx) {
 		return
 	}
-
-	switch string(ctx.Path()) {
-	case "/healthz":
-		handlers.Health(ctx, s.config.Version)
-	case "/metrics":
-		s.handleMetrics(ctx)
-	case "/v1/chat/completions":
-		if string(ctx.Method()) == fasthttp.MethodPost {
-			s.handleInference(ctx)
+	rawPath := string(ctx.Path())
+	method := string(ctx.Method())
+	for _, r := range s.routes() {
+		if r.match(rawPath, method) {
+			r.handler(ctx)
 			return
 		}
-		ctx.SetStatusCode(fasthttp.StatusNotFound)
-	case "/v1/messages":
-		if string(ctx.Method()) == fasthttp.MethodPost {
-			s.handleMessages(ctx)
-			return
-		}
-		ctx.SetStatusCode(fasthttp.StatusNotFound)
-	case "/v1/responses":
-		if string(ctx.Method()) == fasthttp.MethodPost {
-			s.handleResponses(ctx)
-			return
-		}
-		ctx.SetStatusCode(fasthttp.StatusNotFound)
-	case "/v1/embeddings":
-		s.handleExtra(ctx, handlers.Embeddings)
-	case "/v1/images/generations":
-		s.handleExtra(ctx, handlers.Images)
-	case "/v1/audio/transcriptions":
-		s.handleExtra(ctx, handlers.AudioTranscription)
-	case "/v1/audio/speech":
-		s.handleExtra(ctx, handlers.Speech)
-	case "/v1/models":
-		if string(ctx.Method()) == fasthttp.MethodGet {
-			handlers.Models(ctx, s.config.InferenceEngine)
-			return
-		}
-		ctx.SetStatusCode(fasthttp.StatusNotFound)
-	default:
-		if strings.HasPrefix(string(ctx.Path()), "/v1/") {
-			ctx.SetStatusCode(fasthttp.StatusNotFound)
-			return
-		}
-		s.handleAPI(ctx)
-		s.recordAuditIfMutation(ctx)
 	}
 }
 
@@ -1055,112 +990,6 @@ func (s *Server) comboNameForModel(request *providers.ChatRequest) *string {
 	}
 	name := combo.Name
 	return &name
-}
-
-func (s *Server) handleAPI(ctx *fasthttp.RequestCtx) {
-	path := strings.TrimRight(string(ctx.Path()), "/")
-	parts := pathParts(path)
-
-	switch {
-	case path == "/api/providers":
-		handlers.Providers(ctx, s.config.ModelSource, "")
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "providers" && parts[3] == "models":
-		handlers.Providers(ctx, s.config.ModelSource, parts[2])
-	case path == "/api/connections":
-		handlers.Connections(ctx, s.config.Store, "")
-	case len(parts) == 3 && parts[0] == "api" && parts[1] == "connections":
-		handlers.Connections(ctx, s.config.Store, parts[2])
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "connections" && parts[3] == "test":
-		handlers.ConnectionTest(ctx, s.config.Store, parts[2])
-	case path == "/api/settings":
-		handlers.Settings(ctx, s.config.Store)
-	case path == "/api/keys":
-		handlers.APIKeys(ctx, s.config.Store, s.config.APIKeySecret, "")
-	case len(parts) == 3 && parts[0] == "api" && parts[1] == "keys":
-		handlers.APIKeys(ctx, s.config.Store, s.config.APIKeySecret, parts[2])
-	case path == "/api/combos":
-		handlers.Combos(ctx, s.config.Store, "")
-	case len(parts) == 3 && parts[0] == "api" && parts[1] == "combos":
-		handlers.Combos(ctx, s.config.Store, parts[2])
-	case path == "/api/aliases":
-		handlers.Aliases(ctx, s.config.Store, "")
-	case len(parts) == 3 && parts[0] == "api" && parts[1] == "aliases":
-		handlers.Aliases(ctx, s.config.Store, parts[2])
-	case path == "/api/pricing":
-		handlers.Pricing(ctx, s.config.Store, "", "")
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "pricing":
-		handlers.Pricing(ctx, s.config.Store, parts[2], parts[3])
-	case path == "/api/oauth/callback":
-		if !requireMethod(ctx, fasthttp.MethodGet) {
-			return
-		}
-		handlers.OAuthCallback(ctx, s.config.Store, s.config.OAuthFlows)
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "authorize":
-		if !requireMethod(ctx, fasthttp.MethodPost) {
-			return
-		}
-		handlers.OAuthStart(ctx, s.config.Store, s.config.OAuthFlows)
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "poll":
-		if !requireMethod(ctx, fasthttp.MethodGet) {
-			return
-		}
-		handlers.OAuthPoll(ctx, s.config.Store, s.config.OAuthFlows)
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "oauth" && parts[3] == "exchange":
-		if !requireMethod(ctx, fasthttp.MethodPost) {
-			return
-		}
-		handlers.OAuthExchange(ctx, s.config.Store, s.config.OAuthFlows)
-	case path == "/api/usage":
-		handlers.Usage(ctx, s.config.UsageStore)
-	case path == "/api/usage/summary":
-		handlers.UsageSummary(ctx, s.config.UsageStore)
-	case strings.HasPrefix(path, "/api/usage/quota/"):
-		handlers.UsageQuota(ctx, s.config.Store, s.config.QuotaFetchers, s.config.QuotaKey)
-	case path == "/api/logs":
-		handlers.Logs(ctx, s.config.UsageStore)
-	case path == "/api/audit":
-		handlers.Audit(ctx, s.config.Store)
-	case path == "/api/traffic/stream":
-		s.handleTrafficStream(ctx)
-	case path == "/api/mcp/clients":
-		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, "")
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "clients":
-		handlers.MCPClients(ctx, s.config.Store, s.config.MCPClientManager, s.config.MCPToolManager, parts[3])
-	case path == "/api/mcp/instances":
-		handlers.MCPInstances(ctx, s.config.Store, s.config.MCPInstanceRuntime, "")
-	case len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances":
-		handlers.MCPInstances(ctx, s.config.Store, s.config.MCPInstanceRuntime, parts[3])
-	case len(parts) == 6 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances" && parts[4] == "auth" && parts[5] == "start":
-		if !requireMethod(ctx, fasthttp.MethodPost) {
-			return
-		}
-		handlers.MCPOAuthStart(ctx, s.config.Store, parts[3])
-	case len(parts) == 5 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances" && parts[4] == "accounts":
-		if !requireMethod(ctx, fasthttp.MethodGet) {
-			return
-		}
-		handlers.MCPOAuthAccounts(ctx, s.config.Store, parts[3])
-	case path == "/api/mcp/tools":
-		handlers.MCPTools(ctx, s.config.Store, s.config.MCPToolManager, "")
-	case len(parts) == 5 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "tools" && parts[4] == "execute":
-		handlers.MCPTools(ctx, s.config.Store, s.config.MCPToolManager, parts[3])
-	case path == "/api/mcp/oauth/callback":
-		if !requireMethod(ctx, fasthttp.MethodGet) {
-			return
-		}
-		handlers.MCPOAuthCallback(ctx, mcp.NewOAuthEngine(s.config.Store, nil), s.config.MCPInstanceRuntime, s.config.Store)
-	case len(parts) == 6 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "instances" && parts[4] == "oauth" && parts[5] == "complete":
-		if !requireMethod(ctx, fasthttp.MethodPost) {
-			return
-		}
-		handlers.MCPOAuthComplete(ctx, mcp.NewOAuthEngine(s.config.Store, nil), s.config.MCPInstanceRuntime, s.config.Store, parts[3])
-	default:
-		if strings.HasPrefix(path, "/api/") || path == "/api" {
-			ctx.SetStatusCode(fasthttp.StatusNotFound)
-			return
-		}
-		s.handleUI(ctx)
-	}
 }
 
 // handleMetrics serves GET /metrics in Prometheus text exposition format.
