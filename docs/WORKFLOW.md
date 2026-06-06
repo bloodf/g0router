@@ -204,7 +204,7 @@ completed_at: "2026-06-06T11:20:00Z"
 phase: 17
 status: DONE
 summary: "Backend-bucketed time-series chart aggregation and bulk connection quota actions. SQLite strftime GROUP BY with Go zero-fill; bulk disable/enable via quota_limit/quota_remaining columns."
-commit_range: "e5b9ce1..TBD"
+commit_range: "e5b9ce1..9cc6c93"
 completed_at: "2026-06-06T14:34:00Z"
 ```
 
