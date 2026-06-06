@@ -821,3 +821,17 @@ func TestParseSSETrailingMalformedData(t *testing.T) {
 		t.Fatalf("error code = %q, want upstream_stream_malformed", got[0].Error.Code)
 	}
 }
+
+func TestProviderWithProxyPool(t *testing.T) {
+	p, err := New(Config{Provider: "test", BaseURL: "https://example.com"})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	got := p.WithProxyPool(nil)
+	if got == nil {
+		t.Fatal("WithProxyPool returned nil")
+	}
+	if got.Name() != "test" {
+		t.Fatalf("name = %q, want test", got.Name())
+	}
+}

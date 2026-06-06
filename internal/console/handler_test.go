@@ -120,3 +120,23 @@ func TestWithAttrsAndWithGroupReturnSlogHandler(t *testing.T) {
 type ioDiscard struct{}
 
 func (ioDiscard) Write(p []byte) (int, error) { return len(p), nil }
+
+func TestLevelString(t *testing.T) {
+	tests := []struct {
+		level slog.Level
+		want  string
+	}{
+		{slog.LevelDebug, "DEBUG"},
+		{slog.LevelDebug - 1, "DEBUG"},
+		{slog.LevelInfo, "INFO"},
+		{slog.LevelWarn, "WARN"},
+		{slog.LevelError, "ERROR"},
+		{slog.LevelError + 1, "ERROR"},
+	}
+	for _, tt := range tests {
+		got := levelString(tt.level)
+		if got != tt.want {
+			t.Errorf("levelString(%v) = %q, want %q", tt.level, got, tt.want)
+		}
+	}
+}

@@ -179,3 +179,14 @@ func TestStreamHTTPClientForPoolDefaultTimeout(t *testing.T) {
 		t.Fatalf("timeout = %v, want %v", transport.ResponseHeaderTimeout, DefaultStreamResponseHeaderTimeout)
 	}
 }
+
+func TestFasthttpClientForPoolSocks5(t *testing.T) {
+	pool := &store.ProxyPool{Protocol: "socks5", Host: "host", Port: 1080}
+	client := FasthttpClientForPool(pool)
+	if client == nil {
+		t.Fatal("expected non-nil client")
+	}
+	if client.Dial == nil {
+		t.Fatal("expected non-nil Dial for socks5")
+	}
+}

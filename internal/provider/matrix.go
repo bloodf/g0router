@@ -243,13 +243,6 @@ func apiKeyAuthOnlyProvider(id string, notes string) ProviderMatrixEntry {
 	return entry
 }
 
-func unsupportedProvider(id string, notes string) ProviderMatrixEntry {
-	entry := baseProvider(id)
-	entry.PublicStatus = ProviderStatusUnsupported
-	entry.Notes = notes
-	return entry
-}
-
 func baseProvider(id string) ProviderMatrixEntry {
 	id = strings.ToLower(strings.TrimSpace(id))
 	return ProviderMatrixEntry{
