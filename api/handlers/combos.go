@@ -9,10 +9,11 @@ import (
 )
 
 type comboRequest struct {
-	Name     string            `json:"name"`
-	Steps    []store.ComboStep `json:"steps"`
-	Strategy string            `json:"strategy"`
-	IsActive bool              `json:"is_active"`
+	Name         string            `json:"name"`
+	Steps        []store.ComboStep `json:"steps"`
+	Strategy     string            `json:"strategy"`
+	IsActive     bool              `json:"is_active"`
+	MCPToolGroup string            `json:"mcp_tool_group"`
 }
 
 type combosStore interface {
@@ -96,9 +97,10 @@ func decodeComboRequest(ctx *fasthttp.RequestCtx) (*store.Combo, bool) {
 		return nil, false
 	}
 	return &store.Combo{
-		Name:     req.Name,
-		Steps:    req.Steps,
-		Strategy: strategy,
-		IsActive: req.IsActive,
+		Name:         req.Name,
+		Steps:        req.Steps,
+		Strategy:     strategy,
+		IsActive:     req.IsActive,
+		MCPToolGroup: req.MCPToolGroup,
 	}, true
 }

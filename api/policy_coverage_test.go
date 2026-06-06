@@ -35,7 +35,7 @@ func TestRecordVirtualKeyUsageInvalidTeamID(t *testing.T) {
 	id := "1"
 	teamID := "abc"
 	s := newAPITestStore(t)
-	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil)
+	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestRecordVirtualKeyUsageInvalidTeamID(t *testing.T) {
 func TestRecordVirtualKeyUsageModelFromRequest(t *testing.T) {
 	id := "1"
 	s := newAPITestStore(t)
-	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil)
+	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestRecordVirtualKeyUsageModelFromRequest(t *testing.T) {
 func TestRecordVirtualKeyUsageProviderFromResponse(t *testing.T) {
 	id := "1"
 	s := newAPITestStore(t)
-	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil)
+	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestRecordVirtualKeyUsageProviderFromResponse(t *testing.T) {
 func TestRecordVirtualKeyUsageStreamUsage(t *testing.T) {
 	id := "1"
 	s := newAPITestStore(t)
-	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil)
+	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestRecordVirtualKeyUsageStreamUsage(t *testing.T) {
 func TestRecordVirtualKeyUsageNoUsage(t *testing.T) {
 	id := "1"
 	s := newAPITestStore(t)
-	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil)
+	key, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestRecordVirtualKeyUsageWithTeam(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTeam: %v", err)
 	}
-	_, _, err = s.CreateVirtualKey("vk", &team.ID, floatPtr(100.0), "monthly", nil, nil)
+	_, _, err = s.CreateVirtualKey("vk", &team.ID, floatPtr(100.0), "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}

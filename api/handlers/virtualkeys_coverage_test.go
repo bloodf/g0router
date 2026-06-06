@@ -26,7 +26,7 @@ func (f *fakeVirtualKeyStore) ListVirtualKeys() ([]store.VirtualKey, error) {
 	return nil, nil
 }
 
-func (f *fakeVirtualKeyStore) CreateVirtualKey(name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int) (*store.VirtualKey, string, error) {
+func (f *fakeVirtualKeyStore) CreateVirtualKey(name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, mcpToolGroup string) (*store.VirtualKey, string, error) {
 	if f.createErr != nil {
 		return nil, "", f.createErr
 	}
@@ -40,7 +40,7 @@ func (f *fakeVirtualKeyStore) GetVirtualKey(id int64) (*store.VirtualKey, error)
 	return f.getKey, nil
 }
 
-func (f *fakeVirtualKeyStore) UpdateVirtualKey(id int64, name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, isActive bool) error {
+func (f *fakeVirtualKeyStore) UpdateVirtualKey(id int64, name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, isActive bool, mcpToolGroup string) error {
 	return f.updateErr
 }
 

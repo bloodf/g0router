@@ -18,7 +18,7 @@ func TestCreateTeamDefaultBudgetPeriod(t *testing.T) {
 
 func TestCreateVirtualKeyDefaultBudgetPeriod(t *testing.T) {
 	s := openTestStore(t)
-	key, _, err := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "", nil, nil)
+	key, _, err := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestListTeamsWithAllFields(t *testing.T) {
 func TestListVirtualKeysWithAllFields(t *testing.T) {
 	s := openTestStore(t)
 	team, _ := s.CreateTeam("eng", floatPtr(1000.0), "monthly", intPtr(500))
-	_, _, err := s.CreateVirtualKey("vk", &team.ID, floatPtr(100.0), "weekly", intPtr(60), intPtr(10000))
+	_, _, err := s.CreateVirtualKey("vk", &team.ID, floatPtr(100.0), "weekly", intPtr(60), intPtr(10000), "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestScanTeamBadCreatedAt(t *testing.T) {
 
 func TestScanVirtualKeyBadBudgetResetAt(t *testing.T) {
 	s := openTestStore(t)
-	key, _, _ := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil)
+	key, _, _ := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil, "")
 	_, _ = s.db.Exec(`UPDATE virtual_keys SET budget_reset_at = 'not-a-date' WHERE id = ?`, key.ID)
 	_, err := s.GetVirtualKey(key.ID)
 	if err == nil {
@@ -118,7 +118,7 @@ func TestScanVirtualKeyBadBudgetResetAt(t *testing.T) {
 
 func TestScanVirtualKeyBadCreatedAt(t *testing.T) {
 	s := openTestStore(t)
-	key, _, _ := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil)
+	key, _, _ := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil, "")
 	_, _ = s.db.Exec(`UPDATE virtual_keys SET created_at = 'not-a-date' WHERE id = ?`, key.ID)
 	_, err := s.GetVirtualKey(key.ID)
 	if err == nil {
@@ -128,7 +128,7 @@ func TestScanVirtualKeyBadCreatedAt(t *testing.T) {
 
 func TestScanVirtualKeyListBadBudgetResetAt(t *testing.T) {
 	s := openTestStore(t)
-	_, _, _ = s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil)
+	_, _, _ = s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil, "")
 	s.db.Exec(`UPDATE virtual_keys SET budget_reset_at = 'not-a-date'`)
 	_, err := s.ListVirtualKeys()
 	if err == nil {
@@ -138,7 +138,7 @@ func TestScanVirtualKeyListBadBudgetResetAt(t *testing.T) {
 
 func TestScanVirtualKeyListBadCreatedAt(t *testing.T) {
 	s := openTestStore(t)
-	_, _, _ = s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil)
+	_, _, _ = s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil, "")
 	s.db.Exec(`UPDATE virtual_keys SET created_at = 'not-a-date'`)
 	_, err := s.ListVirtualKeys()
 	if err == nil {
@@ -187,7 +187,7 @@ func TestResetVirtualKeyBudgetRowsAffectedError(t *testing.T) {
 func TestCreateVirtualKeyLastInsertIdError(t *testing.T) {
 	s := openTestStore(t)
 	s.Close()
-	_, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil)
+	_, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil, "")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -205,7 +205,7 @@ func TestCreateTeamLastInsertIdError(t *testing.T) {
 func TestUpdateVirtualKeyRowsAffectedError(t *testing.T) {
 	s := openTestStore(t)
 	s.Close()
-	err := s.UpdateVirtualKey(1, "vk", nil, nil, "monthly", nil, nil, true)
+	err := s.UpdateVirtualKey(1, "vk", nil, nil, "monthly", nil, nil, true, "")
 	if err == nil {
 		t.Fatal("expected error")
 	}

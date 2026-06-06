@@ -45,6 +45,8 @@ func TestRoutesSnapshot(t *testing.T) {
 		"/api/mcp/clients/:id",
 		"/api/mcp/instances",
 		"/api/mcp/instances/:id",
+		"/api/mcp/tool-groups",
+		"/api/mcp/tool-groups/:id",
 		"/api/mcp/tools",
 		"/api/mcp/tools/:id/execute",
 		"/api/model-limits",

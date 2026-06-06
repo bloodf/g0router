@@ -18,6 +18,7 @@ type createVirtualKeyRequest struct {
 	BudgetPeriod string   `json:"budget_period"`
 	RateLimitRPM *int     `json:"rate_limit_rpm"`
 	RateLimitTPM *int     `json:"rate_limit_tpm"`
+	MCPToolGroup string   `json:"mcp_tool_group"`
 }
 
 type updateVirtualKeyRequest struct {
@@ -28,6 +29,7 @@ type updateVirtualKeyRequest struct {
 	RateLimitRPM *int     `json:"rate_limit_rpm"`
 	RateLimitTPM *int     `json:"rate_limit_tpm"`
 	IsActive     bool     `json:"is_active"`
+	MCPToolGroup string   `json:"mcp_tool_group"`
 }
 
 type virtualKeyView struct {
@@ -41,6 +43,7 @@ type virtualKeyView struct {
 	RateLimitTPM  *int     `json:"rate_limit_tpm"`
 	TeamID        *int64   `json:"team_id"`
 	IsActive      bool     `json:"is_active"`
+	MCPToolGroup  string   `json:"mcp_tool_group"`
 	CreatedAt     string   `json:"created_at"`
 }
 
@@ -56,6 +59,7 @@ func newVirtualKeyView(key store.VirtualKey) virtualKeyView {
 		RateLimitTPM:  key.RateLimitTPM,
 		TeamID:        key.TeamID,
 		IsActive:      key.IsActive,
+		MCPToolGroup:  key.MCPToolGroup,
 		CreatedAt:     key.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
@@ -67,9 +71,9 @@ type createVirtualKeyResponse struct {
 
 type virtualKeyStore interface {
 	ListVirtualKeys() ([]store.VirtualKey, error)
-	CreateVirtualKey(name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int) (*store.VirtualKey, string, error)
+	CreateVirtualKey(name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, mcpToolGroup string) (*store.VirtualKey, string, error)
 	GetVirtualKey(id int64) (*store.VirtualKey, error)
-	UpdateVirtualKey(id int64, name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, isActive bool) error
+	UpdateVirtualKey(id int64, name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, isActive bool, mcpToolGroup string) error
 	DeleteVirtualKey(id int64) error
 }
 
@@ -116,7 +120,7 @@ func VirtualKeys(ctx *fasthttp.RequestCtx, s virtualKeyStore, id string) {
 			writeError(ctx, fasthttp.StatusBadRequest, "name is required")
 			return
 		}
-		key, raw, err := s.CreateVirtualKey(req.Name, req.TeamID, req.BudgetUSD, req.BudgetPeriod, req.RateLimitRPM, req.RateLimitTPM)
+		key, raw, err := s.CreateVirtualKey(req.Name, req.TeamID, req.BudgetUSD, req.BudgetPeriod, req.RateLimitRPM, req.RateLimitTPM, req.MCPToolGroup)
 		if err != nil {
 			log.Printf("create virtual key: %v", err)
 			writeError(ctx, fasthttp.StatusInternalServerError, "failed to create virtual key")
@@ -138,7 +142,7 @@ func VirtualKeys(ctx *fasthttp.RequestCtx, s virtualKeyStore, id string) {
 			writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 			return
 		}
-		if err := s.UpdateVirtualKey(keyID, req.Name, req.TeamID, req.BudgetUSD, req.BudgetPeriod, req.RateLimitRPM, req.RateLimitTPM, req.IsActive); err != nil {
+		if err := s.UpdateVirtualKey(keyID, req.Name, req.TeamID, req.BudgetUSD, req.BudgetPeriod, req.RateLimitRPM, req.RateLimitTPM, req.IsActive, req.MCPToolGroup); err != nil {
 			if errors.Is(err, store.ErrNotFound) {
 				writeError(ctx, fasthttp.StatusNotFound, "virtual key not found")
 				return

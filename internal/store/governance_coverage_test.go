@@ -105,7 +105,7 @@ func TestResetTeamBudgetNotFound(t *testing.T) {
 func TestCreateVirtualKeyClosedDB(t *testing.T) {
 	s := openTestStore(t)
 	s.Close()
-	_, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil)
+	_, _, err := s.CreateVirtualKey("vk", nil, nil, "monthly", nil, nil, "")
 	if err == nil {
 		t.Fatal("expected error for closed db")
 	}
@@ -141,7 +141,7 @@ func TestValidateVirtualKeyError(t *testing.T) {
 func TestUpdateVirtualKeyError(t *testing.T) {
 	s := openTestStore(t)
 	s.Close()
-	err := s.UpdateVirtualKey(1, "vk", nil, nil, "monthly", nil, nil, true)
+	err := s.UpdateVirtualKey(1, "vk", nil, nil, "monthly", nil, nil, true, "")
 	if err == nil {
 		t.Fatal("expected error for closed db")
 	}
@@ -149,7 +149,7 @@ func TestUpdateVirtualKeyError(t *testing.T) {
 
 func TestUpdateVirtualKeyNotFound(t *testing.T) {
 	s := openTestStore(t)
-	err := s.UpdateVirtualKey(9999, "vk", nil, nil, "monthly", nil, nil, true)
+	err := s.UpdateVirtualKey(9999, "vk", nil, nil, "monthly", nil, nil, true, "")
 	if err == nil {
 		t.Fatal("expected error for missing key")
 	}
@@ -166,7 +166,7 @@ func TestDeleteVirtualKeyError(t *testing.T) {
 
 func TestAddVirtualKeyBudgetUsedZeroDelta(t *testing.T) {
 	s := openTestStore(t)
-	key, _, _ := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil)
+	key, _, _ := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil, "")
 	err := s.AddVirtualKeyBudgetUsed(key.ID, 0)
 	if err != nil {
 		t.Fatalf("zero delta should return nil: %v", err)
@@ -175,7 +175,7 @@ func TestAddVirtualKeyBudgetUsedZeroDelta(t *testing.T) {
 
 func TestAddVirtualKeyBudgetUsedNegativeDelta(t *testing.T) {
 	s := openTestStore(t)
-	key, _, _ := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil)
+	key, _, _ := s.CreateVirtualKey("vk", nil, floatPtr(100.0), "monthly", nil, nil, "")
 	err := s.AddVirtualKeyBudgetUsed(key.ID, -5.0)
 	if err != nil {
 		t.Fatalf("negative delta should return nil: %v", err)

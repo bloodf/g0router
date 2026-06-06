@@ -267,6 +267,37 @@ func TestCapturingEngineStreamConsumerDisconnect(t *testing.T) {
 	}
 }
 
+func TestPipelineEngineDispatchGuardrailsBlocked(t *testing.T) {
+	base := &wrapperEngine{
+		dispatchResp: &providers.ChatResponse{Model: "m"},
+	}
+	eng := pipelineInferenceEngine{
+		base: base,
+		settings: func() store.Settings {
+			return store.Settings{}
+		},
+		guardrails: func() store.GuardrailsConfig {
+			return store.GuardrailsConfig{
+				GuardrailsEnabled:   true,
+				GuardrailsBlocklist: []string{"badword"},
+			}
+		},
+	}
+
+	ctx := context.Background()
+	req := &providers.ChatRequest{Model: "gpt-4o", Messages: []providers.Message{{Role: "user", Content: "hello badword"}}}
+
+	_, err := eng.Dispatch(ctx, req)
+	if err == nil {
+		t.Fatal("expected error from blocked content")
+	}
+
+	_, err = eng.DispatchStream(ctx, req)
+	if err == nil {
+		t.Fatal("expected error from blocked content in stream")
+	}
+}
+
 func TestServerListener(t *testing.T) {
 	srv := NewServer(ServerConfig{Port: 0})
 	ln := srv.listener()

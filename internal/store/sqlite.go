@@ -359,6 +359,14 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS mcp_tool_groups (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			tool_ids_json TEXT NOT NULL,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, stmt := range ddl {
@@ -407,6 +415,12 @@ func (s *Store) migrate() error {
 		return err
 	}
 	if err := s.ensureColumn("request_log", "virtual_key_id", "TEXT"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("combos", "mcp_tool_group", "TEXT"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("virtual_keys", "mcp_tool_group", "TEXT"); err != nil {
 		return err
 	}
 

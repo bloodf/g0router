@@ -27,13 +27,14 @@ type ComboStep struct {
 }
 
 type Combo struct {
-	ID        string
-	Name      string
-	Steps     []ComboStep
-	Strategy  string `json:"strategy"`
-	IsActive  bool
-	CreatedAt string
-	UpdatedAt string
+	ID           string
+	Name         string
+	Steps        []ComboStep
+	Strategy     string `json:"strategy"`
+	IsActive     bool
+	MCPToolGroup string `json:"mcp_tool_group"`
+	CreatedAt    string
+	UpdatedAt    string
 }
 
 // NormalizeComboStrategy defaults an empty strategy to fallback and rejects
@@ -63,13 +64,14 @@ func (s *Store) CreateCombo(combo *Combo) error {
 	}
 
 	row := s.db.QueryRow(
-		`INSERT INTO combos (name, steps, strategy, is_active)
-		VALUES (?, ?, ?, ?)
+		`INSERT INTO combos (name, steps, strategy, is_active, mcp_tool_group)
+		VALUES (?, ?, ?, ?, ?)
 		RETURNING id, created_at, updated_at`,
 		combo.Name,
 		steps,
 		combo.Strategy,
 		boolToInt(combo.IsActive),
+		combo.MCPToolGroup,
 	)
 	if err := row.Scan(&combo.ID, &combo.CreatedAt, &combo.UpdatedAt); err != nil {
 		return fmt.Errorf("insert combo: %w", err)
@@ -134,12 +136,14 @@ func (s *Store) UpdateCombo(combo *Combo) error {
 			steps = ?,
 			strategy = ?,
 			is_active = ?,
+			mcp_tool_group = ?,
 			updated_at = datetime('now')
 		WHERE id = ?`,
 		combo.Name,
 		steps,
 		combo.Strategy,
 		boolToInt(combo.IsActive),
+		combo.MCPToolGroup,
 		combo.ID,
 	)
 	if err != nil {
@@ -169,6 +173,7 @@ func scanCombo(scanner connectionScanner) (*Combo, error) {
 	var steps string
 	var strategy string
 	var isActive int
+	var mcpToolGroup sql.NullString
 
 	err := scanner.Scan(
 		&combo.ID,
@@ -176,6 +181,7 @@ func scanCombo(scanner connectionScanner) (*Combo, error) {
 		&steps,
 		&strategy,
 		&isActive,
+		&mcpToolGroup,
 		&combo.CreatedAt,
 		&combo.UpdatedAt,
 	)
@@ -194,12 +200,15 @@ func scanCombo(scanner connectionScanner) (*Combo, error) {
 	}
 	combo.Strategy = strategy
 	combo.IsActive = isActive != 0
+	if mcpToolGroup.Valid {
+		combo.MCPToolGroup = mcpToolGroup.String
+	}
 
 	return &combo, nil
 }
 
 func comboSelectSQL() string {
-	return `SELECT id, name, steps, strategy, is_active, created_at, updated_at FROM combos`
+	return `SELECT id, name, steps, strategy, is_active, mcp_tool_group, created_at, updated_at FROM combos`
 }
 
 func encodeComboSteps(steps []ComboStep) (string, error) {

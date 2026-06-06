@@ -132,7 +132,7 @@ func TestDeleteTeam(t *testing.T) {
 func TestCreateVirtualKey(t *testing.T) {
 	s := openTestStore(t)
 
-	key, raw, err := s.CreateVirtualKey("prod-key", nil, floatPtr(10.0), "monthly", intPtr(60), intPtr(10000))
+	key, raw, err := s.CreateVirtualKey("prod-key", nil, floatPtr(10.0), "monthly", intPtr(60), intPtr(10000), "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestCreateVirtualKey(t *testing.T) {
 func TestValidateVirtualKeyCorrect(t *testing.T) {
 	s := openTestStore(t)
 
-	created, raw, err := s.CreateVirtualKey("prod-key", nil, nil, "monthly", nil, nil)
+	created, raw, err := s.CreateVirtualKey("prod-key", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestValidateVirtualKeyCorrect(t *testing.T) {
 func TestValidateVirtualKeyWrong(t *testing.T) {
 	s := openTestStore(t)
 
-	if _, _, err := s.CreateVirtualKey("prod-key", nil, nil, "monthly", nil, nil); err != nil {
+	if _, _, err := s.CreateVirtualKey("prod-key", nil, nil, "monthly", nil, nil, ""); err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
 
@@ -210,11 +210,11 @@ func TestValidateVirtualKeyWrong(t *testing.T) {
 func TestValidateVirtualKeyInactive(t *testing.T) {
 	s := openTestStore(t)
 
-	created, raw, err := s.CreateVirtualKey("prod-key", nil, nil, "monthly", nil, nil)
+	created, raw, err := s.CreateVirtualKey("prod-key", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
-	if err := s.UpdateVirtualKey(created.ID, "prod-key", nil, nil, "monthly", nil, nil, false); err != nil {
+	if err := s.UpdateVirtualKey(created.ID, "prod-key", nil, nil, "monthly", nil, nil, false, ""); err != nil {
 		t.Fatalf("UpdateVirtualKey: %v", err)
 	}
 
@@ -236,7 +236,7 @@ func TestValidateVirtualKeyInactive(t *testing.T) {
 func TestListVirtualKeys(t *testing.T) {
 	s := openTestStore(t)
 
-	created, raw, err := s.CreateVirtualKey("prod-key", nil, nil, "monthly", nil, nil)
+	created, raw, err := s.CreateVirtualKey("prod-key", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -272,12 +272,12 @@ func TestUpdateVirtualKey(t *testing.T) {
 		t.Fatalf("CreateTeam: %v", err)
 	}
 
-	created, _, err := s.CreateVirtualKey("old", nil, floatPtr(5.0), "daily", intPtr(10), intPtr(100))
+	created, _, err := s.CreateVirtualKey("old", nil, floatPtr(5.0), "daily", intPtr(10), intPtr(100), "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
 
-	if err := s.UpdateVirtualKey(created.ID, "new", &team.ID, floatPtr(15.0), "weekly", intPtr(20), intPtr(200), false); err != nil {
+	if err := s.UpdateVirtualKey(created.ID, "new", &team.ID, floatPtr(15.0), "weekly", intPtr(20), intPtr(200), false, ""); err != nil {
 		t.Fatalf("UpdateVirtualKey: %v", err)
 	}
 
@@ -311,7 +311,7 @@ func TestUpdateVirtualKey(t *testing.T) {
 func TestDeleteVirtualKey(t *testing.T) {
 	s := openTestStore(t)
 
-	created, _, err := s.CreateVirtualKey("temp", nil, nil, "monthly", nil, nil)
+	created, _, err := s.CreateVirtualKey("temp", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestDeleteVirtualKey(t *testing.T) {
 func TestAddVirtualKeyBudgetUsed(t *testing.T) {
 	s := openTestStore(t)
 
-	created, _, err := s.CreateVirtualKey("key", nil, floatPtr(100.0), "monthly", nil, nil)
+	created, _, err := s.CreateVirtualKey("key", nil, floatPtr(100.0), "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -362,7 +362,7 @@ func TestAddVirtualKeyBudgetUsed(t *testing.T) {
 func TestResetVirtualKeyBudget(t *testing.T) {
 	s := openTestStore(t)
 
-	created, _, err := s.CreateVirtualKey("key", nil, floatPtr(100.0), "monthly", nil, nil)
+	created, _, err := s.CreateVirtualKey("key", nil, floatPtr(100.0), "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -447,7 +447,7 @@ func TestVirtualKeyTeamAssociation(t *testing.T) {
 		t.Fatalf("CreateTeam: %v", err)
 	}
 
-	key, _, err := s.CreateVirtualKey("team-key", &team.ID, nil, "monthly", nil, nil)
+	key, _, err := s.CreateVirtualKey("team-key", &team.ID, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -464,7 +464,7 @@ func TestVirtualKeyTeamAssociation(t *testing.T) {
 func TestListVirtualKeysOmitsHash(t *testing.T) {
 	s := openTestStore(t)
 
-	if _, _, err := s.CreateVirtualKey("k1", nil, nil, "monthly", nil, nil); err != nil {
+	if _, _, err := s.CreateVirtualKey("k1", nil, nil, "monthly", nil, nil, ""); err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
 
@@ -482,10 +482,10 @@ func TestListVirtualKeysOmitsHash(t *testing.T) {
 func TestCreateVirtualKeyDuplicateNameAllowed(t *testing.T) {
 	s := openTestStore(t)
 
-	if _, _, err := s.CreateVirtualKey("same", nil, nil, "monthly", nil, nil); err != nil {
+	if _, _, err := s.CreateVirtualKey("same", nil, nil, "monthly", nil, nil, ""); err != nil {
 		t.Fatalf("first CreateVirtualKey: %v", err)
 	}
-	if _, _, err := s.CreateVirtualKey("same", nil, nil, "monthly", nil, nil); err != nil {
+	if _, _, err := s.CreateVirtualKey("same", nil, nil, "monthly", nil, nil, ""); err != nil {
 		t.Fatalf("second CreateVirtualKey should allow duplicate names: %v", err)
 	}
 }

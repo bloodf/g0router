@@ -13,7 +13,7 @@ import (
 
 func TestVirtualKeyAuthPassesForValidKey(t *testing.T) {
 	s := newAPITestStore(t)
-	key, raw, err := s.CreateVirtualKey("test-key", nil, nil, "monthly", nil, nil)
+	key, raw, err := s.CreateVirtualKey("test-key", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -68,11 +68,11 @@ func TestVirtualKeyAuthRejectsInvalidKey(t *testing.T) {
 
 func TestVirtualKeyAuthRejectsInactiveKey(t *testing.T) {
 	s := newAPITestStore(t)
-	key, raw, err := s.CreateVirtualKey("inactive-key", nil, nil, "monthly", nil, nil)
+	key, raw, err := s.CreateVirtualKey("inactive-key", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
-	if err := s.UpdateVirtualKey(key.ID, key.Name, nil, nil, "monthly", nil, nil, false); err != nil {
+	if err := s.UpdateVirtualKey(key.ID, key.Name, nil, nil, "monthly", nil, nil, false, ""); err != nil {
 		t.Fatalf("UpdateVirtualKey: %v", err)
 	}
 
@@ -103,11 +103,11 @@ func TestVirtualKeyAuthRejectsBudgetExhausted(t *testing.T) {
 	s := newAPITestStore(t)
 	budget := 10.0
 	futureReset := time.Now().UTC().Add(24 * time.Hour).Truncate(time.Second)
-	key, raw, err := s.CreateVirtualKey("broke-key", nil, &budget, "monthly", nil, nil)
+	key, raw, err := s.CreateVirtualKey("broke-key", nil, &budget, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
-	if err := s.UpdateVirtualKey(key.ID, key.Name, nil, &budget, "monthly", nil, nil, true); err != nil {
+	if err := s.UpdateVirtualKey(key.ID, key.Name, nil, &budget, "monthly", nil, nil, true, ""); err != nil {
 		t.Fatalf("UpdateVirtualKey: %v", err)
 	}
 	if err := s.ResetVirtualKeyBudget(key.ID, futureReset); err != nil {
@@ -155,7 +155,7 @@ func TestVirtualKeyAuthRejectsTeamBudgetExhausted(t *testing.T) {
 		t.Fatalf("AddTeamBudgetUsed: %v", err)
 	}
 
-	_, raw, err := s.CreateVirtualKey("team-key", &team.ID, nil, "monthly", nil, nil)
+	_, raw, err := s.CreateVirtualKey("team-key", &team.ID, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -191,7 +191,7 @@ func TestVirtualKeyAuthRejectsTeamRateLimit(t *testing.T) {
 		t.Fatalf("CreateTeam: %v", err)
 	}
 
-	_, raw, err := s.CreateVirtualKey("team-key", &team.ID, nil, "monthly", nil, nil)
+	_, raw, err := s.CreateVirtualKey("team-key", &team.ID, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestVirtualKeyAuthRejectsTeamRateLimit(t *testing.T) {
 
 func TestVirtualKeyWorksOnV1Endpoint(t *testing.T) {
 	s := newAPITestStore(t)
-	key, raw, err := s.CreateVirtualKey("v1-key", nil, nil, "monthly", nil, nil)
+	key, raw, err := s.CreateVirtualKey("v1-key", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
@@ -295,11 +295,11 @@ func TestRegularAPIKeyUnaffectedByVirtualKeyCheck(t *testing.T) {
 
 func TestApplyMiddlewareVirtualKeyForbiddenDoesNotFallThroughToSession(t *testing.T) {
 	s := newAPITestStore(t)
-	key, raw, err := s.CreateVirtualKey("inactive", nil, nil, "monthly", nil, nil)
+	key, raw, err := s.CreateVirtualKey("inactive", nil, nil, "monthly", nil, nil, "")
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
-	if err := s.UpdateVirtualKey(key.ID, key.Name, nil, nil, "monthly", nil, nil, false); err != nil {
+	if err := s.UpdateVirtualKey(key.ID, key.Name, nil, nil, "monthly", nil, nil, false, ""); err != nil {
 		t.Fatalf("UpdateVirtualKey: %v", err)
 	}
 

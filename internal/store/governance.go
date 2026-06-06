@@ -33,6 +33,7 @@ type VirtualKey struct {
 	RateLimitTPM  *int
 	TeamID        *int64
 	IsActive      bool
+	MCPToolGroup  string
 	CreatedAt     time.Time
 }
 
@@ -196,7 +197,7 @@ func scanTeam(scanner interface {
 	return &team, nil
 }
 
-func (s *Store) CreateVirtualKey(name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int) (*VirtualKey, string, error) {
+func (s *Store) CreateVirtualKey(name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, mcpToolGroup string) (*VirtualKey, string, error) {
 	raw, err := generateVirtualKey()
 	if err != nil {
 		return nil, "", err
@@ -208,9 +209,9 @@ func (s *Store) CreateVirtualKey(name string, teamID *int64, budgetUSD *float64,
 	prefix := raw[:8]
 
 	res, err := s.db.Exec(
-		`INSERT INTO virtual_keys (name, key_prefix, key_hash, budget_usd, budget_period, rate_limit_rpm, rate_limit_tpm, team_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		name, prefix, keyHash, budgetUSD, budgetPeriod, rateLimitRPM, rateLimitTPM, teamID,
+		`INSERT INTO virtual_keys (name, key_prefix, key_hash, budget_usd, budget_period, rate_limit_rpm, rate_limit_tpm, team_id, mcp_tool_group)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		name, prefix, keyHash, budgetUSD, budgetPeriod, rateLimitRPM, rateLimitTPM, teamID, mcpToolGroup,
 	)
 	if err != nil {
 		return nil, "", fmt.Errorf("create virtual key: %w", err)
@@ -228,7 +229,7 @@ func (s *Store) CreateVirtualKey(name string, teamID *int64, budgetUSD *float64,
 
 func (s *Store) GetVirtualKey(id int64) (*VirtualKey, error) {
 	row := s.db.QueryRow(
-		`SELECT id, name, key_prefix, key_hash, budget_usd, budget_period, budget_used_usd, budget_reset_at, rate_limit_rpm, rate_limit_tpm, team_id, is_active, created_at
+		`SELECT id, name, key_prefix, key_hash, budget_usd, budget_period, budget_used_usd, budget_reset_at, rate_limit_rpm, rate_limit_tpm, team_id, is_active, mcp_tool_group, created_at
 		FROM virtual_keys WHERE id = ?`,
 		id,
 	)
@@ -244,7 +245,7 @@ func (s *Store) GetVirtualKey(id int64) (*VirtualKey, error) {
 
 func (s *Store) ListVirtualKeys() ([]VirtualKey, error) {
 	rows, err := s.db.Query(
-		`SELECT id, name, key_prefix, budget_usd, budget_period, budget_used_usd, budget_reset_at, rate_limit_rpm, rate_limit_tpm, team_id, is_active, created_at
+		`SELECT id, name, key_prefix, budget_usd, budget_period, budget_used_usd, budget_reset_at, rate_limit_rpm, rate_limit_tpm, team_id, is_active, mcp_tool_group, created_at
 		FROM virtual_keys ORDER BY created_at, name`,
 	)
 	if err != nil {
@@ -270,7 +271,7 @@ func (s *Store) ValidateVirtualKey(raw string) (*VirtualKey, bool, error) {
 	keyHash := hashVirtualKey(raw)
 
 	row := s.db.QueryRow(
-		`SELECT id, name, key_prefix, key_hash, budget_usd, budget_period, budget_used_usd, budget_reset_at, rate_limit_rpm, rate_limit_tpm, team_id, is_active, created_at
+		`SELECT id, name, key_prefix, key_hash, budget_usd, budget_period, budget_used_usd, budget_reset_at, rate_limit_rpm, rate_limit_tpm, team_id, is_active, mcp_tool_group, created_at
 		FROM virtual_keys
 		WHERE key_hash = ?`,
 		keyHash,
@@ -285,10 +286,10 @@ func (s *Store) ValidateVirtualKey(raw string) (*VirtualKey, bool, error) {
 	return key, true, nil
 }
 
-func (s *Store) UpdateVirtualKey(id int64, name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, isActive bool) error {
+func (s *Store) UpdateVirtualKey(id int64, name string, teamID *int64, budgetUSD *float64, budgetPeriod string, rateLimitRPM, rateLimitTPM *int, isActive bool, mcpToolGroup string) error {
 	res, err := s.db.Exec(
-		`UPDATE virtual_keys SET name = ?, team_id = ?, budget_usd = ?, budget_period = ?, rate_limit_rpm = ?, rate_limit_tpm = ?, is_active = ? WHERE id = ?`,
-		name, teamID, budgetUSD, budgetPeriod, rateLimitRPM, rateLimitTPM, isActive, id,
+		`UPDATE virtual_keys SET name = ?, team_id = ?, budget_usd = ?, budget_period = ?, rate_limit_rpm = ?, rate_limit_tpm = ?, is_active = ?, mcp_tool_group = ? WHERE id = ?`,
+		name, teamID, budgetUSD, budgetPeriod, rateLimitRPM, rateLimitTPM, isActive, mcpToolGroup, id,
 	)
 	if err != nil {
 		return fmt.Errorf("update virtual key: %w", err)
@@ -371,11 +372,12 @@ func scanVirtualKey(scanner interface {
 	var rateLimitRPM, rateLimitTPM sql.NullInt64
 	var teamID sql.NullInt64
 	var isActive int
+	var mcpToolGroup sql.NullString
 	var createdAt string
 
 	err := scanner.Scan(
 		&key.ID, &key.Name, &key.KeyPrefix, &key.KeyHash, &budgetUSD, &key.BudgetPeriod,
-		&key.BudgetUsedUSD, &budgetResetAt, &rateLimitRPM, &rateLimitTPM, &teamID, &isActive, &createdAt,
+		&key.BudgetUsedUSD, &budgetResetAt, &rateLimitRPM, &rateLimitTPM, &teamID, &isActive, &mcpToolGroup, &createdAt,
 	)
 	if err != nil {
 		return nil, err
@@ -402,6 +404,9 @@ func scanVirtualKey(scanner interface {
 		key.TeamID = &teamID.Int64
 	}
 	key.IsActive = isActive != 0
+	if mcpToolGroup.Valid {
+		key.MCPToolGroup = mcpToolGroup.String
+	}
 	key.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse virtual key created_at: %w", err)
@@ -418,11 +423,12 @@ func scanVirtualKeyList(scanner interface {
 	var rateLimitRPM, rateLimitTPM sql.NullInt64
 	var teamID sql.NullInt64
 	var isActive int
+	var mcpToolGroup sql.NullString
 	var createdAt string
 
 	err := scanner.Scan(
 		&key.ID, &key.Name, &key.KeyPrefix, &budgetUSD, &key.BudgetPeriod,
-		&key.BudgetUsedUSD, &budgetResetAt, &rateLimitRPM, &rateLimitTPM, &teamID, &isActive, &createdAt,
+		&key.BudgetUsedUSD, &budgetResetAt, &rateLimitRPM, &rateLimitTPM, &teamID, &isActive, &mcpToolGroup, &createdAt,
 	)
 	if err != nil {
 		return nil, err
@@ -449,6 +455,9 @@ func scanVirtualKeyList(scanner interface {
 		key.TeamID = &teamID.Int64
 	}
 	key.IsActive = isActive != 0
+	if mcpToolGroup.Valid {
+		key.MCPToolGroup = mcpToolGroup.String
+	}
 	key.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
 	if err != nil {
 		return nil, fmt.Errorf("parse virtual key created_at: %w", err)

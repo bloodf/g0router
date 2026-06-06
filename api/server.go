@@ -574,6 +574,7 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 				return cfg
 			},
 			templates: templates,
+			store:     s.config.Store,
 		}
 		// Snapshot request-scoped data from the pooled ctx on the request
 		// goroutine. The streaming-complete callback fires from the capture
@@ -755,9 +756,11 @@ type pipelineInferenceEngine struct {
 	tools       *mcp.ToolManager
 	guardrails  func() store.GuardrailsConfig
 	templates   proxy.PromptTemplateProvider
+	store       *store.Store
 }
 
 func (e pipelineInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
+	ctx = e.withAllowedTools(ctx, req)
 	processed, err := e.pipeline().Process(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("pipeline dispatch: %w", err)
@@ -766,6 +769,7 @@ func (e pipelineInferenceEngine) Dispatch(ctx context.Context, req *providers.Ch
 }
 
 func (e pipelineInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
+	ctx = e.withAllowedTools(ctx, req)
 	processed, err := e.pipeline().Process(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("pipeline dispatch stream: %w", err)
@@ -775,6 +779,42 @@ func (e pipelineInferenceEngine) DispatchStream(ctx context.Context, req *provid
 
 func (e pipelineInferenceEngine) ListModels(ctx context.Context) ([]providers.Model, error) {
 	return e.base.ListModels(ctx)
+}
+
+func (e pipelineInferenceEngine) withAllowedTools(ctx context.Context, req *providers.ChatRequest) context.Context {
+	if e.store == nil || e.tools == nil || req == nil {
+		return ctx
+	}
+	groupName := e.resolveMCPToolGroup(ctx, req)
+	if groupName == "" {
+		return ctx
+	}
+	group, err := e.store.GetMCPToolGroupByName(groupName)
+	if err != nil || group == nil || !group.IsActive {
+		return ctx
+	}
+	return mcp.InjectAllowedTools(ctx, group.ToolIDs)
+}
+
+func (e pipelineInferenceEngine) resolveMCPToolGroup(ctx context.Context, req *providers.ChatRequest) string {
+	// Check combo model name.
+	if name := strings.TrimPrefix(req.Model, "combo/"); name != req.Model && name != "" {
+		combo, err := e.store.GetActiveCombo(name)
+		if err == nil && combo != nil && combo.MCPToolGroup != "" {
+			return combo.MCPToolGroup
+		}
+	}
+	// Check virtual key from request context.
+	if fctx, ok := ctx.(*fasthttp.RequestCtx); ok {
+		if vkID := userValueStringPtr(fctx, requestVirtualKeyIDKey); vkID != nil {
+			if id, err := strconv.ParseInt(*vkID, 10, 64); err == nil {
+				if vk, err := e.store.GetVirtualKey(id); err == nil && vk != nil && vk.MCPToolGroup != "" {
+					return vk.MCPToolGroup
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func (e pipelineInferenceEngine) pipeline() *proxy.Pipeline {

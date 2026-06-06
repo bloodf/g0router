@@ -410,6 +410,15 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.MCPTools(ctx, s.config.Store, s.config.MCPToolManager, parts[3])
 		})},
+		{method: "", pattern: "/api/mcp/tool-groups", match: apiExactMatch("/api/mcp/tool-groups"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.MCPToolGroups(ctx, s.config.Store, "")
+		})},
+		{method: "", pattern: "/api/mcp/tool-groups/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "mcp" && parts[2] == "tool-groups"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.MCPToolGroups(ctx, s.config.Store, parts[3])
+		})},
 		{method: "GET", pattern: "/api/mcp/oauth/callback", match: apiExactMatch("/api/mcp/oauth/callback"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			if !requireMethod(ctx, fasthttp.MethodGet) {
 				return
