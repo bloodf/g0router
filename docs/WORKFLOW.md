@@ -231,7 +231,7 @@ completed_at: "2026-06-06T14:34:00Z"
 phase: 18A
 status: DONE
 summary: "Virtual keys with hashed storage, team-based budget/rate-limit grouping, governance domain with budget reset rollover, and middleware integration for virtual key auth on inference endpoints."
-commit_range: "9cc6c93..<current>"
+commit_range: "9cc6c93..3f80d9c"
 completed_at: "2026-06-06T16:32:00Z"
 ```
 
