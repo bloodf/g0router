@@ -285,6 +285,16 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			UNIQUE(provider, model)
 		)`,
+		`CREATE TABLE IF NOT EXISTS tunnel_config (
+			id INTEGER PRIMARY KEY,
+			type TEXT NOT NULL UNIQUE,
+			is_enabled INTEGER DEFAULT 0,
+			config_enc TEXT,
+			url TEXT,
+			status TEXT DEFAULT 'inactive',
+			last_error TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, stmt := range ddl {
