@@ -1,6 +1,7 @@
 package api
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/bloodf/g0router/api/handlers"
@@ -420,6 +421,50 @@ func (s *Server) routes() []route {
 			}
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.AuthUsersDelete(ctx, s.config.Store, s.config.Store, s.config.Store, parts[3])
+		})},
+
+		// Tunnel routes
+		{method: "GET", pattern: "/api/tunnels", match: apiExactMatch("/api/tunnels"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.TunnelList(ctx, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/tunnels/cloudflare", match: apiExactMatch("/api/tunnels/cloudflare"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.TunnelCloudflareCreate(ctx, s.config.Store, s.config.TunnelManager, s.config.Store, strconv.Itoa(s.config.Port))
+		})},
+		{method: "DELETE", pattern: "/api/tunnels/cloudflare", match: apiExactMatch("/api/tunnels/cloudflare"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodDelete) {
+				return
+			}
+			handlers.TunnelCloudflareDelete(ctx, s.config.Store, s.config.TunnelManager, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/tunnels/tailscale", match: apiExactMatch("/api/tunnels/tailscale"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.TunnelTailscaleCreate(ctx, s.config.Store, s.config.TunnelManager, s.config.Store, strconv.Itoa(s.config.Port))
+		})},
+		{method: "DELETE", pattern: "/api/tunnels/tailscale", match: apiExactMatch("/api/tunnels/tailscale"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodDelete) {
+				return
+			}
+			handlers.TunnelTailscaleDelete(ctx, s.config.Store, s.config.TunnelManager, s.config.Store)
+		})},
+		{method: "GET", pattern: "/api/tunnels/health", match: apiExactMatch("/api/tunnels/health"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.TunnelHealth(ctx, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/settings/proxy-test", match: apiExactMatch("/api/settings/proxy-test"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.ProxyTest(ctx)
 		})},
 
 		// catch-all

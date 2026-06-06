@@ -51,6 +51,7 @@ type ServerConfig struct {
 	MCPClientManager    *mcp.ClientManager
 	MCPToolManager      *mcp.ToolManager
 	MCPInstanceRuntime  handlers.MCPInstanceRuntime
+	TunnelManager       handlers.TunnelManager
 }
 
 // logRetentionInterval is how often the background cleanup job runs.

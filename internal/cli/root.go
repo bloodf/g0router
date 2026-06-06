@@ -19,6 +19,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/search"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/tunnel"
 	"github.com/bloodf/g0router/internal/usage"
 	"github.com/spf13/cobra"
 )
@@ -179,7 +180,8 @@ func runServer(ctx context.Context, config serveConfig) error {
 		return fmt.Errorf("listen on %s: %w", listenAddress, err)
 	}
 
-	server := api.NewServer(newServerConfig(ctx, config, s))
+	tunnelMgr := tunnel.NewManager(s, dataDir)
+	server := api.NewServer(newServerConfig(ctx, config, s, tunnelMgr))
 	server.StartLogRetention(ctx)
 	server.StartConnectionRefresh(ctx)
 
@@ -194,7 +196,7 @@ func runServer(ctx context.Context, config serveConfig) error {
 	return nil
 }
 
-func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) api.ServerConfig {
+func newServerConfig(ctx context.Context, config serveConfig, s *store.Store, tunnelMgr handlers.TunnelManager) api.ServerConfig {
 	engine := newDefaultInferenceEngine(s)
 	mcpRuntime := newDefaultMCPRuntime()
 	rehydrateMCPRuntime(ctx, s, mcpRuntime)
@@ -222,6 +224,7 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) ap
 		MCPClientManager:      mcpRuntime.clients,
 		MCPToolManager:        mcpRuntime.tools,
 		MCPInstanceRuntime:    mcpRuntime,
+		TunnelManager:         tunnelMgr,
 	}
 }
 
