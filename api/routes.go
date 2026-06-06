@@ -437,6 +437,15 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.AlertChannelsTest(ctx, s.config.Store, parts[2])
 		})},
+		{method: "", pattern: "/api/feature-flags", match: apiExactMatch("/api/feature-flags"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.FeatureFlags(ctx, s.config.Store, "")
+		})},
+		{method: "", pattern: "/api/feature-flags/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "feature-flags"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.FeatureFlags(ctx, s.config.Store, parts[2])
+		})},
 		{method: "GET", pattern: "/api/mcp/oauth/callback", match: apiExactMatch("/api/mcp/oauth/callback"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			if !requireMethod(ctx, fasthttp.MethodGet) {
 				return

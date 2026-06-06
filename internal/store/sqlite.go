@@ -391,6 +391,10 @@ func (s *Store) migrate() error {
 		}
 	}
 
+	if err := s.seedFeatureFlags(); err != nil {
+		return err
+	}
+
 	if err := s.ensureColumn("combos", "strategy", "TEXT NOT NULL DEFAULT 'fallback'"); err != nil {
 		return err
 	}

@@ -39,6 +39,8 @@ func TestRoutesSnapshot(t *testing.T) {
 		"/api/connections/:id/test",
 		"/api/console-logs",
 		"/api/console-logs/stream",
+		"/api/feature-flags",
+		"/api/feature-flags/:id",
 		"/api/guardrails",
 		"/api/keys",
 		"/api/keys/:id",
