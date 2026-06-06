@@ -34,22 +34,23 @@ import (
 )
 
 type ServerConfig struct {
-	Port               int
-	Version            string
-	EnableRequestLogs  bool
-	RequireAPIKey      bool
-	APIKeySecret       string
-	APIKeyValidator    APIKeyValidator
-	InferenceEngine    handlers.InferenceEngine
-	Store              *store.Store
-	ModelSource        handlers.ManagementModelSource
-	OAuthFlows         handlers.OAuthFlows
-	UsageStore         handlers.UsageStore
-	QuotaFetchers      map[providers.ModelProvider]usage.QuotaFetcher
-	QuotaKey           providers.Key
-	MCPClientManager   *mcp.ClientManager
-	MCPToolManager     *mcp.ToolManager
-	MCPInstanceRuntime handlers.MCPInstanceRuntime
+	Port                int
+	Version             string
+	EnableRequestLogs   bool
+	RequireAPIKey       bool
+	APIKeySecret        string
+	APIKeyValidator     APIKeyValidator
+	InferenceEngine     handlers.InferenceEngine
+	Store               *store.Store
+	ModelSource         handlers.ManagementModelSource
+	ProviderAdapterSource handlers.ProviderAdapterSource
+	OAuthFlows          handlers.OAuthFlows
+	UsageStore          handlers.UsageStore
+	QuotaFetchers       map[providers.ModelProvider]usage.QuotaFetcher
+	QuotaKey            providers.Key
+	MCPClientManager    *mcp.ClientManager
+	MCPToolManager      *mcp.ToolManager
+	MCPInstanceRuntime  handlers.MCPInstanceRuntime
 }
 
 // logRetentionInterval is how often the background cleanup job runs.

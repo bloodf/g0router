@@ -206,21 +206,22 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) ap
 	}
 
 	return api.ServerConfig{
-		Port:               config.Port,
-		Version:            config.Version,
-		EnableRequestLogs:  config.EnableRequestLogs,
-		RequireAPIKey:      config.RequireAPIKey,
-		APIKeySecret:       config.APIKeySecret,
-		APIKeyValidator:    storeAPIKeyValidator{s: s},
-		InferenceEngine:    engine,
-		Store:              s,
-		ModelSource:        engine,
-		OAuthFlows:         defaultOAuthFlows(),
-		UsageStore:         s,
-		QuotaFetchers:      quotaFetchers,
-		MCPClientManager:   mcpRuntime.clients,
-		MCPToolManager:     mcpRuntime.tools,
-		MCPInstanceRuntime: mcpRuntime,
+		Port:                  config.Port,
+		Version:               config.Version,
+		EnableRequestLogs:     config.EnableRequestLogs,
+		RequireAPIKey:         config.RequireAPIKey,
+		APIKeySecret:          config.APIKeySecret,
+		APIKeyValidator:       storeAPIKeyValidator{s: s},
+		InferenceEngine:       engine,
+		Store:                 s,
+		ModelSource:           engine,
+		ProviderAdapterSource: engine,
+		OAuthFlows:            defaultOAuthFlows(),
+		UsageStore:            s,
+		QuotaFetchers:         quotaFetchers,
+		MCPClientManager:      mcpRuntime.clients,
+		MCPToolManager:        mcpRuntime.tools,
+		MCPInstanceRuntime:    mcpRuntime,
 	}
 }
 

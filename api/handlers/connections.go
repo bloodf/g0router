@@ -147,6 +147,40 @@ func ConnectionTest(ctx *fasthttp.RequestCtx, s connectionStore, id string) {
 	})
 }
 
+func ProviderConnections(ctx *fasthttp.RequestCtx, s connectionStore, providerID string) {
+	if string(ctx.Method()) != fasthttp.MethodGet {
+		ctx.SetStatusCode(fasthttp.StatusMethodNotAllowed)
+		return
+	}
+	if isStoreNil(s) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+
+	providerID = providerids.CanonicalProviderID(providerID)
+	_, ok := providerids.ProviderMatrix().Provider(providerID)
+	if !ok {
+		writeError(ctx, fasthttp.StatusNotFound, "provider not found")
+		return
+	}
+
+	connections, err := s.ListConnections()
+	if err != nil {
+		log.Printf("list connections: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to list connections")
+		return
+	}
+
+	filtered := make([]*store.Connection, 0)
+	for _, conn := range connections {
+		if conn.Provider == providerID {
+			filtered = append(filtered, conn)
+		}
+	}
+
+	writeJSON(ctx, fasthttp.StatusOK, listResponse[connectionResponse]{Data: redactConnections(filtered)})
+}
+
 func decodeConnectionRequest(ctx *fasthttp.RequestCtx) (*store.Connection, bool) {
 	var req connectionRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {

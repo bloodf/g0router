@@ -89,6 +89,33 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.Providers(ctx, s.config.ModelSource, parts[2])
 		})},
+		{method: "", pattern: "/api/providers/:id/connections", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "providers" && parts[3] == "connections"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.ProviderConnections(ctx, s.config.Store, parts[2])
+		})},
+		{method: "", pattern: "/api/providers/:id/suggested-models", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "providers" && parts[3] == "suggested-models"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.ProviderSuggestedModels(ctx, s.config.Store, s.config.ProviderAdapterSource, parts[2])
+		})},
+		{method: "", pattern: "/api/providers/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "providers"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.ProviderDetail(ctx, s.config.Store, s.config.ModelSource, parts[2])
+		})},
 		{method: "", pattern: "/api/connections", match: apiExactMatch("/api/connections"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.Connections(ctx, s.config.Store, "")
 		})},

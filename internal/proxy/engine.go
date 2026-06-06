@@ -149,6 +149,10 @@ func (e *Engine) RegisteredProviders() []providers.ModelProvider {
 	return e.pool.names()
 }
 
+func (e *Engine) GetProvider(name providers.ModelProvider) (providers.Provider, bool) {
+	return e.pool.get(name)
+}
+
 func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
 	if comboName, ok := comboModelName(req.Model); ok {
 		return e.comboResolver.Dispatch(ctx, e, comboName, req)
