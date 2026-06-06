@@ -304,6 +304,31 @@ func (s *Store) migrate() error {
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS teams (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL UNIQUE,
+			budget_usd REAL,
+			budget_period TEXT DEFAULT 'monthly',
+			budget_used_usd REAL DEFAULT 0,
+			budget_reset_at DATETIME,
+			rate_limit_rpm INTEGER,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS virtual_keys (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			key_prefix TEXT NOT NULL,
+			key_hash TEXT NOT NULL,
+			budget_usd REAL,
+			budget_period TEXT DEFAULT 'monthly',
+			budget_used_usd REAL DEFAULT 0,
+			budget_reset_at DATETIME,
+			rate_limit_rpm INTEGER,
+			rate_limit_tpm INTEGER,
+			team_id INTEGER,
+			is_active INTEGER DEFAULT 1,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, stmt := range ddl {
@@ -349,6 +374,9 @@ func (s *Store) migrate() error {
 		return err
 	}
 	if err := s.ensureColumn("connections", "quota_remaining", "REAL"); err != nil {
+		return err
+	}
+	if err := s.ensureColumn("request_log", "virtual_key_id", "TEXT"); err != nil {
 		return err
 	}
 
