@@ -673,6 +673,18 @@ func (s *Server) routes() []route {
 			}
 			handlers.Skills(ctx)
 		}},
+		{method: "GET", pattern: "/api/cache/semantic", match: apiExactMatch("/api/cache/semantic"), handler: func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.SemanticCacheStats(ctx, s.config.Store)
+		}},
+		{method: "DELETE", pattern: "/api/cache/semantic", match: apiExactMatch("/api/cache/semantic"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodDelete) {
+				return
+			}
+			handlers.SemanticCacheClear(ctx, s.config.Store)
+		})},
 
 		// catch-all
 		{method: "", pattern: "/*", match: func(rawPath, method string) bool { return true }, handler: func(ctx *fasthttp.RequestCtx) {

@@ -145,3 +145,8 @@ func (r *SemcacheRepo) Stats() (int, int64, error) {
 	}
 	return count, totalHits.Int64, nil
 }
+
+// SemcacheRepo returns a repository backed by this store's database.
+func (s *Store) SemcacheRepo() *SemcacheRepo {
+	return NewSemcacheRepo(s.db)
+}

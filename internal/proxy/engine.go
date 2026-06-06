@@ -93,6 +93,7 @@ type Engine struct {
 	proxyCache        map[string]providers.Provider
 	ruleEvaluator     *RoutingRuleEvaluator
 	modelLimitChecker *ModelLimitChecker
+	semanticCache     semanticCacher
 }
 
 func NewEngine(s EngineStore) *Engine {
@@ -164,6 +165,34 @@ func (e *Engine) GetProvider(name providers.ModelProvider) (providers.Provider, 
 func (e *Engine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
 	e.applyRoutingRules(ctx, req)
 
+	if e.semanticCache != nil && req != nil && (req.Stream == nil || !*req.Stream) {
+		key := semanticCacheKey(req)
+		model := req.Model
+		prompt := promptFromChatRequest(req)
+
+		cached, hit, err := e.semanticCache.Lookup(ctx, key, model, func() string { return prompt })
+		if err != nil {
+			log.Printf("semantic cache lookup error: %v", err)
+		} else if hit {
+			resp := cachedResponseToChatResponse(cached)
+			if resp != nil {
+				return resp, nil
+			}
+		}
+
+		resp, dispatchErr := e.dispatchInternal(ctx, req)
+		if dispatchErr == nil && resp != nil {
+			if storeErr := e.semanticCache.Store(ctx, key, model, prompt, chatResponseToCachedResponse(resp), 0); storeErr != nil {
+				log.Printf("semantic cache store error: %v", storeErr)
+			}
+		}
+		return resp, dispatchErr
+	}
+
+	return e.dispatchInternal(ctx, req)
+}
+
+func (e *Engine) dispatchInternal(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
 	if comboName, ok := comboModelName(req.Model); ok {
 		return e.comboResolver.Dispatch(ctx, e, comboName, req)
 	}

@@ -30,6 +30,7 @@ import (
 	"github.com/bloodf/g0router/internal/proxy"
 	"github.com/bloodf/g0router/internal/ratelimit"
 	"github.com/bloodf/g0router/internal/rtk"
+	"github.com/bloodf/g0router/internal/semcache"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/traffic"
 	"github.com/bloodf/g0router/internal/usage"
@@ -986,6 +987,23 @@ func (s *Server) requestLogsEnabled() bool {
 		return true
 	}
 	return s.runtimeSettings().EnableRequestLogs
+}
+
+func (s *Server) initSemanticCache() {
+	if s.config.Store == nil {
+		return
+	}
+	flag, err := s.config.Store.GetFeatureFlagByKey("semantic_cache")
+	if err != nil || flag == nil || !flag.Enabled {
+		return
+	}
+	eng, ok := s.config.InferenceEngine.(*proxy.Engine)
+	if !ok {
+		return
+	}
+	repo := s.config.Store.SemcacheRepo()
+	cache := semcache.NewCache(repo, nil, 0.95)
+	eng.RegisterSemanticCache(cache)
 }
 
 func (s *Server) runtimeSettings() store.Settings {

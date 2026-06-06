@@ -34,6 +34,7 @@ func NewServer(config ServerConfig) *Server {
 	if refresher, ok := config.InferenceEngine.(ConnectionRefresher); ok {
 		srv.connRefresher = refresher
 	}
+	srv.initSemanticCache()
 	srv.server = &fasthttp.Server{
 		Handler: srv.handle,
 	}

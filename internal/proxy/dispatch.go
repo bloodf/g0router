@@ -2,11 +2,18 @@ package proxy
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/bloodf/g0router/internal/guardrails"
 	"github.com/bloodf/g0router/internal/providers"
+	"github.com/bloodf/g0router/internal/semcache"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/translate"
 )
 
 // RoutingRuleStore is the narrow store interface for routing rule evaluation.
@@ -19,6 +26,12 @@ type ModelLimitStore interface {
 	GetModelLimitByModel(model string) (*store.ModelLimit, error)
 }
 
+// semanticCacher is the narrow interface for semantic cache integration.
+type semanticCacher interface {
+	Lookup(ctx context.Context, key, model string, promptFn func() string) (*semcache.CachedResponse, bool, error)
+	Store(ctx context.Context, key, model, prompt string, resp *semcache.CachedResponse, ttl time.Duration) error
+}
+
 // RegisterRoutingRuleEvaluator attaches a routing rule evaluator to the engine.
 func (e *Engine) RegisterRoutingRuleEvaluator(store RoutingRuleStore) {
 	e.ruleEvaluator = NewRoutingRuleEvaluator(store)
@@ -27,6 +40,11 @@ func (e *Engine) RegisterRoutingRuleEvaluator(store RoutingRuleStore) {
 // RegisterModelLimitChecker attaches a model limit checker to the engine.
 func (e *Engine) RegisterModelLimitChecker(store ModelLimitStore) {
 	e.modelLimitChecker = NewModelLimitChecker(store)
+}
+
+// RegisterSemanticCache attaches a semantic cache to the engine.
+func (e *Engine) RegisterSemanticCache(cache *semcache.Cache) {
+	e.semanticCache = cache
 }
 
 // InvalidateRoutingRules clears the routing rule cache so the next dispatch
@@ -95,4 +113,60 @@ func classifyGuardrailsError(err error) (status int, message string) {
 	default:
 		return 500, fmt.Sprintf("guardrails check failed: %v", err)
 	}
+}
+
+func semanticCacheKey(req *providers.ChatRequest) string {
+	body, _ := json.Marshal(req)
+	h := sha256.New()
+	h.Write([]byte(req.Model))
+	h.Write([]byte{0})
+	var v any
+	if err := json.Unmarshal(body, &v); err == nil {
+		canonical, _ := json.Marshal(v)
+		h.Write(canonical)
+	} else {
+		h.Write(body)
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func promptFromChatRequest(req *providers.ChatRequest) string {
+	if req == nil {
+		return ""
+	}
+	var parts []string
+	for _, msg := range req.Messages {
+		parts = append(parts, translate.MessageContentText(msg.Content))
+	}
+	return strings.Join(parts, "\n")
+}
+
+func chatResponseToCachedResponse(resp *providers.ChatResponse) *semcache.CachedResponse {
+	if resp == nil {
+		return nil
+	}
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return nil
+	}
+	var cached semcache.CachedResponse
+	if err := json.Unmarshal(data, &cached); err != nil {
+		return nil
+	}
+	return &cached
+}
+
+func cachedResponseToChatResponse(cached *semcache.CachedResponse) *providers.ChatResponse {
+	if cached == nil {
+		return nil
+	}
+	data, err := json.Marshal(cached)
+	if err != nil {
+		return nil
+	}
+	var resp providers.ChatResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil
+	}
+	return &resp
 }
