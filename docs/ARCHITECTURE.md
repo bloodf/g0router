@@ -75,6 +75,43 @@ HTTP Request → Middleware (auth, CORS, request ID, logging)
             → HTTP Response (SSE stream or JSON)
 ```
 
+## Layered Architecture (DDD-lite)
+
+Dependency direction is strictly inward:
+
+```
+api/                    → Transport layer (HTTP only)
+  api/handlers/           → parse, validate, envelope, status codes
+  api/routes.go           → pure route → handler table
+  api/wiring.go           → dependency construction
+  api/server.go           → lifecycle (listen, shutdown, TLS, background jobs)
+
+internal/<domain>/      → Domain layer (business logic, no fasthttp)
+  internal/proxy/         → pipeline, engine, combo resolution, fallback
+  internal/usage/         → aggregation, cost, quota
+  internal/translate/     → format conversion
+  internal/rtk/           → compression, caveman
+  internal/mcp/           → gateway, discovery, agent loop
+  internal/provider/      → registry, oauth, credentials
+  internal/providers/*    → upstream adapter implementations
+  internal/cache/         → response cache
+  internal/ratelimit/     → rate limiting
+  internal/traffic/       → live-traffic broker
+  internal/modelcatalog/  → model catalog, pricing
+  internal/notify/        → webhook notifications
+  internal/search/        → built-in tool registration
+  internal/streaming/     → SSE accumulator
+
+internal/store/         → Repository layer (persistence only)
+  SQLite WAL, one file per aggregate
+  Consumers define narrow interfaces; *store.Store satisfies them implicitly
+```
+
+Rules enforced by `internal/archtest/arch_test.go`:
+- No `internal/<domain>` package imports `api/` (domain must not depend on transport).
+- No domain package imports `fasthttp` (except provider HTTP adapters on allowlist).
+- `internal/store` imports no domain package (repository must not depend on domain logic).
+
 ## Package Dependency Graph
 
 ```

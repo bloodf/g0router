@@ -28,13 +28,42 @@
 ## Current State
 
 ```yaml
-project_status: COMPLETE
-current_stage: 9
-current_wave: "COMPLETE"
-last_completed_wave: "S2 (full release-readiness audit)"
-last_updated: "2026-06-05T21:30:00Z"
-last_agent: "auditor"
+project_status: IN_PROGRESS
+current_stage: 12B
+current_wave: "Phase 12B — DDD & Architecture Refactor"
+last_completed_wave: "Phase 12B checkpoint"
+last_updated: "2026-06-06T01:24:55Z"
+last_agent: "orchestrator"
 ```
+
+---
+
+## Phase 12B — DDD & Architecture Refactor
+
+```yaml
+phase: 12B
+status: DONE
+summary: "Layered DDD-lite refactor: routing extraction, repository interfaces, usage domain extraction, inference pipeline boundary, handler hygiene sweep, architecture conformance test."
+commit_range: "7f6e1b2..600c4bd"
+completed_at: "2026-06-06T01:24:55Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all 44 packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-1: Routing table extraction — `api/routes.go`, `api/wiring.go`, `api/routes_test.go`
+- task-2: Repository interfaces — 25+ consumer-defined narrow interfaces
+- task-3: Usage domain extraction — `internal/usage/usage.go`, `usage_test.go`
+- task-4: Inference pipeline boundary — `internal/proxy/pipeline.go`, `pipeline_test.go`
+- task-5: Handler hygiene sweep — split `inference.go`, moved Anthropic translation to `internal/translate`
+- task-6: Architecture conformance test — `internal/archtest/arch_test.go`
+
+**Next:** Phase 13 — Auth & Core Infrastructure
 
 ---
 

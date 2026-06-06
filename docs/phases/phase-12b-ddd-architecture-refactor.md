@@ -95,5 +95,30 @@ Violations to fix:
 - `go test -race ./...` per task, not just at checkpoint (refactors move
   state; race exposure changes).
 
+## Outcome
+
+All 6 tasks completed. Zero behavior change maintained throughout.
+
+### Shipped
+- **task-1**: `api/server.go` split into `api/routes.go` (route table), `api/wiring.go` (dependency construction), `api/server.go` (lifecycle only). Route snapshot test (`api/routes_test.go`) asserts 45 identical method+path pairs.
+- **task-2**: 25+ narrow repository interfaces defined in consumer packages (`api/handlers`, `internal/proxy`, `internal/search`, `internal/cli`). `*store.Store` satisfies them implicitly. Fake test in `api/handlers/settings_fake_test.go` proves decoupling.
+- **task-3**: Usage aggregation moved to `internal/usage/usage.go` (`ListUsage`, `GetSummary`). Handler tests unchanged and green.
+- **task-4**: Explicit preprocessing pipeline (`internal/proxy/pipeline.go`) with 4 ordered stages: model resolution → RTK compression → Caveman injection → MCP tool injection. 14 unit tests with fakes. Integration suite green.
+- **task-5**: Anthropic translation logic moved to `internal/translate/anthropic_messages.go`. `api/handlers/inference.go` (1108 lines) split into `inference_openai.go` (373 lines) and `inference_anthropic.go` (252 lines).
+- **task-6**: `internal/archtest/arch_test.go` enforces dependency direction via `go list`. Documented allowlists for known pre-existing couplings (`internal/cli`→`api`, `internal/providers/*`→`fasthttp`, `internal/store`→`internal/mcp`/`internal/usage`).
+
+### Deferred
+- Store→domain type couplings (`internal/store` imports `internal/mcp` and `internal/usage`). Deferred because `internal/store` stays one package per explicit non-goals; interfaces in consumers provide the decoupling boundary.
+
+### Gates
+- `go test ./... -count=1`: PASS
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+### Commit Range
+`7f6e1b2` → `600c4bd`
+
 ## Commit Message (final)
 `phase-12b/ddd-refactor: layered architecture, repository interfaces, arch test`
