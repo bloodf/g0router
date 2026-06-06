@@ -89,6 +89,21 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.Providers(ctx, s.config.ModelSource, parts[2])
 		})},
+		{method: "POST", pattern: "/api/providers/test-batch", match: apiExactMatch("/api/providers/test-batch"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.ModelTestBatch(ctx, s.config.Store, s.config.ProviderAdapterSource)
+		})},
+		{method: "", pattern: "/api/providers/:id/models/:model/test", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 6 && parts[0] == "api" && parts[1] == "providers" && parts[3] == "models" && parts[5] == "test"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.ModelTest(ctx, s.config.Store, s.config.ProviderAdapterSource, parts[2], parts[4])
+		})},
 		{method: "", pattern: "/api/providers/:id/connections", match: apiPathMatch(func(parts []string) bool {
 			return len(parts) == 4 && parts[0] == "api" && parts[1] == "providers" && parts[3] == "connections"
 		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
