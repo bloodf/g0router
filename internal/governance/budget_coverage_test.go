@@ -94,6 +94,24 @@ func TestLazyResetKeyResetError(t *testing.T) {
 	}
 }
 
+func TestLazyResetKeySuccessNilResetAt(t *testing.T) {
+	repo := newFakeBudgetRepo()
+	budget := 10.0
+	repo.keys[1] = &store.VirtualKey{ID: 1, Name: "k1", IsActive: true, BudgetUSD: &budget, BudgetPeriod: "monthly"}
+	g := New(repo, newFakeGovernanceLimiter())
+
+	err := g.lazyResetKey(repo.keys[1], time.Now())
+	if err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+	if repo.keys[1].BudgetUsedUSD != 0 {
+		t.Fatalf("BudgetUsedUSD = %v, want 0", repo.keys[1].BudgetUsedUSD)
+	}
+	if repo.keys[1].BudgetResetAt == nil {
+		t.Fatal("expected BudgetResetAt set")
+	}
+}
+
 func TestLazyResetKeyRolloverError(t *testing.T) {
 	repo := newFakeBudgetRepo()
 	repo.resetKeyErr = errors.New("reset error")
@@ -141,6 +159,24 @@ func TestLazyResetTeamResetError(t *testing.T) {
 	err := g.lazyResetTeam(repo.teams[1], time.Now())
 	if err == nil {
 		t.Fatal("expected error from reset")
+	}
+}
+
+func TestLazyResetTeamSuccessNilResetAt(t *testing.T) {
+	repo := newFakeBudgetRepo()
+	budget := 10.0
+	repo.teams[1] = &store.Team{ID: 1, Name: "eng", BudgetUSD: &budget, BudgetPeriod: "monthly"}
+	g := New(repo, newFakeGovernanceLimiter())
+
+	err := g.lazyResetTeam(repo.teams[1], time.Now())
+	if err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+	if repo.teams[1].BudgetUsedUSD != 0 {
+		t.Fatalf("BudgetUsedUSD = %v, want 0", repo.teams[1].BudgetUsedUSD)
+	}
+	if repo.teams[1].BudgetResetAt == nil {
+		t.Fatal("expected BudgetResetAt set")
 	}
 }
 
