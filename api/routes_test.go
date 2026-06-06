@@ -97,6 +97,7 @@ func TestRoutesSnapshot(t *testing.T) {
 		"GET /api/tunnels",
 		"GET /api/tunnels/health",
 		"GET /api/version",
+		"GET /api/ws",
 		"GET /healthz",
 		"GET /metrics",
 		"GET /v1/models",

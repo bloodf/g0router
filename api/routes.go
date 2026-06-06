@@ -685,6 +685,12 @@ func (s *Server) routes() []route {
 			}
 			handlers.SemanticCacheClear(ctx, s.config.Store)
 		})},
+		{method: "GET", pattern: "/api/ws", match: apiExactMatch("/api/ws"), handler: func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.WSChat(ctx, s.config.InferenceEngine, s.config.Store)
+		}},
 
 		// catch-all
 		{method: "", pattern: "/*", match: func(rawPath, method string) bool { return true }, handler: func(ctx *fasthttp.RequestCtx) {
