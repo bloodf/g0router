@@ -122,7 +122,7 @@ func (s *Server) UpdateSettings(settings store.Settings) error {
 		return fmt.Errorf("store unavailable")
 	}
 	if err := s.config.Store.UpdateSettings(settings); err != nil {
-		return err
+		return fmt.Errorf("update settings: %w", err)
 	}
 	s.settingsMu.Lock()
 	s.settingsCache = &settings
