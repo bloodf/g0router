@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -54,7 +55,7 @@ func scanDashboardSession(scan func(dest ...any) error) (*DashboardSession, erro
 		&userAgent,
 		&ip,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scan dashboard session: %w", err)
 	}
 
 	session.UserAgent = stringValueFromNull(userAgent)
@@ -70,8 +71,8 @@ func (s *Store) GetDashboardSessionByTokenHash(tokenHash string) (*DashboardSess
 		tokenHash,
 	)
 	session, err := scanDashboardSession(row.Scan)
-	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("get dashboard session by token hash: session %q not found", tokenHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get dashboard session by token hash: %w", err)

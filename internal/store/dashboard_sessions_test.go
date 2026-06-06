@@ -1,17 +1,11 @@
 package store
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 )
-
-func sha256Hash(s string) string {
-	h := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(h[:])
-}
 
 func TestCreateDashboardSession(t *testing.T) {
 	s := openTestStore(t)
@@ -22,12 +16,12 @@ func TestCreateDashboardSession(t *testing.T) {
 		t.Fatalf("CreateDashboardSession: %v", err)
 	}
 
-	got, err := s.GetDashboardSessionByTokenHash(sha256Hash(rawToken))
+	got, err := s.GetDashboardSessionByTokenHash(hashRawToken(rawToken))
 	if err != nil {
 		t.Fatalf("GetDashboardSessionByTokenHash: %v", err)
 	}
-	if got.TokenHash != sha256Hash(rawToken) {
-		t.Errorf("TokenHash = %q, want %q", got.TokenHash, sha256Hash(rawToken))
+	if got.TokenHash != hashRawToken(rawToken) {
+		t.Errorf("TokenHash = %q, want %q", got.TokenHash, hashRawToken(rawToken))
 	}
 	if got.UserID != 1 {
 		t.Errorf("UserID = %d, want 1", got.UserID)
@@ -62,8 +56,8 @@ func TestGetDashboardSessionByRawToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetDashboardSessionByRawToken: %v", err)
 	}
-	if got.TokenHash != sha256Hash(rawToken) {
-		t.Errorf("TokenHash = %q, want %q", got.TokenHash, sha256Hash(rawToken))
+	if got.TokenHash != hashRawToken(rawToken) {
+		t.Errorf("TokenHash = %q, want %q", got.TokenHash, hashRawToken(rawToken))
 	}
 	if got.UserID != 2 {
 		t.Errorf("UserID = %d, want 2", got.UserID)
@@ -77,6 +71,9 @@ func TestGetDashboardSessionByTokenHashNotFound(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for nonexistent session")
 	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
 }
 
 func TestGetDashboardSessionByRawTokenNotFound(t *testing.T) {
@@ -85,6 +82,9 @@ func TestGetDashboardSessionByRawTokenNotFound(t *testing.T) {
 	_, err := s.GetDashboardSessionByRawToken("nonexistent-token")
 	if err == nil {
 		t.Fatal("expected error for nonexistent session")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
@@ -97,7 +97,7 @@ func TestTouchDashboardSession(t *testing.T) {
 		t.Fatalf("CreateDashboardSession: %v", err)
 	}
 
-	tokenHash := sha256Hash(rawToken)
+	tokenHash := hashRawToken(rawToken)
 
 	// Manually set last_seen_at to 2 minutes ago so first touch updates it
 	_, err := s.db.Exec(
@@ -151,7 +151,7 @@ func TestDeleteDashboardSession(t *testing.T) {
 		t.Fatalf("CreateDashboardSession: %v", err)
 	}
 
-	tokenHash := sha256Hash(rawToken)
+	tokenHash := hashRawToken(rawToken)
 	if err := s.DeleteDashboardSession(tokenHash); err != nil {
 		t.Fatalf("DeleteDashboardSession: %v", err)
 	}
@@ -159,6 +159,15 @@ func TestDeleteDashboardSession(t *testing.T) {
 	_, err := s.GetDashboardSessionByTokenHash(tokenHash)
 	if err == nil {
 		t.Fatal("expected error after delete")
+	}
+}
+
+func TestDeleteDashboardSessionNotFound(t *testing.T) {
+	s := openTestStore(t)
+
+	err := s.DeleteDashboardSession("nonexistent-hash")
+	if err == nil {
+		t.Fatal("expected error for nonexistent session")
 	}
 }
 
@@ -180,17 +189,17 @@ func TestDeleteDashboardSessionsByUserID(t *testing.T) {
 		t.Fatalf("DeleteDashboardSessionsByUserID: %v", err)
 	}
 
-	_, err := s.GetDashboardSessionByTokenHash(sha256Hash("token-a"))
+	_, err := s.GetDashboardSessionByTokenHash(hashRawToken("token-a"))
 	if err == nil {
 		t.Fatal("expected token-a to be deleted")
 	}
-	_, err = s.GetDashboardSessionByTokenHash(sha256Hash("token-b"))
+	_, err = s.GetDashboardSessionByTokenHash(hashRawToken("token-b"))
 	if err == nil {
 		t.Fatal("expected token-b to be deleted")
 	}
 
 	// Session for user 2 should still exist
-	got, err := s.GetDashboardSessionByTokenHash(sha256Hash("token-c"))
+	got, err := s.GetDashboardSessionByTokenHash(hashRawToken("token-c"))
 	if err != nil {
 		t.Fatalf("expected token-c to survive: %v", err)
 	}
@@ -216,12 +225,12 @@ func TestPurgeExpiredDashboardSessions(t *testing.T) {
 		t.Fatalf("PurgeExpiredDashboardSessions: %v", err)
 	}
 
-	_, err := s.GetDashboardSessionByTokenHash(sha256Hash("expired-token"))
+	_, err := s.GetDashboardSessionByTokenHash(hashRawToken("expired-token"))
 	if err == nil {
 		t.Fatal("expected expired token to be purged")
 	}
 
-	got, err := s.GetDashboardSessionByTokenHash(sha256Hash("valid-token"))
+	got, err := s.GetDashboardSessionByTokenHash(hashRawToken("valid-token"))
 	if err != nil {
 		t.Fatalf("expected valid token to survive: %v", err)
 	}
