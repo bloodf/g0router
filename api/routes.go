@@ -172,6 +172,24 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.APIKeys(ctx, s.config.Store, s.config.APIKeySecret, parts[2])
 		})},
+		{method: "", pattern: "/api/virtual-keys", match: apiExactMatch("/api/virtual-keys"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.VirtualKeys(ctx, s.config.Store, "")
+		})},
+		{method: "", pattern: "/api/virtual-keys/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "virtual-keys"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.VirtualKeys(ctx, s.config.Store, parts[2])
+		})},
+		{method: "", pattern: "/api/teams", match: apiExactMatch("/api/teams"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.Teams(ctx, s.config.Store, "")
+		})},
+		{method: "", pattern: "/api/teams/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 3 && parts[0] == "api" && parts[1] == "teams"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.Teams(ctx, s.config.Store, parts[2])
+		})},
 		{method: "", pattern: "/api/combos", match: apiExactMatch("/api/combos"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.Combos(ctx, s.config.Store, "")
 		})},

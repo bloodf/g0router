@@ -63,7 +63,7 @@ func (s *Store) GetTeam(id int64) (*Team, error) {
 	)
 	team, err := scanTeam(row)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("get team: %d not found", id)
+		return nil, fmt.Errorf("get team: %w", ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get team: %w", err)
@@ -108,7 +108,7 @@ func (s *Store) UpdateTeam(id int64, name string, budgetUSD *float64, budgetPeri
 		return fmt.Errorf("update team rows: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("update team: %d not found", id)
+		return fmt.Errorf("update team: %w", ErrNotFound)
 	}
 	return nil
 }
@@ -234,7 +234,7 @@ func (s *Store) GetVirtualKey(id int64) (*VirtualKey, error) {
 	)
 	key, err := scanVirtualKey(row)
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("get virtual key: %d not found", id)
+		return nil, fmt.Errorf("get virtual key: %w", ErrNotFound)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get virtual key: %w", err)
@@ -272,7 +272,7 @@ func (s *Store) ValidateVirtualKey(raw string) (*VirtualKey, bool, error) {
 	row := s.db.QueryRow(
 		`SELECT id, name, key_prefix, key_hash, budget_usd, budget_period, budget_used_usd, budget_reset_at, rate_limit_rpm, rate_limit_tpm, team_id, is_active, created_at
 		FROM virtual_keys
-		WHERE key_hash = ? AND is_active = 1`,
+		WHERE key_hash = ?`,
 		keyHash,
 	)
 	key, err := scanVirtualKey(row)
@@ -298,7 +298,7 @@ func (s *Store) UpdateVirtualKey(id int64, name string, teamID *int64, budgetUSD
 		return fmt.Errorf("update virtual key rows: %w", err)
 	}
 	if affected == 0 {
-		return fmt.Errorf("update virtual key: %d not found", id)
+		return fmt.Errorf("update virtual key: %w", ErrNotFound)
 	}
 	return nil
 }

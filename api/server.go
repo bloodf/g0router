@@ -20,6 +20,7 @@ import (
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/cache"
 	"github.com/bloodf/g0router/internal/console"
+	"github.com/bloodf/g0router/internal/governance"
 	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/metrics"
@@ -55,6 +56,7 @@ type ServerConfig struct {
 	MCPInstanceRuntime  handlers.MCPInstanceRuntime
 	TunnelManager       handlers.TunnelManager
 	ConsoleBroker       *console.Broker
+	Governance          *governance.Governance
 }
 
 // logRetentionInterval is how often the background cleanup job runs.
@@ -571,6 +573,7 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 			onStreamComplete: func(req *providers.ChatRequest, model string, providerUsage *providers.Usage) {
 				s.logStreamingInferenceUsage(snapshot, started, sourceFormat, req, model, providerUsage)
 				s.recordKeyUsage(snapshot.apiKeyID, model, req, nil, providerUsage)
+				s.recordVirtualKeyUsageSnapshot(snapshot, model, req, providerUsage)
 			},
 		}
 		engine = captured
@@ -600,6 +603,7 @@ func (s *Server) handleLoggedInference(ctx *fasthttp.RequestCtx, sourceFormat st
 	}
 	s.logInferenceUsage(ctx, started, sourceFormat, req, resp, dispatchErr, "", nil, ctx.Response.StatusCode())
 	s.recordKeyUsage(userValueStringPtr(ctx, requestAPIKeyIDKey), "", req, resp, nil)
+	s.recordVirtualKeyUsage(userValueStringPtr(ctx, requestVirtualKeyIDKey), userValueStringPtr(ctx, requestVirtualKeyTeamIDKey), "", req, resp, nil)
 }
 
 func (s *Server) logInferenceUsage(ctx *fasthttp.RequestCtx, started time.Time, sourceFormat string, request *providers.ChatRequest, response *providers.ChatResponse, dispatchErr error, streamModel string, streamUsage *providers.Usage, statusCode int) {
@@ -977,18 +981,22 @@ func truncateClientTool(value string) string {
 // *fasthttp.RequestCtx (which races with the body-stream writer and is recycled
 // once the handler returns).
 type streamLogSnapshot struct {
-	requestID   string
-	authType    string
-	apiKeyID    *string
-	authTypeSet bool
-	clientTool  *string
+	requestID      string
+	authType       string
+	apiKeyID       *string
+	authTypeSet    bool
+	clientTool     *string
+	virtualKeyID   *string
+	virtualKeyTeamID *string
 }
 
 func newStreamLogSnapshot(ctx *fasthttp.RequestCtx) streamLogSnapshot {
 	snapshot := streamLogSnapshot{
-		requestID:  string(ctx.Response.Header.Peek(requestIDHeader)),
-		apiKeyID:   userValueStringPtr(ctx, requestAPIKeyIDKey),
-		clientTool: clientToolFromCtx(ctx),
+		requestID:        string(ctx.Response.Header.Peek(requestIDHeader)),
+		apiKeyID:         userValueStringPtr(ctx, requestAPIKeyIDKey),
+		clientTool:       clientToolFromCtx(ctx),
+		virtualKeyID:     userValueStringPtr(ctx, requestVirtualKeyIDKey),
+		virtualKeyTeamID: userValueStringPtr(ctx, requestVirtualKeyTeamIDKey),
 	}
 	if value, ok := ctx.UserValue(requestAuthTypeKey).(string); ok && value != "" {
 		snapshot.authType = value
@@ -1202,12 +1210,14 @@ func (s *Server) handleMetrics(ctx *fasthttp.RequestCtx) {
 // auditedResources are the top-level /api/{resource} segments whose successful
 // mutations (POST/PUT/DELETE) are recorded in the admin audit log.
 var auditedResources = map[string]bool{
-	"settings":    true,
-	"keys":        true,
-	"connections": true,
-	"combos":      true,
-	"aliases":     true,
-	"pricing":     true,
+	"settings":     true,
+	"keys":         true,
+	"connections":  true,
+	"combos":       true,
+	"aliases":      true,
+	"pricing":      true,
+	"virtual-keys": true,
+	"teams":        true,
 }
 
 // recordAuditIfMutation appends an audit-log entry after a successful mutating

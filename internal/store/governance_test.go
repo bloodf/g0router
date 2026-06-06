@@ -222,11 +222,14 @@ func TestValidateVirtualKeyInactive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ValidateVirtualKey: %v", err)
 	}
-	if ok {
-		t.Fatal("ValidateVirtualKey should not return ok for inactive key")
+	if !ok {
+		t.Fatal("ValidateVirtualKey should return ok even for inactive key (governance enforces active status)")
 	}
-	if got != nil {
-		t.Fatalf("got = %+v, want nil", got)
+	if got == nil {
+		t.Fatal("ValidateVirtualKey should return the key")
+	}
+	if got.IsActive {
+		t.Error("IsActive should be false")
 	}
 }
 

@@ -37,14 +37,16 @@ type APIKeyIdentityValidator interface {
 }
 
 const (
-	requestIDHeader        = "X-Request-ID"
-	requestAuthTypeKey     = "g0router.auth_type"
-	requestAPIKeyIDKey     = "g0router.api_key_id"
-	requestAPIKeyPolicyKey = "g0router.api_key_policy"
-	requestSessionUserIDKey = "g0router.session_user_id"
-	requestSessionRoleKey   = "g0router.session_role"
-	requestAuthTypeAPIKey   = "api_key"
-	requestAuthTypeSession  = "session"
+	requestIDHeader          = "X-Request-ID"
+	requestAuthTypeKey       = "g0router.auth_type"
+	requestAPIKeyIDKey       = "g0router.api_key_id"
+	requestAPIKeyPolicyKey   = "g0router.api_key_policy"
+	requestSessionUserIDKey  = "g0router.session_user_id"
+	requestSessionRoleKey    = "g0router.session_role"
+	requestVirtualKeyIDKey   = "g0router.virtual_key_id"
+	requestVirtualKeyTeamIDKey = "g0router.virtual_key_team_id"
+	requestAuthTypeAPIKey    = "api_key"
+	requestAuthTypeSession   = "session"
 )
 
 func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
@@ -74,6 +76,11 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 			return false
 		}
 		if !ok {
+			// validAPIKey may have already written a specific status (403/429)
+			// for a virtual key governance rejection. Do not overwrite it.
+			if ctx.Response.StatusCode() != fasthttp.StatusOK {
+				return false
+			}
 			ok, err = s.validSession(ctx)
 			if err != nil {
 				ctx.SetStatusCode(fasthttp.StatusInternalServerError)
@@ -221,15 +228,20 @@ func classifySourceIP(ip net.IP) string {
 var _, tailscaleCGNAT, _ = net.ParseCIDR("100.64.0.0/10")
 
 func (s *Server) validAPIKey(ctx *fasthttp.RequestCtx) (bool, error) {
-	if s.config.APIKeyValidator == nil {
-		return false, nil
-	}
-
 	key := bearerToken(string(ctx.Request.Header.Peek("Authorization")))
 	if key == "" {
 		key = string(ctx.Request.Header.Peek("X-API-Key"))
 	}
 	if key == "" {
+		return false, nil
+	}
+
+	// Virtual keys are checked before regular API keys (prefix-distinguished: gvk-).
+	if strings.HasPrefix(key, "gvk-") {
+		return s.validVirtualKey(ctx, key)
+	}
+
+	if s.config.APIKeyValidator == nil {
 		return false, nil
 	}
 
@@ -263,6 +275,30 @@ func (s *Server) validAPIKey(ctx *fasthttp.RequestCtx) (bool, error) {
 		ctx.SetUserValue(requestAuthTypeKey, requestAuthTypeAPIKey)
 	}
 	return ok, nil
+}
+
+func (s *Server) validVirtualKey(ctx *fasthttp.RequestCtx, raw string) (bool, error) {
+	if s.config.Store == nil || s.config.Governance == nil {
+		return false, nil
+	}
+	key, ok, err := s.config.Store.ValidateVirtualKey(raw)
+	if err != nil {
+		return false, fmt.Errorf("validate virtual key: %w", err)
+	}
+	if !ok {
+		return false, nil
+	}
+	result := s.config.Governance.Check(key)
+	if !result.Allowed {
+		writePolicyError(ctx, result.Status, result.Reason)
+		return false, nil
+	}
+	ctx.SetUserValue(requestAuthTypeKey, requestAuthTypeAPIKey)
+	ctx.SetUserValue(requestVirtualKeyIDKey, strconv.FormatInt(key.ID, 10))
+	if key.TeamID != nil {
+		ctx.SetUserValue(requestVirtualKeyTeamIDKey, strconv.FormatInt(*key.TeamID, 10))
+	}
+	return true, nil
 }
 
 func (s *Server) validSession(ctx *fasthttp.RequestCtx) (bool, error) {

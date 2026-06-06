@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"path"
+	"strconv"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/usage"
@@ -84,6 +85,52 @@ func (s *Server) recordKeyUsage(keyID *string, streamModel string, request *prov
 
 // modelInScopes reports whether model matches one of the scope glob patterns.
 // An empty scope list means all models are allowed.
+// recordVirtualKeyUsage accumulates budget and tokens for a virtual key after a
+// non-streaming inference response is known.
+func (s *Server) recordVirtualKeyUsage(virtualKeyID, virtualKeyTeamID *string, model string, request *providers.ChatRequest, response *providers.ChatResponse, streamUsage *providers.Usage) {
+	if virtualKeyID == nil || *virtualKeyID == "" || s.config.Governance == nil {
+		return
+	}
+	keyID, err := strconv.ParseInt(*virtualKeyID, 10, 64)
+	if err != nil {
+		return
+	}
+	var teamID *int64
+	if virtualKeyTeamID != nil && *virtualKeyTeamID != "" {
+		if tid, err := strconv.ParseInt(*virtualKeyTeamID, 10, 64); err == nil {
+			teamID = &tid
+		}
+	}
+	var extracted *usage.Usage
+	if response != nil {
+		if value, ok := usage.FromChatResponse(*response); ok {
+			extracted = &value
+		}
+	} else if streamUsage != nil {
+		if value, ok := usage.FromChatResponse(providers.ChatResponse{Usage: streamUsage}); ok {
+			extracted = &value
+		}
+	}
+	if extracted == nil {
+		return
+	}
+	modelName := model
+	if modelName == "" && request != nil {
+		modelName = request.Model
+	}
+	provider := providerFromModel(modelName)
+	if response != nil && response.Provider != "" {
+		provider = response.Provider.String()
+	}
+	_ = s.config.Governance.RecordUsage(keyID, teamID, providers.ModelProvider(provider), modelName, *extracted)
+}
+
+// recordVirtualKeyUsageSnapshot is the streaming-safe variant that takes a
+// snapshot instead of the pooled ctx.
+func (s *Server) recordVirtualKeyUsageSnapshot(snapshot streamLogSnapshot, model string, request *providers.ChatRequest, streamUsage *providers.Usage) {
+	s.recordVirtualKeyUsage(snapshot.virtualKeyID, snapshot.virtualKeyTeamID, model, request, nil, streamUsage)
+}
+
 func modelInScopes(model string, scopes []string) bool {
 	if len(scopes) == 0 {
 		return true
