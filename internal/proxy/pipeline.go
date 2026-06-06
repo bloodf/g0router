@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/bloodf/g0router/internal/providers"
 	"github.com/bloodf/g0router/internal/rtk"
@@ -59,7 +60,7 @@ func (p *Pipeline) Process(ctx context.Context, req *providers.ChatRequest) (*pr
 
 	processed, err := p.resolveModel(ctx, processed)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pipeline resolve model: %w", err)
 	}
 
 	processed = p.compressRTK(processed)
@@ -76,7 +77,7 @@ func (p *Pipeline) resolveModel(ctx context.Context, req providers.ChatRequest) 
 	}
 	resolved, err := p.resolver.ResolveModel(ctx, req.Model)
 	if err != nil {
-		return providers.ChatRequest{}, err
+		return providers.ChatRequest{}, fmt.Errorf("resolve model: %w", err)
 	}
 	req.Model = resolved
 	return req, nil

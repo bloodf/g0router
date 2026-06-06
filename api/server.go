@@ -564,7 +564,7 @@ type pipelineInferenceEngine struct {
 func (e pipelineInferenceEngine) Dispatch(ctx context.Context, req *providers.ChatRequest) (*providers.ChatResponse, error) {
 	processed, err := e.pipeline().Process(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pipeline dispatch: %w", err)
 	}
 	return e.base.Dispatch(ctx, processed)
 }
@@ -572,7 +572,7 @@ func (e pipelineInferenceEngine) Dispatch(ctx context.Context, req *providers.Ch
 func (e pipelineInferenceEngine) DispatchStream(ctx context.Context, req *providers.ChatRequest) (<-chan providers.StreamChunk, error) {
 	processed, err := e.pipeline().Process(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pipeline dispatch stream: %w", err)
 	}
 	return e.base.DispatchStream(ctx, processed)
 }
