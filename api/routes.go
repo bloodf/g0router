@@ -627,6 +627,18 @@ func (s *Server) routes() []route {
 			}
 			handlers.ProxyTest(ctx)
 		})},
+		{method: "POST", pattern: "/api/settings/backup", match: apiExactMatch("/api/settings/backup"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.Backup(ctx, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/settings/restore", match: apiExactMatch("/api/settings/restore"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			handlers.Restore(ctx, s.config.Store)
+		})},
 
 		// catch-all
 		{method: "", pattern: "/*", match: func(rawPath, method string) bool { return true }, handler: func(ctx *fasthttp.RequestCtx) {
