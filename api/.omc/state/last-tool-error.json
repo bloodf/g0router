@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd api && rtk grep -n \\\"statusClassFor\\\\|parseCacheableRequest\\\\|handleMetrics\\\\|func newTestServer\\\\|func Test\\\" server_metrics_audit_test.go server_cache_test.go 2>/dev/null | head -50\",...",
+  "error": "Exit code 1\n(eval):cd:1: no such file or directory: api",
+  "timestamp": "2026-06-05T20:17:38.444Z",
+  "retry_count": 1
+}

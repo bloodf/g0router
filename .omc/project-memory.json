@@ -1,0 +1,463 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1780704739087,
+  "projectRoot": "/Users/heitor/Developer/github.com/bloodf/g0router",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Go",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "go.mod"
+        ]
+      },
+      {
+        "name": "C/C++",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "Makefile"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "go",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "go build ./cmd/g0router",
+    "testCommand": "go test ./... -count=1",
+    "lintCommand": "go vet ./...",
+    "devCommand": "go run ./cmd/g0router",
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs"
+    ],
+    "gitBranches": null
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "api": {
+      "path": "api",
+      "purpose": "API routes",
+      "fileCount": 28,
+      "lastAccessed": 1780704739079,
+      "keyFiles": [
+        "connection_refresh_test.go",
+        "coverage_handle_extra_policy_test.go",
+        "coverage_handle_extra_test.go",
+        "coverage_logged_inference_test.go",
+        "coverage_middleware_test.go"
+      ]
+    },
+    "cmd": {
+      "path": "cmd",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1780704739079,
+      "keyFiles": []
+    },
+    "deploy": {
+      "path": "deploy",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1780704739080,
+      "keyFiles": [
+        "g0router.default",
+        "g0router.service"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 14,
+      "lastAccessed": 1780704739081,
+      "keyFiles": [
+        "ARCHITECTURE.md",
+        "CONFIG.md",
+        "DEPLOYMENT.md",
+        "DIRECTORY_STRUCTURE.md",
+        "ORCHESTRATION.md"
+      ]
+    },
+    "internal": {
+      "path": "internal",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1780704739081,
+      "keyFiles": []
+    },
+    "lancedb": {
+      "path": "lancedb",
+      "purpose": null,
+      "fileCount": 1,
+      "lastAccessed": 1780704739082,
+      "keyFiles": []
+    },
+    "ui": {
+      "path": "ui",
+      "purpose": null,
+      "fileCount": 9,
+      "lastAccessed": 1780704739082,
+      "keyFiles": [
+        "index.html",
+        "package-lock.json",
+        "package.json",
+        "playwright.config.ts",
+        "tsconfig.app.json"
+      ]
+    },
+    "internal/config": {
+      "path": "internal/config",
+      "purpose": "Configuration files",
+      "fileCount": 3,
+      "lastAccessed": 1780704739083,
+      "keyFiles": [
+        "config.go",
+        "config_coverage_test.go",
+        "config_test.go"
+      ]
+    },
+    "ui/dist": {
+      "path": "ui/dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 1,
+      "lastAccessed": 1780704739086,
+      "keyFiles": [
+        "index.html"
+      ]
+    },
+    "ui/node_modules": {
+      "path": "ui/node_modules",
+      "purpose": "Dependencies",
+      "fileCount": 1,
+      "lastAccessed": 1780704739087,
+      "keyFiles": []
+    },
+    "ui/src": {
+      "path": "ui/src",
+      "purpose": "Source code",
+      "fileCount": 9,
+      "lastAccessed": 1780704739087,
+      "keyFiles": [
+        "App.test.tsx",
+        "App.tsx",
+        "api.test.ts"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "docs/lovable-prompt.md",
+      "accessCount": 13,
+      "lastAccessed": 1780705476919,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/STAGE-13-19-PROCESS.md",
+      "accessCount": 10,
+      "lastAccessed": 1780706575322,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/phase-13-auth-core-infrastructure.md",
+      "accessCount": 3,
+      "lastAccessed": 1780706517055,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/phase-14-providers-testing.md",
+      "accessCount": 3,
+      "lastAccessed": 1780706525040,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/phase-15-tunnels-network.md",
+      "accessCount": 3,
+      "lastAccessed": 1780706534330,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/phase-16-chat-console.md",
+      "accessCount": 3,
+      "lastAccessed": 1780706544513,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/phase-17-usage-analytics.md",
+      "accessCount": 3,
+      "lastAccessed": 1780706556639,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/phase-18-bifrost-features.md",
+      "accessCount": 3,
+      "lastAccessed": 1780706569237,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/phase-19-advanced-features.md",
+      "accessCount": 3,
+      "lastAccessed": 1780706575415,
+      "type": "file"
+    },
+    {
+      "path": "docs/handoff-stage-13-19.md",
+      "accessCount": 2,
+      "lastAccessed": 1780705409028,
+      "type": "file"
+    },
+    {
+      "path": "AGENTS.md",
+      "accessCount": 2,
+      "lastAccessed": 1780706383016,
+      "type": "file"
+    },
+    {
+      "path": "CLAUDE.md",
+      "accessCount": 2,
+      "lastAccessed": 1780706443940,
+      "type": "file"
+    },
+    {
+      "path": "docs/phases/phase-12b-ddd-architecture-refactor.md",
+      "accessCount": 2,
+      "lastAccessed": 1780706503381,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-12b-ddd-architecture-refactor/brief.md",
+      "accessCount": 2,
+      "lastAccessed": 1780706696627,
+      "type": "file"
+    },
+    {
+      "path": "go.mod",
+      "accessCount": 1,
+      "lastAccessed": 1780706011412,
+      "type": "file"
+    },
+    {
+      "path": ".agentic/config.json",
+      "accessCount": 1,
+      "lastAccessed": 1780706136786,
+      "type": "file"
+    },
+    {
+      "path": ".agentic/learnings.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706138178,
+      "type": "file"
+    },
+    {
+      "path": ".agentic/qa-regressions.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706139571,
+      "type": "file"
+    },
+    {
+      "path": ".agentic/qa.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706146586,
+      "type": "file"
+    },
+    {
+      "path": ".agentic/deploy.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706149435,
+      "type": "file"
+    },
+    {
+      "path": "glossary.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706156048,
+      "type": "file"
+    },
+    {
+      "path": ".agentic/memory/MEMORY.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706162624,
+      "type": "file"
+    },
+    {
+      "path": "ui/AGENTS.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706166196,
+      "type": "file"
+    },
+    {
+      "path": "docs/overview/vision.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706179460,
+      "type": "file"
+    },
+    {
+      "path": "docs/overview/requirements.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706189299,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-12b-ddd-architecture-refactor/architect-plan.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706527954,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-13-auth-core-infrastructure/brief.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706536946,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-12b-ddd-architecture-refactor/orchestration.jsonl",
+      "accessCount": 1,
+      "lastAccessed": 1780706537767,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-14-providers-testing/brief.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706543374,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-12b-ddd-architecture-refactor/risk-register.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706543465,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-12b-ddd-architecture-refactor/rollback.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706549249,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-12b-ddd-architecture-refactor/verification-gate.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706551662,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-13-auth-core-infrastructure/architect-plan.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706553585,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-15-tunnels-network/brief.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706557340,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-14-providers-testing/architect-plan.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706558761,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-16-chat-console/brief.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706569576,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-13-auth-core-infrastructure/orchestration.jsonl",
+      "accessCount": 1,
+      "lastAccessed": 1780706569659,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-14-providers-testing/orchestration.jsonl",
+      "accessCount": 1,
+      "lastAccessed": 1780706569966,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-13-auth-core-infrastructure/risk-register.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706573525,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-16-chat-console/architect-plan.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706573709,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-14-providers-testing/risk-register.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706574399,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-17-usage-analytics/brief.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706574560,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-15-tunnels-network/architect-plan.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706574719,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-13-auth-core-infrastructure/rollback.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706575888,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-14-providers-testing/rollback.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706575956,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-16-chat-console/orchestration.jsonl",
+      "accessCount": 1,
+      "lastAccessed": 1780706578032,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-14-providers-testing/verification-gate.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706578581,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-17-usage-analytics/architect-plan.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706580757,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-15-tunnels-network/orchestration.jsonl",
+      "accessCount": 1,
+      "lastAccessed": 1780706581377,
+      "type": "file"
+    },
+    {
+      "path": "docs/planning/phase-16-chat-console/risk-register.md",
+      "accessCount": 1,
+      "lastAccessed": 1780706582194,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

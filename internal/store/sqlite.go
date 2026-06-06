@@ -236,6 +236,14 @@ func (s *Store) migrate() error {
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action)`,
 		`CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_api_key_id)`,
+		`CREATE TABLE IF NOT EXISTS dashboard_users (
+			id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+			username TEXT NOT NULL UNIQUE,
+			password_hash TEXT NOT NULL,
+			display_name TEXT,
+			role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+			created_at TEXT NOT NULL DEFAULT (datetime('now'))
+		)`,
 	}
 
 	for _, stmt := range ddl {

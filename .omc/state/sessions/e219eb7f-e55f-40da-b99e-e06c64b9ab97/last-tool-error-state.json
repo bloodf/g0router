@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"rtk grep -n \\\"^#\\\\|^##\\\" ~/Developer/github.com/Space-Dinosaurs/agentic-engineering/content/references/planning-artifacts.md | head -40; echo ===; rtk wc -l ~/Developer/github.com/Space-Di...",
+  "error": "Exit code 1\n11 matches in 2 files:\n\n/.../references/planning-artifacts.md:32:# Planning Artifacts - Full Reference\n/.../references/planning-artifacts.md:34:## Brief template\n/.../references/planning-artifacts.md:82:## Plan-tier directory\n/.../references/planning-artifacts.md:104:## Verification gate template\n/.../references/planning-artifacts.md:109:# Verification Gate\n/.../references/planning-artifacts.md:127:## Promotion mechanics\n/.../references/planning-artifacts.md:141:## Product-intent lay...",
+  "timestamp": "2026-06-06T00:40:54.604Z",
+  "retry_count": 1
+}
