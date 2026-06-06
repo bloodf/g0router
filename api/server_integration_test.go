@@ -410,7 +410,7 @@ func (r *integrationMCPInstanceRuntime) CloseInstance(instanceID string) error {
 	return nil
 }
 
-func (r *integrationMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s *store.Store, instanceID string) (mcp.Manifest, error) {
+func (r *integrationMCPInstanceRuntime) ReapplyInstanceCredentials(ctx context.Context, s handlers.MCPRuntimeCredentialStore, instanceID string) (mcp.Manifest, error) {
 	r.reapplied = append(r.reapplied, instanceID)
 	manifest := r.manifest
 	manifest.ClientID = instanceID

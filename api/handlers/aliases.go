@@ -14,8 +14,14 @@ type aliasRequest struct {
 	Model    string `json:"model"`
 }
 
-func Aliases(ctx *fasthttp.RequestCtx, s *store.Store, aliasID string) {
-	if s == nil {
+type aliasesStore interface {
+	ListModelAliases() ([]store.ModelAlias, error)
+	SetModelAlias(store.ModelAlias) error
+	DeleteModelAlias(string) error
+}
+
+func Aliases(ctx *fasthttp.RequestCtx, s aliasesStore, aliasID string) {
+	if isStoreNil(s) {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
 	}

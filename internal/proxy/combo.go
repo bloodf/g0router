@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	providerids "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
@@ -18,13 +19,18 @@ type ComboStep struct {
 	Model    string
 }
 
+type comboResolverStore interface {
+	GetActiveCombo(string) (*store.Combo, error)
+	ProviderModelStats(time.Time) (map[string]store.ModelStat, error)
+}
+
 type ComboResolver struct {
-	store      *store.Store
+	store      comboResolverStore
 	selectorMu sync.Mutex
 	selectors  map[string]*comboSelector
 }
 
-func NewComboResolver(s *store.Store) *ComboResolver {
+func NewComboResolver(s comboResolverStore) *ComboResolver {
 	return &ComboResolver{store: s, selectors: make(map[string]*comboSelector)}
 }
 

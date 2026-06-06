@@ -19,10 +19,9 @@ import (
 	"github.com/bloodf/g0router/internal/providers/vertex"
 	"github.com/bloodf/g0router/internal/providers/xiaomi"
 	"github.com/bloodf/g0router/internal/proxy"
-	"github.com/bloodf/g0router/internal/store"
 )
 
-func newDefaultInferenceEngine(s *store.Store) *proxy.Engine {
+func newDefaultInferenceEngine(s proxy.EngineStore) *proxy.Engine {
 	engine := proxy.NewEngine(s)
 	registerOAuthRefreshers(engine)
 	engine.Register(openai.New(""))

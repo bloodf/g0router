@@ -52,8 +52,16 @@ type connectionRequest struct {
 	ModelLocks           map[string]int64 `json:"model_locks"`
 }
 
-func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
-	if s == nil {
+type connectionStore interface {
+	ListConnections() ([]*store.Connection, error)
+	CreateConnection(*store.Connection) error
+	UpdateConnection(*store.Connection) error
+	GetConnection(string) (*store.Connection, error)
+	DeleteConnection(string) error
+}
+
+func Connections(ctx *fasthttp.RequestCtx, s connectionStore, id string) {
+	if isStoreNil(s) {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
 	}
@@ -113,8 +121,8 @@ func Connections(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
 	}
 }
 
-func ConnectionTest(ctx *fasthttp.RequestCtx, s *store.Store, id string) {
-	if s == nil {
+func ConnectionTest(ctx *fasthttp.RequestCtx, s connectionStore, id string) {
+	if isStoreNil(s) {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
 		return
 	}
@@ -239,12 +247,22 @@ func isConnectionSecretKey(key string) bool {
 	return false
 }
 
-func listConnections(s *store.Store) ([]*store.Connection, error) {
+func listConnections(s connectionStore) ([]*store.Connection, error) {
 	connections, err := s.ListConnections()
 	if err != nil {
 		return nil, err
 	}
 	return connections, nil
+}
+
+func isStoreNil(s interface{}) bool {
+	if s == nil {
+		return true
+	}
+	if st, ok := s.(*store.Store); ok {
+		return st == nil
+	}
+	return false
 }
 
 func writeStoreError(ctx *fasthttp.RequestCtx, action string, err error) {

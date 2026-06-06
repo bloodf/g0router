@@ -75,7 +75,11 @@ func NewTavilyClient(config Config, apiKey string) *Client {
 	}
 }
 
-func RegisterBuiltInTools(ctx context.Context, s *store.Store, tools *mcp.ToolManager, config Config) error {
+type searchConnectionStore interface {
+	GetActiveConnections(string) ([]*store.Connection, error)
+}
+
+func RegisterBuiltInTools(ctx context.Context, s searchConnectionStore, tools *mcp.ToolManager, config Config) error {
 	if s == nil || tools == nil {
 		return nil
 	}
@@ -384,7 +388,7 @@ func decodeArguments(raw json.RawMessage) (searchArguments, error) {
 	return args, nil
 }
 
-func activeAPIKey(s *store.Store, provider string) (string, bool, error) {
+func activeAPIKey(s searchConnectionStore, provider string) (string, bool, error) {
 	connections, err := s.GetActiveConnections(provider)
 	if err != nil {
 		return "", false, fmt.Errorf("load %s connections: %w", provider, err)

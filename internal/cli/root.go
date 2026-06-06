@@ -223,7 +223,14 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store) ap
 	}
 }
 
-func rehydrateMCPRuntime(ctx context.Context, s *store.Store, runtime *defaultMCPRuntime) {
+type mcpRehydrationStore interface {
+	handlers.MCPRuntimeCredentialStore
+	ListActiveMCPInstances() ([]*store.MCPInstance, error)
+	UpdateMCPInstanceHealth(string, string) error
+	UpdateMCPInstanceManifest(string, mcp.Manifest) error
+}
+
+func rehydrateMCPRuntime(ctx context.Context, s mcpRehydrationStore, runtime *defaultMCPRuntime) {
 	if s == nil || runtime == nil {
 		return
 	}
@@ -250,7 +257,7 @@ func rehydrateMCPRuntime(ctx context.Context, s *store.Store, runtime *defaultMC
 	}
 }
 
-func mcpInstanceForRuntime(ctx context.Context, s *store.Store, instance *store.MCPInstance) (*store.MCPInstance, error) {
+func mcpInstanceForRuntime(ctx context.Context, s handlers.MCPRuntimeCredentialStore, instance *store.MCPInstance) (*store.MCPInstance, error) {
 	account, ok, err := selectMCPRuntimeOAuthAccount(s, instance)
 	if err != nil || !ok {
 		return instance, err
@@ -299,7 +306,7 @@ func mcpInstanceForRuntime(ctx context.Context, s *store.Store, instance *store.
 	return &runtime, nil
 }
 
-func selectMCPRuntimeOAuthAccount(s *store.Store, instance *store.MCPInstance) (*store.MCPOAuthAccount, bool, error) {
+func selectMCPRuntimeOAuthAccount(s handlers.MCPRuntimeCredentialStore, instance *store.MCPInstance) (*store.MCPOAuthAccount, bool, error) {
 	accounts, err := s.ListMCPOAuthAccounts(instance.ID)
 	if err != nil {
 		return nil, false, err
@@ -348,8 +355,12 @@ func shouldRefreshMCPAccount(account mcp.OAuthAccount) bool {
 	return account.AccessToken == "" || (!account.ExpiresAt.IsZero() && time.Now().Add(5*time.Minute).After(account.ExpiresAt))
 }
 
+type apiKeyValidatorStore interface {
+	ValidateAPIKey(string, string) (*store.APIKey, bool, error)
+}
+
 type storeAPIKeyValidator struct {
-	s *store.Store
+	s apiKeyValidatorStore
 }
 
 func (v storeAPIKeyValidator) ValidateAPIKey(key, secret string) (bool, error) {
