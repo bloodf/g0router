@@ -171,6 +171,7 @@ func runServer(ctx context.Context, config serveConfig) error {
 		return fmt.Errorf("open store: %w", err)
 	}
 	defer s.Close()
+	s.SetEncKey(config.APIKeySecret)
 
 	listenAddress := net.JoinHostPort(config.BindAddress, strconv.Itoa(config.Port))
 	ln, err := net.Listen("tcp", listenAddress)

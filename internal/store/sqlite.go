@@ -11,8 +11,9 @@ import (
 )
 
 type Store struct {
-	path string
-	db   *sql.DB
+	path   string
+	db     *sql.DB
+	encKey []byte
 }
 
 func NewStore(path string) (*Store, error) {
@@ -256,6 +257,19 @@ func (s *Store) migrate() error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_user_id ON dashboard_sessions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_dashboard_sessions_expires_at ON dashboard_sessions(expires_at)`,
+		`CREATE TABLE IF NOT EXISTS proxy_pools (
+			id INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			protocol TEXT NOT NULL,
+			host TEXT NOT NULL,
+			port INTEGER NOT NULL,
+			username TEXT,
+			password_enc TEXT,
+			is_active INTEGER DEFAULT 1,
+			last_check_at DATETIME,
+			last_check_status TEXT,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, stmt := range ddl {
