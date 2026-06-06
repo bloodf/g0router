@@ -445,3 +445,21 @@ func TestBulkEnableConnectionsNoMatches(t *testing.T) {
 }
 
 func floatPtr(f float64) *float64 { return &f }
+
+func TestBulkDisableConnectionsByThresholdQueryError(t *testing.T) {
+	s := openTestStore(t)
+	s.db.Close()
+	_, err := s.BulkDisableConnectionsByThreshold(5)
+	if err == nil {
+		t.Fatal("expected error for closed db")
+	}
+}
+
+func TestBulkEnableConnectionsWithQuotaQueryError(t *testing.T) {
+	s := openTestStore(t)
+	s.db.Close()
+	_, err := s.BulkEnableConnectionsWithQuota()
+	if err == nil {
+		t.Fatal("expected error for closed db")
+	}
+}

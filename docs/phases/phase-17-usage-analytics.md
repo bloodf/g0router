@@ -57,3 +57,19 @@ Both bulk endpoints audited with affected IDs in details.
 
 ## Commit Message (final)
 `phase-17/usage-analytics: backend chart buckets, bulk quota actions`
+
+## Outcome
+
+All tasks complete. Gate suite passes green.
+
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+Commits:
+- `phase-17/task-1`: store chart aggregation (`internal/store/usage.go`, `usage_test.go`)
+- `phase-17/task-2`: handler usage chart (`api/handlers/usage.go`, `usage_test.go`, `api/routes.go`)
+- `phase-17/task-3`: bulk disable/enable connections (`internal/store/connections.go`, `connections_test.go`, `api/handlers/connections.go`, `connections_test.go`, `api/routes.go`, `internal/store/sqlite.go`)
+- `phase-17/coverage`: error branch coverage for all new code

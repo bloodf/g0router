@@ -29,10 +29,10 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 16
-current_wave: "Phase 16 — Chat & Console"
-last_completed_wave: "Phase 16 checkpoint"
-last_updated: "2026-06-06T11:20:00Z"
+current_stage: 17
+current_wave: "Phase 17 — Usage & Analytics"
+last_completed_wave: "Phase 17 checkpoint"
+last_updated: "2026-06-06T14:34:00Z"
 last_agent: "orchestrator"
 ```
 
@@ -195,6 +195,33 @@ completed_at: "2026-06-06T11:20:00Z"
 - task-coverage: nil-store guards, levelString, dead code removal, proxy SOCKS5, encryption empty key
 
 **Next:** Phase 17 — Usage & Analytics
+
+---
+
+## Phase 17 — Usage & Analytics
+
+```yaml
+phase: 17
+status: DONE
+summary: "Backend-bucketed time-series chart aggregation and bulk connection quota actions. SQLite strftime GROUP BY with Go zero-fill; bulk disable/enable via quota_limit/quota_remaining columns."
+commit_range: "e5b9ce1..TBD"
+completed_at: "2026-06-06T14:34:00Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-1: store — `GetUsageChart` with strftime bucketing (day/hour), Go zero-fill, period range (`today/24h/7d/30d/60d`) + tests (`internal/store/usage.go`, `usage_test.go`)
+- task-2: handler — `GET /api/usage/chart` param validation, default granularity logic, time-based validation + tests (`api/handlers/usage.go`, `usage_test.go`, `api/routes.go`)
+- task-3: store + handlers — bulk disable/enable connections with `quota_limit`/`quota_remaining` columns, `BulkDisableConnectionsByThreshold`, `BulkEnableConnectionsWithQuota`, audit logging + tests (`internal/store/connections.go`, `connections_test.go`, `api/handlers/connections.go`, `connections_test.go`, `api/routes.go`, `internal/store/sqlite.go`)
+- task-coverage: error branch coverage for nil-store, missing period, store error, audit error paths; chartTimeRange all periods; closed-DB query error paths
+
+**Next:** Phase 18 — TBD
 
 ---
 

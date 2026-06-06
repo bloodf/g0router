@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -478,10 +479,73 @@ func createConnWithQuota(t *testing.T, s *store.Store, name string, isActive boo
 }
 
 type fakeConnectionAuditWriter struct {
-	entries []store.AuditEntry
+	entries  []store.AuditEntry
+	failNext bool
 }
 
 func (f *fakeConnectionAuditWriter) AppendAudit(entry store.AuditEntry) error {
+	if f.failNext {
+		f.failNext = false
+		return errors.New("audit error")
+	}
 	f.entries = append(f.entries, entry)
 	return nil
+}
+
+func TestConnectionsBulkDisableNilStoreReturns503(t *testing.T) {
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/connections/bulk-disable")
+	ctx.Request.SetBody([]byte(`{}`))
+	ConnectionsBulkDisable(ctx, nil, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", ctx.Response.StatusCode())
+	}
+}
+
+func TestConnectionsBulkDisableStoreErrorReturns500(t *testing.T) {
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/connections/bulk-disable")
+	ctx.Request.SetBody([]byte(`{}`))
+	ConnectionsBulkDisable(ctx, &fakeConnectionStore{bulkDisableErr: errors.New("db error")}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+func TestConnectionsBulkDisableAuditErrorStillReturns200(t *testing.T) {
+	s := &fakeConnectionStore{bulkDisableResult: []string{"a", "b"}}
+	aw := &fakeConnectionAuditWriter{failNext: true}
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/connections/bulk-disable")
+	ctx.Request.SetBody([]byte(`{}`))
+	ConnectionsBulkDisable(ctx, s, aw)
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+func TestConnectionsBulkEnableNilStoreReturns503(t *testing.T) {
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/connections/bulk-enable")
+	ctx.Request.SetBody([]byte(`{}`))
+	ConnectionsBulkEnable(ctx, nil, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", ctx.Response.StatusCode())
+	}
+}
+
+func TestConnectionsBulkEnableStoreErrorReturns500(t *testing.T) {
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/connections/bulk-enable")
+	ctx.Request.SetBody([]byte(`{}`))
+	ConnectionsBulkEnable(ctx, &fakeConnectionStore{bulkEnableErr: errors.New("db error")}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+func TestConnectionsBulkEnableAuditErrorStillReturns200(t *testing.T) {
+	s := &fakeConnectionStore{bulkEnableResult: []string{"c", "d"}}
+	aw := &fakeConnectionAuditWriter{failNext: true}
+	ctx := newHandlerCtx(fasthttp.MethodPost, "/api/connections/bulk-enable")
+	ctx.Request.SetBody([]byte(`{}`))
+	ConnectionsBulkEnable(ctx, s, aw)
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
 }

@@ -759,3 +759,48 @@ func makeChartEntry(requestID string, ts time.Time, inputTokens, outputTokens in
 		CostUSD:      &cost,
 	}
 }
+
+func TestChartTimeRange24h(t *testing.T) {
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+	start, end, err := chartTimeRange("24h", now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if end != now {
+		t.Fatalf("end = %v, want %v", end, now)
+	}
+	wantStart := now.Add(-24 * time.Hour)
+	if start != wantStart {
+		t.Fatalf("start = %v, want %v", start, wantStart)
+	}
+}
+
+func TestChartTimeRange30d(t *testing.T) {
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+	start, end, err := chartTimeRange("30d", now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if end != now {
+		t.Fatalf("end = %v, want %v", end, now)
+	}
+	wantStart := now.Add(-30 * 24 * time.Hour)
+	if start != wantStart {
+		t.Fatalf("start = %v, want %v", start, wantStart)
+	}
+}
+
+func TestChartTimeRange60d(t *testing.T) {
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+	start, end, err := chartTimeRange("60d", now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if end != now {
+		t.Fatalf("end = %v, want %v", end, now)
+	}
+	wantStart := now.Add(-60 * 24 * time.Hour)
+	if start != wantStart {
+		t.Fatalf("start = %v, want %v", start, wantStart)
+	}
+}

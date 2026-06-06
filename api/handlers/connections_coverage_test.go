@@ -9,12 +9,16 @@ import (
 )
 
 type fakeConnectionStore struct {
-	listErr   error
-	createErr error
-	updateErr error
-	getErr    error
-	deleteErr error
-	conns     []*store.Connection
+	listErr           error
+	createErr         error
+	updateErr         error
+	getErr            error
+	deleteErr         error
+	bulkDisableErr    error
+	bulkDisableResult []string
+	bulkEnableErr     error
+	bulkEnableResult  []string
+	conns             []*store.Connection
 }
 
 func (f *fakeConnectionStore) ListConnections() ([]*store.Connection, error) {
@@ -43,10 +47,16 @@ func (f *fakeConnectionStore) DeleteConnection(id string) error {
 	return f.deleteErr
 }
 func (f *fakeConnectionStore) BulkDisableConnectionsByThreshold(thresholdPercent int) ([]string, error) {
-	return nil, f.updateErr
+	if f.bulkDisableErr != nil {
+		return nil, f.bulkDisableErr
+	}
+	return f.bulkDisableResult, nil
 }
 func (f *fakeConnectionStore) BulkEnableConnectionsWithQuota() ([]string, error) {
-	return nil, f.updateErr
+	if f.bulkEnableErr != nil {
+		return nil, f.bulkEnableErr
+	}
+	return f.bulkEnableResult, nil
 }
 
 func TestConnectionsPutGetAfterUpdateError(t *testing.T) {

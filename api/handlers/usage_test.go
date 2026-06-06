@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"path/filepath"
 	"testing"
@@ -577,4 +578,47 @@ func handlerChartEntry(requestID string, ts time.Time, inputTokens, outputTokens
 		OutputTokens: &outputTokens,
 		CostUSD:      &cost,
 	}
+}
+
+func TestUsageChartNilStoreReturns503(t *testing.T) {
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/chart?period=today")
+	UsageChart(ctx, nil, now)
+	if ctx.Response.StatusCode() != fasthttp.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", ctx.Response.StatusCode())
+	}
+}
+
+func TestUsageChartMissingPeriodReturns400(t *testing.T) {
+	s := openHandlerTestStore(t)
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/chart")
+	UsageChart(ctx, s, now)
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+func TestUsageChartStoreErrorReturns500(t *testing.T) {
+	now := time.Date(2026, 6, 6, 14, 30, 0, 0, time.UTC)
+	ctx := newHandlerCtx(fasthttp.MethodGet, "/api/usage/chart?period=today&granularity=hour")
+	UsageChart(ctx, failingChartStore{}, now)
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+}
+
+type failingChartStore struct{}
+
+func (f failingChartStore) GetUsage(filter store.UsageFilter) ([]store.RequestLogEntry, error) {
+	return nil, errors.New("db error")
+}
+func (f failingChartStore) GetUsageSummary(filter store.UsageFilter) (*store.UsageSummary, error) {
+	return nil, errors.New("db error")
+}
+func (f failingChartStore) CountUsage(filter store.UsageFilter) (int, error) {
+	return 0, errors.New("db error")
+}
+func (f failingChartStore) GetUsageChart(period, granularity string, now time.Time) (*store.UsageChart, error) {
+	return nil, errors.New("db error")
 }
