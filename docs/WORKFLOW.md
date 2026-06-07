@@ -31,9 +31,9 @@
 project_status: IN_PROGRESS
 current_stage: 19
 current_wave: "Phase 19 — Advanced Features"
-last_completed_wave: "Phase 18D checkpoint"
+last_completed_wave: "Phase 19 checkpoint"
 last_updated: "2026-06-06T21:30:00Z"
-last_agent: "subagent"
+last_agent: "orchestrator"
 ```
 
 ---
@@ -338,21 +338,31 @@ completed_at: "2026-06-06T16:45:00Z"
 
 ```yaml
 phase: 19
-status: IN_PROGRESS
-summary: "Semantic cache, version check + auto-update, locale persistence, WebSocket chat, MITM proxy, skills catalog."
+status: DONE
+summary: "Semantic cache with cosine similarity, version check + auto-update with checksum verification, locale persistence, WebSocket chat protocol v1, MITM proxy with CA generation and per-host leaf certs, skills catalog endpoint."
+commit_range: "aad2a50..2dd429a"
+completed_at: "2026-06-06T21:30:00Z"
 ```
 
-**Tasks:**
-- task-1: version/update-check + locale + skills endpoints + tests (`internal/update/`, `api/handlers/version.go`, `api/handlers/locale.go`, `api/handlers/skills.go`) — DONE
-- task-2: `internal/semcache/` domain + store + tests (`internal/semcache/semcache.go`, `internal/store/semcache.go`) — DONE
-- task-3: semantic cache dispatch wiring + handlers + tests — PENDING
-- task-4: WebSocket chat endpoint — PENDING
-- task-5: MITM proxy — PENDING
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go test -race ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- Coverage: 95.0%
 
-**Security Review (pending at checkpoint):**
-- Auto-updater: checksum verification, staged swap, admin-only
-- MITM CA: ECDSA P-256, file mode 0600, per-host leaf certs
-- Semantic cache: embedding via existing provider, never blocks requests
+**Tasks:**
+- task-1: version/update-check + locale + skills endpoints + tests (`internal/update/`, `api/handlers/version.go`, `api/handlers/locale.go`, `api/handlers/skills.go`)
+- task-2: `internal/semcache/` domain + store + tests (`internal/semcache/semcache.go`, `internal/store/semcache.go`)
+- task-3: semantic cache dispatch wiring + handlers + tests (`internal/proxy/dispatch.go`, `api/handlers/cache.go`)
+- task-4: WebSocket chat endpoint + protocol v1 (`api/handlers/ws.go`)
+- task-5: MITM proxy + CA generation + cert minting + handlers (`internal/mitm/`, `api/handlers/mitm.go`)
+- task-coverage: mitm error branches, websocket auth rejection, semcache store errors, update download/checksum errors (`*_coverage_test.go` files)
+
+**Security Review (mandatory):**
+- Auto-updater: ✅ Checksum verification against `checksums.txt`; staged swap at `DATA_DIR/update/g0router.new`; admin-only; audited
+- MITM CA: ✅ ECDSA P-256, 10y validity; `ca.key` file mode 0600; per-host leaf certs minted on demand; non-tool hosts tunneled through untouched
+- Semantic cache: ✅ Embedding via existing provider connection; never blocks requests; flag-gated; expired entries not served
 
 ---
 
