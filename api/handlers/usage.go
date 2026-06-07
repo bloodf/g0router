@@ -38,7 +38,7 @@ var allowedStatusClasses = map[string]struct{}{
 type usageSummaryResponse struct {
 	RequestCount int64   `json:"request_count"`
 	TotalTokens  int64   `json:"total_tokens"`
-	TotalCostUSD float64 `json:"total_cost_usd"`
+	TotalCost    float64 `json:"total_cost"`
 }
 
 type usageChartResponse struct {
@@ -132,7 +132,7 @@ func UsageSummary(ctx *fasthttp.RequestCtx, usageStore UsageStore) {
 	writeJSON(ctx, fasthttp.StatusOK, usageSummaryResponse{
 		RequestCount: summary.RequestCount,
 		TotalTokens:  summary.TotalTokens,
-		TotalCostUSD: summary.TotalCostUSD,
+		TotalCost:    summary.TotalCostUSD,
 	})
 }
 
@@ -249,6 +249,94 @@ func quotaKeyFromConnection(provider providers.ModelProvider, conn *store.Connec
 		return key, true
 	}
 	return providers.Key{}, false
+}
+
+type quotaAggregateStore interface {
+	ListConnections() ([]*store.Connection, error)
+}
+
+type quotaAggregateResponse struct {
+	ConnectionID   string  `json:"connection_id"`
+	Provider       string  `json:"provider"`
+	ConnectionName string  `json:"connection_name"`
+	AccountLabel   *string `json:"account_label"`
+	Plan           string  `json:"plan"`
+	Used           float64 `json:"used"`
+	Limit          float64 `json:"limit"`
+	Unit           string  `json:"unit"`
+	ResetAt        *string `json:"reset_at"`
+	IsActive       bool    `json:"is_active"`
+	Message        *string `json:"message"`
+	Error          *string `json:"error"`
+}
+
+func QuotaAggregate(ctx *fasthttp.RequestCtx, s quotaAggregateStore, fetchers map[providers.ModelProvider]usage.QuotaFetcher) {
+	if isStoreNil(s) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+
+	connections, err := s.ListConnections()
+	if err != nil {
+		log.Printf("list connections: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to list connections")
+		return
+	}
+
+	resp := make([]quotaAggregateResponse, 0, len(connections))
+	for _, conn := range connections {
+		item := quotaAggregateResponse{
+			ConnectionID:   conn.ID,
+			Provider:       conn.Provider,
+			ConnectionName: conn.Name,
+			IsActive:       conn.IsActive,
+		}
+		if conn.Email != nil && *conn.Email != "" {
+			item.AccountLabel = conn.Email
+		} else if conn.AccountID != nil && *conn.AccountID != "" {
+			item.AccountLabel = conn.AccountID
+		}
+
+		provider := providers.ModelProvider(conn.Provider)
+		fetcher := fetchers[provider]
+		if fetcher == nil {
+			msg := "quota fetcher not found"
+			item.Error = &msg
+			resp = append(resp, item)
+			continue
+		}
+
+		key, ok := quotaKeyFromConnection(provider, conn)
+		if !ok || key.Value == "" {
+			msg := "no valid credentials for quota fetch"
+			item.Error = &msg
+			resp = append(resp, item)
+			continue
+		}
+
+		quota, err := fetcher.FetchQuota(requestContext(ctx), key)
+		if err != nil {
+			if errors.Is(err, usage.ErrQuotaUnsupported) {
+				msg := "quota fetching is not supported for this provider"
+				item.Error = &msg
+			} else {
+				msg := "failed to fetch quota"
+				item.Error = &msg
+			}
+			resp = append(resp, item)
+			continue
+		}
+
+		item.Used = quota.Used
+		item.Limit = quota.Limit
+		item.Unit = quota.Unit
+		if quota.Unlimited {
+			item.Limit = 0
+		}
+		resp = append(resp, item)
+	}
+
+	writeJSON(ctx, fasthttp.StatusOK, resp)
 }
 
 func parseUsageFilter(ctx *fasthttp.RequestCtx) (store.UsageFilter, error) {

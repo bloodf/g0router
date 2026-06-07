@@ -2,7 +2,7 @@ BINARY := g0router
 CMD := ./cmd/g0router
 UI_DIR := ui
 
-.PHONY: build test lint vet ui ui-deps ui-test ui-e2e e2e-binary verify docker install clean
+.PHONY: build test lint vet ui ui-deps ui-test ui-e2e e2e e2e-api e2e-binary verify docker install clean
 
 build: ui
 	go build -o $(BINARY) $(CMD)
@@ -26,6 +26,13 @@ ui-test: ui-deps
 
 ui-e2e: ui-deps
 	npm run e2e --prefix $(UI_DIR)
+
+# Go API comprehensive e2e tests (34+ endpoint tests).
+e2e-api:
+	go test -run TestE2E -count=1 -v .
+
+# Full e2e suite: Go API tests + UI build + Playwright UI tests.
+e2e: build e2e-api ui-e2e
 
 # Opt-in real-binary smoke test: builds the binary, runs it, exercises the HTTP
 # surface (health, embedded UI, auth, /v1/models, control-plane routes).

@@ -110,12 +110,12 @@ func TestUsageSummaryReturnsAggregate(t *testing.T) {
 	var decoded struct {
 		RequestCount int64   `json:"request_count"`
 		TotalTokens  int64   `json:"total_tokens"`
-		TotalCostUSD float64 `json:"total_cost_usd"`
+		TotalCost    float64 `json:"total_cost"`
 	}
 	if err := json.Unmarshal(ctx.Response.Body(), &decoded); err != nil {
 		t.Fatalf("unmarshal summary: %v", err)
 	}
-	if decoded.RequestCount != 2 || decoded.TotalTokens != 30 || decoded.TotalCostUSD != 1.0 {
+	if decoded.RequestCount != 2 || decoded.TotalTokens != 30 || decoded.TotalCost != 1.0 {
 		t.Fatalf("summary = %+v, want 2/30/1.0", decoded)
 	}
 }

@@ -223,11 +223,57 @@ func (s *Store) ListAPIKeys() ([]APIKey, error) {
 	return keys, nil
 }
 
+func (s *Store) RenameAPIKey(id string, name string) error {
+	res, err := s.db.Exec("UPDATE api_keys SET name = ? WHERE id = ?", name, id)
+	if err != nil {
+		return fmt.Errorf("rename api key: %w", err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rename api key rows: %w", err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("rename api key: key %q not found", id)
+	}
+	return nil
+}
+
 func (s *Store) DeleteAPIKey(id string) error {
 	if _, err := s.db.Exec("UPDATE api_keys SET is_active = 0 WHERE id = ?", id); err != nil {
 		return fmt.Errorf("delete api key: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) RegenerateAPIKey(id string, secret string) (*APIKey, string, error) {
+	if _, err := s.GetAPIKey(id); err != nil {
+		return nil, "", fmt.Errorf("regenerate api key: %w", err)
+	}
+
+	raw, err := generateAPIKey()
+	if err != nil {
+		return nil, "", err
+	}
+
+	keyHash := hashAPIKey(raw, secret)
+	prefix := raw[:8]
+
+	_, err = s.db.Exec(
+		"UPDATE api_keys SET key_hash = ?, prefix = ? WHERE id = ?",
+		keyHash,
+		prefix,
+		id,
+	)
+	if err != nil {
+		return nil, "", fmt.Errorf("regenerate api key: %w", err)
+	}
+
+	updated, err := s.GetAPIKey(id)
+	if err != nil {
+		return nil, "", fmt.Errorf("regenerate api key reload: %w", err)
+	}
+
+	return updated, raw, nil
 }
 
 func generateAPIKey() (string, error) {

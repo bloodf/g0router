@@ -56,6 +56,7 @@ type createAPIKeyResponse struct {
 }
 
 type updateAPIKeyPolicyRequest struct {
+	Name             string   `json:"name"`
 	ExpiresAt        *int64   `json:"expires_at"`
 	Scopes           []string `json:"scopes"`
 	RateLimitRPM     *int     `json:"rate_limit_rpm"`
@@ -77,8 +78,10 @@ type apiKeyStore interface {
 	ListAPIKeys() ([]store.APIKey, error)
 	CreateAPIKey(string, string) (*store.APIKey, string, error)
 	UpdateAPIKeyPolicy(string, store.APIKeyPolicy) error
+	RenameAPIKey(id string, name string) error
 	GetAPIKey(string) (*store.APIKey, error)
 	DeleteAPIKey(string) error
+	RegenerateAPIKey(id string, secret string) (*store.APIKey, string, error)
 }
 
 func APIKeys(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
@@ -148,6 +151,13 @@ func APIKeys(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
 			writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 			return
 		}
+		if req.Name != "" {
+			if err := s.RenameAPIKey(id, req.Name); err != nil {
+				log.Printf("rename api key: %v", err)
+				writeError(ctx, fasthttp.StatusInternalServerError, "failed to rename api key")
+				return
+			}
+		}
 		if err := s.UpdateAPIKeyPolicy(id, req.toPolicy()); err != nil {
 			if errors.Is(err, store.ErrInvalidPolicy) {
 				writeError(ctx, fasthttp.StatusBadRequest, err.Error())
@@ -183,4 +193,22 @@ func hasPolicy(policy store.APIKeyPolicy) bool {
 	return policy.ExpiresAt != nil || len(policy.Scopes) > 0 ||
 		policy.RateLimitRPM != nil || policy.RateLimitTPM != nil ||
 		policy.DailySpendCapUSD != nil
+}
+
+func RegenerateAPIKey(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
+	if isStoreNil(s) {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
+		return
+	}
+	if id == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "api key id required")
+		return
+	}
+	key, raw, err := s.RegenerateAPIKey(id, secret)
+	if err != nil {
+		log.Printf("regenerate api key: %v", err)
+		writeError(ctx, fasthttp.StatusInternalServerError, "failed to regenerate api key")
+		return
+	}
+	writeJSON(ctx, fasthttp.StatusOK, createAPIKeyResponse{Key: newAPIKeyView(*key), Raw: raw})
 }

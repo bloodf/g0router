@@ -2,7 +2,10 @@ package cli
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -90,6 +93,7 @@ func newRootCommand(config rootConfig) *cobra.Command {
 	cmd.AddCommand(newVersionCommand(config.Version))
 	cmd.AddCommand(NewInstallCommand())
 	cmd.AddCommand(newUninstallCommand())
+	cmd.AddCommand(newSecretCommand(&dataDir))
 	cmd.AddCommand(newServeCommand(config.Version, config.BuildDate, config.Serve, &dataDir))
 
 	return cmd
@@ -173,6 +177,14 @@ func envString(key, defaultValue string) string {
 	return value
 }
 
+func generateAPIKeySecret() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Sprintf("failed to generate api key secret: %v", err))
+	}
+	return hex.EncodeToString(b)
+}
+
 func runServer(ctx context.Context, config serveConfig) error {
 	dataDir, err := expandServeDataDir(config.DataDir)
 	if err != nil {
@@ -183,7 +195,38 @@ func runServer(ctx context.Context, config serveConfig) error {
 		return fmt.Errorf("open store: %w", err)
 	}
 	defer s.Close()
-	s.SetEncKey(config.APIKeySecret)
+
+	// Resolve API_KEY_SECRET: env overrides DB; if neither, generate and store.
+	secret := config.APIKeySecret
+	if secret == "" {
+		dbSecret, err := s.GetAPIKeySecret()
+		if err != nil {
+			return fmt.Errorf("read api_key_secret: %w", err)
+		}
+		if dbSecret != "" {
+			secret = dbSecret
+		} else {
+			secret = generateAPIKeySecret()
+			if err := s.SetAPIKeySecret(secret); err != nil {
+				return fmt.Errorf("store generated api_key_secret: %w", err)
+			}
+			log.Printf("Generated API_KEY_SECRET: %s (store this securely — it will not be shown again)", secret)
+		}
+	}
+	s.SetEncKey(secret)
+	config.APIKeySecret = secret
+
+	// Ensure at least one dashboard user exists; create default admin if not.
+	users, err := s.ListDashboardUsers()
+	if err != nil {
+		return fmt.Errorf("list dashboard users: %w", err)
+	}
+	if len(users) == 0 {
+		if _, err := s.SeedDefaultAdminUser("admin", "123456", "Administrator", "admin"); err != nil {
+			return fmt.Errorf("create default admin user: %w", err)
+		}
+		log.Println("Created default admin user: admin / 123456 (change this password immediately)")
+	}
 
 	listenAddress := net.JoinHostPort(config.BindAddress, strconv.Itoa(config.Port))
 	ln, err := net.Listen("tcp", listenAddress)
@@ -432,9 +475,22 @@ func openCLIStore(dataDir string) (*store.Store, error) {
 	return s, nil
 }
 
-func localAPIKeySecret() (string, error) {
+type apiKeySecretStore interface {
+	GetAPIKeySecret() (string, error)
+}
+
+func localAPIKeySecret(s apiKeySecretStore) (string, error) {
 	if secret := os.Getenv("API_KEY_SECRET"); secret != "" {
 		return secret, nil
+	}
+	if s != nil {
+		secret, err := s.GetAPIKeySecret()
+		if err != nil {
+			return "", fmt.Errorf("read api_key_secret: %w", err)
+		}
+		if secret != "" {
+			return secret, nil
+		}
 	}
 	return "", fmt.Errorf("API_KEY_SECRET required to create API keys")
 }
@@ -462,7 +518,7 @@ func newKeysAddCommand(dataDir *string) *cobra.Command {
 			}
 			defer s.Close()
 
-			secret, err := localAPIKeySecret()
+			secret, err := localAPIKeySecret(s)
 			if err != nil {
 				return err
 			}
@@ -602,6 +658,31 @@ func newStatusCommand(dataDir *string) *cobra.Command {
 			}
 			defer s.Close()
 			fmt.Fprintln(cmd.OutOrStdout(), "store: ok")
+			return nil
+		},
+	}
+}
+
+func newSecretCommand(dataDir *string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "secret",
+		Short: "Show the API key secret",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			s, err := openCLIStore(*dataDir)
+			if err != nil {
+				return err
+			}
+			defer s.Close()
+
+			secret, err := s.GetAPIKeySecret()
+			if err != nil {
+				return err
+			}
+			if secret == "" {
+				fmt.Fprintln(cmd.OutOrStdout(), "No API_KEY_SECRET set. Run 'g0router serve' to generate one.")
+				return nil
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), secret)
 			return nil
 		},
 	}

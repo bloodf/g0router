@@ -13,12 +13,33 @@ type pricingRequest struct {
 	Model              string  `json:"model"`
 	InputCostPerToken  float64 `json:"input_cost_per_token"`
 	OutputCostPerToken float64 `json:"output_cost_per_token"`
+	// UI sends these aliases
+	InputCost  float64 `json:"input_cost"`
+	OutputCost float64 `json:"output_cost"`
+}
+
+type pricingOverrideResponse struct {
+	ID         string  `json:"id"`
+	Provider   string  `json:"provider"`
+	Model      string  `json:"model"`
+	InputCost  float64 `json:"input_cost"`
+	OutputCost float64 `json:"output_cost"`
 }
 
 type pricingStore interface {
 	ListPricingOverrides() ([]store.PricingOverride, error)
 	SetPricingOverride(store.PricingOverride) error
 	DeletePricingOverride(string, string) error
+}
+
+func newPricingOverrideResponse(o store.PricingOverride) pricingOverrideResponse {
+	return pricingOverrideResponse{
+		ID:         o.Provider + "/" + o.Model,
+		Provider:   o.Provider,
+		Model:      o.Model,
+		InputCost:  o.InputCostPerToken * 1_000_000,
+		OutputCost: o.OutputCostPerToken * 1_000_000,
+	}
 }
 
 func Pricing(ctx *fasthttp.RequestCtx, s pricingStore, provider, model string) {
@@ -35,7 +56,11 @@ func Pricing(ctx *fasthttp.RequestCtx, s pricingStore, provider, model string) {
 			writeError(ctx, fasthttp.StatusInternalServerError, "failed to list pricing overrides")
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusOK, listResponse[store.PricingOverride]{Data: overrides})
+		views := make([]pricingOverrideResponse, len(overrides))
+		for i, o := range overrides {
+			views[i] = newPricingOverrideResponse(o)
+		}
+		writeJSON(ctx, fasthttp.StatusOK, listResponse[pricingOverrideResponse]{Data: views})
 	case fasthttp.MethodPost:
 		override, ok := decodePricingRequest(ctx, "", "")
 		if !ok {
@@ -46,7 +71,7 @@ func Pricing(ctx *fasthttp.RequestCtx, s pricingStore, provider, model string) {
 			writeError(ctx, fasthttp.StatusInternalServerError, "failed to set pricing override")
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusCreated, override)
+		writeJSON(ctx, fasthttp.StatusCreated, newPricingOverrideResponse(override))
 	case fasthttp.MethodPut:
 		if provider == "" || model == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "provider and model required")
@@ -61,7 +86,7 @@ func Pricing(ctx *fasthttp.RequestCtx, s pricingStore, provider, model string) {
 			writeError(ctx, fasthttp.StatusInternalServerError, "failed to set pricing override")
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusOK, override)
+		writeJSON(ctx, fasthttp.StatusOK, newPricingOverrideResponse(override))
 	case fasthttp.MethodDelete:
 		if provider == "" || model == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "provider and model required")
@@ -82,6 +107,12 @@ func decodePricingRequest(ctx *fasthttp.RequestCtx, provider, model string) (sto
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 		return store.PricingOverride{}, false
+	}
+	if req.InputCostPerToken == 0 && req.InputCost != 0 {
+		req.InputCostPerToken = req.InputCost / 1_000_000
+	}
+	if req.OutputCostPerToken == 0 && req.OutputCost != 0 {
+		req.OutputCostPerToken = req.OutputCost / 1_000_000
 	}
 	if provider != "" {
 		req.Provider = provider

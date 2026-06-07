@@ -14,6 +14,11 @@ type settingsStore interface {
 	UpdateSettings(store.Settings) error
 }
 
+type secretStore interface {
+	GetAPIKeySecret() (string, error)
+	SetAPIKeySecret(string) error
+}
+
 func Settings(ctx *fasthttp.RequestCtx, s settingsStore) {
 	if isStoreNil(s) {
 		writeError(ctx, fasthttp.StatusServiceUnavailable, "store unavailable")
@@ -30,11 +35,25 @@ func Settings(ctx *fasthttp.RequestCtx, s settingsStore) {
 		}
 		writeJSON(ctx, fasthttp.StatusOK, settings)
 	case fasthttp.MethodPut:
+		body := ctx.PostBody()
 		var settings store.Settings
-		if err := json.Unmarshal(ctx.PostBody(), &settings); err != nil {
+		if err := json.Unmarshal(body, &settings); err != nil {
 			writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON")
 			return
 		}
+
+		var rawBody map[string]any
+		_ = json.Unmarshal(body, &rawBody)
+		if secretVal, ok := rawBody["api_key_secret"].(string); ok && secretVal != "" {
+			if ss, ok := s.(secretStore); ok {
+				if err := ss.SetAPIKeySecret(secretVal); err != nil {
+					log.Printf("set api_key_secret: %v", err)
+					writeError(ctx, fasthttp.StatusInternalServerError, "failed to update api_key_secret")
+					return
+				}
+			}
+		}
+
 		if settings.LogRetentionDays < 0 {
 			writeError(ctx, fasthttp.StatusBadRequest, "log_retention_days must be >= 0")
 			return

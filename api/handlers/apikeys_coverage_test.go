@@ -37,6 +37,10 @@ func (f *fakeAPIKeyStore) UpdateAPIKeyPolicy(id string, policy store.APIKeyPolic
 	return f.updatePolicyErr
 }
 
+func (f *fakeAPIKeyStore) RenameAPIKey(id string, name string) error {
+	return nil
+}
+
 func (f *fakeAPIKeyStore) GetAPIKey(id string) (*store.APIKey, error) {
 	if f.getErr != nil {
 		return nil, f.getErr
@@ -46,6 +50,10 @@ func (f *fakeAPIKeyStore) GetAPIKey(id string) (*store.APIKey, error) {
 
 func (f *fakeAPIKeyStore) DeleteAPIKey(id string) error {
 	return f.deleteErr
+}
+
+func (f *fakeAPIKeyStore) RegenerateAPIKey(id string, secret string) (*store.APIKey, string, error) {
+	return f.createKey, f.createRaw, nil
 }
 
 func TestAPIKeysCreateUpdatePolicyError(t *testing.T) {

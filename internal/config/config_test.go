@@ -28,7 +28,6 @@ func clearEnv(t *testing.T) {
 func TestLoadDefaults(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("API_KEY_SECRET", "test-api-key-secret")
 
 	cfg, err := Load()
 	if err != nil {
@@ -109,20 +108,6 @@ func TestLoadFromEnv(t *testing.T) {
 	}
 	if cfg.CavemanLevel != "ultra" {
 		t.Errorf("CavemanLevel = %q, want ultra", cfg.CavemanLevel)
-	}
-}
-
-func TestLoadValidatesAPIKeySecret(t *testing.T) {
-	clearEnv(t)
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("REQUIRE_API_KEY", "true")
-
-	_, err := Load()
-	if err == nil {
-		t.Fatal("Load should fail")
-	}
-	if !strings.Contains(err.Error(), "API_KEY_SECRET required when REQUIRE_API_KEY=true") {
-		t.Fatalf("error = %q", err)
 	}
 }
 

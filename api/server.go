@@ -471,10 +471,44 @@ func (s *Server) runProxyPoolHealthOnce() {
 }
 
 func (s *Server) Serve(ln net.Listener) error {
+	s.printStartupBanner(ln)
 	if err := s.server.Serve(ln); err != nil {
 		return fmt.Errorf("serve: %w", err)
 	}
 	return nil
+}
+
+func (s *Server) printStartupBanner(ln net.Listener) {
+	var addr string
+	if a := ln.Addr(); a != nil {
+		addr = a.String()
+	}
+	version := s.config.Version
+	if version == "" {
+		version = "dev"
+	}
+	buildDate := s.config.BuildDate
+	if buildDate == "" {
+		buildDate = "unknown"
+	}
+
+	banner := `
+   ██████╗  ██████╗ ██████╗  ██████╗ ██╗   ██╗████████╗███████╗██████╗
+  ██╔════╝ ██╔═══██╗██╔══██╗██╔═══██╗██║   ██║╚══██╔══╝██╔════╝██╔══██╗
+  ██║  ███╗██║   ██║██║  ██║██║   ██║██║   ██║   ██║   █████╗  ██████╔╝
+  ██║   ██║██║   ██║██║  ██║██║   ██║██║   ██║   ██║   ██╔══╝  ██╔══██╗
+  ╚██████╔╝╚██████╔╝██████╔╝╚██████╔╝╚██████╔╝   ██║   ███████╗██║  ██║
+   ╚═════╝  ╚═════╝ ╚═════╝  ╚═════╝  ╚═════╝    ╚═╝   ╚══════╝╚═╝  ╚═╝
+`
+	fmt.Println(banner)
+	fmt.Printf("  Version:     %s\n", version)
+	fmt.Printf("  Build Date:  %s\n", buildDate)
+	fmt.Printf("  Listening:   http://%s\n", addr)
+	fmt.Println()
+	fmt.Printf("  🌐 Web UI:   http://%s\n", addr)
+	fmt.Printf("  📖 API Docs: http://%s/endpoint\n", addr)
+	fmt.Printf("  ❤️  Health:  http://%s/healthz\n", addr)
+	fmt.Println()
 }
 
 func (s *Server) Stop() error {

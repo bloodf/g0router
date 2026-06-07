@@ -36,6 +36,12 @@ func apiExactMatch(path string) func(rawPath, method string) bool {
 	}
 }
 
+func apiExactMatchWithMethod(path, expectedMethod string) func(rawPath, method string) bool {
+	return func(rawPath, method string) bool {
+		return strings.TrimRight(rawPath, "/") == path && method == expectedMethod
+	}
+}
+
 func apiPathMatch(check func(parts []string) bool) func(rawPath, method string) bool {
 	return func(rawPath, method string) bool {
 		parts := pathParts(strings.TrimRight(rawPath, "/"))
@@ -189,6 +195,15 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.APIKeys(ctx, s.config.Store, s.config.APIKeySecret, parts[2])
 		})},
+		{method: "POST", pattern: "/api/keys/:id/regenerate", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "keys" && parts[3] == "regenerate"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.RegenerateAPIKey(ctx, s.config.Store, s.config.APIKeySecret, parts[2])
+		})},
 		{method: "", pattern: "/api/virtual-keys", match: apiExactMatch("/api/virtual-keys"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.VirtualKeys(ctx, s.config.Store, "")
 		})},
@@ -237,17 +252,14 @@ func (s *Server) routes() []route {
 		{method: "", pattern: "/api/prompt-templates", match: apiExactMatch("/api/prompt-templates"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.PromptTemplates(ctx, s.config.Store, "")
 		})},
+		{method: "POST", pattern: "/api/prompt-templates/test", match: apiExactMatchWithMethod("/api/prompt-templates/test", fasthttp.MethodPost), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.PromptTemplatesTest(ctx, s.config.Store)
+		})},
 		{method: "", pattern: "/api/prompt-templates/:id", match: apiPathMatch(func(parts []string) bool {
 			return len(parts) == 3 && parts[0] == "api" && parts[1] == "prompt-templates"
 		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.PromptTemplates(ctx, s.config.Store, parts[2])
-		})},
-		{method: "POST", pattern: "/api/prompt-templates/test", match: apiExactMatch("/api/prompt-templates/test"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodPost) {
-				return
-			}
-			handlers.PromptTemplatesTest(ctx, s.config.Store)
 		})},
 		{method: "", pattern: "/api/combos", match: apiExactMatch("/api/combos"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.Combos(ctx, s.config.Store, "")
@@ -275,6 +287,12 @@ func (s *Server) routes() []route {
 		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.Pricing(ctx, s.config.Store, parts[2], parts[3])
+		})},
+		{method: "GET", pattern: "/api/models", match: apiExactMatch("/api/models"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.AdminModels(ctx, s.config.InferenceEngine, s.config.Store)
 		})},
 		{method: "", pattern: "/api/models/disabled", match: apiExactMatch("/api/models/disabled"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			switch string(ctx.Method()) {
@@ -345,6 +363,12 @@ func (s *Server) routes() []route {
 		})},
 		{method: "", pattern: "/api/usage/chart", match: apiExactMatch("/api/usage/chart"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.UsageChart(ctx, s.config.UsageStore, time.Now().UTC())
+		})},
+		{method: "GET", pattern: "/api/quota", match: apiExactMatch("/api/quota"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodGet) {
+				return
+			}
+			handlers.QuotaAggregate(ctx, s.config.Store, s.config.QuotaFetchers)
 		})},
 		{method: "", pattern: "/api/usage/quota/*", match: func(rawPath, method string) bool {
 			return strings.HasPrefix(strings.TrimRight(rawPath, "/"), "/api/usage/quota/")
@@ -563,16 +587,10 @@ func (s *Server) routes() []route {
 			}
 			handlers.AuthPasswordChange(ctx, s.config.Store, s.config.Store, s.config.Store)
 		})},
-		{method: "GET", pattern: "/api/auth/users", match: apiExactMatch("/api/auth/users"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodGet) {
-				return
-			}
+		{method: "GET", pattern: "/api/auth/users", match: apiExactMatchWithMethod("/api/auth/users", fasthttp.MethodGet), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.AuthUsersList(ctx, s.config.Store)
 		})},
-		{method: "POST", pattern: "/api/auth/users", match: apiExactMatch("/api/auth/users"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodPost) {
-				return
-			}
+		{method: "POST", pattern: "/api/auth/users", match: apiExactMatchWithMethod("/api/auth/users", fasthttp.MethodPost), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.AuthUsersCreate(ctx, s.config.Store, s.config.Store)
 		})},
 		{method: "", pattern: "/api/auth/users/:id", match: apiPathMatch(func(parts []string) bool {
@@ -592,28 +610,16 @@ func (s *Server) routes() []route {
 			}
 			handlers.TunnelList(ctx, s.config.Store)
 		})},
-		{method: "POST", pattern: "/api/tunnels/cloudflare", match: apiExactMatch("/api/tunnels/cloudflare"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodPost) {
-				return
-			}
+		{method: "POST", pattern: "/api/tunnels/cloudflare", match: apiExactMatchWithMethod("/api/tunnels/cloudflare", fasthttp.MethodPost), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.TunnelCloudflareCreate(ctx, s.config.Store, s.config.TunnelManager, s.config.Store, strconv.Itoa(s.config.Port))
 		})},
-		{method: "DELETE", pattern: "/api/tunnels/cloudflare", match: apiExactMatch("/api/tunnels/cloudflare"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodDelete) {
-				return
-			}
+		{method: "DELETE", pattern: "/api/tunnels/cloudflare", match: apiExactMatchWithMethod("/api/tunnels/cloudflare", fasthttp.MethodDelete), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.TunnelCloudflareDelete(ctx, s.config.Store, s.config.TunnelManager, s.config.Store)
 		})},
-		{method: "POST", pattern: "/api/tunnels/tailscale", match: apiExactMatch("/api/tunnels/tailscale"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodPost) {
-				return
-			}
+		{method: "POST", pattern: "/api/tunnels/tailscale", match: apiExactMatchWithMethod("/api/tunnels/tailscale", fasthttp.MethodPost), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.TunnelTailscaleCreate(ctx, s.config.Store, s.config.TunnelManager, s.config.Store, strconv.Itoa(s.config.Port))
 		})},
-		{method: "DELETE", pattern: "/api/tunnels/tailscale", match: apiExactMatch("/api/tunnels/tailscale"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodDelete) {
-				return
-			}
+		{method: "DELETE", pattern: "/api/tunnels/tailscale", match: apiExactMatchWithMethod("/api/tunnels/tailscale", fasthttp.MethodDelete), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.TunnelTailscaleDelete(ctx, s.config.Store, s.config.TunnelManager, s.config.Store)
 		})},
 		{method: "GET", pattern: "/api/tunnels/health", match: apiExactMatch("/api/tunnels/health"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
@@ -673,16 +679,10 @@ func (s *Server) routes() []route {
 			}
 			handlers.Skills(ctx)
 		}},
-		{method: "GET", pattern: "/api/cache/semantic", match: apiExactMatch("/api/cache/semantic"), handler: func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodGet) {
-				return
-			}
+		{method: "GET", pattern: "/api/cache/semantic", match: apiExactMatchWithMethod("/api/cache/semantic", fasthttp.MethodGet), handler: func(ctx *fasthttp.RequestCtx) {
 			handlers.SemanticCacheStats(ctx, s.config.Store)
 		}},
-		{method: "DELETE", pattern: "/api/cache/semantic", match: apiExactMatch("/api/cache/semantic"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
-			if !requireMethod(ctx, fasthttp.MethodDelete) {
-				return
-			}
+		{method: "DELETE", pattern: "/api/cache/semantic", match: apiExactMatchWithMethod("/api/cache/semantic", fasthttp.MethodDelete), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			handlers.SemanticCacheClear(ctx, s.config.Store)
 		})},
 		{method: "GET", pattern: "/api/ws", match: apiExactMatch("/api/ws"), handler: func(ctx *fasthttp.RequestCtx) {

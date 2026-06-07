@@ -29,12 +29,108 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 19
-current_wave: "Phase 19 — Advanced Features"
-last_completed_wave: "Phase 19 checkpoint"
-last_updated: "2026-06-06T21:30:00Z"
-last_agent: "orchestrator"
+current_stage: 20
+current_wave: "Full E2E test suite — Go API + Playwright UI coverage"
+last_completed_wave: "Full E2E test suite — Go API + Playwright UI coverage"
+last_updated: "2026-06-07T20:56:00Z"
+last_agent: "assistant"
 ```
+
+---
+
+## Wave E2E — Comprehensive end-to-end test suite
+
+```yaml
+wave: "E2E"
+status: DONE
+summary: "Built comprehensive e2e tests covering all 38+ API endpoints and 64+ UI screens/flows. Fixed UI bugs found during testing (aliases created_at, audit empty SelectItem, combos null steps). Added startup ASCII art banner. Added Makefile e2e orchestration target."
+completed_at: "2026-06-07T20:56:00Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- `npm --prefix ui run build`: PASS
+- `make e2e`: PASS (38 Go API tests + 64 UI Playwright tests)
+
+**Tasks:**
+- task-1: Comprehensive Go API e2e tests — 38 endpoint tests (`e2e_api_comprehensive_test.go`)
+- task-2: Comprehensive UI Playwright e2e tests — 21 spec files, 64 tests (`ui/e2e/*.spec.ts`)
+- task-3: Fixed Aliases page — removed Created column using non-existent backend field
+- task-4: Fixed Audit page — filtered empty-string actor values from Select dropdown
+- task-5: Fixed Combos page — guarded `combo.steps` against undefined/null from backend
+- task-6: Fixed apiFetch response.ok check + backend envelope unwrapping
+- task-7: Fixed `listResponse[T].MarshalJSON` to convert nil slices to `[]`
+- task-8: Added unique per-run suffixes to comprehensive CRUD test names to avoid UNIQUE constraint failures
+- task-9: Set Playwright `workers: 1` to prevent SQLite concurrency issues
+- task-10: Added `make e2e` Makefile target orchestrating build + Go API tests + UI tests
+- task-11: Added startup ASCII art banner with version, port, and links (`api/server.go`)
+
+---
+
+## Wave UI-2 — Zero-config startup + default admin
+
+```yaml
+wave: "UI-2"
+status: DONE
+summary: "Removed API_KEY_SECRET env requirement at startup. Server now auto-generates and stores the secret in DB if missing. Creates default admin user (admin/123456) on first startup. Added CLI secret command and full Settings page in UI with api_key_secret field."
+completed_at: "2026-06-07T07:18:52Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green)
+- `go vet ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- `npm --prefix ui run build`: PASS
+- Coverage: 95.0%
+
+**Tasks:**
+- task-1: Removed `API_KEY_SECRET` hard requirement from `internal/config/config.go`
+- task-2: Added `GetAPIKeySecret()` / `SetAPIKeySecret()` to store (`internal/store/settings.go`)
+- task-3: Auto-generate 64-hex `API_KEY_SECRET` on startup if env + DB are empty (`internal/cli/root.go`)
+- task-4: Auto-create default admin user `admin` / `123456` on first startup if no users exist
+- task-5: Added `SeedDefaultAdminUser` store method bypassing 8-char password minimum
+- task-6: Updated settings handler to accept `api_key_secret` in PUT body (`api/handlers/settings.go`)
+- task-7: Added CLI `g0router secret` command to view stored secret
+- task-8: Built full Settings page in UI (`ui/src/routes/_app.settings.tsx`) with all backend fields + secret field
+
+---
+
+## Wave UI-1 — g0-route-guard Dashboard Integration
+
+```yaml
+wave: "UI-1"
+status: DONE
+summary: "Replaced the existing ui/ dashboard with the new g0-route-guard template, converted from TanStack Start SSR to Vite SPA, wired apiFetch to real backend endpoints, added missing backend endpoints, and fixed response shape mismatches."
+completed_at: "2026-06-07T07:18:52Z"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS (all packages green, excluding ui/node_modules)
+- `go vet ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+- `npm --prefix ui run build`: PASS (static SPA output in ui/dist/)
+- Coverage: 95.0%
+
+**Tasks:**
+- task-1: Copied new dashboard from g0-route-guard template into ui/
+- task-2: Converted TanStack Start → Vite SPA (replaced vite.config.ts, added index.html + main.tsx, removed server.ts/start.ts, fixed __root.tsx shellComponent)
+- task-3: Replaced mock API client with real fetch to /api/* (ui/src/lib/api/client.ts)
+- task-4: Backend gap analysis — documented 60 mock endpoints vs backend routes (docs/technical/ui-api-gap-analysis.md)
+- task-5: Fixed apiFetch response envelope handling (wrapped {data,error} vs raw objects)
+- task-6: Fixed list response shapes for /api/usage and /api/audit (normalizeListResponse helper)
+- task-7: Added missing backend endpoint GET /api/models (api/handlers/models_admin.go)
+- task-8: Added missing backend endpoint POST /api/keys/:id/regenerate (api/handlers/apikeys.go + store method)
+- task-9: Added missing backend endpoint GET /api/quota (api/handlers/usage.go QuotaAggregate)
+- task-10: Fixed Pricing page compatibility — backend now returns pricingOverrideResponse with id, input_cost, output_cost; accepts UI field aliases
+- task-11: Fixed audit page actor field mismatch (actor → actor_api_key_id)
+
+**Known follow-ups (non-blocking):**
+- Settings field mismatches (theme, language, tunnel_dashboard_access) — UI mock-only fields
+- Connections models[] field — backend uses ModelLocks map instead
+- MITM endpoints — pages are ComingSoon, mock routes unused
+- Diagnostics endpoint — page is ComingSoon
 
 ---
 

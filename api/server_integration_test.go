@@ -816,23 +816,31 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 	}
 }
 
+type integrationPricingOverride struct {
+	ID         string  `json:"id"`
+	Provider   string  `json:"provider"`
+	Model      string  `json:"model"`
+	InputCost  float64 `json:"input_cost"`
+	OutputCost float64 `json:"output_cost"`
+}
+
 func assertPricingManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
 	t.Helper()
 
-	var created store.PricingOverride
+	var created integrationPricingOverride
 	doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/pricing", rawAPIKey, `{"provider":"openai","model":"unit-test-model","input_cost_per_token":0.000001,"output_cost_per_token":0.000002}`, http.StatusCreated, &created)
-	if created.Provider != "openai" || created.Model != "unit-test-model" || created.InputCostPerToken != 0.000001 || created.OutputCostPerToken != 0.000002 {
+	if created.Provider != "openai" || created.Model != "unit-test-model" || created.InputCost != 1 || created.OutputCost != 2 {
 		t.Fatalf("created pricing override = %+v", created)
 	}
 
-	var updated store.PricingOverride
+	var updated integrationPricingOverride
 	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/pricing/openai/unit-test-model", rawAPIKey, `{"input_cost_per_token":0.000003,"output_cost_per_token":0.000004}`, http.StatusOK, &updated)
-	if updated.Provider != "openai" || updated.Model != "unit-test-model" || updated.InputCostPerToken != 0.000003 || updated.OutputCostPerToken != 0.000004 {
+	if updated.Provider != "openai" || updated.Model != "unit-test-model" || updated.InputCost != 3 || updated.OutputCost != 4 {
 		t.Fatalf("updated pricing override = %+v", updated)
 	}
 
 	var listed struct {
-		Data []store.PricingOverride `json:"data"`
+		Data []integrationPricingOverride `json:"data"`
 	}
 	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/pricing", http.StatusOK)
 	decodeIntegrationJSON(t, body, &listed)
@@ -925,10 +933,10 @@ func assertAuthenticatedUsageAndLogs(t *testing.T, baseURL, rawAPIKey string) {
 	var summary struct {
 		RequestCount int64   `json:"request_count"`
 		TotalTokens  int64   `json:"total_tokens"`
-		TotalCostUSD float64 `json:"total_cost_usd"`
+		TotalCost    float64 `json:"total_cost"`
 	}
 	decodeIntegrationJSON(t, body, &summary)
-	if summary.RequestCount != 1 || summary.TotalTokens != 18 || summary.TotalCostUSD != 0.00012 {
+	if summary.RequestCount != 1 || summary.TotalTokens != 18 || summary.TotalCost != 0.00012 {
 		t.Fatalf("usage summary = %+v, want seeded aggregate", summary)
 	}
 }
@@ -1232,7 +1240,7 @@ func containsConnection(connections []struct {
 	return false
 }
 
-func containsPricingOverride(overrides []store.PricingOverride, want store.PricingOverride) bool {
+func containsPricingOverride(overrides []integrationPricingOverride, want integrationPricingOverride) bool {
 	for _, override := range overrides {
 		if override == want {
 			return true

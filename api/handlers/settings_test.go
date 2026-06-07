@@ -182,3 +182,22 @@ func TestSettingsGetIncludesRequireLoginAndTrustProxyHeaders(t *testing.T) {
 		t.Error("TrustProxyHeaders missing or false in GET response")
 	}
 }
+
+func TestSettingsUpdateAPIKeySecret(t *testing.T) {
+	s := newHandlerStore(t)
+
+	ctx, body := runHandler(t, fasthttp.MethodPut, `{"require_api_key":false,"api_key_secret":"new-secret-value"}`, func(ctx *fasthttp.RequestCtx) {
+		Settings(ctx, s)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("put status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
+	}
+
+	secret, err := s.GetAPIKeySecret()
+	if err != nil {
+		t.Fatalf("GetAPIKeySecret: %v", err)
+	}
+	if secret != "new-secret-value" {
+		t.Fatalf("secret = %q, want new-secret-value", secret)
+	}
+}

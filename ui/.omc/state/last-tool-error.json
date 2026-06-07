@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd /Users/heitor/Developer/github.com/bloodf/g0router && rtk npm run e2e --prefix ui >/tmp/e2e2.out 2>&1; echo \\\"E2E_EXIT=$?\\\"; rtk grep -iE \\\"[0-9]+ passed|[0-9]+ failed|[0-9]+ skipped|un...",
-  "error": "Exit code 1\nE2E_EXIT=0\n  1 skipped\n  33 passed (15.0s)\n--- key warnings count ---\n0",
-  "timestamp": "2026-06-05T21:44:41.659Z",
-  "retry_count": 1
-}

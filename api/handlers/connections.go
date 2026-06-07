@@ -17,6 +17,15 @@ type listResponse[T any] struct {
 	Data []T `json:"data"`
 }
 
+func (r listResponse[T]) MarshalJSON() ([]byte, error) {
+	type alias listResponse[T]
+	a := alias(r)
+	if a.Data == nil {
+		a.Data = []T{}
+	}
+	return json.Marshal(a)
+}
+
 type connectionResponse struct {
 	ID                   string
 	Provider             string

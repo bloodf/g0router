@@ -167,3 +167,11 @@ func TestGetUsageClosedDB(t *testing.T) {
 		t.Fatal("GetUsage on closed DB should return error")
 	}
 }
+
+// TestRegenerateAPIKeyClosedDB exercises the error branches in RegenerateAPIKey.
+func TestRegenerateAPIKeyClosedDB(t *testing.T) {
+	s := closedStore(t)
+	if _, _, err := s.RegenerateAPIKey("some-id", "secret"); err == nil {
+		t.Fatal("RegenerateAPIKey on closed DB should return error")
+	}
+}

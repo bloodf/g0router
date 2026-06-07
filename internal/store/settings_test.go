@@ -325,6 +325,34 @@ func TestUpdateSettingsRequireLoginRejectsNoUsers(t *testing.T) {
 	}
 }
 
+func TestGetAPIKeySecretEmpty(t *testing.T) {
+	s := openTestStore(t)
+
+	secret, err := s.GetAPIKeySecret()
+	if err != nil {
+		t.Fatalf("GetAPIKeySecret: %v", err)
+	}
+	if secret != "" {
+		t.Fatalf("secret = %q, want empty", secret)
+	}
+}
+
+func TestSetAndGetAPIKeySecret(t *testing.T) {
+	s := openTestStore(t)
+
+	if err := s.SetAPIKeySecret("my-secret-value"); err != nil {
+		t.Fatalf("SetAPIKeySecret: %v", err)
+	}
+
+	got, err := s.GetAPIKeySecret()
+	if err != nil {
+		t.Fatalf("GetAPIKeySecret: %v", err)
+	}
+	if got != "my-secret-value" {
+		t.Fatalf("secret = %q, want my-secret-value", got)
+	}
+}
+
 func TestUpdateSettingsRequireLoginAcceptsWithUsers(t *testing.T) {
 	s := openTestStore(t)
 

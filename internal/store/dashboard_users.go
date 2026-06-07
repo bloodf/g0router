@@ -54,6 +54,35 @@ func isUniqueConstraintError(err error, table string) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: "+table)
 }
 
+// SeedDefaultAdminUser creates the built-in admin account used for first-time
+// setup. It bypasses password-length validation so that the initial password
+// can be short (the operator is expected to change it immediately).
+func (s *Store) SeedDefaultAdminUser(username, password, displayName, role string) (*DashboardUser, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	var user DashboardUser
+	err = s.db.QueryRow(
+		`INSERT INTO dashboard_users (username, password_hash, display_name, role)
+		VALUES (?, ?, ?, ?)
+		RETURNING id, username, password_hash, display_name, role, created_at`,
+		username,
+		string(hash),
+		displayName,
+		role,
+	).Scan(&user.ID, &user.Username, &user.PasswordHash, &user.DisplayName, &user.Role, &user.CreatedAt)
+	if err != nil {
+		if isUniqueConstraintError(err, "dashboard_users") {
+			return nil, fmt.Errorf("create dashboard user: %w", ErrDashboardUserExists)
+		}
+		return nil, fmt.Errorf("create dashboard user: %w", err)
+	}
+
+	return &user, nil
+}
+
 func (s *Store) CreateDashboardUser(username, password, displayName, role string) (*DashboardUser, error) {
 	if err := validateDashboardUserPassword(password); err != nil {
 		return nil, err

@@ -21,6 +21,10 @@ func (e *errorListener) Accept() (net.Conn, error) {
 	return nil, errors.New("injected accept error")
 }
 
+func (e *errorListener) Addr() net.Addr {
+	return &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 0}
+}
+
 // TestServeErrorListenerReturnsError exercises the error branch in Serve when
 // the listener returns a non-recoverable error.
 func TestServeErrorListenerReturnsError(t *testing.T) {

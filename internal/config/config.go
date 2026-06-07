@@ -67,9 +67,6 @@ func Load() (*Config, error) {
 	}
 
 	apiKeySecret := os.Getenv("API_KEY_SECRET")
-	if requireAPIKey && apiKeySecret == "" {
-		return nil, fmt.Errorf("API_KEY_SECRET required when REQUIRE_API_KEY=true")
-	}
 
 	return &Config{
 		Port:              port,

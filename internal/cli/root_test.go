@@ -44,7 +44,7 @@ func TestRootCommandIncludesExpectedSubcommands(t *testing.T) {
 	cmd := NewRootCommand("0.1.0-test")
 	names := commandNames(cmd.Commands())
 
-	for _, want := range []string{"auth", "healthcheck", "install", "keys", "login", "logout", "providers", "serve", "status", "uninstall", "version"} {
+	for _, want := range []string{"auth", "healthcheck", "install", "keys", "login", "logout", "providers", "secret", "serve", "status", "uninstall", "version"} {
 		if !names[want] {
 			t.Fatalf("missing subcommand %q in %v", want, names)
 		}
@@ -229,11 +229,14 @@ func TestServeCommandFailsInvalidBooleanEnv(t *testing.T) {
 	}
 }
 
-func TestServeCommandRequiresAPIKeySecretByDefault(t *testing.T) {
+func TestServeCommandStartsWithoutAPIKeySecret(t *testing.T) {
+	var got serveConfig
+	called := false
 	cmd := newRootCommand(rootConfig{
 		Version: "0.1.0-test",
 		Serve: func(ctx context.Context, config serveConfig) error {
-			t.Fatal("serve runner should not be called")
+			called = true
+			got = config
 			return nil
 		},
 	})
@@ -241,12 +244,98 @@ func TestServeCommandRequiresAPIKeySecretByDefault(t *testing.T) {
 	cmd.SetErr(&bytes.Buffer{})
 	cmd.SetArgs([]string{"serve", "--data-dir", t.TempDir()})
 
-	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("execute should fail")
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
 	}
-	if !strings.Contains(err.Error(), "API_KEY_SECRET required when REQUIRE_API_KEY=true") {
-		t.Fatalf("error = %q", err)
+	if !called {
+		t.Fatal("serve runner was not called")
+	}
+	if got.APIKeySecret != "" {
+		t.Fatalf("APIKeySecret = %q, want empty", got.APIKeySecret)
+	}
+}
+
+func TestRunServerGeneratesSecretAndDefaultUser(t *testing.T) {
+	dir := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	_ = runServer(ctx, serveConfig{
+		Port:        0,
+		BindAddress: "127.0.0.1",
+		DataDir:     dir,
+		Version:     "test",
+	})
+
+	s, err := store.NewStore(filepath.Join(dir, "g0router.db"))
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	defer s.Close()
+
+	secret, err := s.GetAPIKeySecret()
+	if err != nil {
+		t.Fatalf("GetAPIKeySecret: %v", err)
+	}
+	if secret == "" {
+		t.Fatal("expected secret to be generated and stored")
+	}
+	if len(secret) != 64 {
+		t.Fatalf("secret len = %d, want 64", len(secret))
+	}
+
+	users, err := s.ListDashboardUsers()
+	if err != nil {
+		t.Fatalf("ListDashboardUsers: %v", err)
+	}
+	if len(users) != 1 {
+		t.Fatalf("users = %d, want 1", len(users))
+	}
+	if users[0].Username != "admin" {
+		t.Fatalf("username = %q, want admin", users[0].Username)
+	}
+}
+
+func TestSecretCommandShowsSecret(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.NewStore(filepath.Join(dir, "g0router.db"))
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	if err := s.SetAPIKeySecret("db-secret"); err != nil {
+		t.Fatalf("SetAPIKeySecret: %v", err)
+	}
+	s.Close()
+
+	cmd := NewRootCommand("test")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--data-dir", dir, "secret"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got := strings.TrimSpace(out.String()); got != "db-secret" {
+		t.Fatalf("output = %q, want db-secret", got)
+	}
+}
+
+func TestSecretCommandShowsNoSecretMessage(t *testing.T) {
+	dir := t.TempDir()
+	cmd := NewRootCommand("test")
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--data-dir", dir, "secret"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+
+	if got := out.String(); !strings.Contains(got, "No API_KEY_SECRET set") {
+		t.Fatalf("output = %q, want no-secret message", got)
 	}
 }
 
@@ -956,4 +1045,44 @@ func containsModelProvider(values []providers.ModelProvider, want providers.Mode
 		}
 	}
 	return false
+}
+
+type fakeSecretStore struct {
+	secret string
+	err    error
+}
+
+func (f *fakeSecretStore) GetAPIKeySecret() (string, error) {
+	return f.secret, f.err
+}
+
+func TestLocalAPIKeySecretReadsFromDB(t *testing.T) {
+	t.Setenv("API_KEY_SECRET", "")
+	got, err := localAPIKeySecret(&fakeSecretStore{secret: "db-secret"})
+	if err != nil {
+		t.Fatalf("localAPIKeySecret: %v", err)
+	}
+	if got != "db-secret" {
+		t.Fatalf("secret = %q, want db-secret", got)
+	}
+}
+
+func TestLocalAPIKeySecretStoreError(t *testing.T) {
+	t.Setenv("API_KEY_SECRET", "")
+	_, err := localAPIKeySecret(&fakeSecretStore{err: errors.New("boom")})
+	if err == nil || !strings.Contains(err.Error(), "read api_key_secret") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestSecretCommandStoreOpenError(t *testing.T) {
+	cmd := NewRootCommand("test")
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--data-dir", badDataDir(t), "secret"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("secret bad data-dir should fail")
+	}
 }

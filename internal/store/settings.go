@@ -1,6 +1,7 @@
 package store
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -243,6 +244,28 @@ func parseAllowedSources(value string) []string {
 		return defaultAllowedSources()
 	}
 	return sources
+}
+
+// GetAPIKeySecret reads the api_key_secret from settings. Returns empty string if not set.
+func (s *Store) GetAPIKeySecret() (string, error) {
+	var value string
+	err := s.db.QueryRow("SELECT value FROM settings WHERE key = ?", "api_key_secret").Scan(&value)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("get api_key_secret: %w", err)
+	}
+	return value, nil
+}
+
+// SetAPIKeySecret persists the api_key_secret in settings.
+func (s *Store) SetAPIKeySecret(secret string) error {
+	_, err := s.db.Exec("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", "api_key_secret", secret)
+	if err != nil {
+		return fmt.Errorf("set api_key_secret: %w", err)
+	}
+	return nil
 }
 
 func boolString(value bool) string {

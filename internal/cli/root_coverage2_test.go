@@ -26,8 +26,28 @@ func TestKeysCommandsStoreOpenError(t *testing.T) {
 func TestKeysAddMissingSecret(t *testing.T) {
 	t.Setenv("API_KEY_SECRET", "")
 	if _, err := runCLI(t, "--data-dir", t.TempDir(), "keys", "add", "k"); err == nil ||
-		!strings.Contains(err.Error(), "API_KEY_SECRET") {
+		!strings.Contains(err.Error(), "API_KEY_SECRET required to create API keys") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestKeysAddReadsSecretFromDB(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.NewStore(filepath.Join(dir, "g0router.db"))
+	if err != nil {
+		t.Fatalf("NewStore: %v", err)
+	}
+	if err := s.SetAPIKeySecret("db-secret"); err != nil {
+		t.Fatalf("SetAPIKeySecret: %v", err)
+	}
+	s.Close()
+
+	out, err := runCLI(t, "--data-dir", dir, "keys", "add", "mykey")
+	if err != nil {
+		t.Fatalf("add: %v", err)
+	}
+	if !strings.Contains(out, "mykey") {
+		t.Fatalf("add out = %q", out)
 	}
 }
 
