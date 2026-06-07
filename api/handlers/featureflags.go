@@ -35,6 +35,7 @@ type toggleFeatureFlagRequest struct {
 type featureFlagStore interface {
 	ListFeatureFlags() ([]store.FeatureFlag, error)
 	GetFeatureFlag(id int64) (*store.FeatureFlag, error)
+	GetFeatureFlagByKey(key string) (*store.FeatureFlag, error)
 	ToggleFeatureFlag(id int64, enabled bool) error
 }
 

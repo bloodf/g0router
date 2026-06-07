@@ -30,6 +30,13 @@ func (f *fakeFeatureFlagStore) GetFeatureFlag(id int64) (*store.FeatureFlag, err
 	return f.getResult, nil
 }
 
+func (f *fakeFeatureFlagStore) GetFeatureFlagByKey(key string) (*store.FeatureFlag, error) {
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
+	return f.getResult, nil
+}
+
 func (f *fakeFeatureFlagStore) ToggleFeatureFlag(id int64, enabled bool) error {
 	return f.toggleErr
 }
