@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -103,5 +104,15 @@ func TestLocaleMethodNotAllowed(t *testing.T) {
 	})
 	if ctx.Response.StatusCode() != fasthttp.StatusMethodNotAllowed {
 		t.Fatalf("status = %d, want 405", ctx.Response.StatusCode())
+	}
+}
+
+func TestLocaleGetSettingsError(t *testing.T) {
+	fs := &fakeSettingsStore{getSettingsErr: errors.New("boom")}
+	ctx, _ := runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
+		Locale(ctx, fs)
+	})
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", ctx.Response.StatusCode())
 	}
 }

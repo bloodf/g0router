@@ -8,14 +8,19 @@ import (
 )
 
 type fakeSettingsStore struct {
-	settings store.Settings
+	settings      store.Settings
+	getSettingsErr error
+	updateSettingsErr error
 }
 
 func (f *fakeSettingsStore) GetSettings() (store.Settings, error) {
-	return f.settings, nil
+	return f.settings, f.getSettingsErr
 }
 
 func (f *fakeSettingsStore) UpdateSettings(s store.Settings) error {
+	if f.updateSettingsErr != nil {
+		return f.updateSettingsErr
+	}
 	f.settings = s
 	return nil
 }
