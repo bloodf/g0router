@@ -20,8 +20,8 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("123456");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const login = useLogin();
   const navigate = useNavigate();
@@ -32,9 +32,10 @@ function LoginPage() {
       await login.mutateAsync({ username, password });
       toast.success("Welcome back");
       navigate({ to: "/dashboard" });
-    } catch (err: any) {
-      console.error("[LOGIN] mutation failed:", err?.message || err);
-      toast.error(err?.message || "Invalid credentials");
+    } catch (err) {
+      console.error("[LOGIN] mutation failed:", err instanceof Error ? err.message : err);
+      const message = err instanceof Error ? err.message : "Invalid credentials";
+      toast.error(message);
     }
   };
 
@@ -88,13 +89,7 @@ function LoginPage() {
             </Button>
           </form>
 
-          <div className="mt-6 p-3 bg-info/5 border border-info/20 rounded-lg text-xs text-text-muted">
-            <div className="flex items-center gap-1.5 text-info font-medium mb-1">
-              <Icon name="info" size={14} /> Demo credentials
-            </div>
-            Username <code className="font-mono">admin</code> / password{" "}
-            <code className="font-mono">123456</code>. Change this password in Settings.
-          </div>
+
         </Card>
         <p className="text-center text-xs text-text-muted mt-4">
           g0router · single-binary LLM gateway

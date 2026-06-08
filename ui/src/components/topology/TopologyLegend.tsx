@@ -1,4 +1,6 @@
-export function TopologyLegend() {
+export function TopologyLegend({ window_sec }: { window_sec: number }) {
+  const windowLabel = window_sec < 60 ? `last ${window_sec}s` : `last ${window_sec / 60}m`;
+
   return (
     <div className="absolute bottom-3 left-3 z-10 bg-surface/90 backdrop-blur-md border border-border rounded-lg p-3 shadow-elev text-xs space-y-2 max-w-[220px]">
       <div className="font-semibold text-foreground">Legend</div>
@@ -20,7 +22,7 @@ export function TopologyLegend() {
               strokeDasharray="6 4"
             />
           </svg>
-          <span>Active (last 30s)</span>
+          <span>Active ({windowLabel})</span>
         </div>
         <div className="flex items-center gap-2">
           <svg width="32" height="6">

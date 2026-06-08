@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Icon } from "@/components/common/Icon";
 import { StackedListSkeleton, ErrorState } from "@/components/common/Skeletons";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
+import { EditConnectionDialog } from "@/components/connections/EditConnectionDialog";
 import { toast } from "sonner";
 import type { Connection, Provider } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
@@ -29,6 +30,7 @@ function ConnectionsPage() {
   const [auth, setAuth] = useState<AuthFilter>("all");
   const [state, setState] = useState<StateFilter>("all");
   const [toDelete, setToDelete] = useState<Connection | null>(null);
+  const [editing, setEditing] = useState<Connection | null>(null);
 
   const {
     data: conns = [],
@@ -280,6 +282,14 @@ function ConnectionsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => setEditing(c)}
+                          title="Edit connection"
+                        >
+                          <Icon name="edit" size={16} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setToDelete(c)}
                           title="Remove"
                         >
@@ -305,6 +315,14 @@ function ConnectionsPage() {
         onConfirm={() => {
           if (toDelete) del.mutate(toDelete.id);
         }}
+      />
+
+      <EditConnectionDialog
+        connection={editing}
+        provider={editing ? providerMap[editing.provider] ?? null : null}
+        open={!!editing}
+        onOpenChange={(v) => !v && setEditing(null)}
+        onSuccess={() => qc.invalidateQueries({ queryKey: ["connections"] })}
       />
     </div>
   );

@@ -557,9 +557,9 @@ func assertAuthenticatedConnectionsRedactSecrets(t *testing.T, baseURL, rawAPIKe
 	body := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/connections", http.StatusOK)
 	var decoded struct {
 		Data []struct {
-			Provider             string         `json:"Provider"`
-			APIKey               *string        `json:"APIKey"`
-			ProviderSpecificData map[string]any `json:"ProviderSpecificData"`
+			Provider             string         `json:"provider"`
+			APIKey               *string        `json:"api_key"`
+			ProviderSpecificData map[string]any `json:"provider_specific_data"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(body, &decoded); err != nil {
@@ -582,51 +582,46 @@ func assertAuthenticatedConnectionsRedactSecrets(t *testing.T, baseURL, rawAPIKe
 func assertAPIKeyManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string) {
 	t.Helper()
 
-	var created struct {
-		Key apiKeyViewJSON `json:"key"`
-		Raw string         `json:"raw"`
-	}
+	var created apiKeyViewJSON
 	createdBody := doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/keys", rawAPIKey, `{"name":"dashboard"}`, http.StatusCreated, &created)
-	if created.Key.ID == "" || created.Key.Name != "dashboard" {
-		t.Fatalf("created api key = %+v, want dashboard key with id", created.Key)
+	if created.ID == "" || created.Name != "dashboard" {
+		t.Fatalf("created api key = %+v, want dashboard key with id", created)
 	}
-	if !strings.HasPrefix(created.Raw, "g0r_") || created.Key.Prefix != created.Raw[:8] {
-		t.Fatalf("created api key raw/prefix mismatch: raw=%q key=%+v", created.Raw, created.Key)
+	if !strings.HasPrefix(created.FullKey, "g0r_") || created.Prefix != created.FullKey[:8] {
+		t.Fatalf("created api key full_key/prefix mismatch: full_key=%q key=%+v", created.FullKey, created)
 	}
-	if strings.Count(string(createdBody), created.Raw) != 1 {
-		t.Fatalf("created api key response should expose raw once; body=%s", createdBody)
+	if strings.Count(string(createdBody), created.FullKey) != 1 {
+		t.Fatalf("created api key response should expose full_key once; body=%s", createdBody)
 	}
 
 	listBody := assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/keys", http.StatusOK)
-	if strings.Contains(string(listBody), created.Raw) {
-		t.Fatalf("api key list exposed raw key; body=%s", listBody)
+	if strings.Contains(string(listBody), created.FullKey) {
+		t.Fatalf("api key list exposed full_key; body=%s", listBody)
 	}
 	var listed struct {
 		Data []apiKeyViewJSON `json:"data"`
 	}
 	decodeIntegrationJSON(t, listBody, &listed)
-	if !containsAPIKeyView(listed.Data, created.Key.ID, "dashboard", created.Key.Prefix, true) {
+	if !containsAPIKeyView(listed.Data, created.ID, "dashboard", created.Prefix, true) {
 		t.Fatalf("api key list = %+v, want active dashboard key", listed.Data)
 	}
 
 	// Round-trip a per-key policy via the update endpoint.
-	var updated struct {
-		Key apiKeyViewJSON `json:"key"`
+	var updated apiKeyViewJSON
+	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/keys/"+created.ID, rawAPIKey,
+		`{"scopes":["gpt-*"],"rpm_limit":60,"daily_spend_cap":2.5}`, http.StatusOK, &updated)
+	if len(updated.Scopes) != 1 || updated.Scopes[0] != "gpt-*" {
+		t.Fatalf("updated key scopes = %+v", updated)
 	}
-	doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/keys/"+created.Key.ID, rawAPIKey,
-		`{"scopes":["gpt-*"],"rate_limit_rpm":60,"daily_spend_cap_usd":2.5}`, http.StatusOK, &updated)
-	if len(updated.Key.Scopes) != 1 || updated.Key.Scopes[0] != "gpt-*" {
-		t.Fatalf("updated key scopes = %+v", updated.Key)
-	}
-	if updated.Key.RateLimitRPM == nil || *updated.Key.RateLimitRPM != 60 {
-		t.Fatalf("updated key rpm = %+v", updated.Key)
+	if updated.RateLimitRPM == nil || *updated.RateLimitRPM != 60 {
+		t.Fatalf("updated key rpm = %+v", updated)
 	}
 
-	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/keys/"+created.Key.ID, rawAPIKey, "", http.StatusNoContent, nil)
+	doAuthenticatedJSON(t, http.MethodDelete, baseURL+"/api/keys/"+created.ID, rawAPIKey, "", http.StatusNoContent, nil)
 
 	listBody = assertAuthenticatedGETStatus(t, baseURL, rawAPIKey, "/api/keys", http.StatusOK)
 	decodeIntegrationJSON(t, listBody, &listed)
-	if !containsAPIKeyView(listed.Data, created.Key.ID, "dashboard", created.Key.Prefix, false) {
+	if !containsAPIKeyView(listed.Data, created.ID, "dashboard", created.Prefix, false) {
 		t.Fatalf("api key list after delete = %+v, want inactive dashboard key", listed.Data)
 	}
 }
@@ -635,9 +630,10 @@ type apiKeyViewJSON struct {
 	ID           string   `json:"id"`
 	Name         string   `json:"name"`
 	Prefix       string   `json:"prefix"`
+	FullKey      string   `json:"full_key"`
 	IsActive     bool     `json:"is_active"`
 	Scopes       []string `json:"scopes"`
-	RateLimitRPM *int     `json:"rate_limit_rpm"`
+	RateLimitRPM *int     `json:"rpm_limit"`
 }
 
 func containsAPIKeyView(keys []apiKeyViewJSON, id, name, prefix string, active bool) bool {
@@ -718,16 +714,16 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 
 	createBody := `{"provider":"codex","name":"work","auth_type":"oauth","access_token":"access-secret","refresh_token":"refresh-secret","api_key":"api-secret","is_active":true,"provider_specific_data":{"region":"local","Authorization":"Bearer nested-secret","headers":{"X-API-Key":"nested-key","safe":"visible"}},"account_id":"acct-1","email":"work@example.test"}`
 	var created struct {
-		ID                   string         `json:"ID"`
-		Provider             string         `json:"Provider"`
-		Name                 string         `json:"Name"`
-		AuthType             store.AuthType `json:"AuthType"`
-		ProviderSpecificData map[string]any `json:"ProviderSpecificData"`
-		Email                *string        `json:"Email"`
+		ID                   string         `json:"id"`
+		Provider             string         `json:"provider"`
+		Name                 string         `json:"name"`
+		AuthType             string         `json:"auth_type"`
+		ProviderSpecificData map[string]any `json:"provider_specific_data"`
+		Email                *string        `json:"email"`
 	}
 	body := doAuthenticatedJSON(t, http.MethodPost, baseURL+"/api/connections", rawAPIKey, createBody, http.StatusCreated, &created)
 	assertConnectionResponseRedacted(t, body, created.ProviderSpecificData, "access-secret", "refresh-secret", "api-secret", "nested-secret", "nested-key")
-	if created.ID == "" || created.Provider != "openai" || created.Name != "work" || created.AuthType != store.AuthTypeOAuth || created.Email == nil || *created.Email != "work@example.test" {
+	if created.ID == "" || created.Provider != "openai" || created.Name != "work" || created.AuthType != "oauth" || created.Email == nil || *created.Email != "work@example.test" {
 		t.Fatalf("created connection = %+v, want canonical openai oauth work connection", created)
 	}
 	if created.ProviderSpecificData["region"] != "local" {
@@ -767,9 +763,9 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 	assertConnectionResponseRedacted(t, listBody, nil, "access-secret", "refresh-secret", "api-secret", "nested-secret", "nested-key")
 	var listed struct {
 		Data []struct {
-			ID       string `json:"ID"`
-			Provider string `json:"Provider"`
-			Name     string `json:"Name"`
+			ID       string `json:"id"`
+			Provider string `json:"provider"`
+			Name     string `json:"name"`
 		} `json:"data"`
 	}
 	decodeIntegrationJSON(t, listBody, &listed)
@@ -779,16 +775,16 @@ func assertConnectionManagementRoundTrip(t *testing.T, baseURL, rawAPIKey string
 
 	updateBody := `{"provider":"anthropic","name":"work-updated","auth_type":"api_key","api_key":"updated-secret","is_active":false,"provider_specific_data":{"mode":"updated","token":"updated-nested-secret"}}`
 	var updated struct {
-		ID                   string         `json:"ID"`
-		Provider             string         `json:"Provider"`
-		Name                 string         `json:"Name"`
-		AuthType             store.AuthType `json:"AuthType"`
-		IsActive             bool           `json:"IsActive"`
-		ProviderSpecificData map[string]any `json:"ProviderSpecificData"`
+		ID                   string         `json:"id"`
+		Provider             string         `json:"provider"`
+		Name                 string         `json:"name"`
+		AuthType             string         `json:"auth_type"`
+		IsActive             bool           `json:"is_active"`
+		ProviderSpecificData map[string]any `json:"provider_specific_data"`
 	}
 	body = doAuthenticatedJSON(t, http.MethodPut, baseURL+"/api/connections/"+created.ID, rawAPIKey, updateBody, http.StatusOK, &updated)
 	assertConnectionResponseRedacted(t, body, updated.ProviderSpecificData, "updated-secret", "updated-nested-secret")
-	if updated.ID != created.ID || updated.Provider != "anthropic" || updated.Name != "work-updated" || updated.AuthType != store.AuthTypeAPIKey || updated.IsActive {
+	if updated.ID != created.ID || updated.Provider != "anthropic" || updated.Name != "work-updated" || updated.AuthType != "api_key" || updated.IsActive {
 		t.Fatalf("updated connection = %+v, want inactive anthropic api-key connection", updated)
 	}
 	if updated.ProviderSpecificData["mode"] != "updated" || updated.ProviderSpecificData["token"] != nil {
@@ -1228,9 +1224,9 @@ func containsCombo(combos []store.Combo, id, name string) bool {
 }
 
 func containsConnection(connections []struct {
-	ID       string `json:"ID"`
-	Provider string `json:"Provider"`
-	Name     string `json:"Name"`
+	ID       string `json:"id"`
+	Provider string `json:"provider"`
+	Name     string `json:"name"`
 }, id, provider, name string) bool {
 	for _, connection := range connections {
 		if connection.ID == id && connection.Provider == provider && connection.Name == name {

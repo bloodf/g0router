@@ -471,6 +471,24 @@ func (s *Server) routes() []route {
 			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
 			handlers.FeatureFlags(ctx, s.config.Store, parts[2])
 		})},
+		{method: "GET", pattern: "/api/mitm/status", match: apiExactMatchWithMethod("/api/mitm/status", fasthttp.MethodGet), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.MITMStatus(ctx, s.config.MITMProxy, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/mitm/toggle", match: apiExactMatchWithMethod("/api/mitm/toggle", fasthttp.MethodPost), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.MITMToggle(ctx, s.config.MITMProxy, s.config.Store)
+		})},
+		{method: "GET", pattern: "/api/mitm/ca-cert", match: apiExactMatchWithMethod("/api/mitm/ca-cert", fasthttp.MethodGet), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			handlers.MITMCACert(ctx, s.config.MITMProxy, s.config.Store)
+		})},
+		{method: "POST", pattern: "/api/mitm/tools/:id", match: apiPathMatch(func(parts []string) bool {
+			return len(parts) == 4 && parts[0] == "api" && parts[1] == "mitm" && parts[2] == "tools"
+		}), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
+			if !requireMethod(ctx, fasthttp.MethodPost) {
+				return
+			}
+			parts := pathParts(strings.TrimRight(string(ctx.Path()), "/"))
+			handlers.MITMTools(ctx, s.config.MITMProxy, s.config.Store, parts[3])
+		})},
 		{method: "GET", pattern: "/api/mcp/oauth/callback", match: apiExactMatch("/api/mcp/oauth/callback"), handler: s.withAudit(func(ctx *fasthttp.RequestCtx) {
 			if !requireMethod(ctx, fasthttp.MethodGet) {
 				return

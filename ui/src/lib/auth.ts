@@ -14,7 +14,7 @@ export function useLogin() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (b: { username: string; password: string }) =>
-      apiFetch("/api/auth/login", { method: "POST", body: b }),
+      apiFetch("/api/auth/login", { method: "POST", body: b, silent: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["auth"] }),
   });
 }

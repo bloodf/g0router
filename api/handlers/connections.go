@@ -7,6 +7,7 @@ import (
 	"log"
 	"reflect"
 	"strings"
+	"time"
 
 	providerids "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/store"
@@ -27,22 +28,23 @@ func (r listResponse[T]) MarshalJSON() ([]byte, error) {
 }
 
 type connectionResponse struct {
-	ID                   string
-	Provider             string
-	Name                 string
-	AuthType             store.AuthType
-	ExpiresAt            *int64
-	IsActive             bool
-	ProviderSpecificData map[string]any
-	AccountID            *string
-	Email                *string
-	UnavailableUntil     *int64
-	BackoffLevel         int
-	ModelLocks           map[string]int64
-	NeedsReauth          bool    `json:"needs_reauth"`
-	LastRefreshError     *string `json:"last_refresh_error,omitempty"`
-	CreatedAt            string
-	UpdatedAt            string
+	ID                   string         `json:"id"`
+	Provider             string         `json:"provider"`
+	Name                 string         `json:"name"`
+	AuthType             string         `json:"auth_type"`
+	IsActive             bool           `json:"is_active"`
+	Models               []string       `json:"models"`
+	ProxyID              *string        `json:"proxy_id,omitempty"`
+	Priority             int            `json:"priority"`
+	LastError            string         `json:"last_error,omitempty"`
+	NeedsReauth          bool           `json:"needs_reauth"`
+	UnavailableUntil     *string        `json:"unavailable_until,omitempty"`
+	ExpiresAt            *string        `json:"expires_at,omitempty"`
+	AccountID            *string        `json:"account_id,omitempty"`
+	Email                *string        `json:"email,omitempty"`
+	CreatedAt            string         `json:"created_at"`
+	UpdatedAt            string         `json:"updated_at"`
+	ProviderSpecificData map[string]any `json:"provider_specific_data,omitempty"` // kept for backward compat; secrets redacted
 }
 
 type connectionRequest struct {
@@ -308,24 +310,40 @@ func redactConnections(connections []*store.Connection) []connectionResponse {
 }
 
 func redactConnection(conn *store.Connection) connectionResponse {
+	models := make([]string, 0, len(conn.ModelLocks))
+	for m := range conn.ModelLocks {
+		models = append(models, m)
+	}
+	lastError := ""
+	if conn.LastRefreshError != nil {
+		lastError = *conn.LastRefreshError
+	}
 	return connectionResponse{
 		ID:                   conn.ID,
 		Provider:             conn.Provider,
 		Name:                 conn.Name,
-		AuthType:             conn.AuthType,
-		ExpiresAt:            conn.ExpiresAt,
+		AuthType:             string(conn.AuthType),
 		IsActive:             conn.IsActive,
-		ProviderSpecificData: redactProviderSpecificData(conn.ProviderSpecificData),
+		Models:               models,
+		Priority:             conn.BackoffLevel,
+		LastError:            lastError,
+		NeedsReauth:          conn.NeedsReauth,
+		UnavailableUntil:     formatInt64AsISO(conn.UnavailableUntil),
+		ExpiresAt:            formatInt64AsISO(conn.ExpiresAt),
 		AccountID:            conn.AccountID,
 		Email:                conn.Email,
-		UnavailableUntil:     conn.UnavailableUntil,
-		BackoffLevel:         conn.BackoffLevel,
-		ModelLocks:           conn.ModelLocks,
-		NeedsReauth:          conn.NeedsReauth,
-		LastRefreshError:     conn.LastRefreshError,
 		CreatedAt:            conn.CreatedAt,
 		UpdatedAt:            conn.UpdatedAt,
+		ProviderSpecificData: redactProviderSpecificData(conn.ProviderSpecificData),
 	}
+}
+
+func formatInt64AsISO(v *int64) *string {
+	if v == nil {
+		return nil
+	}
+	s := time.Unix(*v, 0).UTC().Format(time.RFC3339)
+	return &s
 }
 
 func redactProviderSpecificData(values map[string]any) map[string]any {

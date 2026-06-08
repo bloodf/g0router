@@ -24,6 +24,7 @@ import (
 	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/metrics"
+	"github.com/bloodf/g0router/internal/mitm"
 	"github.com/bloodf/g0router/internal/modelcatalog"
 	"github.com/bloodf/g0router/internal/notify"
 	"github.com/bloodf/g0router/internal/providers"
@@ -42,6 +43,8 @@ type ServerConfig struct {
 	Version             string
 	BuildDate           string
 	EnableRequestLogs   bool
+	Debug               bool
+	Trace               bool
 	RequireAPIKey       bool
 	APIKeySecret        string
 	APIKeyValidator     APIKeyValidator
@@ -59,6 +62,7 @@ type ServerConfig struct {
 	TunnelManager       handlers.TunnelManager
 	ConsoleBroker       *console.Broker
 	Governance          *governance.Governance
+	MITMProxy           *mitm.Proxy
 }
 
 // logRetentionInterval is how often the background cleanup job runs.
@@ -99,6 +103,8 @@ type Server struct {
 
 	trafficBroker *traffic.Broker
 	consoleBroker *console.Broker
+
+	debugLogger *logging.DebugLogger
 
 	logRetentionInterval time.Duration
 	// runRetention performs a single retention pass. It is a field so tests can
@@ -530,6 +536,15 @@ func (s *Server) listener() net.Listener {
 }
 
 func (s *Server) handle(ctx *fasthttp.RequestCtx) {
+	start := time.Now()
+	requestID := string(ctx.Response.Header.Peek(requestIDHeader))
+	if requestID == "" {
+		var err error
+		requestID, err = newRequestID()
+		if err != nil {
+			requestID = "unknown"
+		}
+	}
 	if !s.applyMiddleware(ctx) {
 		return
 	}
@@ -538,9 +553,11 @@ func (s *Server) handle(ctx *fasthttp.RequestCtx) {
 	for _, r := range s.routes() {
 		if r.match(rawPath, method) {
 			r.handler(ctx)
+			s.traceRequestEnd(ctx, requestID, start)
 			return
 		}
 	}
+	s.traceRequestEnd(ctx, requestID, start)
 }
 
 func (s *Server) handleInference(ctx *fasthttp.RequestCtx) {

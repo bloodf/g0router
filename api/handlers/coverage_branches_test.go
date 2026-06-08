@@ -210,15 +210,13 @@ func TestAPIKeysUpdatePolicyStoreError(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("create failed: %d", ctx.Response.StatusCode())
 	}
-	var created struct {
-		Key struct{ ID string `json:"id"` } `json:"key"`
-	}
+	var created apiKeyView
 	decodeJSON(t, ctx.Response.Body(), &created)
 	if err := s.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
 	ctx, body := runHandler(t, fasthttp.MethodPut, `{"rate_limit_rpm":10}`, func(ctx *fasthttp.RequestCtx) {
-		APIKeys(ctx, s, "test-secret", created.Key.ID)
+		APIKeys(ctx, s, "test-secret", created.ID)
 	})
 	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
 		t.Fatalf("status = %d, want 500; body=%s", ctx.Response.StatusCode(), body)

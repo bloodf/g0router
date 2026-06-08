@@ -2,6 +2,8 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Icon } from "../common/Icon";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api/client";
 
 interface NavItem {
   href: string;
@@ -88,6 +90,10 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const { t } = useTranslation();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const sections = getNavSections(t);
+  const { data: version } = useQuery({
+    queryKey: ["version"],
+    queryFn: () => apiFetch<{ current: string }>("/api/version"),
+  });
 
   return (
     <aside className="bg-sidebar bg-vibrancy w-[240px] flex-shrink-0 border-r border-sidebar-border h-full flex flex-col overflow-hidden">
@@ -133,7 +139,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       </nav>
 
       <div className="border-t border-sidebar-border px-4 py-3 flex items-center justify-between text-xs text-text-muted">
-        <span>v0.9.0</span>
+        <span>{version?.current ?? "…"}</span>
         <span className="pulse-dot" />
       </div>
     </aside>

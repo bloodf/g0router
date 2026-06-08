@@ -33,40 +33,40 @@ type updateVirtualKeyRequest struct {
 }
 
 type virtualKeyView struct {
-	ID            int64    `json:"id"`
+	ID            string   `json:"id"`
 	Name          string   `json:"name"`
-	KeyPrefix     string   `json:"key_prefix"`
+	Prefix        string   `json:"prefix"`
 	BudgetUSD     *float64 `json:"budget_usd"`
 	BudgetPeriod  string   `json:"budget_period"`
 	BudgetUsedUSD float64  `json:"budget_used_usd"`
 	RateLimitRPM  *int     `json:"rate_limit_rpm"`
 	RateLimitTPM  *int     `json:"rate_limit_tpm"`
-	TeamID        *int64   `json:"team_id"`
+	TeamID        *string  `json:"team_id"`
 	IsActive      bool     `json:"is_active"`
 	MCPToolGroup  string   `json:"mcp_tool_group"`
 	CreatedAt     string   `json:"created_at"`
 }
 
 func newVirtualKeyView(key store.VirtualKey) virtualKeyView {
+	var teamID *string
+	if key.TeamID != nil {
+		s := strconv.FormatInt(*key.TeamID, 10)
+		teamID = &s
+	}
 	return virtualKeyView{
-		ID:            key.ID,
+		ID:            strconv.FormatInt(key.ID, 10),
 		Name:          key.Name,
-		KeyPrefix:     key.KeyPrefix,
+		Prefix:        key.KeyPrefix,
 		BudgetUSD:     key.BudgetUSD,
 		BudgetPeriod:  key.BudgetPeriod,
 		BudgetUsedUSD: key.BudgetUsedUSD,
 		RateLimitRPM:  key.RateLimitRPM,
 		RateLimitTPM:  key.RateLimitTPM,
-		TeamID:        key.TeamID,
+		TeamID:        teamID,
 		IsActive:      key.IsActive,
 		MCPToolGroup:  key.MCPToolGroup,
 		CreatedAt:     key.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
-}
-
-type createVirtualKeyResponse struct {
-	Key virtualKeyView `json:"key"`
-	Raw string         `json:"raw"`
 }
 
 type virtualKeyStore interface {
@@ -126,7 +126,8 @@ func VirtualKeys(ctx *fasthttp.RequestCtx, s virtualKeyStore, id string) {
 			writeError(ctx, fasthttp.StatusInternalServerError, "failed to create virtual key")
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusCreated, createVirtualKeyResponse{Key: newVirtualKeyView(*key), Raw: raw})
+		_ = raw
+		writeJSON(ctx, fasthttp.StatusCreated, newVirtualKeyView(*key))
 	case fasthttp.MethodPut:
 		if id == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "virtual key id required")

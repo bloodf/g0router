@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 interface Field {
   name: string;
   label: string;
-  type?: "text" | "number" | "select" | "textarea" | "switch";
+  type?: "text" | "number" | "select" | "textarea" | "switch" | "multiselect" | "date";
   options?: { label: string; value: string }[];
   placeholder?: string;
   required?: boolean;
@@ -40,9 +41,11 @@ interface Props<T> {
   initialValues?: (row?: T) => Record<string, any>;
   extraToolbar?: ReactNode;
   listSelector?: (resp: any) => T[];
+  extraActions?: (row: T) => ReactNode;
+  transformBody?: (values: Record<string, any>) => Record<string, any>;
 }
 
-export function CrudPage<T extends { id: string }>({
+export function CrudPage<T extends { id: string | number }>({
   title,
   description,
   icon,
@@ -56,6 +59,8 @@ export function CrudPage<T extends { id: string }>({
   initialValues,
   extraToolbar,
   listSelector,
+  extraActions,
+  transformBody,
 }: Props<T>) {
   const qc = useQueryClient();
   const [openForm, setOpenForm] = useState(false);
@@ -73,10 +78,11 @@ export function CrudPage<T extends { id: string }>({
 
   const save = useMutation({
     mutationFn: async (body: any) => {
+      const payload = transformBody ? transformBody(body) : body;
       if (editing) {
-        return apiFetch(`${endpoint}/${editing.id}`, { method: "PUT", body });
+        return apiFetch(`${endpoint}/${editing.id}`, { method: "PUT", body: payload });
       }
-      return apiFetch(endpoint, { method: "POST", body });
+      return apiFetch(endpoint, { method: "POST", body: payload });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey });
@@ -91,7 +97,7 @@ export function CrudPage<T extends { id: string }>({
   });
 
   const del = useMutation({
-    mutationFn: (id: string) => apiFetch(`${endpoint}/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string | number) => apiFetch(`${endpoint}/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey });
       toast.success("Deleted");
@@ -116,20 +122,13 @@ export function CrudPage<T extends { id: string }>({
       header: "",
       cell: ({ row }) => (
         <div className="flex items-center gap-1 justify-end">
+          {extraActions?.(row.original)}
           {fields && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => openEdit(row.original)}
-            >
+            <Button variant="ghost" size="sm" onClick={() => openEdit(row.original)}>
               <Icon name="edit" size={14} />
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setToDelete(row.original)}
-          >
+          <Button variant="ghost" size="sm" onClick={() => setToDelete(row.original)}>
             <Icon name="delete" size={14} className="text-destructive" />
           </Button>
         </div>
@@ -196,18 +195,48 @@ export function CrudPage<T extends { id: string }>({
                   <textarea
                     className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none min-h-[80px]"
                     value={values[f.name] ?? ""}
-                    onChange={(e) =>
-                      setValues((v) => ({ ...v, [f.name]: e.target.value }))
-                    }
+                    onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                    required={f.required}
+                  />
+                ) : f.type === "multiselect" ? (
+                  <div className="flex flex-wrap gap-3">
+                    {f.options?.map((o) => {
+                      const selected = new Set(values[f.name] ?? []);
+                      return (
+                        <label
+                          key={o.value}
+                          className="inline-flex items-center gap-2 text-sm cursor-pointer"
+                        >
+                          <Checkbox
+                            checked={selected.has(o.value)}
+                            onCheckedChange={(checked) => {
+                              const next = new Set(selected);
+                              if (checked) next.add(o.value);
+                              else next.delete(o.value);
+                              setValues((v) => ({
+                                ...v,
+                                [f.name]: Array.from(next),
+                              }));
+                            }}
+                          />
+                          <span>{o.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : f.type === "date" ? (
+                  <input
+                    type="date"
+                    className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
+                    value={values[f.name] ?? ""}
+                    onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
                     required={f.required}
                   />
                 ) : f.type === "select" ? (
                   <select
                     className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                     value={values[f.name] ?? ""}
-                    onChange={(e) =>
-                      setValues((v) => ({ ...v, [f.name]: e.target.value }))
-                    }
+                    onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
                     required={f.required}
                   >
                     <option value="">—</option>
@@ -223,9 +252,7 @@ export function CrudPage<T extends { id: string }>({
                       type="checkbox"
                       className="accent-brand-500 w-4 h-4"
                       checked={!!values[f.name]}
-                      onChange={(e) =>
-                        setValues((v) => ({ ...v, [f.name]: e.target.checked }))
-                      }
+                      onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.checked }))}
                     />
                     <span className="text-sm">{f.placeholder ?? f.label}</span>
                   </label>

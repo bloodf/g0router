@@ -494,7 +494,7 @@ func TestE2EConnectionsCRUD(t *testing.T) {
 	assertStatus(t, resp, http.StatusCreated)
 	var created map[string]any
 	mustDecode(t, resp, &created)
-	id, _ := created["ID"].(string)
+	id, _ := created["id"].(string)
 	if id == "" {
 		t.Fatal("missing connection id")
 	}
@@ -530,8 +530,8 @@ func TestE2EConnectionsCRUD(t *testing.T) {
 	assertStatus(t, resp, http.StatusOK)
 	var updated map[string]any
 	mustDecode(t, resp, &updated)
-	if updated["Name"] != "conn1-renamed" {
-		t.Fatalf("name = %v, want conn1-renamed", updated["Name"])
+	if updated["name"] != "conn1-renamed" {
+		t.Fatalf("name = %v, want conn1-renamed", updated["name"])
 	}
 
 	// Test
@@ -596,17 +596,15 @@ func TestE2EAPIKeysCRUD(t *testing.T) {
 	resp := doAuth(t, client, http.MethodPost, baseURL+"/api/keys", `{"name":"key1"}`, rawKey)
 	assertStatus(t, resp, http.StatusCreated)
 	var created struct {
-		Key struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"key"`
-		Raw string `json:"raw"`
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		FullKey string `json:"full_key"`
 	}
 	mustDecode(t, resp, &created)
-	if created.Key.Name != "key1" {
-		t.Fatalf("name = %q, want key1", created.Key.Name)
+	if created.Name != "key1" {
+		t.Fatalf("name = %q, want key1", created.Name)
 	}
-	id := created.Key.ID
+	id := created.ID
 
 	// List
 	resp = doAuth(t, client, http.MethodGet, baseURL+"/api/keys", "", rawKey)
@@ -645,24 +643,22 @@ func TestE2EAPIKeysCRUD(t *testing.T) {
 	resp = doAuth(t, client, http.MethodPut, baseURL+"/api/keys/"+id, `{"scopes":["read"]}`, rawKey)
 	assertStatus(t, resp, http.StatusOK)
 	var updated struct {
-		Key struct {
-			Scopes []string `json:"scopes"`
-		} `json:"key"`
+		Scopes []string `json:"scopes"`
 	}
 	mustDecode(t, resp, &updated)
-	if len(updated.Key.Scopes) != 1 || updated.Key.Scopes[0] != "read" {
-		t.Fatalf("scopes = %v", updated.Key.Scopes)
+	if len(updated.Scopes) != 1 || updated.Scopes[0] != "read" {
+		t.Fatalf("scopes = %v", updated.Scopes)
 	}
 
 	// Regenerate
 	resp = doAuth(t, client, http.MethodPost, baseURL+"/api/keys/"+id+"/regenerate", "", rawKey)
 	assertStatus(t, resp, http.StatusOK)
 	var regen struct {
-		Raw string `json:"raw"`
+		FullKey string `json:"full_key"`
 	}
 	mustDecode(t, resp, &regen)
-	if regen.Raw == "" {
-		t.Fatal("expected new raw key")
+	if regen.FullKey == "" {
+		t.Fatal("expected new full_key")
 	}
 
 	// Delete
@@ -710,21 +706,18 @@ func TestE2EVirtualKeysCRUD(t *testing.T) {
 	resp := doAuth(t, client, http.MethodPost, baseURL+"/api/virtual-keys", `{"name":"vk1"}`, rawKey)
 	assertStatus(t, resp, http.StatusCreated)
 	var created struct {
-		Key struct {
-			ID   int64  `json:"id"`
-			Name string `json:"name"`
-		} `json:"key"`
-		Raw string `json:"raw"`
+		ID   string `json:"id"`
+		Name string `json:"name"`
 	}
 	mustDecode(t, resp, &created)
-	id := created.Key.ID
+	id := created.ID
 
 	// List
 	resp = doAuth(t, client, http.MethodGet, baseURL+"/api/virtual-keys", "", rawKey)
 	assertStatus(t, resp, http.StatusOK)
 	var list struct {
 		Data []struct {
-			ID   int64  `json:"id"`
+			ID   string `json:"id"`
 			Name string `json:"name"`
 		} `json:"data"`
 	}
@@ -734,11 +727,11 @@ func TestE2EVirtualKeysCRUD(t *testing.T) {
 	}
 
 	// Get by ID
-	resp = doAuth(t, client, http.MethodGet, baseURL+"/api/virtual-keys/"+strconv.FormatInt(id, 10), "", rawKey)
+	resp = doAuth(t, client, http.MethodGet, baseURL+"/api/virtual-keys/"+id, "", rawKey)
 	assertStatus(t, resp, http.StatusOK)
 
 	// Update
-	resp = doAuth(t, client, http.MethodPut, baseURL+"/api/virtual-keys/"+strconv.FormatInt(id, 10), `{"name":"vk1-renamed","is_active":true}`, rawKey)
+	resp = doAuth(t, client, http.MethodPut, baseURL+"/api/virtual-keys/"+id, `{"name":"vk1-renamed","is_active":true}`, rawKey)
 	assertStatus(t, resp, http.StatusOK)
 	var updated struct {
 		Name string `json:"name"`
@@ -749,7 +742,7 @@ func TestE2EVirtualKeysCRUD(t *testing.T) {
 	}
 
 	// Delete
-	resp = doReq(t, client, http.MethodDelete, baseURL+"/api/virtual-keys/"+strconv.FormatInt(id, 10), "", map[string]string{"Authorization": "Bearer " + rawKey})
+	resp = doReq(t, client, http.MethodDelete, baseURL+"/api/virtual-keys/"+id, "", map[string]string{"Authorization": "Bearer " + rawKey})
 	assertStatus(t, resp, http.StatusNoContent)
 }
 
@@ -933,9 +926,11 @@ func TestE2EAdminModels(t *testing.T) {
 
 	resp := doAuth(t, client, http.MethodGet, baseURL+"/api/models", "", rawKey)
 	assertStatus(t, resp, http.StatusOK)
-	var list []map[string]any
+	var list struct {
+		Data []map[string]any `json:"data"`
+	}
 	mustDecode(t, resp, &list)
-	if len(list) == 0 {
+	if len(list.Data) == 0 {
 		t.Fatal("expected models")
 	}
 
@@ -1754,12 +1749,6 @@ func TestE2EMissingEndpoints(t *testing.T) {
 		// Diagnostics
 		{http.MethodGet, "/api/diagnostics", ``, http.StatusNotFound},
 
-		// MITM
-		{http.MethodGet, "/api/mitm/status", ``, http.StatusNotFound},
-		{http.MethodPost, "/api/mitm/toggle", ``, http.StatusNotFound},
-		{http.MethodGet, "/api/mitm/ca-cert", ``, http.StatusNotFound},
-		{http.MethodGet, "/api/mitm/tools", ``, http.StatusNotFound},
-		{http.MethodGet, "/api/mitm/tools/xyz", ``, http.StatusNotFound},
 	}
 
 	for _, tc := range cases {

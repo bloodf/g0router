@@ -173,9 +173,9 @@ func TestAPIKeysNilMethodAndErrorPaths(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("POST status = %d, want 201; body=%s", ctx.Response.StatusCode(), body)
 	}
-	var created createAPIKeyResponse
+	var created apiKeyView
 	decodeJSON(t, body, &created)
-	ctx, _ = runHandler(t, fasthttp.MethodDelete, "", func(ctx *fasthttp.RequestCtx) { APIKeys(ctx, s, "secret", created.Key.ID) })
+	ctx, _ = runHandler(t, fasthttp.MethodDelete, "", func(ctx *fasthttp.RequestCtx) { APIKeys(ctx, s, "secret", created.ID) })
 	if ctx.Response.StatusCode() != fasthttp.StatusNoContent {
 		t.Fatalf("DELETE status = %d, want 204", ctx.Response.StatusCode())
 	}

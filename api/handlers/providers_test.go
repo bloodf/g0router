@@ -33,20 +33,7 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	}
 
 	var decoded struct {
-		Data []struct {
-			ID                string   `json:"id"`
-			AuthTypes         []string `json:"auth_types"`
-			PublicStatus      string   `json:"public_status"`
-			RegisteredAdapter bool     `json:"registered_adapter"`
-			PublicInference   bool     `json:"public_inference"`
-			DirectDispatch    bool     `json:"direct_dispatch"`
-			Inference         bool     `json:"inference"`
-			Streaming         bool     `json:"streaming"`
-			ModelCatalog      bool     `json:"model_catalog"`
-			ListModels        bool     `json:"list_models"`
-			Quota             bool     `json:"quota"`
-			Notes             string   `json:"notes"`
-		} `json:"data"`
+		Data []providerListItem `json:"data"`
 	}
 	decodeJSON(t, body, &decoded)
 	if len(decoded.Data) == 0 {
@@ -55,55 +42,33 @@ func TestProvidersListKnownProviders(t *testing.T) {
 	if strings.Contains(string(body), `"auth_types":null`) {
 		t.Fatalf("providers response serialized null auth_types: %s", body)
 	}
-	byID := make(map[string]struct {
-		PublicStatus      string
-		RegisteredAdapter bool
-		PublicInference   bool
-		DirectDispatch    bool
-		Inference         bool
-		Quota             bool
-	}, len(decoded.Data))
+	byID := make(map[string]providerListItem, len(decoded.Data))
 	for _, provider := range decoded.Data {
-		byID[provider.ID] = struct {
-			PublicStatus      string
-			RegisteredAdapter bool
-			PublicInference   bool
-			DirectDispatch    bool
-			Inference         bool
-			Quota             bool
-		}{
-			PublicStatus:      provider.PublicStatus,
-			RegisteredAdapter: provider.RegisteredAdapter,
-			PublicInference:   provider.PublicInference,
-			DirectDispatch:    provider.DirectDispatch,
-			Inference:         provider.Inference,
-			Quota:             provider.Quota,
-		}
+		byID[provider.ID] = provider
 	}
-	if byID["openai"].PublicStatus != "supported" || !byID["openai"].PublicInference || !byID["openai"].DirectDispatch || !byID["openai"].Inference {
-		t.Fatalf("openai provider = %+v, want supported inference provider", byID["openai"])
+	if byID["openai"].Status != "inactive" {
+		t.Fatalf("openai provider = %+v, want inactive when no connections exist", byID["openai"])
 	}
-	if byID["openai"].Quota {
-		t.Fatalf("openai provider = %+v, should not claim quota support until a real fetcher exists", byID["openai"])
+	if byID["openai"].ConnectionCount != 0 {
+		t.Fatalf("openai provider = %+v, should have 0 connections", byID["openai"])
 	}
-	if byID["anthropic"].Quota {
-		t.Fatalf("anthropic provider = %+v, should not claim quota support until a real fetcher exists", byID["anthropic"])
+	if byID["openai"].DisplayName == "" {
+		t.Fatalf("openai provider = %+v, should have display_name", byID["openai"])
+	}
+	if len(byID["openai"].Capabilities) == 0 {
+		t.Fatalf("openai provider = %+v, should have capabilities", byID["openai"])
 	}
 	for _, id := range []string{"alibaba", "azure", "bedrock", "cerebras", "cloudflare-ai-gateway", "cohere", "deepseek", "fireworks", "gemini", "github-copilot", "gitlab-duo", "groq", "huggingface", "kilo", "kimi", "litellm", "lm-studio", "mistral", "minimax", "nebius", "nvidia", "ollama", "ollama-cloud", "opencode", "openrouter", "perplexity", "qianfan", "qwen", "replicate", "together", "vercel-ai-gateway", "vertex", "vllm", "xai", "zhipu"} {
-		if byID[id].PublicStatus != "supported" || !byID[id].RegisteredAdapter || !byID[id].PublicInference || !byID[id].DirectDispatch || !byID[id].Inference {
-			t.Fatalf("%s provider = %+v, want supported inference provider", id, byID[id])
+		if byID[id].ID == "" {
+			t.Fatalf("%s provider missing from response", id)
 		}
-		if id == "openrouter" {
-			if !byID[id].Quota {
-				t.Fatalf("%s provider = %+v, should expose real quota support", id, byID[id])
-			}
-		} else if byID[id].Quota {
-			t.Fatalf("%s provider = %+v, should not claim quota support", id, byID[id])
+		if len(byID[id].AuthTypes) == 0 {
+			t.Fatalf("%s provider = %+v, want auth_types populated", id, byID[id])
 		}
 	}
 	for _, id := range []string{"kagi", "tavily"} {
-		if byID[id].PublicStatus != "auth_only" || byID[id].RegisteredAdapter || byID[id].Inference || byID[id].PublicInference || byID[id].DirectDispatch {
-			t.Fatalf("%s provider = %+v, want API-key auth-only search provider", id, byID[id])
+		if byID[id].ID == "" {
+			t.Fatalf("%s provider missing from response", id)
 		}
 	}
 	matrix := providerinfo.ProviderMatrix()
@@ -112,55 +77,19 @@ func TestProvidersListKnownProviders(t *testing.T) {
 		if !ok {
 			t.Fatalf("provider %q missing from matrix", got.ID)
 		}
-		if got.Inference != entry.Inference {
-			t.Fatalf("%s inference = %v, want matrix value %v", got.ID, got.Inference, entry.Inference)
+		if entry.Inference && !sliceContains(got.Capabilities, "inference") {
+			t.Fatalf("%s inference = true but capabilities missing inference: %v", got.ID, got.Capabilities)
 		}
 	}
-	var bedrock struct {
-		PublicStatus      string
-		RegisteredAdapter bool
-		PublicInference   bool
-		DirectDispatch    bool
-		Inference         bool
-		Streaming         bool
-		ModelCatalog      bool
-		ListModels        bool
-		Quota             bool
-		Notes             string
+	bedrock, ok := byID["bedrock"]
+	if !ok {
+		t.Fatal("bedrock provider missing from response")
 	}
-	for _, provider := range decoded.Data {
-		if provider.ID == "bedrock" {
-			bedrock = struct {
-				PublicStatus      string
-				RegisteredAdapter bool
-				PublicInference   bool
-				DirectDispatch    bool
-				Inference         bool
-				Streaming         bool
-				ModelCatalog      bool
-				ListModels        bool
-				Quota             bool
-				Notes             string
-			}{
-				PublicStatus:      provider.PublicStatus,
-				RegisteredAdapter: provider.RegisteredAdapter,
-				PublicInference:   provider.PublicInference,
-				DirectDispatch:    provider.DirectDispatch,
-				Inference:         provider.Inference,
-				Streaming:         provider.Streaming,
-				ModelCatalog:      provider.ModelCatalog,
-				ListModels:        provider.ListModels,
-				Quota:             provider.Quota,
-				Notes:             provider.Notes,
-			}
-			break
-		}
+	if !strings.Contains(strings.ToLower(bedrock.Description), "converse") || !strings.Contains(strings.ToLower(bedrock.Description), "catalog") || !strings.Contains(strings.ToLower(bedrock.Description), "streaming") {
+		t.Fatalf("bedrock description = %q, want explicit Converse catalog status", bedrock.Description)
 	}
-	if bedrock.PublicStatus != "supported" || !bedrock.RegisteredAdapter || !bedrock.PublicInference || !bedrock.DirectDispatch || !bedrock.Inference || !bedrock.Streaming || !bedrock.ModelCatalog || !bedrock.ListModels || bedrock.Quota {
-		t.Fatalf("bedrock provider = %+v, want supported streaming Converse catalog provider without quota", bedrock)
-	}
-	if !strings.Contains(strings.ToLower(bedrock.Notes), "converse") || !strings.Contains(strings.ToLower(bedrock.Notes), "catalog") || !strings.Contains(strings.ToLower(bedrock.Notes), "streaming") {
-		t.Fatalf("bedrock notes = %q, want explicit Converse catalog status", bedrock.Notes)
+	if !sliceContains(bedrock.Capabilities, "streaming") || !sliceContains(bedrock.Capabilities, "model_catalog") || !sliceContains(bedrock.Capabilities, "list_models") {
+		t.Fatalf("bedrock capabilities = %v, want streaming/catalog/list_models", bedrock.Capabilities)
 	}
 }
 
@@ -556,6 +485,15 @@ func TestProviderSuggestedModelsUnsupported(t *testing.T) {
 	if len(decoded.Data) != 0 {
 		t.Fatalf("models = %d, want 0", len(decoded.Data))
 	}
+}
+
+func sliceContains(values []string, target string) bool {
+	for _, v := range values {
+		if v == target {
+			return true
+		}
+	}
+	return false
 }
 
 func newHandlerStore(t *testing.T) *store.Store {

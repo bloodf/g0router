@@ -20,51 +20,36 @@ func TestAPIKeysCreateWithPolicyAndNoSecretLeak(t *testing.T) {
 	if strings.Contains(string(body), "key_hash") || strings.Contains(string(body), "secret") {
 		t.Fatalf("response leaks secret material: %s", body)
 	}
-	var created struct {
-		Key struct {
-			ID               string   `json:"id"`
-			Scopes           []string `json:"scopes"`
-			RateLimitRPM     *int     `json:"rate_limit_rpm"`
-			RateLimitTPM     *int     `json:"rate_limit_tpm"`
-			DailySpendCapUSD *float64 `json:"daily_spend_cap_usd"`
-			ExpiresAt        *int64   `json:"expires_at"`
-		} `json:"key"`
-		Raw string `json:"raw"`
-	}
+	var created apiKeyView
 	decodeJSON(t, body, &created)
-	if len(created.Key.Scopes) != 1 || created.Key.Scopes[0] != "gpt-*" {
-		t.Fatalf("scopes = %v", created.Key.Scopes)
+	if len(created.Scopes) != 1 || created.Scopes[0] != "gpt-*" {
+		t.Fatalf("scopes = %v", created.Scopes)
 	}
-	if created.Key.RateLimitRPM == nil || *created.Key.RateLimitRPM != 60 {
-		t.Fatalf("rpm = %v", created.Key.RateLimitRPM)
+	if created.RateLimitRPM == nil || *created.RateLimitRPM != 60 {
+		t.Fatalf("rpm = %v", created.RateLimitRPM)
 	}
-	if created.Key.DailySpendCapUSD == nil || *created.Key.DailySpendCapUSD != 5.5 {
-		t.Fatalf("cap = %v", created.Key.DailySpendCapUSD)
+	if created.DailySpendCap == nil || *created.DailySpendCap != 5.5 {
+		t.Fatalf("cap = %v", created.DailySpendCap)
 	}
-	if created.Key.ExpiresAt == nil || *created.Key.ExpiresAt != 4102444800 {
-		t.Fatalf("expires_at = %v", created.Key.ExpiresAt)
+	if created.ExpiresAt == nil || *created.ExpiresAt != 4102444800 {
+		t.Fatalf("expires_at = %v", created.ExpiresAt)
 	}
 
 	// Update policy via PUT.
 	putBody := `{"rate_limit_rpm":120,"scopes":["claude-*"]}`
 	ctx, body = runHandler(t, fasthttp.MethodPut, putBody, func(ctx *fasthttp.RequestCtx) {
-		APIKeys(ctx, s, "test-secret", created.Key.ID)
+		APIKeys(ctx, s, "test-secret", created.ID)
 	})
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("update status = %d; body=%s", ctx.Response.StatusCode(), body)
 	}
-	var updated struct {
-		Key struct {
-			RateLimitRPM *int     `json:"rate_limit_rpm"`
-			Scopes       []string `json:"scopes"`
-		} `json:"key"`
-	}
+	var updated apiKeyView
 	decodeJSON(t, body, &updated)
-	if updated.Key.RateLimitRPM == nil || *updated.Key.RateLimitRPM != 120 {
-		t.Fatalf("updated rpm = %v", updated.Key.RateLimitRPM)
+	if updated.RateLimitRPM == nil || *updated.RateLimitRPM != 120 {
+		t.Fatalf("updated rpm = %v", updated.RateLimitRPM)
 	}
-	if len(updated.Key.Scopes) != 1 || updated.Key.Scopes[0] != "claude-*" {
-		t.Fatalf("updated scopes = %v", updated.Key.Scopes)
+	if len(updated.Scopes) != 1 || updated.Scopes[0] != "claude-*" {
+		t.Fatalf("updated scopes = %v", updated.Scopes)
 	}
 }
 
@@ -121,12 +106,10 @@ func TestAPIKeysUpdateInvalidPolicyRejected(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("create failed: %d", ctx.Response.StatusCode())
 	}
-	var created struct {
-		Key struct{ ID string `json:"id"` } `json:"key"`
-	}
+	var created apiKeyView
 	decodeJSON(t, ctx.Response.Body(), &created)
 	ctx, body := runHandler(t, fasthttp.MethodPut, `{"rate_limit_rpm":-5}`, func(ctx *fasthttp.RequestCtx) {
-		APIKeys(ctx, s, "test-secret", created.Key.ID)
+		APIKeys(ctx, s, "test-secret", created.ID)
 	})
 	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
 		t.Fatalf("status = %d, want 400; body=%s", ctx.Response.StatusCode(), body)

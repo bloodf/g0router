@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -17,19 +18,13 @@ func TestVirtualKeysCreateListGetUpdateDelete(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("create status = %d, want 201; body=%s", ctx.Response.StatusCode(), body)
 	}
-	var created struct {
-		Key struct {
-			ID   int64  `json:"id"`
-			Name string `json:"name"`
-		} `json:"key"`
-		Raw string `json:"raw"`
-	}
+	var created virtualKeyView
 	decodeJSON(t, body, &created)
-	if created.Key.ID == 0 || created.Key.Name != "prod-key" {
-		t.Fatalf("created = %+v", created.Key)
+	if created.ID == "" || created.Name != "prod-key" {
+		t.Fatalf("created = %+v", created)
 	}
-	if !strings.HasPrefix(created.Raw, "gvk-") {
-		t.Fatalf("raw = %q, want gvk- prefix", created.Raw)
+	if !strings.HasPrefix(created.Prefix, "gvk-") {
+		t.Fatalf("prefix = %q, want gvk- prefix", created.Prefix)
 	}
 
 	// List
@@ -39,14 +34,12 @@ func TestVirtualKeysCreateListGetUpdateDelete(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("list status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
 	}
-	if strings.Contains(string(body), created.Raw) {
-		t.Fatalf("list exposes raw key: %s", body)
+	// Prefix is intentionally public; ensure the listed entry matches the created key.
+	if !strings.Contains(string(body), created.Prefix) {
+		t.Fatalf("list missing created key prefix: %s", body)
 	}
 	var listed struct {
-		Data []struct {
-			ID   int64  `json:"id"`
-			Name string `json:"name"`
-		} `json:"data"`
+		Data []virtualKeyView `json:"data"`
 	}
 	decodeJSON(t, body, &listed)
 	if len(listed.Data) != 1 || listed.Data[0].Name != "prod-key" {
@@ -121,14 +114,10 @@ func TestVirtualKeysWithTeam(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("create status = %d, want 201; body=%s", ctx.Response.StatusCode(), body)
 	}
-	var created struct {
-		Key struct {
-			TeamID *int64 `json:"team_id"`
-		} `json:"key"`
-	}
+	var created virtualKeyView
 	decodeJSON(t, body, &created)
-	if created.Key.TeamID == nil || *created.Key.TeamID != team.ID {
-		t.Fatalf("team_id = %v, want %d", created.Key.TeamID, team.ID)
+	if created.TeamID == nil || *created.TeamID != strconv.FormatInt(team.ID, 10) {
+		t.Fatalf("team_id = %v, want %d", created.TeamID, team.ID)
 	}
 }
 

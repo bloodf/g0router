@@ -16,19 +16,13 @@ func TestAPIKeysCreateListDelete(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusCreated {
 		t.Fatalf("create status = %d, want 201; body=%s", ctx.Response.StatusCode(), body)
 	}
-	var created struct {
-		Key struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"key"`
-		Raw string `json:"raw"`
-	}
+	var created apiKeyView
 	decodeJSON(t, body, &created)
-	if created.Key.ID == "" || created.Key.Name != "dashboard" {
-		t.Fatalf("created = %+v", created.Key)
+	if created.ID == "" || created.Name != "dashboard" {
+		t.Fatalf("created = %+v", created)
 	}
-	if !strings.HasPrefix(created.Raw, "g0r_") {
-		t.Fatalf("raw key = %q, want g0r_ prefix", created.Raw)
+	if !strings.HasPrefix(created.FullKey, "g0r_") {
+		t.Fatalf("raw key = %q, want g0r_ prefix", created.FullKey)
 	}
 
 	ctx, body = runHandler(t, fasthttp.MethodGet, "", func(ctx *fasthttp.RequestCtx) {
@@ -37,21 +31,19 @@ func TestAPIKeysCreateListDelete(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("list status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
 	}
-	if strings.Contains(string(body), created.Raw) {
+	if strings.Contains(string(body), created.FullKey) {
 		t.Fatalf("list response exposes raw key: %s", body)
 	}
 	var listed struct {
-		Data []struct {
-			ID string `json:"id"`
-		} `json:"data"`
+		Data []apiKeyView `json:"data"`
 	}
 	decodeJSON(t, body, &listed)
-	if len(listed.Data) != 1 || listed.Data[0].ID != created.Key.ID {
+	if len(listed.Data) != 1 || listed.Data[0].ID != created.ID {
 		t.Fatalf("listed = %+v, want created key", listed.Data)
 	}
 
 	ctx, body = runHandler(t, fasthttp.MethodDelete, "", func(ctx *fasthttp.RequestCtx) {
-		APIKeys(ctx, s, "test-secret", created.Key.ID)
+		APIKeys(ctx, s, "test-secret", created.ID)
 	})
 	if ctx.Response.StatusCode() != fasthttp.StatusNoContent {
 		t.Fatalf("delete status = %d, want 204; body=%s", ctx.Response.StatusCode(), body)

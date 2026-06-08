@@ -10,43 +10,58 @@ import (
 )
 
 type createAPIKeyRequest struct {
-	Name             string   `json:"name"`
-	ExpiresAt        *int64   `json:"expires_at"`
-	Scopes           []string `json:"scopes"`
-	RateLimitRPM     *int     `json:"rate_limit_rpm"`
-	RateLimitTPM     *int     `json:"rate_limit_tpm"`
-	DailySpendCapUSD *float64 `json:"daily_spend_cap_usd"`
+	Name           string   `json:"name"`
+	ExpiresAt      *int64   `json:"expires_at"`
+	Scopes         []string `json:"scopes"`
+	RateLimitRPM   *int     `json:"rpm_limit"`
+	RateLimitTPM   *int     `json:"tpm_limit"`
+	DailySpendCap  *float64 `json:"daily_spend_cap"`
+	// Backward-compatible aliases used by older clients
+	RateLimitRPMLegacy    *int     `json:"rate_limit_rpm,omitempty"`
+	RateLimitTPMLegacy    *int     `json:"rate_limit_tpm,omitempty"`
+	DailySpendCapLegacy   *float64 `json:"daily_spend_cap_usd,omitempty"`
 }
 
-// apiKeyView is the public representation of a key. It never exposes the secret
-// or key hash.
+func (r createAPIKeyRequest) resolvedPolicy() store.APIKeyPolicy {
+	return store.APIKeyPolicy{
+		ExpiresAt:        r.ExpiresAt,
+		Scopes:           r.Scopes,
+		RateLimitRPM:     coalesceInt(r.RateLimitRPM, r.RateLimitRPMLegacy),
+		RateLimitTPM:     coalesceInt(r.RateLimitTPM, r.RateLimitTPMLegacy),
+		DailySpendCapUSD: coalesceFloat64(r.DailySpendCap, r.DailySpendCapLegacy),
+	}
+}
+
+// apiKeyView is the UI-facing representation of a key.
 type apiKeyView struct {
-	ID               string   `json:"id"`
-	Name             string   `json:"name"`
-	Prefix           string   `json:"prefix"`
-	IsActive         bool     `json:"is_active"`
-	LastUsedAt       *string  `json:"last_used_at"`
-	CreatedAt        string   `json:"created_at"`
-	ExpiresAt        *int64   `json:"expires_at"`
-	Scopes           []string `json:"scopes"`
-	RateLimitRPM     *int     `json:"rate_limit_rpm"`
-	RateLimitTPM     *int     `json:"rate_limit_tpm"`
-	DailySpendCapUSD *float64 `json:"daily_spend_cap_usd"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Prefix          string   `json:"prefix"`
+	FullKey         string   `json:"full_key,omitempty"`
+	IsActive        bool     `json:"is_active"`
+	LastUsedAt      *string  `json:"last_used_at"`
+	CreatedAt       string   `json:"created_at"`
+	ExpiresAt       *int64   `json:"expires_at"`
+	Scopes          []string `json:"scopes"`
+	RateLimitRPM    *int     `json:"rpm_limit"`
+	RateLimitTPM    *int     `json:"tpm_limit"`
+	DailySpendCap   *float64 `json:"daily_spend_cap"`
 }
 
-func newAPIKeyView(key store.APIKey) apiKeyView {
+func newAPIKeyView(key store.APIKey, fullKey string) apiKeyView {
 	return apiKeyView{
-		ID:               key.ID,
-		Name:             key.Name,
-		Prefix:           key.Prefix,
-		IsActive:         key.IsActive,
-		LastUsedAt:       key.LastUsedAt,
-		CreatedAt:        key.CreatedAt,
-		ExpiresAt:        key.ExpiresAt,
-		Scopes:           key.Scopes,
-		RateLimitRPM:     key.RateLimitRPM,
-		RateLimitTPM:     key.RateLimitTPM,
-		DailySpendCapUSD: key.DailySpendCapUSD,
+		ID:            key.ID,
+		Name:          key.Name,
+		Prefix:        key.Prefix,
+		FullKey:       fullKey,
+		IsActive:      key.IsActive,
+		LastUsedAt:    key.LastUsedAt,
+		CreatedAt:     key.CreatedAt,
+		ExpiresAt:     key.ExpiresAt,
+		Scopes:        key.Scopes,
+		RateLimitRPM:  key.RateLimitRPM,
+		RateLimitTPM:  key.RateLimitTPM,
+		DailySpendCap: key.DailySpendCapUSD,
 	}
 }
 
@@ -56,22 +71,40 @@ type createAPIKeyResponse struct {
 }
 
 type updateAPIKeyPolicyRequest struct {
-	Name             string   `json:"name"`
-	ExpiresAt        *int64   `json:"expires_at"`
-	Scopes           []string `json:"scopes"`
-	RateLimitRPM     *int     `json:"rate_limit_rpm"`
-	RateLimitTPM     *int     `json:"rate_limit_tpm"`
-	DailySpendCapUSD *float64 `json:"daily_spend_cap_usd"`
+	Name           string   `json:"name"`
+	ExpiresAt      *int64   `json:"expires_at"`
+	Scopes         []string `json:"scopes"`
+	RateLimitRPM   *int     `json:"rpm_limit"`
+	RateLimitTPM   *int     `json:"tpm_limit"`
+	DailySpendCap  *float64 `json:"daily_spend_cap"`
+	// Backward-compatible aliases used by older clients
+	RateLimitRPMLegacy    *int     `json:"rate_limit_rpm,omitempty"`
+	RateLimitTPMLegacy    *int     `json:"rate_limit_tpm,omitempty"`
+	DailySpendCapLegacy   *float64 `json:"daily_spend_cap_usd,omitempty"`
 }
 
-func (r updateAPIKeyPolicyRequest) toPolicy() store.APIKeyPolicy {
+func (r updateAPIKeyPolicyRequest) resolvedPolicy() store.APIKeyPolicy {
 	return store.APIKeyPolicy{
 		ExpiresAt:        r.ExpiresAt,
 		Scopes:           r.Scopes,
-		RateLimitRPM:     r.RateLimitRPM,
-		RateLimitTPM:     r.RateLimitTPM,
-		DailySpendCapUSD: r.DailySpendCapUSD,
+		RateLimitRPM:     coalesceInt(r.RateLimitRPM, r.RateLimitRPMLegacy),
+		RateLimitTPM:     coalesceInt(r.RateLimitTPM, r.RateLimitTPMLegacy),
+		DailySpendCapUSD: coalesceFloat64(r.DailySpendCap, r.DailySpendCapLegacy),
 	}
+}
+
+func coalesceInt(a, b *int) *int {
+	if a != nil {
+		return a
+	}
+	return b
+}
+
+func coalesceFloat64(a, b *float64) *float64 {
+	if a != nil {
+		return a
+	}
+	return b
 }
 
 type apiKeyStore interface {
@@ -100,7 +133,7 @@ func APIKeys(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
 		}
 		views := make([]apiKeyView, 0, len(keys))
 		for _, key := range keys {
-			views = append(views, newAPIKeyView(key))
+			views = append(views, newAPIKeyView(key, ""))
 		}
 		writeJSON(ctx, fasthttp.StatusOK, listResponse[apiKeyView]{Data: views})
 	case fasthttp.MethodPost:
@@ -115,13 +148,7 @@ func APIKeys(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
 			writeError(ctx, fasthttp.StatusInternalServerError, "failed to create api key")
 			return
 		}
-		policy := store.APIKeyPolicy{
-			ExpiresAt:        req.ExpiresAt,
-			Scopes:           req.Scopes,
-			RateLimitRPM:     req.RateLimitRPM,
-			RateLimitTPM:     req.RateLimitTPM,
-			DailySpendCapUSD: req.DailySpendCapUSD,
-		}
+		policy := req.resolvedPolicy()
 		if hasPolicy(policy) {
 			if err := s.UpdateAPIKeyPolicy(key.ID, policy); err != nil {
 				if errors.Is(err, store.ErrInvalidPolicy) {
@@ -140,7 +167,7 @@ func APIKeys(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
 			}
 			key = updated
 		}
-		writeJSON(ctx, fasthttp.StatusCreated, createAPIKeyResponse{Key: newAPIKeyView(*key), Raw: raw})
+		writeJSON(ctx, fasthttp.StatusCreated, newAPIKeyView(*key, raw))
 	case fasthttp.MethodPut:
 		if id == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "api key id required")
@@ -158,7 +185,7 @@ func APIKeys(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
 				return
 			}
 		}
-		if err := s.UpdateAPIKeyPolicy(id, req.toPolicy()); err != nil {
+		if err := s.UpdateAPIKeyPolicy(id, req.resolvedPolicy()); err != nil {
 			if errors.Is(err, store.ErrInvalidPolicy) {
 				writeError(ctx, fasthttp.StatusBadRequest, err.Error())
 				return
@@ -172,7 +199,7 @@ func APIKeys(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string) {
 			writeError(ctx, fasthttp.StatusNotFound, "api key not found")
 			return
 		}
-		writeJSON(ctx, fasthttp.StatusOK, createAPIKeyResponse{Key: newAPIKeyView(*updated)})
+		writeJSON(ctx, fasthttp.StatusOK, newAPIKeyView(*updated, ""))
 	case fasthttp.MethodDelete:
 		if id == "" {
 			writeError(ctx, fasthttp.StatusBadRequest, "api key id required")
@@ -210,5 +237,5 @@ func RegenerateAPIKey(ctx *fasthttp.RequestCtx, s apiKeyStore, secret, id string
 		writeError(ctx, fasthttp.StatusInternalServerError, "failed to regenerate api key")
 		return
 	}
-	writeJSON(ctx, fasthttp.StatusOK, createAPIKeyResponse{Key: newAPIKeyView(*key), Raw: raw})
+	writeJSON(ctx, fasthttp.StatusOK, newAPIKeyView(*key, raw))
 }

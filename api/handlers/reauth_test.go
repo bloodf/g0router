@@ -35,9 +35,9 @@ func TestConnectionResponseIncludesNeedsReauthFields(t *testing.T) {
 	if !bytes.Contains(body, []byte(`"needs_reauth":true`)) {
 		t.Errorf("response missing needs_reauth:true; body=%s", body)
 	}
-	// last_refresh_error should appear with value.
-	if !bytes.Contains(body, []byte(`"last_refresh_error"`)) {
-		t.Errorf("response missing last_refresh_error field; body=%s", body)
+	// last_error should appear with value (UI-facing name for last_refresh_error).
+	if !bytes.Contains(body, []byte(`"last_error"`)) {
+		t.Errorf("response missing last_error field; body=%s", body)
 	}
 	if !bytes.Contains(body, []byte("invalid_grant")) {
 		t.Errorf("response missing error reason; body=%s", body)
@@ -66,9 +66,9 @@ func TestConnectionResponseNeedsReauthFalseByDefault(t *testing.T) {
 	if bytes.Contains(body, []byte(`"needs_reauth":true`)) {
 		t.Errorf("needs_reauth should not be true for fresh connection; body=%s", body)
 	}
-	// last_refresh_error omitted when nil (omitempty).
-	if bytes.Contains(body, []byte(`"last_refresh_error"`)) {
-		t.Errorf("last_refresh_error should be omitted when nil; body=%s", body)
+	// last_error omitted when nil (omitempty).
+	if bytes.Contains(body, []byte(`"last_error"`)) {
+		t.Errorf("last_error should be omitted when nil; body=%s", body)
 	}
 }
 
@@ -99,8 +99,8 @@ func TestConnectionResponseClearedReauthShowsFalse(t *testing.T) {
 	if bytes.Contains(body, []byte(`"needs_reauth":true`)) {
 		t.Errorf("needs_reauth should be false after clear; body=%s", body)
 	}
-	if bytes.Contains(body, []byte(`"last_refresh_error"`)) {
-		t.Errorf("last_refresh_error should be absent after clear; body=%s", body)
+	if bytes.Contains(body, []byte(`"last_error"`)) {
+		t.Errorf("last_error should be absent after clear; body=%s", body)
 	}
 	// Must not leak token_expired in any field that would look like a secret.
 	assertNoCredentialFields(t, body)

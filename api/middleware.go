@@ -50,6 +50,7 @@ const (
 )
 
 func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
+	start := time.Now()
 	requestID, err := newRequestID()
 	if err != nil {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
@@ -59,13 +60,17 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 	ctx.Response.Header.Set(requestIDHeader, requestID)
 	s.applyCORS(ctx)
 
+	s.traceRequestStart(ctx, requestID)
+
 	if string(ctx.Method()) == fasthttp.MethodOptions {
 		ctx.SetStatusCode(fasthttp.StatusNoContent)
+		s.traceRequestEnd(ctx, requestID, start)
 		return false
 	}
 
 	if !s.sourceAllowed(ctx) {
 		ctx.SetStatusCode(fasthttp.StatusForbidden)
+		s.traceRequestEnd(ctx, requestID, start)
 		return false
 	}
 
@@ -73,21 +78,25 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 		ok, err := s.validAPIKey(ctx)
 		if err != nil {
 			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			s.traceRequestEnd(ctx, requestID, start)
 			return false
 		}
 		if !ok {
 			// validAPIKey may have already written a specific status (403/429)
 			// for a virtual key governance rejection. Do not overwrite it.
 			if ctx.Response.StatusCode() != fasthttp.StatusOK {
+				s.traceRequestEnd(ctx, requestID, start)
 				return false
 			}
 			ok, err = s.validSession(ctx)
 			if err != nil {
 				ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+				s.traceRequestEnd(ctx, requestID, start)
 				return false
 			}
 			if !ok {
 				ctx.SetStatusCode(fasthttp.StatusUnauthorized)
+				s.traceRequestEnd(ctx, requestID, start)
 				return false
 			}
 		}
@@ -96,6 +105,7 @@ func (s *Server) applyMiddleware(ctx *fasthttp.RequestCtx) bool {
 	if s.requiresCSRFCheck(ctx) {
 		if !s.originMatchesHost(ctx) {
 			ctx.SetStatusCode(fasthttp.StatusForbidden)
+			s.traceRequestEnd(ctx, requestID, start)
 			return false
 		}
 	}
@@ -402,4 +412,72 @@ func newRequestID() (string, error) {
 		b[8:10],
 		b[10:16],
 	), nil
+}
+
+func (s *Server) traceRequestStart(ctx *fasthttp.RequestCtx, requestID string) {
+	if s.debugLogger == nil || (!s.debugLogger.IsDebug() && !s.debugLogger.IsTrace()) {
+		return
+	}
+	method := string(ctx.Method())
+	path := string(ctx.Path())
+	remoteAddr := ctx.RemoteAddr().String()
+	userAgent := string(ctx.Request.Header.Peek("User-Agent"))
+	s.debugLogger.Debug("request start",
+		"request_id", requestID,
+		"method", method,
+		"path", path,
+		"remote_addr", remoteAddr,
+		"user_agent", userAgent,
+	)
+	if s.debugLogger.IsTrace() {
+		contentType := string(ctx.Request.Header.ContentType())
+		body := ctx.Request.Body()
+		if len(body) > 0 && len(body) <= 16384 {
+			s.debugLogger.Trace("request body",
+				"request_id", requestID,
+				"content_type", contentType,
+				"body", string(body),
+			)
+		} else if len(body) > 16384 {
+			s.debugLogger.Trace("request body",
+				"request_id", requestID,
+				"content_type", contentType,
+				"body", string(body[:16384])+"... [truncated]",
+			)
+		}
+	}
+}
+
+func (s *Server) traceRequestEnd(ctx *fasthttp.RequestCtx, requestID string, start time.Time) {
+	if s.debugLogger == nil || (!s.debugLogger.IsDebug() && !s.debugLogger.IsTrace()) {
+		return
+	}
+	duration := time.Since(start)
+	status := ctx.Response.StatusCode()
+	method := string(ctx.Method())
+	path := string(ctx.Path())
+	s.debugLogger.Debug("request end",
+		"request_id", requestID,
+		"method", method,
+		"path", path,
+		"status", fmt.Sprintf("%d", status),
+		"duration_ms", fmt.Sprintf("%.3f", float64(duration.Microseconds())/1000.0),
+	)
+	if s.debugLogger.IsTrace() {
+		contentType := string(ctx.Response.Header.ContentType())
+		body := ctx.Response.Body()
+		if len(body) > 0 && len(body) <= 16384 {
+			s.debugLogger.Trace("response body",
+				"request_id", requestID,
+				"content_type", contentType,
+				"body", string(body),
+			)
+		} else if len(body) > 16384 {
+			s.debugLogger.Trace("response body",
+				"request_id", requestID,
+				"content_type", contentType,
+				"body", string(body[:16384])+"... [truncated]",
+			)
+		}
+	}
 }

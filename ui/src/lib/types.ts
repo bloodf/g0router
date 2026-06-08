@@ -14,7 +14,7 @@ export interface User {
   username: string;
   display_name?: string;
   role: "admin" | "user";
-  password: string; // hashed in real life; plaintext for mock
+  password: string; // hashed in real life
 }
 
 export interface Provider {
@@ -76,8 +76,8 @@ export interface Team {
   name: string;
   budget_usd?: number;
   budget_used_usd: number;
-  keys_count: number;
-  members: number;
+  budget_period: "daily" | "weekly" | "monthly";
+  rate_limit_rpm?: number;
 }
 
 export interface ComboStep {
@@ -88,13 +88,7 @@ export interface ComboStep {
 export interface Combo {
   id: string;
   name: string;
-  strategy:
-    | "fallback"
-    | "round_robin"
-    | "least_used"
-    | "auto"
-    | "fastest"
-    | "cheapest";
+  strategy: "fallback" | "round_robin" | "least_used" | "auto" | "fastest" | "cheapest";
   steps: ComboStep[];
   sticky_limit?: number;
   is_active: boolean;
@@ -104,14 +98,13 @@ export interface RoutingRule {
   id: string;
   name: string;
   priority: number;
-  condition: {
-    field: "model" | "provider" | "header";
-    operator: "equals" | "contains" | "starts_with";
-    value: string;
-  };
+  cond_field: string;
+  cond_operator: string;
+  cond_value: string;
   target_provider: string;
   target_model?: string;
   is_active: boolean;
+  created_at: string;
 }
 
 export interface Model {
@@ -211,35 +204,66 @@ export interface Tunnel {
   status: "active" | "inactive" | "error" | "connecting";
 }
 
+export interface McpClient {
+  ID: string;
+  Name: string;
+  Transport: "stdio" | "sse" | "streamable-http";
+  Command?: string;
+  Args?: string[];
+  URL?: string;
+  Env?: Record<string, string>;
+  IsActive: boolean;
+  HealthStatus?: string;
+  ToolManifest?: { Tools: { Name: string; Description?: string; InputSchema?: unknown }[] };
+  CreatedAt?: string;
+  UpdatedAt?: string;
+}
+
 export interface McpInstance {
-  id: string;
-  name: string;
-  command: string;
-  type: "stdio" | "sse" | "http";
-  status: "running" | "stopped" | "error";
-  health: "healthy" | "unhealthy";
-  tools_count: number;
+  ID: string;
+  Name: string;
+  Transport: "stdio" | "sse" | "streamable-http";
+  Command?: string;
+  Args?: string[];
+  URL?: string;
+  Env?: Record<string, string>;
+  IsActive: boolean;
+  HealthStatus?: string;
+  ToolManifest?: { Tools: { Name: string; Description?: string; InputSchema?: unknown }[] };
+  CreatedAt?: string;
+  UpdatedAt?: string;
 }
 
 export interface McpAccount {
   id: string;
-  account: string;
-  provider: string;
-  status: "linked" | "unlinked" | "error";
-  linked_to?: string;
+  instance_id: string;
+  account_label: string;
+  subject?: string;
+  email?: string;
+  issuer?: string;
+  resource_uri?: string;
+  scopes?: string[];
+  expires_at?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface McpTool {
-  name: string;
-  client: string;
-  description: string;
-  parameters: object;
+  type: "function";
+  function: {
+    name: string;
+    description?: string;
+    parameters?: unknown;
+  };
 }
 
 export interface McpToolGroup {
-  id: string;
+  id: number;
   name: string;
-  tools: string[];
+  tool_ids: string[];
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface MitmTool {
@@ -251,43 +275,47 @@ export interface MitmTool {
 }
 
 export interface Guardrails {
-  enabled: boolean;
-  blocklist: string[];
-  pii_redaction: boolean;
-  pii_types: string[];
+  guardrails_enabled: boolean;
+  guardrails_blocklist: string[];
+  pii_redaction_enabled: boolean;
+  pii_redaction_types: string[];
 }
 
 export interface ModelLimit {
-  id: string;
+  id: number;
   model: string;
   max_tokens?: number;
-  max_requests_per_min?: number;
-  allowed_keys: string[];
-  time_window_seconds?: number;
+  max_rpm?: number;
+  allowed_key_ids: string[];
+  created_at?: string;
 }
 
 export interface PromptTemplate {
-  id: string;
+  id: number;
   name: string;
-  description?: string;
-  system_prompt?: string;
-  user_prompt_template: string;
-  variables: string[];
+  system_prompt: string;
+  models: string[];
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AlertChannel {
-  id: string;
+  id: number;
   name: string;
   channel_type: "webhook" | "discord" | "telegram" | "email";
-  config: Record<string, string>;
+  config: Record<string, any>;
+  events: string[];
   is_active: boolean;
+  created_at?: string;
 }
 
 export interface FeatureFlag {
-  id: string;
+  id: number;
   key: string;
   enabled: boolean;
   description?: string;
+  created_at?: string;
 }
 
 export interface Settings {
@@ -307,7 +335,6 @@ export interface Settings {
   tunnel_dashboard_access: boolean;
   theme?: "light" | "dark" | "system";
   language?: string;
-  // mock-only
   inject_errors?: boolean;
 }
 

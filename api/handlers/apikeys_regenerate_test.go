@@ -35,22 +35,16 @@ func TestRegenerateAPIKeySuccess(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
 	}
-	var decoded struct {
-		Key struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"key"`
-		Raw string `json:"raw"`
-	}
+	var decoded apiKeyView
 	decodeJSON(t, body, &decoded)
-	if decoded.Key.ID != "key-1" {
-		t.Errorf("id = %q, want key-1", decoded.Key.ID)
+	if decoded.ID != "key-1" {
+		t.Errorf("id = %q, want key-1", decoded.ID)
 	}
-	if decoded.Raw != "g0r_newprefix_rest" {
-		t.Errorf("raw = %q, want g0r_newprefix_rest", decoded.Raw)
+	if decoded.FullKey != "g0r_newprefix_rest" {
+		t.Errorf("full_key = %q, want g0r_newprefix_rest", decoded.FullKey)
 	}
-	if !strings.HasPrefix(decoded.Raw, "g0r_") {
-		t.Error("raw should have g0r_ prefix")
+	if !strings.HasPrefix(decoded.FullKey, "g0r_") {
+		t.Error("full_key should have g0r_ prefix")
 	}
 }
 

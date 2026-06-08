@@ -324,7 +324,7 @@ export function ProviderTopology({
             </Button>
           </div>
           <TopologyFilterBar value={filters} onChange={setFilters} />
-          <TopologyLegend />
+          <TopologyLegend window_sec={filters.window_sec} />
         </>
       )}
       <ReactFlow

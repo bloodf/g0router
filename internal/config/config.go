@@ -17,6 +17,8 @@ type Config struct {
 	APIKeySecret      string
 	RequireAPIKey     bool
 	EnableRequestLogs bool
+	Debug             bool
+	Trace             bool
 	RTKEnabled        bool
 	CavemanEnabled    bool
 	CavemanLevel      string
@@ -52,6 +54,14 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	debug, err := envBool("G0ROUTER_DEBUG", false)
+	if err != nil {
+		return nil, err
+	}
+	trace, err := envBool("G0ROUTER_TRACE", false)
+	if err != nil {
+		return nil, err
+	}
 	rtkEnabled, err := envBool("RTK_ENABLED", true)
 	if err != nil {
 		return nil, err
@@ -76,6 +86,8 @@ func Load() (*Config, error) {
 		APIKeySecret:      apiKeySecret,
 		RequireAPIKey:     requireAPIKey,
 		EnableRequestLogs: enableRequestLogs,
+		Debug:             debug,
+		Trace:             trace,
 		RTKEnabled:        rtkEnabled,
 		CavemanEnabled:    cavemanEnabled,
 		CavemanLevel:      cavemanLevel,

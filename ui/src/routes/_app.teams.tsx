@@ -3,6 +3,12 @@ import { CrudPage } from "@/components/common/CrudPage";
 import { Progress } from "@/components/ui/progress";
 import type { Team } from "@/lib/types";
 
+const BUDGET_PERIOD_OPTIONS = [
+  { label: "Daily", value: "daily" },
+  { label: "Weekly", value: "weekly" },
+  { label: "Monthly", value: "monthly" },
+];
+
 export const Route = createFileRoute("/_app/teams")({
   component: () => (
     <CrudPage<Team>
@@ -16,6 +22,13 @@ export const Route = createFileRoute("/_app/teams")({
       fields={[
         { name: "name", label: "Name", required: true },
         { name: "budget_usd", label: "Budget ($)", type: "number" },
+        {
+          name: "budget_period",
+          label: "Budget period",
+          type: "select",
+          options: BUDGET_PERIOD_OPTIONS,
+        },
+        { name: "rate_limit_rpm", label: "Rate limit (RPM)", type: "number" },
       ]}
       columns={[
         { header: "Name", accessorKey: "name" },
@@ -37,8 +50,6 @@ export const Route = createFileRoute("/_app/teams")({
             );
           },
         },
-        { header: "Keys", accessorKey: "keys_count" },
-        { header: "Members", accessorKey: "members" },
       ]}
     />
   ),

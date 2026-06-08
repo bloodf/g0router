@@ -31,9 +31,10 @@
 project_status: IN_PROGRESS
 current_stage: 20
 current_wave: "Full E2E test suite — Go API + Playwright UI coverage"
-last_completed_wave: "Full E2E test suite — Go API + Playwright UI coverage"
-last_updated: "2026-06-07T20:56:00Z"
+last_completed_wave: "Slice 6 — Missing Pages (alerts, guardrails, model-limits, prompts, feature-flags, proxy-pools, MCP)"
+last_updated: "2026-06-08T21:53:00Z"
 last_agent: "assistant"
+notes: "Replaced 11 ComingSoon routes with real CRUD/feature pages. Aligned UI types to backend handlers. npm run build passes."
 ```
 
 ---
@@ -5906,3 +5907,96 @@ when `ui/` touched. Stage exit: `make e2e-binary` + gitleaks clean.
 ### Commit Pattern
 `phase-12b/task-1: routing table extraction`
 `phase-13/task-1: dashboard users store with bcrypt`
+
+
+---
+
+## Hotfix — API/UI contract alignment
+
+```yaml
+wave: "hotfix"
+status: DONE
+summary: "Aligned backend response contracts with React dashboard TypeScript types. Fixed providers list blank screen, connections shape, admin models envelope, API keys full_key exposure, virtual key id/prefix types, and seeded default tunnel configs on first run."
+completed_at: "2026-06-08T21:15:00Z"
+```
+
+**Files changed:**
+- `api/handlers/providers.go` — return UI-facing `providerListItem` with `display_name`, `description`, `capabilities`, `connection_count`, `status`; detail response embeds same fields plus `matrix_info`.
+- `api/handlers/connections.go` — snake_case JSON tags; derive `models` from `ModelLocks`; add `priority`, `proxy_id`, `last_error`, ISO `expires_at`/`unavailable_until`.
+- `api/handlers/models_admin.go` — wrap response in `{data: ...}` envelope.
+- `api/handlers/apikeys.go` — return flat `apiKeyView` with `full_key` on create/put/regenerate; accept `rpm_limit`/`tpm_limit`/`daily_spend_cap` UI field names with legacy aliases.
+- `api/handlers/virtualkeys.go` — return `id` as string, `prefix` instead of `key_prefix`, `team_id` as string.
+- `internal/cli/root.go` — seed default `cloudflare` and `tailscale` tunnel configs on first run.
+- Tests updated across `api/handlers/*_test.go`, `api/server_integration_test.go`, `e2e_api_comprehensive_test.go`.
+
+**Gate results:** `go test ./...` and `go build ./cmd/g0router` pass.
+
+---
+
+## Hotfix — Provider icons from 9Router
+
+```yaml
+wave: "hotfix"
+status: DONE
+summary: "Borrowed 34 provider PNG icons from 9Router (MIT-licensed) and wired them into the dashboard. ProviderIcon now renders actual logos with gradient+initials fallback. Backend /api/providers and /api/providers/:id return icon_url."
+completed_at: "2026-06-08T21:30:00Z"
+```
+
+**Files changed:**
+- `ui/public/providers/` — downloaded 34 PNG icon assets from https://github.com/decolua/9router/tree/master/public/providers (MIT License).
+- `ui/public/providers/LICENSE-9Router-icons.txt` — attribution and full MIT license text.
+- `ui/src/components/common/ProviderIcon.tsx` — render `<img>` from `iconUrl` prop or local mapping; `onError` falls back to existing gradient + initials.
+- `ui/src/routes/_app.providers.index.tsx` — pass `iconUrl={p.icon_url}` to `ProviderIcon`.
+- `ui/src/routes/_app.providers.$id.tsx` — pass `iconUrl={provider.icon_url}` to `ProviderIcon`.
+- `api/handlers/providers.go` — added `icon_url` to `providerListItem` and `providerDetailResponse`; added `providerIconPaths` mapping g0router provider IDs to `/providers/*.png` assets.
+
+**Gate results:** `go test ./...`, `go vet ./...`, `go build -o g0router ./cmd/g0router`, and `npm run build` in `ui/` all pass. Server restarted at http://127.0.0.1:20128 with icons verified (`/providers/openai.png` serves correctly; `/api/providers` returns `"icon_url":"/providers/openai.png"`).
+
+---
+
+## Hotfix — New connection button on provider detail
+
+```yaml
+wave: "hotfix"
+status: DONE
+summary: "The 'New connection' button on the provider detail page was a no-op. Replaced it with a working dialog that POSTs to /api/connections and supports name, auth-type selection, credential input, and active toggle."
+completed_at: "2026-06-08T21:35:00Z"
+```
+
+**Files changed:**
+- `ui/src/routes/_app.providers.$id.tsx` — added `CreateConnectionDialog` component using Radix Dialog, Select, Switch, and Input; wired 'New connection' button `onClick` to open it. On success the dialog invalidates provider + connection queries so the list refreshes.
+
+**Gate results:** `npm run build` in `ui/` passes; `go build -o g0router ./cmd/g0router` passes. Server restarted at http://127.0.0.1:20128. Verified `POST /api/connections` with the same payload returns a created connection.
+
+---
+
+## Hotfix — Remove all placeholders, mocks, and no-ops from the dashboard
+
+```yaml
+wave: "hotfix"
+status: DONE
+summary: "Audited the entire React dashboard for placeholders and no-op interactions, then wired every screen, button, form, and dialog to real backend APIs via parallel subagents. Replaced 14 `<ComingSoon />` routes with working pages, fixed chat auth and session persistence, added connection edit/delete, fixed routing-rules conditions, added key regenerate and missing form fields, wired MITM routes, and implemented a real Diagnostics page."
+completed_at: "2026-06-08T22:15:00Z"
+```
+
+**Files changed (high-level):**
+- `ui/src/routes/login.tsx` — removed prefilled demo credentials and demo banner.
+- `ui/src/components/layout/Header.tsx` — removed no-op notifications bell.
+- `ui/src/components/layout/Sidebar.tsx` — live version from `GET /api/version`.
+- `ui/src/routes/_app.chat.tsx` — removed hard-coded provider/model, fixed auth to use `full_key`, wired recent sessions and new-chat persistence.
+- `ui/src/routes/_app.providers.$id.tsx` — added connection edit/delete, suggested models.
+- `ui/src/routes/_app.connections.tsx` — added connection edit action.
+- `ui/src/routes/_app.routing-rules.tsx` — added `cond_field`, `cond_operator`, `cond_value` fields aligned with backend.
+- `ui/src/routes/_app.keys.tsx` — added regenerate action, scopes, and expires_at fields.
+- `ui/src/routes/_app.teams.tsx` — added budget_period and rate_limit_rpm, removed blank columns.
+- `ui/src/routes/_app.endpoint.tsx` — removed broken client-side audit, dynamic curl sample.
+- `ui/src/routes/_app.logs.tsx` — switched from `/api/usage` to `/api/logs`.
+- `ui/src/routes/_app.alerts.tsx`, `_app.guardrails.tsx`, `_app.model-limits.tsx`, `_app.prompts.tsx`, `_app.feature-flags.tsx`, `_app.proxy-pools.tsx`, `_app.mcp.*.tsx`, `_app.skills.tsx` — replaced `<ComingSoon />` with working CRUD/feature pages.
+- `ui/src/routes/_app.mitm.tsx` + `api/routes.go` + `api/server.go` — wired MITM backend routes and implemented MITM control page.
+- `ui/src/routes/_app.diagnostics.tsx` — implemented a real diagnostics page with version, API connectivity, auth status, browser info, provider/connection counts.
+- `ui/src/lib/types.ts` — aligned types with backend contracts, removed mock comments.
+- `ui/src/lib/lovable-error-reporting.ts` — deleted; import removed from `__root.tsx`.
+- `ui/src/routes/_app.dashboard.tsx.bak` — deleted.
+- Supporting changes in `ui/src/components/common/CrudPage.tsx`, `ui/src/components/connections/EditConnectionDialog.tsx`, `ui/e2e/mocks/seed.ts`, `api/routes_test.go`, `e2e_api_comprehensive_test.go`.
+
+**Gate results:** `go test ./...`, `go vet ./...`, `go build -o g0router ./cmd/g0router`, and `npm run build` in `ui/` all pass. Zero `<ComingSoon />` occurrences remain in `ui/src/routes/`. Server verified at http://127.0.0.1:20128.

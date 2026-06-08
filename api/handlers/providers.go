@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"strings"
 
 	providerinfo "github.com/bloodf/g0router/internal/provider"
 	"github.com/bloodf/g0router/internal/providers"
@@ -28,6 +29,36 @@ type suggestedModelsStore interface {
 	GetActiveConnections(provider string) ([]*store.Connection, error)
 }
 
+// providerListItem is the UI-facing contract for /api/providers.
+type providerListItem struct {
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	DisplayName     string   `json:"display_name"`
+	Description     string   `json:"description"`
+	AuthTypes       []string `json:"auth_types"`
+	Capabilities    []string `json:"capabilities"`
+	ConnectionCount int      `json:"connection_count"`
+	Status          string   `json:"status"`
+	IconURL         string   `json:"icon_url,omitempty"`
+}
+
+// providerDetailResponse is the UI-facing detail shape plus matrix metadata for
+// backward-compatible consumers.
+type providerDetailResponse struct {
+	ID              string            `json:"id"`
+	Name            string            `json:"name"`
+	DisplayName     string            `json:"display_name"`
+	Description     string            `json:"description"`
+	AuthTypes       []string          `json:"auth_types"`
+	Capabilities    []string          `json:"capabilities"`
+	Status          string            `json:"status"`
+	IconURL         string            `json:"icon_url,omitempty"`
+	MatrixInfo      providerResponse  `json:"matrix_info"`
+	ConnectionCount int               `json:"connection_count"`
+	HealthStatus    string            `json:"health_status"`
+	Models          []providers.Model `json:"models"`
+}
+
 type providerResponse struct {
 	ID                string                      `json:"id"`
 	AuthTypes         []string                    `json:"auth_types"`
@@ -45,15 +76,6 @@ type providerResponse struct {
 	Notes             string                      `json:"notes,omitempty"`
 }
 
-type providerDetailResponse struct {
-	ID              string           `json:"id"`
-	Name            string           `json:"name"`
-	MatrixInfo      providerResponse `json:"matrix_info"`
-	ConnectionCount int              `json:"connection_count"`
-	HealthStatus    string           `json:"health_status"`
-	Models          []providers.Model `json:"models"`
-}
-
 type suggestedModelResponse struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
@@ -66,7 +88,7 @@ func Providers(ctx *fasthttp.RequestCtx, source ManagementModelSource, providerI
 	}
 
 	if providerID == "" {
-		writeJSON(ctx, fasthttp.StatusOK, listResponse[providerResponse]{Data: knownProviders()})
+		writeJSON(ctx, fasthttp.StatusOK, listResponse[providerListItem]{Data: knownProviders()})
 		return
 	}
 	providerID = providerinfo.CanonicalProviderID(providerID)
@@ -127,11 +149,15 @@ func ProviderDetail(ctx *fasthttp.RequestCtx, s providerDetailStore, source Mana
 
 	var connectionCount int
 	var hasActive bool
+	var needsReauth bool
 	for _, conn := range connections {
 		if conn.Provider == providerID {
 			connectionCount++
 			if conn.IsActive {
 				hasActive = true
+			}
+			if conn.NeedsReauth {
+				needsReauth = true
 			}
 		}
 	}
@@ -157,10 +183,17 @@ func ProviderDetail(ctx *fasthttp.RequestCtx, s providerDetailStore, source Mana
 		}
 	}
 
+	status := providerStatus(entry, connectionCount, hasActive, needsReauth)
 	writeJSON(ctx, fasthttp.StatusOK, map[string]any{
 		"data": providerDetailResponse{
-			ID:   entry.G0RouterID,
-			Name: entry.G0RouterID,
+			ID:              entry.G0RouterID,
+			Name:            entry.G0RouterID,
+			DisplayName:     providerDisplayName(entry.G0RouterID),
+			Description:     entry.Notes,
+			AuthTypes:       copyStringSlice(entry.AuthTypes),
+			Capabilities:    providerCapabilities(entry),
+			Status:          status,
+			IconURL:         providerIconURL(entry.G0RouterID),
 			MatrixInfo: providerResponse{
 				ID:                entry.G0RouterID,
 				AuthTypes:         copyStringSlice(entry.AuthTypes),
@@ -259,28 +292,126 @@ func ProviderSuggestedModels(ctx *fasthttp.RequestCtx, s suggestedModelsStore, a
 	writeJSON(ctx, fasthttp.StatusOK, listResponse[suggestedModelResponse]{Data: responses})
 }
 
-func knownProviders() []providerResponse {
+func knownProviders() []providerListItem {
 	matrix := providerinfo.ProviderMatrix().Entries()
-	responses := make([]providerResponse, 0, len(matrix))
+	responses := make([]providerListItem, 0, len(matrix))
 	for _, entry := range matrix {
-		responses = append(responses, providerResponse{
-			ID:                entry.G0RouterID,
-			AuthTypes:         copyStringSlice(entry.AuthTypes),
-			OAuthProvider:     entry.OAuthProvider,
-			Refresh:           entry.Refresh,
-			RegisteredAdapter: entry.RegisteredAdapter,
-			PublicInference:   entry.PublicInference,
-			DirectDispatch:    entry.DirectDispatch,
-			Inference:         entry.Inference,
-			Streaming:         entry.Streaming,
-			ModelCatalog:      entry.ModelCatalog,
-			ListModels:        entry.ListModels,
-			Quota:             entry.Quota,
-			PublicStatus:      entry.PublicStatus,
-			Notes:             entry.Notes,
+		responses = append(responses, providerListItem{
+			ID:           entry.G0RouterID,
+			Name:         entry.G0RouterID,
+			DisplayName:  providerDisplayName(entry.G0RouterID),
+			Description:  entry.Notes,
+			AuthTypes:    copyStringSlice(entry.AuthTypes),
+			Capabilities: providerCapabilities(entry),
+			Status:       providerStatus(entry, 0, false, false),
+			IconURL:      providerIconURL(entry.G0RouterID),
 		})
 	}
 	return responses
+}
+
+// providerIconURL maps a g0router provider id to the corresponding icon asset
+// under /providers. Assets are 128x128 PNGs borrowed from 9Router under the MIT
+// License (see ui/public/providers/LICENSE-9Router-icons.txt).
+var providerIconPaths = map[string]string{
+	"openai":                "/providers/openai.png",
+	"anthropic":             "/providers/anthropic.png",
+	"azure":                 "/providers/azure.png",
+	"bedrock":               "/providers/aws-polly.png",
+	"cerebras":              "/providers/cerebras.png",
+	"cohere":                "/providers/cohere.png",
+	"deepseek":              "/providers/deepseek.png",
+	"fireworks":             "/providers/fireworks.png",
+	"gemini":                "/providers/gemini.png",
+	"groq":                  "/providers/groq.png",
+	"huggingface":           "/providers/huggingface.png",
+	"mistral":               "/providers/mistral.png",
+	"nebius":                "/providers/nebius.png",
+	"nvidia":                "/providers/nvidia.png",
+	"ollama":                "/providers/ollama.png",
+	"openrouter":            "/providers/openrouter.png",
+	"perplexity":            "/providers/perplexity.png",
+	"replicate":             "/providers/huggingface.png",
+	"together":              "/providers/together.png",
+	"vertex":                "/providers/vertex.png",
+	"antigravity":           "/providers/antigravity.png",
+	"github-copilot":        "/providers/copilot.png",
+	"cursor":                "/providers/cursor.png",
+	"gitlab-duo":            "/providers/github.png",
+	"kimi":                  "/providers/kimi.png",
+	"kiro":                  "/providers/kiro.png",
+	"xai":                   "/providers/xai.png",
+	"xiaomi":                "/providers/xiaomi-mimo.png",
+	"alibaba":               "/providers/alicode.png",
+	"minimax":               "/providers/minimax.png",
+	"zhipu":                 "/providers/glm.png",
+	"cloudflare-ai-gateway": "/providers/cloudflare-ai.png",
+	"kagi":                  "/providers/brave-search.png",
+	"kilo":                  "/providers/kilocode.png",
+	"litellm":               "/providers/openrouter.png",
+	"lm-studio":             "/providers/ollama.png",
+	"ollama-cloud":          "/providers/ollama.png",
+	"opencode":              "/providers/opencode.png",
+	"qwen":                  "/providers/qwen.png",
+	"tavily":                "/providers/tavily.png",
+	"vllm":                  "/providers/ollama.png",
+}
+
+func providerIconURL(id string) string {
+	return providerIconPaths[id]
+}
+
+func providerDisplayName(id string) string {
+	parts := strings.Split(id, "-")
+	for i, p := range parts {
+		if len(p) == 0 {
+			continue
+		}
+		parts[i] = strings.ToUpper(p[:1]) + p[1:]
+	}
+	return strings.Join(parts, " ")
+}
+
+func providerCapabilities(entry providerinfo.ProviderMatrixEntry) []string {
+	caps := []string{}
+	if entry.Inference {
+		caps = append(caps, "inference")
+	}
+	if entry.Streaming {
+		caps = append(caps, "streaming")
+	}
+	if entry.ModelCatalog {
+		caps = append(caps, "model_catalog")
+	}
+	if entry.ListModels {
+		caps = append(caps, "list_models")
+	}
+	if entry.Quota {
+		caps = append(caps, "quota")
+	}
+	if entry.PublicInference {
+		caps = append(caps, "public_inference")
+	}
+	if entry.DirectDispatch {
+		caps = append(caps, "direct_dispatch")
+	}
+	if len(caps) == 0 {
+		return []string{}
+	}
+	return caps
+}
+
+func providerStatus(entry providerinfo.ProviderMatrixEntry, connectionCount int, hasActive, needsReauth bool) string {
+	if connectionCount == 0 {
+		return "inactive"
+	}
+	if needsReauth {
+		return "needs_reauth"
+	}
+	if hasActive {
+		return "active"
+	}
+	return "error"
 }
 
 func copyStringSlice(values []string) []string {
@@ -288,4 +419,14 @@ func copyStringSlice(values []string) []string {
 		return []string{}
 	}
 	return append([]string(nil), values...)
+}
+
+func healthStatusFromConnections(connectionCount int, hasActive bool) string {
+	if hasActive {
+		return "healthy"
+	}
+	if connectionCount == 0 {
+		return "unknown"
+	}
+	return "unhealthy"
 }

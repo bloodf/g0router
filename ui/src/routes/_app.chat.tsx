@@ -15,7 +15,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/chat")({ component: ChatPage });
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = { role: "user" | "assistant" | "system"; content: string };
 
 async function streamChat(
   body: {
@@ -80,8 +80,8 @@ function ChatPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [provider, setProvider] = useState("openai");
-  const [model, setModel] = useState("gpt-4o");
+  const [provider, setProvider] = useState("");
+  const [model, setModel] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +120,13 @@ function ChatPage() {
   // Filter models by selected provider
   const providerModels = allModels.filter((m) => m.provider === provider);
 
+  // Default to first provider on load
+  useEffect(() => {
+    if (providers.length > 0 && !provider) {
+      setProvider(providers[0].id);
+    }
+  }, [providers, provider]);
+
   // Auto-select first model when provider changes
   useEffect(() => {
     if (providerModels.length > 0 && !providerModels.find((m) => m.id === model)) {
@@ -140,6 +147,10 @@ function ChatPage() {
       toast.error("No active API key available. Create one in Settings → Keys.");
       return;
     }
+    if (!firstKey.full_key) {
+      toast.warning("Active API key is missing full key.");
+      return;
+    }
     const userMsg = { role: "user" as const, content: input };
     setMessages((m) => [...m, userMsg, { role: "assistant", content: "" }]);
     setInput("");
@@ -152,7 +163,7 @@ function ChatPage() {
         messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })),
         stream: true,
       },
-      firstKey.prefix,
+      firstKey.full_key,
       (delta) =>
         setMessages((m) => {
           const next = [...m];
@@ -165,6 +176,13 @@ function ChatPage() {
       () => setStreaming(false),
       ctl.signal,
     );
+  };
+
+  const loadSession = async (id: string) => {
+    const session = await apiFetch<ChatSession>(`/api/chat-sessions/${id}`);
+    setMessages(session.messages as Msg[]);
+    setProvider(session.provider);
+    setModel(session.model);
   };
 
   const anyLoading = providersLoading || modelsLoading || keysLoading;
@@ -203,7 +221,15 @@ function ChatPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 h-[calc(100vh-220px)]">
         <Card className="card-elev border-border p-3 flex flex-col">
           <Button
-            onClick={() => setMessages([])}
+            onClick={async () => {
+              if (provider && model) {
+                await apiFetch("/api/chat-sessions", {
+                  method: "POST",
+                  body: { title: "New chat", provider, model },
+                });
+              }
+              setMessages([]);
+            }}
             className="w-full mb-3"
             variant="outline"
           >
@@ -222,6 +248,7 @@ function ChatPage() {
               sessions.map((s) => (
                 <button
                   key={s.id}
+                  onClick={() => loadSession(s.id)}
                   className="w-full text-left p-2 rounded-lg hover:bg-surface-2 text-sm truncate"
                 >
                   <div className="truncate font-medium">{s.title}</div>
@@ -324,7 +351,7 @@ function ChatPage() {
                   <Icon name="stop" />
                 </Button>
               ) : (
-                <Button onClick={send} size="icon" className="btn-cta">
+                <Button onClick={send} disabled={!firstKey?.full_key} size="icon" className="btn-cta">
                   <Icon name="send" />
                 </Button>
               )}

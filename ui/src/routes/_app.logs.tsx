@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_app/logs")({
     }>({
       queryKey: ["logs"],
       queryFn: async () => {
-        const raw = await apiFetch("/api/usage?limit=100");
+        const raw = await apiFetch("/api/logs?limit=100");
         return normalizeListResponse<UsageLog>(raw);
       },
     });

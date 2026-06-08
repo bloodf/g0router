@@ -16,6 +16,25 @@ export const Route = createFileRoute("/_app/routing-rules")({
       fields={[
         { name: "name", label: "Name", required: true },
         { name: "priority", label: "Priority", type: "number" },
+        {
+          name: "cond_field",
+          label: "Condition field",
+          required: true,
+          placeholder: "e.g. model, provider, header",
+        },
+        {
+          name: "cond_operator",
+          label: "Condition operator",
+          type: "select",
+          required: true,
+          options: [
+            { label: "equals", value: "equals" },
+            { label: "contains", value: "contains" },
+            { label: "starts_with", value: "starts_with" },
+            { label: "regex", value: "regex" },
+          ],
+        },
+        { name: "cond_value", label: "Condition value", required: true },
         { name: "target_provider", label: "Target provider", required: true },
         { name: "target_model", label: "Target model" },
       ]}
@@ -26,8 +45,8 @@ export const Route = createFileRoute("/_app/routing-rules")({
           header: "Condition",
           cell: ({ row }) => (
             <code className="text-xs">
-              {row.original.condition.field} {row.original.condition.operator}{" "}
-              "{row.original.condition.value}"
+              {row.original.cond_field} {row.original.cond_operator} "
+              {row.original.cond_value}"
             </code>
           ),
         },

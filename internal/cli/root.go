@@ -44,6 +44,8 @@ type serveConfig struct {
 	RequireAPIKey     bool
 	APIKeySecret      string
 	EnableRequestLogs bool
+	Debug             bool
+	Trace             bool
 }
 
 type serveRunner func(context.Context, serveConfig) error
@@ -124,6 +126,8 @@ func newServeCommand(version, buildDate string, serve serveRunner, rootDataDir *
 				RequireAPIKey:     loaded.RequireAPIKey,
 				APIKeySecret:      loaded.APIKeySecret,
 				EnableRequestLogs: loaded.EnableRequestLogs,
+				Debug:             loaded.Debug,
+				Trace:             loaded.Trace,
 			})
 		},
 	}
@@ -177,6 +181,29 @@ func envString(key, defaultValue string) string {
 	return value
 }
 
+func seedTunnelConfigs(s interface {
+	ListTunnelConfigs() ([]store.TunnelConfig, error)
+	UpsertTunnelConfig(store.TunnelConfig) error
+}) error {
+	configs, err := s.ListTunnelConfigs()
+	if err != nil {
+		return err
+	}
+	if len(configs) > 0 {
+		return nil
+	}
+	for _, t := range []string{"cloudflare", "tailscale"} {
+		if err := s.UpsertTunnelConfig(store.TunnelConfig{
+			Type:      t,
+			IsEnabled: false,
+			Status:    "inactive",
+		}); err != nil {
+			return fmt.Errorf("seed %s tunnel: %w", t, err)
+		}
+	}
+	return nil
+}
+
 func generateAPIKeySecret() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
@@ -228,6 +255,11 @@ func runServer(ctx context.Context, config serveConfig) error {
 		log.Println("Created default admin user: admin / 123456 (change this password immediately)")
 	}
 
+	// Seed default tunnel configs so the UI always has toggles to render.
+	if err := seedTunnelConfigs(s); err != nil {
+		return fmt.Errorf("seed tunnel configs: %w", err)
+	}
+
 	listenAddress := net.JoinHostPort(config.BindAddress, strconv.Itoa(config.Port))
 	ln, err := net.Listen("tcp", listenAddress)
 	if err != nil {
@@ -271,6 +303,8 @@ func newServerConfig(ctx context.Context, config serveConfig, s *store.Store, tu
 		Version:               config.Version,
 		BuildDate:             config.BuildDate,
 		EnableRequestLogs:     config.EnableRequestLogs,
+		Debug:                 config.Debug,
+		Trace:                 config.Trace,
 		RequireAPIKey:         config.RequireAPIKey,
 		APIKeySecret:          config.APIKeySecret,
 		APIKeyValidator:       storeAPIKeyValidator{s: s},

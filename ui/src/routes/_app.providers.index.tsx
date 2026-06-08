@@ -216,7 +216,7 @@ function ProviderCard({ provider: p, muted }: { provider: Provider; muted?: bool
         }
       >
         <div className="flex items-start gap-3">
-          <ProviderIcon provider={p.id} size={40} />
+          <ProviderIcon provider={p.id} iconUrl={p.icon_url} size={40} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <div className="font-semibold truncate">{p.display_name}</div>

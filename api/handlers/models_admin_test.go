@@ -72,22 +72,24 @@ func TestAdminModelsReturnsMappedModels(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
 	}
 
-	var decoded []struct {
-		ID            string  `json:"id"`
-		Provider      string  `json:"provider"`
-		Name          string  `json:"name"`
-		InputCost     float64 `json:"input_cost"`
-		OutputCost    float64 `json:"output_cost"`
-		ContextWindow int     `json:"context_window"`
-		IsDisabled    bool    `json:"is_disabled"`
-		IsCustom      bool    `json:"is_custom"`
+	var decoded struct {
+		Data []struct {
+			ID            string  `json:"id"`
+			Provider      string  `json:"provider"`
+			Name          string  `json:"name"`
+			InputCost     float64 `json:"input_cost"`
+			OutputCost    float64 `json:"output_cost"`
+			ContextWindow int     `json:"context_window"`
+			IsDisabled    bool    `json:"is_disabled"`
+			IsCustom      bool    `json:"is_custom"`
+		} `json:"data"`
 	}
 	decodeJSON(t, body, &decoded)
-	if len(decoded) != 2 {
-		t.Fatalf("len = %d, want 2", len(decoded))
+	if len(decoded.Data) != 2 {
+		t.Fatalf("len = %d, want 2", len(decoded.Data))
 	}
 
-	first := decoded[0]
+	first := decoded.Data[0]
 	if first.ID != "openai/gpt-4o" {
 		t.Errorf("id = %q, want openai/gpt-4o", first.ID)
 	}
@@ -110,7 +112,7 @@ func TestAdminModelsReturnsMappedModels(t *testing.T) {
 		t.Error("is_disabled should be false")
 	}
 
-	second := decoded[1]
+	second := decoded.Data[1]
 	if second.ID != "anthropic/claude-sonnet-4" {
 		t.Errorf("id = %q, want anthropic/claude-sonnet-4", second.ID)
 	}
@@ -138,14 +140,16 @@ func TestAdminModelsMarksDisabled(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
 	}
 
-	var decoded []struct {
-		IsDisabled bool `json:"is_disabled"`
+	var decoded struct {
+		Data []struct {
+			IsDisabled bool `json:"is_disabled"`
+		} `json:"data"`
 	}
 	decodeJSON(t, body, &decoded)
-	if len(decoded) != 1 {
-		t.Fatalf("len = %d, want 1", len(decoded))
+	if len(decoded.Data) != 1 {
+		t.Fatalf("len = %d, want 1", len(decoded.Data))
 	}
-	if !decoded[0].IsDisabled {
+	if !decoded.Data[0].IsDisabled {
 		t.Error("is_disabled should be true")
 	}
 }
@@ -177,9 +181,11 @@ func TestAdminModelsEmptyList(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", ctx.Response.StatusCode(), body)
 	}
-	var decoded []struct{}
+	var decoded struct {
+		Data []struct{} `json:"data"`
+	}
 	decodeJSON(t, body, &decoded)
-	if len(decoded) != 0 {
-		t.Fatalf("len = %d, want 0", len(decoded))
+	if len(decoded.Data) != 0 {
+		t.Fatalf("len = %d, want 0", len(decoded.Data))
 	}
 }

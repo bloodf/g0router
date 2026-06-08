@@ -70,5 +70,5 @@ func AdminModels(ctx *fasthttp.RequestCtx, engine InferenceEngine, s adminModels
 		resp = append(resp, item)
 	}
 
-	writeJSON(ctx, fasthttp.StatusOK, resp)
+	writeJSON(ctx, fasthttp.StatusOK, listResponse[adminModelResponse]{Data: resp})
 }

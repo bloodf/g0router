@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import { Icon } from "@/components/common/Icon";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { CardsGridSkeleton, ErrorState } from "@/components/common/Skeletons";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import type { ApiKey, Tunnel } from "@/lib/types";
+import type { ApiKey, Tunnel, Provider, Model } from "@/lib/types";
 import { useVisibleWindow } from "@/lib/hooks/useVisibleWindow";
 import { toast } from "sonner";
 
@@ -22,12 +22,6 @@ export const Route = createFileRoute("/_app/endpoint")({
 });
 
 type KeyFailure = { action: "copy" | "regenerate" | "revoke" | "enable"; message: string };
-
-function recordAudit(action: string, target: string, details?: string) {
-  return apiFetch("/api/audit", { method: "POST", body: { action, target, details } }).catch(
-    () => undefined,
-  );
-}
 
 function EndpointPage() {
   const qc = useQueryClient();
@@ -45,13 +39,44 @@ function EndpointPage() {
     queryKey: ["keys"],
     queryFn: () => apiFetch("/api/keys"),
   });
+  const providersQ = useQuery<Provider[]>({
+    queryKey: ["providers"],
+    queryFn: () => apiFetch("/api/providers"),
+  });
+  const modelsQ = useQuery<Model[]>({
+    queryKey: ["models"],
+    queryFn: () => apiFetch("/api/models"),
+  });
+
   const tunnels = tunnelsQ.data ?? [];
   const tLoading = tunnelsQ.isLoading;
   const tError = tunnelsQ.isError;
   const keys = keysQ.data ?? [];
   const kError = keysQ.isError;
-  const anyError = tError || kError;
-  const firstError = tunnelsQ.error || keysQ.error;
+  const providers = providersQ.data ?? [];
+  const models = modelsQ.data ?? [];
+  const anyError = tError || kError || providersQ.isError || modelsQ.isError;
+  const firstError = tunnelsQ.error || keysQ.error || providersQ.error || modelsQ.error;
+
+  const [provider, setProvider] = useState<string>("");
+  const [model, setModel] = useState<string>("");
+
+  useEffect(() => {
+    if (providers.length > 0 && !provider) {
+      setProvider(providers[0].id);
+    }
+  }, [providers, provider]);
+
+  const providerModels = useMemo(
+    () => models.filter((m) => m.provider === provider),
+    [models, provider],
+  );
+
+  useEffect(() => {
+    if (providerModels.length > 0 && !providerModels.find((m) => m.name === model)) {
+      setModel(providerModels[0].name);
+    }
+  }, [providerModels, model]);
 
   const keysWindow = useVisibleWindow(25, keys.length);
   const visibleKeys = keys.slice(0, keysWindow.visible);
@@ -139,7 +164,6 @@ function EndpointPage() {
         .then(() => {
           toast.success(`Copied ${k.name} to clipboard`);
           setRowError(k.id, undefined);
-          recordAudit("copy_key", `api_key:${k.name}`);
         })
         .catch(() => toast.error(`Couldn't copy ${k.name}`));
     }
@@ -196,13 +220,11 @@ function EndpointPage() {
     a.remove();
     URL.revokeObjectURL(url);
     toast.success(`Exported ${keys.length} API key${keys.length === 1 ? "" : "s"}`);
-    recordAudit("export_keys", "api_keys", `count=${keys.length}`);
   };
 
-  const sampleCurl = `curl ${activeUrl}/chat/completions \\
-  -H "Authorization: Bearer ${keys[0]?.prefix ?? "sk-…"}" \\
-  -H "Content-Type: application/json" \\
-  -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'`;
+  const sampleModel = model || "gpt-4o";
+  const sampleProvider = provider || "openai";
+  const sampleCurl = `curl ${activeUrl}/chat/completions \\\n  -H "Authorization: Bearer ${keys[0]?.prefix ?? "sk-…"}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"${sampleProvider}/${sampleModel}","messages":[{"role":"user","content":"Hi"}]}'`;
 
   if (anyError) {
     return (
@@ -218,6 +240,8 @@ function EndpointPage() {
           onRetry={() => {
             tunnelsQ.refetch();
             keysQ.refetch();
+            providersQ.refetch();
+            modelsQ.refetch();
           }}
         />
       </div>
@@ -272,6 +296,32 @@ function EndpointPage() {
                 {tab === "cloudflare" && (cf?.is_enabled ? "Reachable from anywhere on the internet." : "Enable the Cloudflare tunnel below to expose this URL publicly.")}
                 {tab === "tailscale" && (ts?.is_enabled ? "Reachable from your tailnet only." : "Enable Tailscale below to expose this URL on your tailnet.")}
               </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={provider}
+                onChange={(e) => setProvider(e.target.value)}
+                className="bg-surface-2 border border-border rounded-lg px-2 py-1.5 text-xs"
+              >
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.display_name}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                className="bg-surface-2 border border-border rounded-lg px-2 py-1.5 text-xs font-mono"
+              >
+                {providerModels.length === 0 && <option value="">No models</option>}
+                {providerModels.map((m) => (
+                  <option key={m.id} value={m.name}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>
@@ -389,7 +439,6 @@ function EndpointPage() {
                         errorMessage={`Couldn't copy ${k.name}`}
                         onSuccess={() => {
                           setRowError(k.id, undefined);
-                          recordAudit("copy_key", `api_key:${k.name}`);
                         }}
                         onError={(err: any) =>
                           setRowError(k.id, {

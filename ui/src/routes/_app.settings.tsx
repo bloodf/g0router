@@ -45,6 +45,7 @@ interface BackendSettings {
 
 type FormState = BackendSettings & { api_key_secret: string };
 
+// UI defaults: the backend does not expose an enumeration endpoint for these values.
 const SOURCE_OPTIONS = ["local", "lan", "tailscale", "public"] as const;
 const LOCALE_OPTIONS = ["en", "pt", "es", "fr", "de", "ja", "zh"] as const;
 const CAVEMAN_LEVELS = ["lite", "full", "ultra"] as const;

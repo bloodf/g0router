@@ -18,7 +18,7 @@ function Breadcrumbs() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { t } = useTranslation();
   const sections = getNavSections(t);
-  let current = sections
+  const current = sections
     .flatMap((s) => s.items)
     .find(
       (i) =>
@@ -92,10 +92,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
           title={`Theme: ${theme}`}
         >
           <Icon name={themeIcon} />
-        </Button>
-
-        <Button variant="ghost" size="icon" aria-label="Notifications">
-          <Icon name="notifications" />
         </Button>
 
         <DropdownMenu>
