@@ -326,9 +326,9 @@ function AuditPage() {
                   <td className="px-4 py-2">
                     <span className="inline-flex items-center gap-1.5">
                       <span className="w-6 h-6 rounded-full bg-surface-2 flex items-center justify-center text-[10px] font-semibold uppercase">
-                        {row.actor_api_key_id.slice(0, 2)}
+                        {(row.actor_api_key_id ?? "N/A").slice(0, 2)}
                       </span>
-                      {row.actor_api_key_id}
+                      {row.actor_api_key_id ?? "N/A"}
                     </span>
                   </td>
                   <td className="px-4 py-2">

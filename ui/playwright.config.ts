@@ -8,7 +8,7 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:20128",
+    baseURL: "http://localhost:4173",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
@@ -19,14 +19,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "cd .. && ./g0router serve --data-dir ./e2e_data --port 20128",
-    url: "http://127.0.0.1:20128/healthz",
+    command: "npx vite preview --host",
+    url: "http://localhost:4173",
     reuseExistingServer: !process.env.CI,
     timeout: 30000,
-    env: {
-      DATA_DIR: "./e2e_data",
-      BIND_ADDRESS: "127.0.0.1",
-      PORT: "20128",
-    },
   },
 });

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./mocks/fixture";
 import { login } from "./helpers";
 
 // Run all tests in this file serially to avoid auth state conflicts
@@ -160,7 +160,7 @@ test.describe.serial("API Keys CRUD", () => {
     await expect(page.locator("body")).toContainText(keyName, { timeout: 10000 });
 
     const row = page.locator('tr', { hasText: keyName }).first();
-    await row.locator('button').first().click(); // edit button
+    await row.locator('button').nth(1).click(); // edit button (skip Copy)
 
     const dialog = page.locator('[role="dialog"]').first();
     await dialog.locator('input[type="text"]').first().fill(updatedName);
@@ -176,7 +176,7 @@ test.describe.serial("API Keys CRUD", () => {
 
     const row = page.locator('tr', { hasText: updatedName }).first();
     if (await row.isVisible().catch(() => false)) {
-      await row.locator('button').nth(1).click(); // delete button
+      await row.locator('button').nth(2).click(); // delete button (skip Copy + edit)
       await page.waitForTimeout(300);
 
       await page.locator('text=Delete record?').waitFor({ state: 'visible', timeout: 5000 });
