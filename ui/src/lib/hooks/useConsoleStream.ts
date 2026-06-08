@@ -1,16 +1,30 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { ConsoleLogEntry } from "@/lib/types";
+
+export type ConnectionStatus = "connecting" | "open" | "closed" | "error";
 
 export function useConsoleStream(opts: { enabled?: boolean } = {}) {
   const { enabled = true } = opts;
   const [logs, setLogs] = useState<ConsoleLogEntry[]>([]);
+  const [status, setStatus] = useState<ConnectionStatus>("closed");
   const esRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backoffRef = useRef(1000);
 
-  useEffect(() => {
+  const connect = useCallback(() => {
     if (!enabled) return;
+    if (esRef.current) {
+      esRef.current.close();
+    }
 
+    setStatus("connecting");
     const es = new EventSource("/api/console-logs/stream");
     esRef.current = es;
+
+    es.onopen = () => {
+      setStatus("open");
+      backoffRef.current = 1000;
+    };
 
     es.addEventListener("log", (e) => {
       try {
@@ -22,14 +36,25 @@ export function useConsoleStream(opts: { enabled?: boolean } = {}) {
     });
 
     es.onerror = () => {
-      // Auto-reconnect is built into EventSource
-    };
-
-    return () => {
+      setStatus("error");
       es.close();
       esRef.current = null;
+      const delay = Math.min(backoffRef.current, 30_000);
+      backoffRef.current *= 2;
+      reconnectTimerRef.current = setTimeout(connect, delay);
     };
   }, [enabled]);
+
+  useEffect(() => {
+    connect();
+    return () => {
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+    };
+  }, [connect]);
 
   const clear = async () => {
     try {
@@ -40,5 +65,5 @@ export function useConsoleStream(opts: { enabled?: boolean } = {}) {
     }
   };
 
-  return { logs, clear };
+  return { logs, clear, status };
 }

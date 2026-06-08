@@ -10,6 +10,7 @@ import { ProviderIcon } from "@/components/common/ProviderIcon";
 import { TrafficSummary } from "@/components/topology/TrafficSummary";
 import { ProviderTopology } from "@/components/topology/ProviderTopology";
 import { useTrafficStream } from "@/lib/hooks/useTrafficStream";
+import { MetricsGridSkeleton, ErrorState } from "@/components/common/Skeletons";
 import type { Provider } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/dashboard")({
@@ -18,11 +19,16 @@ export const Route = createFileRoute("/_app/dashboard")({
 
 function DashboardPage() {
   const [paused, setPaused] = useState(false);
-  const providersQ = useQuery({
+  const {
+    data: providers = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery<Provider[]>({
     queryKey: ["providers"],
     queryFn: () => apiFetch<Provider[]>("/api/providers"),
   });
-  const providers = providersQ.data ?? [];
 
   const { events } = useTrafficStream({ enabled: !paused });
 
@@ -43,22 +49,33 @@ function DashboardPage() {
         }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <StatCard label="Providers" value={providers.length} icon="dns" />
-        <StatCard
-          label="Active"
-          value={activeProviders}
-          icon="check_circle"
-          tone="success"
+      {isLoading ? (
+        <MetricsGridSkeleton />
+      ) : isError ? (
+        <ErrorState
+          title="Couldn\u2019t load providers"
+          error={error}
+          onRetry={() => refetch()}
+          className="mb-4"
         />
-        <StatCard
-          label="Errors"
-          value={errorProviders}
-          icon="error"
-          tone={errorProviders > 0 ? "danger" : "success"}
-        />
-        <StatCard label="Events" value={events.length} icon="bolt" tone="info" />
-      </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <StatCard label="Providers" value={providers.length} icon="dns" />
+          <StatCard
+            label="Active"
+            value={activeProviders}
+            icon="check_circle"
+            tone="success"
+          />
+          <StatCard
+            label="Errors"
+            value={errorProviders}
+            icon="error"
+            tone={errorProviders > 0 ? "danger" : "success"}
+          />
+          <StatCard label="Events" value={events.length} icon="bolt" tone="info" />
+        </div>
+      )}
 
       <TrafficSummary paused={paused} onPausedChange={setPaused} />
       <ProviderTopology paused={paused} onPausedChange={setPaused} />

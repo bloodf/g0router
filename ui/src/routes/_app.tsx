@@ -2,6 +2,19 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api/client";
 import type { AuthStatus } from "@/lib/types";
+import { ErrorState } from "@/components/common/Skeletons";
+
+function AppErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <div className="p-6">
+      <ErrorState
+        title="Layout error"
+        error={error}
+        onRetry={reset}
+      />
+    </div>
+  );
+}
 
 export const Route = createFileRoute("/_app")({
   beforeLoad: async () => {
@@ -14,4 +27,5 @@ export const Route = createFileRoute("/_app")({
       <Outlet />
     </AppShell>
   ),
+  errorComponent: AppErrorComponent,
 });

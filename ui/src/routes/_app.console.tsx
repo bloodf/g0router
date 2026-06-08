@@ -5,11 +5,12 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/common/Icon";
+import { StatusBadge } from "@/components/common/StatusBadge";
 import { format } from "date-fns";
 
 export const Route = createFileRoute("/_app/console")({
   component: () => {
-    const { logs, clear } = useConsoleStream({});
+    const { logs, clear, status } = useConsoleStream({});
     const [filter, setFilter] = useState<string>("ALL");
     const filtered = logs.filter((l) => filter === "ALL" || l.level === filter);
     const colors: Record<string, string> = {
@@ -19,6 +20,14 @@ export const Route = createFileRoute("/_app/console")({
       ERROR: "text-destructive",
       DEBUG: "text-brand",
     };
+
+    const statusVariant: Record<string, "success" | "warning" | "danger" | "muted"> = {
+      open: "success",
+      connecting: "warning",
+      error: "danger",
+      closed: "muted",
+    };
+
     return (
       <div>
         <PageHeader
@@ -27,6 +36,9 @@ export const Route = createFileRoute("/_app/console")({
           icon="terminal"
           actions={
             <>
+              <StatusBadge variant={statusVariant[status] ?? "muted"} dot className="text-xs">
+                {status === "open" ? "Live" : status}
+              </StatusBadge>
               <select
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}

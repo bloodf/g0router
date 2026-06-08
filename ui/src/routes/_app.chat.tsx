@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Icon } from "@/components/common/Icon";
 import { PageHeader } from "@/components/common/PageHeader";
-import { ListRowsSkeleton } from "@/components/common/Skeletons";
+import { ListRowsSkeleton, ErrorState, CardSkeleton } from "@/components/common/Skeletons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatSession, Provider, Model, ApiKey } from "@/lib/types";
@@ -90,18 +90,24 @@ function ChatPage() {
     queryFn: () => apiFetch("/api/providers"),
   });
   const providers = providersQ.data ?? [];
+  const providersLoading = providersQ.isLoading;
+  const providersError = providersQ.isError;
 
   const modelsQ = useQuery<Model[]>({
     queryKey: ["models"],
     queryFn: () => apiFetch("/api/models"),
   });
   const allModels = modelsQ.data ?? [];
+  const modelsLoading = modelsQ.isLoading;
+  const modelsError = modelsQ.isError;
 
   const keysQ = useQuery<ApiKey[]>({
     queryKey: ["keys"],
     queryFn: () => apiFetch("/api/keys"),
   });
   const keys = keysQ.data ?? [];
+  const keysLoading = keysQ.isLoading;
+  const keysError = keysQ.isError;
   const firstKey = keys.find((k) => k.is_active);
 
   const sessionsQ = useQuery<ChatSession[]>({
@@ -160,6 +166,31 @@ function ChatPage() {
       ctl.signal,
     );
   };
+
+  const anyLoading = providersLoading || modelsLoading || keysLoading;
+  const anyError = providersError || modelsError || keysError;
+  const firstError = [providersQ.error, modelsQ.error, keysQ.error].find(Boolean);
+
+  if (anyError) {
+    return (
+      <div>
+        <PageHeader
+          title="Chat playground"
+          description="Test any connected model with streaming, sessions and tools."
+          icon="chat"
+        />
+        <ErrorState
+          title="Couldn’t load chat data"
+          error={firstError}
+          onRetry={() => {
+            providersQ.refetch();
+            modelsQ.refetch();
+            keysQ.refetch();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div>

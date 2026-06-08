@@ -1,35 +1,38 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { TrafficEvent } from "@/lib/types";
 
-let _id = 0;
-const nextId = () => `te-${++_id}`;
+export type ConnectionStatus = "connecting" | "open" | "closed" | "error";
 
 export function useTrafficStream(opts: { enabled?: boolean } = {}) {
   const { enabled = true } = opts;
   const [events, setEvents] = useState<TrafficEvent[]>([]);
-  const lastEvent = useRef<TrafficEvent | null>(null);
+  const [status, setStatus] = useState<ConnectionStatus>("closed");
   const esRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backoffRef = useRef(1000);
 
-  useEffect(() => {
+  const connect = useCallback(() => {
     if (!enabled) return;
+    if (esRef.current) {
+      esRef.current.close();
+    }
 
+    setStatus("connecting");
     const es = new EventSource("/api/traffic/stream");
     esRef.current = es;
 
+    es.onopen = () => {
+      setStatus("open");
+      backoffRef.current = 1000;
+    };
+
     es.onmessage = (e) => {
       try {
-        const raw = JSON.parse(e.data);
+        const data = JSON.parse(e.data);
         const ev: TrafficEvent = {
-          id: nextId(),
-          timestamp: raw.timestamp,
-          key_id: raw.key_id,
-          provider: raw.provider,
-          model: raw.model,
-          status_class: raw.status_class,
-          status_code: raw.status_code,
-          latency_ms: raw.latency_ms,
+          id: `${data.timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+          ...data,
         };
-        lastEvent.current = ev;
         setEvents((prev) => [ev, ...prev].slice(0, 50));
       } catch {
         // ignore malformed events
@@ -37,14 +40,28 @@ export function useTrafficStream(opts: { enabled?: boolean } = {}) {
     };
 
     es.onerror = () => {
-      // Auto-reconnect is built into EventSource
-    };
-
-    return () => {
+      setStatus("error");
       es.close();
       esRef.current = null;
+      // Exponential backoff capped at 30s
+      const delay = Math.min(backoffRef.current, 30_000);
+      backoffRef.current *= 2;
+      reconnectTimerRef.current = setTimeout(connect, delay);
     };
   }, [enabled]);
 
-  return { events, lastEvent: lastEvent.current };
+  useEffect(() => {
+    connect();
+    return () => {
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (esRef.current) {
+        esRef.current.close();
+        esRef.current = null;
+      }
+    };
+  }, [connect]);
+
+  const lastEvent = events[0] ?? null;
+
+  return { events, lastEvent, status };
 }

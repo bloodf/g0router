@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { ProviderIcon } from "@/components/common/ProviderIcon";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Icon } from "@/components/common/Icon";
-import { CardsGridSkeleton } from "@/components/common/Skeletons";
+import { CardsGridSkeleton, ErrorState } from "@/components/common/Skeletons";
 import { toast } from "sonner";
 import type { Provider } from "@/lib/types";
 
@@ -26,7 +26,7 @@ function ProvidersPage() {
   const [auth, setAuth] = useState<AuthFilter>("all");
   const [onlyConnected, setOnlyConnected] = useState(false);
 
-  const { data: providers = [], isLoading, refetch } = useQuery<Provider[]>({
+  const { data: providers = [], isLoading, isError, error, refetch } = useQuery<Provider[]>({
     queryKey: ["providers"],
     queryFn: () => apiFetch("/api/providers"),
   });
@@ -147,6 +147,12 @@ function ProvidersPage() {
 
       {isLoading ? (
         <CardsGridSkeleton count={8} height="h-36" />
+      ) : isError ? (
+        <ErrorState
+          title="Couldn\u2019t load providers"
+          error={error}
+          onRetry={() => refetch()}
+        />
       ) : (
         <div className="space-y-8">
           <Section

@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useVisibleWindow } from "@/lib/hooks/useVisibleWindow";
+import { ErrorState } from "@/components/common/Skeletons";
 
 export const Route = createFileRoute("/_app/audit")({
   component: AuditPage,
@@ -105,7 +106,7 @@ function AuditPage() {
   const [time, setTime] = useState<TimeFilter>("all");
   const [keyEventsOnly, setKeyEventsOnly] = useState(false);
 
-  const { data, isLoading } = useQuery<{ items: BackendAuditLog[]; total: number }>({
+  const { data, isLoading, isError, error, refetch } = useQuery<{ items: BackendAuditLog[]; total: number }>({
     queryKey: ["audit", { limit: 500 }],
     queryFn: async () => {
       const raw = await apiFetch("/api/audit?limit=500");
@@ -204,6 +205,15 @@ function AuditPage() {
           </Button>
         }
       />
+
+      {isError && (
+        <ErrorState
+          title="Couldn’t load audit logs"
+          error={error}
+          onRetry={() => refetch()}
+          className="mb-4"
+        />
+      )}
 
       {/* Filters */}
       <Card className="card-elev border-border p-4 mb-4">

@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { CopyButton } from "@/components/common/CopyButton";
 import { Icon } from "@/components/common/Icon";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import { CardsGridSkeleton } from "@/components/common/Skeletons";
+import { CardsGridSkeleton, ErrorState } from "@/components/common/Skeletons";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import type { ApiKey, Tunnel } from "@/lib/types";
 import { useVisibleWindow } from "@/lib/hooks/useVisibleWindow";
@@ -47,7 +47,11 @@ function EndpointPage() {
   });
   const tunnels = tunnelsQ.data ?? [];
   const tLoading = tunnelsQ.isLoading;
+  const tError = tunnelsQ.isError;
   const keys = keysQ.data ?? [];
+  const kError = keysQ.isError;
+  const anyError = tError || kError;
+  const firstError = tunnelsQ.error || keysQ.error;
 
   const keysWindow = useVisibleWindow(25, keys.length);
   const visibleKeys = keys.slice(0, keysWindow.visible);
@@ -199,6 +203,26 @@ function EndpointPage() {
   -H "Authorization: Bearer ${keys[0]?.prefix ?? "sk-…"}" \\
   -H "Content-Type: application/json" \\
   -d '{"model":"gpt-4o","messages":[{"role":"user","content":"Hi"}]}'`;
+
+  if (anyError) {
+    return (
+      <div>
+        <PageHeader
+          title="Endpoint"
+          description="One OpenAI-compatible URL for every connected model."
+          icon="api"
+        />
+        <ErrorState
+          title="Couldn’t load endpoint data"
+          error={firstError}
+          onRetry={() => {
+            tunnelsQ.refetch();
+            keysQ.refetch();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
