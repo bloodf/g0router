@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Icon } from "@/components/common/Icon";
 import { useLogin } from "@/lib/auth";
 import { apiFetch } from "@/lib/api/client";
-import type { AuthStatus } from "@/lib/mocks/types";
+import type { AuthStatus } from "@/lib/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({

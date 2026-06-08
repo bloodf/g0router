@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage } from "@/components/common/CrudPage";
-import type { Alias } from "@/lib/mocks/types";
+import type { Alias } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/aliases")({
   component: () => (

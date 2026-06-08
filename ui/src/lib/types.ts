@@ -328,22 +328,19 @@ export interface Skill {
 }
 
 export interface TrafficEvent {
-  id: string;
+  id: string; // client-generated for React keys
   timestamp: string;
-  api_key_id: string;
-  api_key_name: string;
+  key_id: string;
   provider: string;
   model: string;
-  combo_id?: string;
-  status: "success" | "error";
-  tokens: number;
+  status_class: string;
+  status_code: number;
   latency_ms: number;
-  cost_usd: number;
 }
 
 export interface ConsoleLogEntry {
-  id: string;
   timestamp: string;
-  level: "LOG" | "INFO" | "WARN" | "ERROR" | "DEBUG";
+  level: string;
   message: string;
+  attrs?: { key: string; value: string }[];
 }

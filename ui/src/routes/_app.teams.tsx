@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage } from "@/components/common/CrudPage";
 import { Progress } from "@/components/ui/progress";
-import type { Team } from "@/lib/mocks/types";
+import type { Team } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/teams")({
   component: () => (

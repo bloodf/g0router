@@ -7,15 +7,74 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Icon } from "@/components/common/Icon";
 import { PageHeader } from "@/components/common/PageHeader";
-import { streamMockChat } from "@/lib/mocks/streams";
 import { ListRowsSkeleton } from "@/components/common/Skeletons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { ChatSession, Provider } from "@/lib/mocks/types";
+import type { ChatSession, Provider, Model, ApiKey } from "@/lib/types";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/chat")({ component: ChatPage });
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+async function streamChat(
+  body: {
+    model: string;
+    messages: Array<{ role: string; content: string }>;
+    stream: boolean;
+  },
+  apiKey: string,
+  onDelta: (delta: string) => void,
+  onDone: () => void,
+  signal: AbortSignal,
+) {
+  try {
+    const response = await fetch("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "Unknown error");
+      throw new Error(`HTTP ${response.status}: ${text}`);
+    }
+    if (!response.body) {
+      throw new Error("No response body");
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let done = false;
+    while (!done) {
+      const { value, done: d } = await reader.read();
+      done = d;
+      if (!value) continue;
+      const chunk = decoder.decode(value, { stream: true });
+      for (const line of chunk.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === "data: [DONE]") continue;
+        if (trimmed.startsWith("data: ")) {
+          try {
+            const json = JSON.parse(trimmed.slice(6));
+            const delta = json.choices?.[0]?.delta?.content;
+            if (delta) onDelta(delta);
+          } catch {
+            // ignore malformed SSE lines
+          }
+        }
+      }
+    }
+    onDone();
+  } catch (err: any) {
+    if (err.name !== "AbortError") {
+      toast.error(err.message || "Chat request failed");
+    }
+    onDone();
+  }
+}
 
 function ChatPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -31,12 +90,36 @@ function ChatPage() {
     queryFn: () => apiFetch("/api/providers"),
   });
   const providers = providersQ.data ?? [];
+
+  const modelsQ = useQuery<Model[]>({
+    queryKey: ["models"],
+    queryFn: () => apiFetch("/api/models"),
+  });
+  const allModels = modelsQ.data ?? [];
+
+  const keysQ = useQuery<ApiKey[]>({
+    queryKey: ["keys"],
+    queryFn: () => apiFetch("/api/keys"),
+  });
+  const keys = keysQ.data ?? [];
+  const firstKey = keys.find((k) => k.is_active);
+
   const sessionsQ = useQuery<ChatSession[]>({
     queryKey: ["chat-sessions"],
     queryFn: () => apiFetch("/api/chat-sessions"),
   });
   const sessions = sessionsQ.data ?? [];
   const sessionsLoading = sessionsQ.isLoading;
+
+  // Filter models by selected provider
+  const providerModels = allModels.filter((m) => m.provider === provider);
+
+  // Auto-select first model when provider changes
+  useEffect(() => {
+    if (providerModels.length > 0 && !providerModels.find((m) => m.id === model)) {
+      setModel(providerModels[0].id);
+    }
+  }, [provider, providerModels, model]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -47,14 +130,23 @@ function ChatPage() {
 
   const send = async () => {
     if (!input.trim() || streaming) return;
+    if (!firstKey) {
+      toast.error("No active API key available. Create one in Settings → Keys.");
+      return;
+    }
     const userMsg = { role: "user" as const, content: input };
     setMessages((m) => [...m, userMsg, { role: "assistant", content: "" }]);
     setInput("");
     setStreaming(true);
     const ctl = new AbortController();
     abortRef.current = ctl;
-    streamMockChat(
-      input,
+    await streamChat(
+      {
+        model,
+        messages: [...messages, userMsg].map((m) => ({ role: m.role, content: m.content })),
+        stream: true,
+      },
+      firstKey.prefix,
       (delta) =>
         setMessages((m) => {
           const next = [...m];
@@ -132,10 +224,16 @@ function ChatPage() {
               onChange={(e) => setModel(e.target.value)}
               className="bg-surface-2 border border-border rounded-lg px-2 py-1.5 text-xs font-mono"
             >
-              <option value="gpt-4o">gpt-4o</option>
-              <option value="claude-sonnet-4">claude-sonnet-4</option>
-              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              {providerModels.length === 0 && <option value="">No models</option>}
+              {providerModels.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.id}
+                </option>
+              ))}
             </select>
+            {!firstKey && (
+              <span className="text-[11px] text-destructive">No active API key</span>
+            )}
           </div>
 
           <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar p-6">
@@ -144,7 +242,7 @@ function ChatPage() {
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 mx-auto mb-3 flex items-center justify-center text-white font-bold text-lg shadow-warm">
                   g0
                 </div>
-                <p className="text-sm">Ask anything to test {model}</p>
+                <p className="text-sm">Ask anything to test {model || "a model"}</p>
               </div>
             )}
             <div className="space-y-4 max-w-3xl mx-auto">

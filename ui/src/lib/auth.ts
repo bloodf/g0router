@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "./api/client";
-import type { AuthStatus } from "./mocks/types";
+import type { AuthStatus } from "./types";
 
 export function useAuthStatus() {
   return useQuery({

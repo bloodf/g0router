@@ -19,7 +19,7 @@ import {
   getRemainingPercentage,
   type QuotaRow,
 } from "@/components/quota/quota-utils";
-import type { Quota } from "@/lib/mocks/types";
+import type { Quota } from "@/lib/types";
 
 type SortMode = "default" | "remaining-asc" | "remaining-desc";
 

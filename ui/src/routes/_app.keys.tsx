@@ -3,7 +3,7 @@ import { CrudPage } from "@/components/common/CrudPage";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { CopyButton } from "@/components/common/CopyButton";
 import { format } from "date-fns";
-import type { ApiKey } from "@/lib/mocks/types";
+import type { ApiKey } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/keys")({
   component: () => (

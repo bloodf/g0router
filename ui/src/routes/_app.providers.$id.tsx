@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Icon } from "@/components/common/Icon";
 import { ProviderTopology } from "@/components/topology/ProviderTopology";
 import { DetailHeaderSkeleton, TableSkeleton, ErrorState } from "@/components/common/Skeletons";
-import type { Connection, Model, Provider } from "@/lib/mocks/types";
+import type { Connection, Model, Provider } from "@/lib/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/providers/$id")({

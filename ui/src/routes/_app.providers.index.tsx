@@ -11,7 +11,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { Icon } from "@/components/common/Icon";
 import { CardsGridSkeleton } from "@/components/common/Skeletons";
 import { toast } from "sonner";
-import type { Provider } from "@/lib/mocks/types";
+import type { Provider } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/providers/")({
   component: ProvidersPage,

@@ -14,11 +14,11 @@ import type {
   Combo,
   Connection,
   Provider,
-} from "@/lib/mocks/types";
+  TrafficEvent,
+} from "@/lib/types";
 import { ProviderIcon } from "../common/ProviderIcon";
 import { StatusBadge } from "../common/StatusBadge";
 import { Icon } from "../common/Icon";
-import type { TrafficEvent } from "@/lib/mocks/types";
 import { formatDistanceToNow } from "date-fns";
 import { ListRowsSkeleton } from "../common/Skeletons";
 import { DialogQueryState } from "../common/DialogQueryState";
@@ -33,6 +33,10 @@ interface Props {
   selected: SelectedNode | null;
   onClose: () => void;
   events: TrafficEvent[];
+}
+
+function eventStatus(ev: TrafficEvent): "success" | "error" {
+  return ev.status_class.startsWith("2") ? "success" : "error";
 }
 
 export function NodeDrawer({ selected, onClose, events }: Props) {
@@ -76,8 +80,7 @@ export function NodeDrawer({ selected, onClose, events }: Props) {
     return events
       .filter((e) => {
         if (selected.kind === "provider") return e.provider === selected.id;
-        if (selected.kind === "combo") return e.combo_id === selected.id;
-        if (selected.kind === "key") return e.api_key_id === selected.id;
+        if (selected.kind === "key") return e.key_id === selected.id;
         return false;
       })
       .slice(0, 8);
@@ -88,7 +91,7 @@ export function NodeDrawer({ selected, onClose, events }: Props) {
       <SheetContent className="w-[420px] sm:max-w-[420px] overflow-y-auto custom-scrollbar">
         <DialogQueryState
           queries={active}
-          errorTitle="Couldn’t load details"
+          errorTitle="Couldn\u2019t load details"
           skeleton={
             <div className="space-y-4">
               <div className="flex items-center gap-3">
@@ -134,22 +137,22 @@ export function NodeDrawer({ selected, onClose, events }: Props) {
                 className="flex items-center gap-2 p-2 rounded-md bg-surface-2 text-xs"
               >
                 <StatusBadge
-                  variant={s.status === "success" ? "success" : "danger"}
+                  variant={eventStatus(s) === "success" ? "success" : "danger"}
                   dot
                 >
-                  {s.status}
+                  {eventStatus(s)}
                 </StatusBadge>
                 <div className="flex-1 min-w-0">
                   <div className="font-medium truncate">
                     {s.provider} · {s.model}
                   </div>
                   <div className="text-text-muted">
-                    {s.api_key_name} · {formatDistanceToNow(new Date(s.timestamp), { addSuffix: true })}
+                    {s.key_id} · {formatDistanceToNow(new Date(s.timestamp), { addSuffix: true })}
                   </div>
                 </div>
                 <div className="text-right tabular-nums">
                   <div>{s.latency_ms}ms</div>
-                  <div className="text-text-muted">{s.tokens}t</div>
+                  <div className="text-text-muted">{s.status_code}</div>
                 </div>
               </div>
             ))}
@@ -258,7 +261,7 @@ function ComboDetail({ combo }: { combo?: Combo }) {
           Steps
         </div>
         <div className="space-y-1.5">
-          {combo.steps.map((s, i) => (
+          {combo.steps?.map((s, i) => (
             <div
               key={i}
               className="flex items-center gap-2 p-2 rounded-md border border-border text-sm"
@@ -301,7 +304,7 @@ function KeyDetail({ apiKey }: { apiKey?: ApiKey }) {
           Scopes
         </div>
         <div className="flex flex-wrap gap-1">
-          {apiKey.scopes.map((s) => (
+          {apiKey.scopes?.map((s) => (
             <StatusBadge key={s} variant="muted">
               {s}
             </StatusBadge>

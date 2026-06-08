@@ -13,7 +13,7 @@ import { Icon } from "@/components/common/Icon";
 import { StackedListSkeleton, ErrorState } from "@/components/common/Skeletons";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
 import { toast } from "sonner";
-import type { Connection, Provider } from "@/lib/mocks/types";
+import type { Connection, Provider } from "@/lib/types";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_app/connections")({

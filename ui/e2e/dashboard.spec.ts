@@ -10,8 +10,8 @@ test.describe("Dashboard", () => {
     await page.goto("/dashboard");
     // Check that the page title or some expected element is present
     await expect(page.locator("body")).toBeVisible();
-    // No error overlay
-    await expect(page.locator("text=Error")).not.toBeVisible();
+    // No error toast or overlay
+    await expect(page.locator("[role='alert']")).not.toBeVisible();
   });
 
   test("metrics cards are visible", async ({ page }) => {

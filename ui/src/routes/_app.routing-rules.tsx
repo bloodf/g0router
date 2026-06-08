@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage } from "@/components/common/CrudPage";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import type { RoutingRule } from "@/lib/mocks/types";
+import type { RoutingRule } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/routing-rules")({
   component: () => (

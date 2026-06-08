@@ -13,7 +13,7 @@ import { Icon } from "@/components/common/Icon";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { CardsGridSkeleton } from "@/components/common/Skeletons";
 import { ConfirmDialog } from "@/components/common/ConfirmDialog";
-import type { ApiKey, Tunnel } from "@/lib/mocks/types";
+import type { ApiKey, Tunnel } from "@/lib/types";
 import { useVisibleWindow } from "@/lib/hooks/useVisibleWindow";
 import { toast } from "sonner";
 

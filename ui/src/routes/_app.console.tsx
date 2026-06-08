@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useConsoleStream } from "@/lib/mocks/streams";
+import { useConsoleStream } from "@/lib/hooks/useConsoleStream";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -43,12 +43,12 @@ export const Route = createFileRoute("/_app/console")({
           }
         />
         <Card className="card-elev border-border p-3 font-mono text-xs h-[calc(100vh-220px)] overflow-y-auto custom-scrollbar bg-surface">
-          {filtered.map((l) => (
-            <div key={l.id} className="flex gap-2 py-0.5">
+          {filtered.map((l, i) => (
+            <div key={i} className="flex gap-2 py-0.5">
               <span className="text-text-muted">
                 {format(new Date(l.timestamp), "HH:mm:ss")}
               </span>
-              <span className={`${colors[l.level]} font-semibold w-12`}>
+              <span className={`${colors[l.level] || "text-foreground"} font-semibold w-12`}>
                 {l.level}
               </span>
               <span className="text-foreground flex-1">{l.message}</span>

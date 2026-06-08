@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage } from "@/components/common/CrudPage";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { Progress } from "@/components/ui/progress";
-import type { VirtualKey } from "@/lib/mocks/types";
+import type { VirtualKey } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/virtual-keys")({
   component: () => (

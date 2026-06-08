@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSetup } from "@/lib/auth";
 import { apiFetch } from "@/lib/api/client";
-import type { AuthStatus } from "@/lib/mocks/types";
+import type { AuthStatus } from "@/lib/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/setup")({

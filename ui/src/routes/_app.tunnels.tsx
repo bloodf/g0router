@@ -11,7 +11,7 @@ import { CardsGridSkeleton, ErrorState } from "@/components/common/Skeletons";
 import { CopyButton } from "@/components/common/CopyButton";
 import { Icon } from "@/components/common/Icon";
 import { StatusBadge } from "@/components/common/StatusBadge";
-import type { Tunnel } from "@/lib/mocks/types";
+import type { Tunnel } from "@/lib/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/tunnels")({

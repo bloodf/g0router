@@ -133,7 +133,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
       </nav>
 
       <div className="border-t border-sidebar-border px-4 py-3 flex items-center justify-between text-xs text-text-muted">
-        <span>v0.9.0-mock</span>
+        <span>v0.9.0</span>
         <span className="pulse-dot" />
       </div>
     </aside>

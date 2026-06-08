@@ -61,16 +61,16 @@ test.describe("Dashboard", () => {
   test("dashboard loads with all widgets", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page.locator("body")).toContainText("Dashboard", { timeout: 10000 });
-    await expect(page.locator("body")).toContainText("Active Connections");
-    await expect(page.locator("body")).toContainText("Requests Today");
-    await expect(page.locator("body")).toContainText("System Status");
+    await expect(page.locator("body")).toContainText("Providers");
+    await expect(page.locator("body")).toContainText("Active");
+    await expect(page.locator("body")).toContainText("Events");
   });
 
-  test("dashboard quick actions are visible", async ({ page }) => {
+  test("dashboard topology and traffic summary are visible", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.locator('a:has-text("Add Provider")').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('a:has-text("Create API Key")').first()).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('a:has-text("Test Chat")').first()).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("body")).toContainText("Filters");
+    await expect(page.locator("body")).toContainText("Providers");
+    await expect(page.locator("body")).toContainText("Req / min");
   });
 });
 

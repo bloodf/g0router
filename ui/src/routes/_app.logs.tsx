@@ -7,7 +7,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { ProviderIcon } from "@/components/common/ProviderIcon";
 import { TableSkeleton, ErrorState } from "@/components/common/Skeletons";
 import { format } from "date-fns";
-import type { UsageLog } from "@/lib/mocks/types";
+import type { UsageLog } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/logs")({
   component: () => {

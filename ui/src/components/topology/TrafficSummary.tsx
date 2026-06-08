@@ -10,8 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useTrafficStream } from "@/lib/mocks/streams";
-import type { TrafficEvent } from "@/lib/mocks/types";
+import { useTrafficStream } from "@/lib/hooks/useTrafficStream";
+import type { TrafficEvent } from "@/lib/types";
 
 export type TimeWindow = 30 | 120 | 300 | 900;
 export type StatusFilter = "all" | "success" | "error";
@@ -24,6 +24,10 @@ interface Props {
 interface BufferEntry {
   ev: TrafficEvent;
   ts: number;
+}
+
+function eventStatus(ev: TrafficEvent): "success" | "error" {
+  return ev.status_class.startsWith("2") ? "success" : "error";
 }
 
 export function TrafficSummary({ paused = false, onPausedChange }: Props) {
@@ -49,13 +53,11 @@ export function TrafficSummary({ paused = false, onPausedChange }: Props) {
     const now = Date.now();
     const cutoff = now - windowSec * 1000;
     const inWindow = buffer.filter(
-      (b) => b.ts >= cutoff && (status === "all" || b.ev.status === status),
+      (b) => b.ts >= cutoff && (status === "all" || eventStatus(b.ev) === status),
     );
-    const errors = inWindow.filter((b) => b.ev.status === "error").length;
+    const errors = inWindow.filter((b) => eventStatus(b.ev) === "error").length;
     const successes = inWindow.length - errors;
     const totalLatency = inWindow.reduce((s, b) => s + b.ev.latency_ms, 0);
-    const totalTokens = inWindow.reduce((s, b) => s + b.ev.tokens, 0);
-    const cost = inWindow.reduce((s, b) => s + b.ev.cost_usd, 0);
     const reqPerMin = inWindow.length / (windowSec / 60);
     const errorRate = inWindow.length ? (errors / inWindow.length) * 100 : 0;
     const avgLatency = inWindow.length ? totalLatency / inWindow.length : 0;
@@ -75,8 +77,6 @@ export function TrafficSummary({ paused = false, onPausedChange }: Props) {
       reqPerMin,
       errorRate,
       avgLatency,
-      totalTokens,
-      cost,
       top,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -139,7 +139,7 @@ export function TrafficSummary({ paused = false, onPausedChange }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
         <Metric label="Requests" value={stats.total} icon="bolt" />
         <Metric
           label="Req / min"
@@ -157,21 +157,6 @@ export function TrafficSummary({ paused = false, onPausedChange }: Props) {
           value={`${stats.errorRate.toFixed(1)}%`}
           icon="error"
           tone={stats.errorRate > 5 ? "danger" : stats.errorRate > 1 ? "warning" : "success"}
-        />
-        <Metric
-          label="Tokens"
-          value={
-            stats.totalTokens > 1000
-              ? `${(stats.totalTokens / 1000).toFixed(1)}k`
-              : String(stats.totalTokens)
-          }
-          icon="token"
-        />
-        <Metric
-          label="Cost"
-          value={`$${stats.cost.toFixed(3)}`}
-          icon="payments"
-          tone="success"
         />
       </div>
 

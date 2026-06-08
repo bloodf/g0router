@@ -16,10 +16,10 @@ import type {
   Connection,
   Provider,
   TrafficEvent,
-} from "@/lib/mocks/types";
+} from "@/lib/types";
 import { layoutFlow } from "./layout";
 import { nodeTypes } from "./nodes";
-import { useTrafficStream } from "@/lib/mocks/streams";
+import { useTrafficStream } from "@/lib/hooks/useTrafficStream";
 import { Button } from "@/components/ui/button";
 import { Icon } from "../common/Icon";
 import { TopologyLegend } from "./TopologyLegend";
@@ -44,6 +44,10 @@ interface EdgeStat {
   last_ts: number;
 }
 
+function eventStatus(ev: TrafficEvent): "success" | "error" {
+  return ev.status_class.startsWith("2") ? "success" : "error";
+}
+
 export function ProviderTopology({
   variant = "full",
   providerFilter,
@@ -54,7 +58,6 @@ export function ProviderTopology({
   const paused = pausedProp ?? pausedInternal;
   const setPaused = (v: boolean) =>
     onPausedChange ? onPausedChange(v) : setPausedInternal(v);
-  const [speed, setSpeed] = useState(1);
   const [filters, setFilters] = useState<TopologyFilters>(DEFAULT_FILTERS);
   const [selected, setSelected] = useState<SelectedNode | null>(null);
   const [tick, setTick] = useState(0);
@@ -80,34 +83,39 @@ export function ProviderTopology({
   const combos = combosQ.data ?? [];
   const keys = keysQ.data ?? [];
 
-  const { events, lastEvent } = useTrafficStream({
-    enabled: !paused,
-    speed,
-  });
+  const { events, lastEvent } = useTrafficStream({ enabled: !paused });
 
   // Buffer of recent events with the tagged edge ids for stat lookups.
   const eventLogRef = useRef<
-    Array<{ ev: TrafficEvent; e1: string | null; e2: string | null; ts: number }>
+    Array<{ ev: TrafficEvent; edges: string[]; ts: number }>
   >([]);
 
   useEffect(() => {
     if (!lastEvent) return;
-    const keyId = `key-${lastEvent.api_key_id}`;
+    const keyId = `key-${lastEvent.key_id}`;
     const provId = `provider-${lastEvent.provider}`;
-    const comboId = lastEvent.combo_id ? `combo-${lastEvent.combo_id}` : null;
-    const e1 = comboId ? `${keyId}__${comboId}` : `${keyId}__${provId}`;
-    const e2 = comboId ? `${comboId}__${provId}` : null;
+
+    // Find all combos that route to this provider; animate key→combo and combo→provider edges.
+    const matchingCombos = combos.filter((c) =>
+      c.steps?.some((s) => s.provider === lastEvent.provider),
+    );
+
+    const edges: string[] = [];
+    for (const combo of matchingCombos) {
+      edges.push(`${keyId}__combo-${combo.id}`);
+      edges.push(`combo-${combo.id}__${provId}`);
+    }
+
     eventLogRef.current.unshift({
       ev: lastEvent,
-      e1,
-      e2,
+      edges,
       ts: Date.now(),
     });
     // cap buffer
     if (eventLogRef.current.length > 500) {
       eventLogRef.current = eventLogRef.current.slice(0, 500);
     }
-  }, [lastEvent]);
+  }, [lastEvent, combos]);
 
   // Drive recompute of edge stats so badges/animation fade naturally.
   useEffect(() => {
@@ -138,8 +146,7 @@ export function ProviderTopology({
     const active = new Set<string>();
     for (const entry of eventLogRef.current) {
       if (now - entry.ts > windowMs) break;
-      for (const eid of [entry.e1, entry.e2]) {
-        if (!eid) continue;
+      for (const eid of entry.edges) {
         const s = stats.get(eid) ?? {
           count: 0,
           errors: 0,
@@ -147,15 +154,14 @@ export function ProviderTopology({
           last_ts: 0,
         };
         s.count += 1;
-        if (entry.ev.status === "error") s.errors += 1;
+        if (eventStatus(entry.ev) === "error") s.errors += 1;
         s.total_latency += entry.ev.latency_ms;
         s.last_ts = Math.max(s.last_ts, entry.ts);
         stats.set(eid, s);
       }
       // Recently animated (last 1.8s) — for dashed traffic styling.
       if (now - entry.ts < 1800) {
-        if (entry.e1) active.add(entry.e1);
-        if (entry.e2) active.add(entry.e2);
+        for (const eid of entry.edges) active.add(eid);
       }
     }
     return { edgeStats: stats, activeEdgeIds: active };
@@ -226,9 +232,6 @@ export function ProviderTopology({
       activeCombos.forEach((c) => {
         const eid = `key-${k.id}__combo-${c.id}`;
         const stat = edgeStats.get(eid);
-        if (!stat && filters.window_sec !== 30 && filters.status === "all" && filters.auth_type === "all") {
-          // Always render baseline edges, but allow filtering to keep them too.
-        }
         es.push({
           id: eid,
           source: `key-${k.id}`,
@@ -245,7 +248,7 @@ export function ProviderTopology({
 
     // combo → provider (only steps that point at visible providers)
     activeCombos.forEach((c) => {
-      const targets = new Set(c.steps.map((s) => s.provider));
+      const targets = new Set(c.steps?.map((s) => s.provider) ?? []);
       visibleProviders.forEach((p) => {
         if (!targets.has(p.id)) return;
         const eid = `combo-${c.id}__provider-${p.id}`;
@@ -306,20 +309,6 @@ export function ProviderTopology({
               <Icon name={paused ? "play_arrow" : "pause"} size={16} />
               {paused ? "Resume" : "Pause"}
             </Button>
-            <div className="h-5 w-px bg-border" />
-            <div className="flex items-center gap-1 px-2 text-xs text-text-muted">
-              <Icon name="speed" size={14} />
-              <input
-                type="range"
-                min="0.5"
-                max="4"
-                step="0.5"
-                value={speed}
-                onChange={(e) => setSpeed(parseFloat(e.target.value))}
-                className="w-20 accent-brand-500"
-              />
-              <span className="w-8 text-right tabular-nums">{speed}×</span>
-            </div>
             <div className="h-5 w-px bg-border" />
             <Button
               variant="ghost"

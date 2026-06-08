@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { useState } from "react";
 import { toast } from "sonner";
-import type { Combo, Model } from "@/lib/mocks/types";
+import type { Combo, Model } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/combos")({
   component: CombosPage,

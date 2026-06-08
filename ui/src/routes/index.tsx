@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { apiFetch } from "@/lib/api/client";
-import type { AuthStatus } from "@/lib/mocks/types";
+import type { AuthStatus } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
   beforeLoad: async () => {

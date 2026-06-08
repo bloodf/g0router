@@ -6,7 +6,7 @@ import { DataTable } from "@/components/common/DataTable";
 import { ProviderIcon } from "@/components/common/ProviderIcon";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { TableSkeleton, ErrorState } from "@/components/common/Skeletons";
-import type { Model } from "@/lib/mocks/types";
+import type { Model } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/models")({
   component: ModelsPage,

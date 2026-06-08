@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CrudPage } from "@/components/common/CrudPage";
-import type { PricingOverride } from "@/lib/mocks/types";
+import type { PricingOverride } from "@/lib/types";
 
 export const Route = createFileRoute("/_app/pricing")({
   component: () => (
