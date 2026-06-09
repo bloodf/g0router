@@ -247,3 +247,43 @@ func TestErrorResponseRoundTrip(t *testing.T) {
 		t.Errorf("code = %v, want 400", got.Error.Code)
 	}
 }
+
+func TestSchemaTypesCompile(t *testing.T) {
+	_ = ChatRequest{}
+	_ = ChatResponse{}
+	_ = TextCompletionRequest{}
+	_ = TextCompletionResponse{}
+	_ = EmbeddingRequest{}
+	_ = EmbeddingResponse{}
+	_ = ImageGenerationRequest{}
+	_ = ImageGenerationResponse{}
+	_ = SpeechRequest{}
+	_ = SpeechResponse{}
+	_ = TranscriptionRequest{}
+	_ = TranscriptionResponse{}
+	_ = FileObject{}
+	_ = FileUploadRequest{}
+	_ = Batch{}
+	_ = BatchCreateRequest{}
+	_ = ResponsesRequest{}
+	_ = ResponsesResponse{}
+	_ = APIError{}
+	_ = ErrorResponse{}
+	_ = ProviderError{}
+	_ = GatewayContext{}
+	_ = Key{}
+	_ = NetworkConfig{}
+	_ = ListModelsResponse{}
+	_ = ModelEntry{}
+	_ = TokenCountResponse{}
+	_ = VirtualKey{}
+	_ = ProviderConfig{}
+	_ = Budget{}
+	_ = PricingEntry{}
+	_ = ModelCapability{}
+	_ = Cost{}
+	_ = MCPClient{}
+	_ = MCPInstance{}
+	_ = MCPTool{}
+	_ = MCPToolGroup{}
+}
