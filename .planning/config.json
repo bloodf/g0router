@@ -1,0 +1,60 @@
+{
+  "model_profile": "balanced",
+  "commit_docs": true,
+  "search_gitignored": false,
+  "branching_strategy": "none",
+  "phase_branch_template": "gsd/phase-{phase}-{slug}",
+  "milestone_branch_template": "gsd/{milestone}-{slug}",
+  "quick_branch_template": null,
+  "workflow": {
+    "research": true,
+    "plan_check": true,
+    "verifier": true,
+    "nyquist_validation": true,
+    "skip_discuss": true,
+    "auto_advance": true,
+    "ui_phase": true,
+    "ui_review": true,
+    "code_review": true,
+    "security_enforcement": true,
+    "tdd_mode": true,
+    "use_worktrees": true,
+    "cross_ai_execution": false,
+    "cross_ai_command": "",
+    "cross_ai_timeout": 300,
+    "discuss_mode": "smart",
+    "research_before_questions": false,
+    "plan_bounce": false,
+    "plan_bounce_passes": 2,
+    "ai_integration_phase": true
+  },
+  "parallelization": {
+    "enabled": true,
+    "plan_level": true,
+    "task_level": false,
+    "skip_checkpoints": true,
+    "max_concurrent_agents": 3,
+    "min_plans_for_parallel": 2
+  },
+  "gates": {
+    "confirm_project": false,
+    "confirm_phases": false,
+    "confirm_roadmap": false,
+    "confirm_breakdown": false,
+    "confirm_plan": false,
+    "execute_next_plan": false,
+    "issues_review": false,
+    "confirm_transition": false
+  },
+  "safety": {
+    "always_confirm_destructive": true,
+    "always_confirm_external_services": true
+  },
+  "hooks": {
+    "context_warnings": true
+  },
+  "project_code": null,
+  "agent_skills": {},
+  "claude_md_path": "./CLAUDE.md",
+  "brave_search": false
+}
