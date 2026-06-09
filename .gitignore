@@ -34,6 +34,11 @@ coverage.out
 # Claude Code - local settings contain secrets
 .claude/settings.local.json
 
+# Agent / orchestrator runtime artifacts
+.mavis/
+.omc/
+.opencode/
+
 # Agentic engineering runtime artifacts (must not be committed).
 # The .agentic/ directory holds BOTH runtime artifacts (runtime-only, gitignored)
 # AND tool-agnostic config files (qa.md, deploy.md, tracking.md)
