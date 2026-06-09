@@ -529,7 +529,26 @@ Pairs of rows across matrices that describe the same or overlapping behavior. Ca
 
 ---
 
-## 7. Open questions
+## 7. Open questions — DECIDED at Stage 0 checkpoint (2026-06-09)
+
+| # | Decision |
+|---|---|
+| 1 | Monolithic per-provider OAuth handlers, implementation ordered by provider popularity. No generic manager abstraction. |
+| 2 | Keep g0router opaque SQLite session tokens (7-day TTL). No JWT. |
+| 3 | Port all 39 locales as files; react-i18next hooks; drop runtime DOM MutationObserver approach. |
+| 4 | Skip Cowork 403 stub in Stage 1. Bifrost MCP gateway (Stage 2) supersedes. PAR rows for Cowork move to the Stage 1 exclusion list. |
+| 5 | Live smoke tests REQUIRED in CI for reverse-engineered providers. Implication: CI needs provisioned live accounts/credentials; failures from upstream drift block the gate by design. |
+| 6 | Raw OpenAI-compatible shapes authoritative on `/v1` routes. Bifrost `{data,error}` envelope only on the management API. |
+| 7 | SQLite-native vector path (sqlite-vec) is the default for semantic cache; external stores optional behind an interface. |
+| 8 | Cluster mode is a HARD Stage 3 requirement: full Bifrost parity (memberlist gossip + gRPC replication). |
+| 9 | Expand provider interface to full Bifrost size (50+ methods). Stubs return typed not-implemented errors until each capability lands. |
+| 10 | Go-native platform equivalents: systemd/launchd service for tray/auto-start, go-selfupdate for auto-update, `crypto/tls` CA reverse proxy for MITM, download-on-demand tunnel binaries (cloudflared/tailscale). |
+
+Stage 1 exclusion list (user-approved per decision 4): 9router Cowork/MCP-bridge rows in `matrix/9router-mcp.md` that exist only to serve the disabled Cowork feature. All other rows gate at 100% HAVE.
+
+Original questions preserved below for traceability.
+
+### Original questions
 
 1. **OAuth flow implementation order and shared infrastructure.** 9router has ~15 OAuth flows (Claude cc, Codex cx, Gemini CLI gc, Qwen, GitHub, Kiro, Cursor, etc.). What is the implementation priority order (device-code vs PKCE vs cookie-auth) and shared-infrastructure approach (generic OAuth manager with per-provider executor plugins vs monolithic per-provider handlers)?
 
