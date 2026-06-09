@@ -63,7 +63,6 @@ function generateHex(length: number): string {
 function SettingsPage() {
   const qc = useQueryClient();
   const [form, setForm] = useState<FormState | null>(null);
-  const [apiKeySecret, setApiKeySecret] = useState("");
   const [showSecret, setShowSecret] = useState(false);
 
   const {
@@ -83,7 +82,6 @@ function SettingsPage() {
         ...settings,
         api_key_secret: "",
       });
-      setApiKeySecret("");
     }
   }, [settings]);
 
@@ -97,7 +95,7 @@ function SettingsPage() {
     onSuccess: (data) => {
       qc.setQueryData(["settings"], data);
       toast.success("Settings saved");
-      setApiKeySecret("");
+      setForm((prev) => (prev ? { ...prev, api_key_secret: "" } : prev));
     },
     onError: (e: any) => {
       const msg = e?.message || "Failed to save settings";
@@ -109,8 +107,8 @@ function SettingsPage() {
     if (!form) return;
     const body: Partial<FormState> = { ...form };
     delete body.api_key_secret;
-    if (apiKeySecret) {
-      body.api_key_secret = apiKeySecret;
+    if (form.api_key_secret) {
+      body.api_key_secret = form.api_key_secret;
     }
     saveMutation.mutate(body);
   };
@@ -412,8 +410,8 @@ function SettingsPage() {
             <div className="flex items-center gap-2">
               <Input
                 type={showSecret ? "text" : "password"}
-                value={apiKeySecret}
-                onChange={(e) => setApiKeySecret(e.target.value)}
+                value={form.api_key_secret}
+                onChange={(e) => updateField("api_key_secret", e.target.value)}
                 placeholder={PLACEHOLDER_DOTS}
                 className="font-mono"
               />
@@ -433,7 +431,7 @@ function SettingsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setApiKeySecret(generateHex(32))}
+                onClick={() => updateField("api_key_secret", generateHex(32))}
                 type="button"
               >
                 <Icon name="autorenew" size={16} className="mr-1" />

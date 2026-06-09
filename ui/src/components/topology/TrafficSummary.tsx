@@ -21,11 +21,6 @@ interface Props {
   onPausedChange?: (paused: boolean) => void;
 }
 
-interface BufferEntry {
-  ev: TrafficEvent;
-  ts: number;
-}
-
 function eventStatus(ev: TrafficEvent): "success" | "error" {
   return ev.status_class.startsWith("2") ? "success" : "error";
 }
@@ -33,38 +28,31 @@ function eventStatus(ev: TrafficEvent): "success" | "error" {
 export function TrafficSummary({ paused = false, onPausedChange }: Props) {
   const [windowSec, setWindowSec] = useState<TimeWindow>(120);
   const [status, setStatus] = useState<StatusFilter>("all");
-  const [buffer, setBuffer] = useState<BufferEntry[]>([]);
-  const [tick, setTick] = useState(0);
+  const [now, setNow] = useState<number>(Date.now);
 
-  const { lastEvent } = useTrafficStream({ enabled: !paused });
-
-  useEffect(() => {
-    if (!lastEvent) return;
-    setBuffer((prev) => [{ ev: lastEvent, ts: Date.now() }, ...prev].slice(0, 1000));
-  }, [lastEvent]);
+  const { events, clear } = useTrafficStream({ enabled: !paused });
 
   // Drive recompute every second so counters tick down as events age out.
   useEffect(() => {
-    const t = setInterval(() => setTick((x) => x + 1), 1000);
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
   const stats = useMemo(() => {
-    const now = Date.now();
     const cutoff = now - windowSec * 1000;
-    const inWindow = buffer.filter(
-      (b) => b.ts >= cutoff && (status === "all" || eventStatus(b.ev) === status),
+    const inWindow = events.filter(
+      (ev) => new Date(ev.timestamp).getTime() >= cutoff && (status === "all" || eventStatus(ev) === status),
     );
-    const errors = inWindow.filter((b) => eventStatus(b.ev) === "error").length;
+    const errors = inWindow.filter((ev) => eventStatus(ev) === "error").length;
     const successes = inWindow.length - errors;
-    const totalLatency = inWindow.reduce((s, b) => s + b.ev.latency_ms, 0);
+    const totalLatency = inWindow.reduce((s, ev) => s + ev.latency_ms, 0);
     const reqPerMin = inWindow.length / (windowSec / 60);
     const errorRate = inWindow.length ? (errors / inWindow.length) * 100 : 0;
     const avgLatency = inWindow.length ? totalLatency / inWindow.length : 0;
 
     const byProvider = new Map<string, number>();
-    for (const b of inWindow) {
-      byProvider.set(b.ev.provider, (byProvider.get(b.ev.provider) ?? 0) + 1);
+    for (const ev of inWindow) {
+      byProvider.set(ev.provider, (byProvider.get(ev.provider) ?? 0) + 1);
     }
     const top = Array.from(byProvider.entries())
       .sort((a, b) => b[1] - a[1])
@@ -79,8 +67,7 @@ export function TrafficSummary({ paused = false, onPausedChange }: Props) {
       avgLatency,
       top,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [buffer, windowSec, status, tick]);
+  }, [events, windowSec, status, now]);
 
   return (
     <Card className="card-elev border-border p-4 mb-4">
@@ -130,7 +117,7 @@ export function TrafficSummary({ paused = false, onPausedChange }: Props) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setBuffer([])}
+            onClick={() => clear()}
             className="gap-1.5 h-8"
           >
             <Icon name="restart_alt" size={14} />

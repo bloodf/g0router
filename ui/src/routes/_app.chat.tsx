@@ -80,59 +80,57 @@ function ChatPage() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [provider, setProvider] = useState("");
-  const [model, setModel] = useState("");
+  const [userProvider, setUserProvider] = useState<string | null>(null);
+  const [userModel, setUserModel] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const providersQ = useQuery<Provider[]>({
+  const {
+    data: providers = [],
+    isLoading: providersLoading,
+    isError: providersError,
+    error: providersErr,
+    refetch: refetchProviders,
+  } = useQuery<Provider[]>({
     queryKey: ["providers"],
     queryFn: () => apiFetch("/api/providers"),
   });
-  const providers = providersQ.data ?? [];
-  const providersLoading = providersQ.isLoading;
-  const providersError = providersQ.isError;
 
-  const modelsQ = useQuery<Model[]>({
+  const {
+    data: allModels = [],
+    isLoading: modelsLoading,
+    isError: modelsError,
+    error: modelsErr,
+    refetch: refetchModels,
+  } = useQuery<Model[]>({
     queryKey: ["models"],
     queryFn: () => apiFetch("/api/models"),
   });
-  const allModels = modelsQ.data ?? [];
-  const modelsLoading = modelsQ.isLoading;
-  const modelsError = modelsQ.isError;
 
-  const keysQ = useQuery<ApiKey[]>({
+  const {
+    data: keys = [],
+    isLoading: keysLoading,
+    isError: keysError,
+    error: keysErr,
+    refetch: refetchKeys,
+  } = useQuery<ApiKey[]>({
     queryKey: ["keys"],
     queryFn: () => apiFetch("/api/keys"),
   });
-  const keys = keysQ.data ?? [];
-  const keysLoading = keysQ.isLoading;
-  const keysError = keysQ.isError;
   const firstKey = keys.find((k) => k.is_active);
 
-  const sessionsQ = useQuery<ChatSession[]>({
+  const {
+    data: sessions = [],
+    isLoading: sessionsLoading,
+  } = useQuery<ChatSession[]>({
     queryKey: ["chat-sessions"],
     queryFn: () => apiFetch("/api/chat-sessions"),
   });
-  const sessions = sessionsQ.data ?? [];
-  const sessionsLoading = sessionsQ.isLoading;
 
-  // Filter models by selected provider
+  // Derive effective provider/model from user selection or first available.
+  const provider = userProvider ?? providers[0]?.id ?? "";
   const providerModels = allModels.filter((m) => m.provider === provider);
-
-  // Default to first provider on load
-  useEffect(() => {
-    if (providers.length > 0 && !provider) {
-      setProvider(providers[0].id);
-    }
-  }, [providers, provider]);
-
-  // Auto-select first model when provider changes
-  useEffect(() => {
-    if (providerModels.length > 0 && !providerModels.find((m) => m.id === model)) {
-      setModel(providerModels[0].id);
-    }
-  }, [provider, providerModels, model]);
+  const model = userModel ?? providerModels[0]?.id ?? "";
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -181,13 +179,13 @@ function ChatPage() {
   const loadSession = async (id: string) => {
     const session = await apiFetch<ChatSession>(`/api/chat-sessions/${id}`);
     setMessages(session.messages as Msg[]);
-    setProvider(session.provider);
-    setModel(session.model);
+    setUserProvider(session.provider);
+    setUserModel(session.model);
   };
 
   const anyLoading = providersLoading || modelsLoading || keysLoading;
   const anyError = providersError || modelsError || keysError;
-  const firstError = [providersQ.error, modelsQ.error, keysQ.error].find(Boolean);
+  const firstError = [providersErr, modelsErr, keysErr].find(Boolean);
 
   if (anyError) {
     return (
@@ -201,9 +199,9 @@ function ChatPage() {
           title="Couldn’t load chat data"
           error={firstError}
           onRetry={() => {
-            providersQ.refetch();
-            modelsQ.refetch();
-            keysQ.refetch();
+            refetchProviders();
+            refetchModels();
+            refetchKeys();
           }}
         />
       </div>
@@ -248,6 +246,7 @@ function ChatPage() {
               sessions.map((s) => (
                 <button
                   key={s.id}
+                  type="button"
                   onClick={() => loadSession(s.id)}
                   className="w-full text-left p-2 rounded-lg hover:bg-surface-2 text-sm truncate"
                 >
@@ -268,7 +267,8 @@ function ChatPage() {
             </div>
             <select
               value={provider}
-              onChange={(e) => setProvider(e.target.value)}
+              onChange={(e) => setUserProvider(e.target.value)}
+              aria-label="Provider"
               className="bg-surface-2 border border-border rounded-lg px-2 py-1.5 text-xs"
             >
               {providers.map((p) => (
@@ -279,7 +279,8 @@ function ChatPage() {
             </select>
             <select
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={(e) => setUserModel(e.target.value)}
+              aria-label="Model"
               className="bg-surface-2 border border-border rounded-lg px-2 py-1.5 text-xs font-mono"
             >
               {providerModels.length === 0 && <option value="">No models</option>}
@@ -306,7 +307,7 @@ function ChatPage() {
             <div className="space-y-4 max-w-3xl mx-auto">
               {messages.map((m, i) => (
                 <div
-                  key={i}
+                  key={`${m.role}-${i}`}
                   className={
                     m.role === "user" ? "flex justify-end" : "flex justify-start"
                   }
@@ -343,6 +344,7 @@ function ChatPage() {
                   }
                 }}
                 placeholder="Type a message…"
+                aria-label="Message"
                 disabled={streaming}
                 autoFocus
               />

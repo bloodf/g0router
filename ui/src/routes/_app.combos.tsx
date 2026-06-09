@@ -53,11 +53,16 @@ function CombosPage() {
     queryKey: ["combos"],
     queryFn: () => apiFetch("/api/combos"),
   });
-  const modelsQuery = useQuery<Model[]>({
+  const {
+    data: models = [],
+    isLoading: modelsLoading,
+    isError: modelsError,
+    error: modelsErr,
+    refetch: refetchModels,
+  } = useQuery<Model[]>({
     queryKey: ["models"],
     queryFn: () => apiFetch("/api/models"),
   });
-  const models = modelsQuery.data ?? [];
 
   const [openCreate, setOpenCreate] = useState(false);
   const [editing, setEditing] = useState<Combo | null>(null);
@@ -164,10 +169,16 @@ function CombosPage() {
       )}
 
       <ComboFormDialog
+        key={editing?.id ?? "new"}
         open={openCreate}
         editing={editing}
         models={models}
-        modelsQuery={modelsQuery}
+        modelsQuery={{
+          isLoading: modelsLoading,
+          isError: modelsError,
+          error: modelsErr,
+          refetch: refetchModels,
+        }}
         onSave={(b) => save.mutate(b)}
         onClose={() => {
           setOpenCreate(false);
@@ -240,6 +251,7 @@ function SortableItem({
       className="flex items-center gap-2 px-2.5 py-2 bg-surface-2 rounded-lg border border-border"
     >
       <button
+        type="button"
         {...attributes}
         {...listeners}
         className="text-text-muted cursor-grab"
@@ -289,16 +301,17 @@ function ComboFormDialog({
         >
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-medium text-text-muted block mb-1">
+              <label htmlFor="combo-name" className="text-xs font-medium text-text-muted block mb-1">
                 Name
               </label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
+              <Input id="combo-name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div>
-              <label className="text-xs font-medium text-text-muted block mb-1">
+              <label htmlFor="combo-strategy" className="text-xs font-medium text-text-muted block mb-1">
                 Strategy
               </label>
               <select
+                id="combo-strategy"
                 value={strategy}
                 onChange={(e) => setStrategy(e.target.value as any)}
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm"
@@ -314,7 +327,7 @@ function ComboFormDialog({
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="text-xs font-medium text-text-muted">Steps</label>
+                <span className="text-xs font-medium text-text-muted">Steps</span>
                 <Button
                   size="sm"
                   variant="outline"
@@ -329,7 +342,7 @@ function ComboFormDialog({
               </div>
               <div className="space-y-1.5">
                 {steps.map((s, i) => (
-                  <div key={i} className="flex items-center gap-1.5">
+                  <div key={`step-${i}-${s.provider}-${s.model}`} className="flex items-center gap-1.5">
                     <span className="text-xs w-4 text-text-muted">{i + 1}.</span>
                     <select
                       value={`${s.provider}|${s.model}`}

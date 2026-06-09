@@ -115,17 +115,17 @@ function AuditPage() {
     refetchInterval: 15_000,
   });
 
-  const items = data?.items ?? [];
-
   const actors = useMemo(() => {
+    const list = data?.items ?? [];
     const set = new Set<string>();
-    items.forEach((i) => {
+    list.forEach((i) => {
       if (i.actor_api_key_id) set.add(i.actor_api_key_id);
     });
     return Array.from(set).sort();
-  }, [items]);
+  }, [data?.items]);
 
   const filtered = useMemo(() => {
+    const list = data?.items ?? [];
     const now = Date.now();
     const windowMs =
       time === "1h"
@@ -138,7 +138,7 @@ function AuditPage() {
               ? 30 * 86_400_000
               : null;
     const q = query.trim().toLowerCase();
-    return items.filter((i) => {
+    return list.filter((i) => {
       if (keyEventsOnly && !KEY_ACTIONS.has(i.action)) return false;
       if (actor !== "all" && i.actor_api_key_id !== actor) return false;
       if (action !== "all") {
@@ -155,7 +155,7 @@ function AuditPage() {
       }
       return true;
     });
-  }, [items, query, actor, action, time, keyEventsOnly]);
+  }, [data?.items, query, actor, action, time, keyEventsOnly]);
 
   const { visible, hasMore, sentinelRef, loadMore } = useVisibleWindow(50, filtered.length);
   const visibleRows = filtered.slice(0, visible);
@@ -228,12 +228,13 @@ function AuditPage() {
               placeholder="Search actor, action, target, details…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search audit logs"
               className="pl-9"
             />
           </div>
 
           <Select value={actor} onValueChange={setActor}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Actor">
               <SelectValue placeholder="Actor" />
             </SelectTrigger>
             <SelectContent>
@@ -247,7 +248,7 @@ function AuditPage() {
           </Select>
 
           <Select value={action} onValueChange={(v) => setAction(v as ActionFilter)}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Action">
               <SelectValue placeholder="Action" />
             </SelectTrigger>
             <SelectContent>
@@ -260,7 +261,7 @@ function AuditPage() {
           </Select>
 
           <Select value={time} onValueChange={(v) => setTime(v as TimeFilter)}>
-            <SelectTrigger>
+            <SelectTrigger aria-label="Time window">
               <SelectValue placeholder="Time" />
             </SelectTrigger>
             <SelectContent>
@@ -290,7 +291,7 @@ function AuditPage() {
           </div>
         </div>
         <div className="mt-3 text-xs text-text-muted">
-          Showing {filtered.length} of {items.length} entries
+          Showing {filtered.length} of {(data?.items ?? []).length} entries
           {hasFilters && " · filtered"}
         </div>
       </Card>
@@ -310,7 +311,7 @@ function AuditPage() {
           <tbody>
             {isLoading &&
               Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i} className="border-t border-border">
+                <tr key={`audit-skel-${i}`} className="border-t border-border">
                   <td className="px-4 py-3" colSpan={5}>
                     <Skeleton className="h-4 w-full" />
                   </td>

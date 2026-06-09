@@ -42,11 +42,10 @@ function ConnectionsPage() {
     queryKey: ["connections"],
     queryFn: () => apiFetch("/api/connections"),
   });
-  const providersQ = useQuery<Provider[]>({
+  const { data: providers = [] } = useQuery<Provider[]>({
     queryKey: ["providers"],
     queryFn: () => apiFetch("/api/providers"),
   });
-  const providers = providersQ.data ?? [];
 
   const providerMap = useMemo(
     () => Object.fromEntries(providers.map((p) => [p.id, p])),
@@ -102,8 +101,10 @@ function ConnectionsPage() {
   });
   const test = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/connections/${id}/test`, { method: "POST" }),
-    onSuccess: (r) =>
-      toast[r.ok ? "success" : "error"](r.ok ? `OK · ${r.latency_ms}ms` : "Test failed"),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: ["connections"] });
+      toast[r.ok ? "success" : "error"](r.ok ? `OK · ${r.latency_ms}ms` : "Test failed");
+    },
   });
   const bulk = useMutation({
     mutationFn: (op: "enable" | "disable") =>
@@ -152,6 +153,7 @@ function ConnectionsPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by name or provider…"
+            aria-label="Search connections"
             className="pl-9"
           />
         </div>
@@ -239,6 +241,7 @@ function ConnectionsPage() {
                       <Switch
                         checked={c.is_active}
                         onCheckedChange={(v) => toggle.mutate({ id: c.id, is_active: v })}
+                        aria-label={`Toggle ${c.name}`}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-sm truncate">{c.name}</div>
@@ -318,6 +321,7 @@ function ConnectionsPage() {
       />
 
       <EditConnectionDialog
+        key={editing?.id ?? "closed"}
         connection={editing}
         provider={editing ? providerMap[editing.provider] ?? null : null}
         open={!!editing}
@@ -342,6 +346,7 @@ function Seg<T extends string>({
       {options.map((o) => (
         <button
           key={o.value}
+          type="button"
           onClick={() => onChange(o.value)}
           className={
             "px-2.5 py-1 text-xs rounded-md transition-colors " +

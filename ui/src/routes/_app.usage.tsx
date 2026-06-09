@@ -21,16 +21,26 @@ export const Route = createFileRoute("/_app/usage")({ component: UsagePage });
 
 function UsagePage() {
   const [period, setPeriod] = useState("7d");
-  const summaryQuery = useQuery({
+  const {
+    data: summary,
+    isLoading: summaryLoading,
+    isError: summaryError,
+    error: summaryErr,
+    refetch: refetchSummary,
+  } = useQuery({
     queryKey: ["usage", "summary", period],
     queryFn: () => apiFetch(`/api/usage/summary?period=${period}`),
   });
-  const chartQuery = useQuery({
+  const {
+    data: chart,
+    isLoading: chartLoading,
+    isError: chartError,
+    error: chartErr,
+    refetch: refetchChart,
+  } = useQuery({
     queryKey: ["usage", "chart", period],
     queryFn: () => apiFetch(`/api/usage/chart?period=${period}`),
   });
-  const { data: summary, isLoading: summaryLoading, isError: summaryError, error: summaryErr } = summaryQuery;
-  const { data: chart, isLoading: chartLoading, isError: chartError, error: chartErr } = chartQuery;
 
   const data = (chart?.buckets ?? []).map((b: string, i: number) => ({
     label: format(new Date(b), period === "today" || period === "24h" ? "HH:mm" : "MMM d"),
@@ -51,6 +61,7 @@ function UsagePage() {
         {["today", "24h", "7d", "30d", "60d"].map((p) => (
           <button
             key={p}
+            type="button"
             onClick={() => setPeriod(p)}
             className={
               "px-3 py-1.5 text-xs rounded-md uppercase transition-colors " +
@@ -70,7 +81,7 @@ function UsagePage() {
         <ErrorState
           title="Couldn’t load usage summary"
           error={summaryErr}
-          onRetry={() => summaryQuery.refetch()}
+          onRetry={() => refetchSummary()}
           compact
           className="mb-4"
         />
@@ -110,7 +121,7 @@ function UsagePage() {
           <ErrorState
             title="Couldn’t load chart"
             error={chartErr}
-            onRetry={() => chartQuery.refetch()}
+            onRetry={() => refetchChart()}
             compact
           />
         ) : (

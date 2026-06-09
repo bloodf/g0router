@@ -193,6 +193,7 @@ export function CrudPage<T extends { id: string | number }>({
                 </label>
                 {f.type === "textarea" ? (
                   <textarea
+                    aria-label={f.label}
                     className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none min-h-[80px]"
                     value={values[f.name] ?? ""}
                     onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
@@ -226,6 +227,7 @@ export function CrudPage<T extends { id: string | number }>({
                   </div>
                 ) : f.type === "date" ? (
                   <input
+                    aria-label={f.label}
                     type="date"
                     className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                     value={values[f.name] ?? ""}
@@ -258,6 +260,7 @@ export function CrudPage<T extends { id: string | number }>({
                   </label>
                 ) : (
                   <input
+                    aria-label={f.label}
                     type={f.type ?? "text"}
                     className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                     value={values[f.name] ?? ""}

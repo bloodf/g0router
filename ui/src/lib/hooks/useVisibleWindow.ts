@@ -10,38 +10,49 @@ import { useCallback, useEffect, useRef, useState } from "react";
  *   automatically clamped back down to the page size.
  */
 export function useVisibleWindow(pageSize: number, totalRows: number) {
-  const readInitial = () => {
+  const [visible, setVisibleState] = useState<number>(() => {
     if (typeof window === "undefined") return pageSize;
     const v = Number(new URLSearchParams(window.location.search).get("visible"));
     if (!Number.isFinite(v) || v <= 0) return pageSize;
-    return Math.min(Math.max(v, pageSize), Math.max(totalRows, pageSize));
-  };
+    return Math.max(v, pageSize);
+  });
 
-  const [visible, setVisible] = useState<number>(readInitial);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
-  // Persist to URL (no history entry per scroll).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    if (visible <= pageSize) url.searchParams.delete("visible");
-    else url.searchParams.set("visible", String(visible));
-    window.history.replaceState({}, "", url.toString());
-  }, [visible, pageSize]);
+  // Clamp during render instead of copying into state in an effect.
+  const clampedVisible = Math.min(visible, totalRows || pageSize);
 
-  // Clamp when the dataset shrinks (e.g. user typed a filter).
-  useEffect(() => {
-    if (totalRows < visible) setVisible(Math.max(pageSize, Math.min(visible, totalRows || pageSize)));
-  }, [totalRows, pageSize, visible]);
+  // Wrap state updates so URL stays in sync without an effect.
+  const setVisible = useCallback(
+    (next: number | ((prev: number) => number)) => {
+      setVisibleState((prev) => {
+        const resolved =
+          typeof next === "function"
+            ? (next as (prev: number) => number)(prev)
+            : next;
+        if (typeof window === "undefined") return resolved;
+        const url = new URL(window.location.href);
+        if (resolved <= pageSize) url.searchParams.delete("visible");
+        else url.searchParams.set("visible", String(resolved));
+        window.history.replaceState({}, "", url.toString());
+        return resolved;
+      });
+    },
+    [pageSize],
+  );
 
   const loadMore = useCallback(() => {
     setVisible((v) => Math.min(v + pageSize, Math.max(totalRows, pageSize)));
-  }, [pageSize, totalRows]);
+  }, [pageSize, setVisible, totalRows]);
+
+  const reset = useCallback(() => {
+    setVisible(pageSize);
+  }, [pageSize, setVisible]);
 
   // IntersectionObserver: grow window when sentinel enters viewport.
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || visible >= totalRows) return;
+    if (!el || clampedVisible >= totalRows) return;
     const io = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) loadMore();
@@ -50,13 +61,13 @@ export function useVisibleWindow(pageSize: number, totalRows: number) {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [loadMore, visible, totalRows]);
+  }, [loadMore, clampedVisible, totalRows]);
 
   return {
-    visible: Math.min(visible, totalRows || pageSize),
-    hasMore: visible < totalRows,
+    visible: clampedVisible,
+    hasMore: clampedVisible < totalRows,
     sentinelRef,
     loadMore,
-    reset: () => setVisible(pageSize),
+    reset,
   };
 }

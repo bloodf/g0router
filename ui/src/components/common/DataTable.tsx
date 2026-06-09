@@ -86,6 +86,7 @@ export function DataTable<T>({
             value={globalFilter}
             onChange={(e) => setGlobalFilter(e.target.value)}
             placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
             className="pl-9 h-9"
           />
         </div>
@@ -104,6 +105,7 @@ export function DataTable<T>({
                   >
                     {h.isPlaceholder ? null : (
                       <button
+                        type="button"
                         className="inline-flex items-center gap-1 hover:text-foreground"
                         onClick={h.column.getToggleSortingHandler()}
                       >

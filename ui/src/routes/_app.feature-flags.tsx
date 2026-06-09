@@ -58,6 +58,7 @@ function FeatureFlagsPage() {
                     toggle.mutate({ id: row.original.id, enabled: checked })
                   }
                   disabled={toggle.isPending}
+                  aria-label={`Toggle ${row.original.key}`}
                 />
               ),
             },

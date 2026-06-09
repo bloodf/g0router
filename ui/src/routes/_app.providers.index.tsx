@@ -109,6 +109,7 @@ function ProvidersPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search providers…"
+            aria-label="Search providers"
             className="pl-9"
           />
         </div>
@@ -284,6 +285,7 @@ function Seg<T extends string>({
       {options.map((o) => (
         <button
           key={o.value}
+          type="button"
           onClick={() => onChange(o.value)}
           className={
             "px-2.5 py-1 text-xs rounded-md transition-colors " +

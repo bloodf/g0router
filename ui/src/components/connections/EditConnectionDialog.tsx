@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,20 +38,13 @@ export function EditConnectionDialog({
   onOpenChange,
   onSuccess,
 }: EditConnectionDialogProps) {
-  const [name, setName] = useState("");
-  const [authType, setAuthType] = useState<Connection["auth_type"]>("api_key");
+  const [name, setName] = useState(connection?.name ?? "");
+  const [authType, setAuthType] = useState<Connection["auth_type"]>(
+    connection?.auth_type ?? "api_key",
+  );
   const [credential, setCredential] = useState("");
-  const [isActive, setIsActive] = useState(true);
+  const [isActive, setIsActive] = useState(connection?.is_active ?? true);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (connection) {
-      setName(connection.name);
-      setAuthType(connection.auth_type);
-      setIsActive(connection.is_active);
-      setCredential("");
-    }
-  }, [connection]);
 
   const credentialLabel = useMemo(() => {
     if (authType === "api_key") return "API key";

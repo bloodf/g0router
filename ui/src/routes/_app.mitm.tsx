@@ -168,6 +168,7 @@ function MITMPage() {
                         toggleTool.mutate({ id: tool.name, enabled: checked })
                       }
                       disabled={toggleTool.isPending}
+                      aria-label={`Toggle ${tool.name}`}
                     />
                   </div>
                 ))}

@@ -52,7 +52,10 @@ function GuardrailsPage() {
         redacted_prompt: string;
         matches: string[];
       }>("/api/guardrails/test", { method: "POST", body: { prompt } }),
-    onSuccess: setTestResult,
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["guardrails"] });
+      setTestResult(res);
+    },
     onError: (e: any) => toast.error(e?.message || "Test failed"),
   });
 
@@ -121,8 +124,12 @@ function GuardrailsPage() {
             onCheckedChange={(v) => update("guardrails_enabled", v)}
           />
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">Blocklist terms (one per line)</Label>
+            <Label htmlFor="blocklist-terms" className="text-sm font-medium">
+              Blocklist terms (one per line)
+            </Label>
             <textarea
+              id="blocklist-terms"
+              aria-label="Blocklist terms (one per line)"
               className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none min-h-[120px]"
               value={form.guardrails_blocklist?.join("\n") ?? ""}
               onChange={(e) => update("guardrails_blocklist", parseList(e.target.value))}
@@ -142,8 +149,12 @@ function GuardrailsPage() {
             onCheckedChange={(v) => update("pii_redaction_enabled", v)}
           />
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium">PII types (one per line)</Label>
+            <Label htmlFor="pii-types" className="text-sm font-medium">
+              PII types (one per line)
+            </Label>
             <textarea
+              id="pii-types"
+              aria-label="PII types (one per line)"
               className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none min-h-[120px]"
               value={form.pii_redaction_types?.join("\n") ?? ""}
               onChange={(e) => update("pii_redaction_types", parseList(e.target.value))}
@@ -163,6 +174,7 @@ function GuardrailsPage() {
               value={testPrompt}
               onChange={(e) => setTestPrompt(e.target.value)}
               placeholder="Enter a prompt to test blocklist and PII redaction"
+              aria-label="Test prompt"
             />
             <Button
               onClick={() => test.mutate(testPrompt)}

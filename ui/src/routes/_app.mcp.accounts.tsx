@@ -39,8 +39,9 @@ function McpAccountsPage() {
         icon="account_circle"
       />
       <div className="mb-4">
-        <label className="text-xs font-medium block mb-1 text-text-muted">Instance</label>
+        <label htmlFor="mcp-account-instance" className="text-xs font-medium block mb-1 text-text-muted">Instance</label>
         <select
+          id="mcp-account-instance"
           className="w-full max-w-sm bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
           value={instanceId}
           onChange={(e) => setInstanceId(e.target.value)}

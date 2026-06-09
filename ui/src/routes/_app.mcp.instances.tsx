@@ -169,8 +169,9 @@ function McpInstancesPage() {
           </DialogHeader>
           <form onSubmit={submit} className="space-y-3">
             <div>
-              <label className="text-xs font-medium block mb-1 text-text-muted">Name *</label>
+              <label htmlFor="mcp-name" className="text-xs font-medium block mb-1 text-text-muted">Name *</label>
               <input
+                id="mcp-name"
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                 value={values.name}
                 onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
@@ -178,8 +179,9 @@ function McpInstancesPage() {
               />
             </div>
             <div>
-              <label className="text-xs font-medium block mb-1 text-text-muted">Server key *</label>
+              <label htmlFor="mcp-server-key" className="text-xs font-medium block mb-1 text-text-muted">Server key *</label>
               <input
+                id="mcp-server-key"
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                 value={values.server_key}
                 onChange={(e) => setValues((v) => ({ ...v, server_key: e.target.value }))}
@@ -188,10 +190,11 @@ function McpInstancesPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium block mb-1 text-text-muted">
+                <label htmlFor="mcp-launch-type" className="text-xs font-medium block mb-1 text-text-muted">
                   Launch type *
                 </label>
                 <select
+                  id="mcp-launch-type"
                   className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                   value={values.launch_type}
                   onChange={(e) => setValues((v) => ({ ...v, launch_type: e.target.value }))}
@@ -203,10 +206,11 @@ function McpInstancesPage() {
                 </select>
               </div>
               <div>
-                <label className="text-xs font-medium block mb-1 text-text-muted">
+                <label htmlFor="mcp-transport" className="text-xs font-medium block mb-1 text-text-muted">
                   Transport *
                 </label>
                 <select
+                  id="mcp-transport"
                   className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                   value={values.transport}
                   onChange={(e) => setValues((v) => ({ ...v, transport: e.target.value }))}
@@ -218,36 +222,40 @@ function McpInstancesPage() {
               </div>
             </div>
             <div>
-              <label className="text-xs font-medium block mb-1 text-text-muted">Command</label>
+              <label htmlFor="mcp-command" className="text-xs font-medium block mb-1 text-text-muted">Command</label>
               <input
+                id="mcp-command"
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                 value={values.command}
                 onChange={(e) => setValues((v) => ({ ...v, command: e.target.value }))}
               />
             </div>
             <div>
-              <label className="text-xs font-medium block mb-1 text-text-muted">
+              <label htmlFor="mcp-args" className="text-xs font-medium block mb-1 text-text-muted">
                 Args (comma-separated)
               </label>
               <input
+                id="mcp-args"
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                 value={values.args}
                 onChange={(e) => setValues((v) => ({ ...v, args: e.target.value }))}
               />
             </div>
             <div>
-              <label className="text-xs font-medium block mb-1 text-text-muted">URL</label>
+              <label htmlFor="mcp-url" className="text-xs font-medium block mb-1 text-text-muted">URL</label>
               <input
+                id="mcp-url"
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none"
                 value={values.url}
                 onChange={(e) => setValues((v) => ({ ...v, url: e.target.value }))}
               />
             </div>
             <div>
-              <label className="text-xs font-medium block mb-1 text-text-muted">
+              <label htmlFor="mcp-env" className="text-xs font-medium block mb-1 text-text-muted">
                 Env (KEY=value per line)
               </label>
               <textarea
+                id="mcp-env"
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none min-h-[80px]"
                 value={values.env}
                 onChange={(e) => setValues((v) => ({ ...v, env: e.target.value }))}

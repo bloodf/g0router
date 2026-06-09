@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { apiFetch } from "@/lib/api/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,52 +31,58 @@ function EndpointPage() {
   const setRowError = (id: string, f: KeyFailure | undefined) =>
     setRowErrors((prev) => ({ ...prev, [id]: f }));
 
-  const tunnelsQ = useQuery<Tunnel[]>({
+  const {
+    data: tunnels = [],
+    isLoading: tLoading,
+    isError: tError,
+    error: tunnelsErr,
+    refetch: refetchTunnels,
+  } = useQuery<Tunnel[]>({
     queryKey: ["tunnels"],
     queryFn: () => apiFetch("/api/tunnels"),
   });
-  const keysQ = useQuery<ApiKey[]>({
+  const {
+    data: keys = [],
+    isError: kError,
+    error: keysErr,
+    refetch: refetchKeys,
+  } = useQuery<ApiKey[]>({
     queryKey: ["keys"],
     queryFn: () => apiFetch("/api/keys"),
   });
-  const providersQ = useQuery<Provider[]>({
+  const {
+    data: providers = [],
+    isError: providersError,
+    error: providersErr,
+    refetch: refetchProviders,
+  } = useQuery<Provider[]>({
     queryKey: ["providers"],
     queryFn: () => apiFetch("/api/providers"),
   });
-  const modelsQ = useQuery<Model[]>({
+  const {
+    data: models = [],
+    isError: modelsError,
+    error: modelsErr,
+    refetch: refetchModels,
+  } = useQuery<Model[]>({
     queryKey: ["models"],
     queryFn: () => apiFetch("/api/models"),
   });
 
-  const tunnels = tunnelsQ.data ?? [];
-  const tLoading = tunnelsQ.isLoading;
-  const tError = tunnelsQ.isError;
-  const keys = keysQ.data ?? [];
-  const kError = keysQ.isError;
-  const providers = providersQ.data ?? [];
-  const models = modelsQ.data ?? [];
-  const anyError = tError || kError || providersQ.isError || modelsQ.isError;
-  const firstError = tunnelsQ.error || keysQ.error || providersQ.error || modelsQ.error;
+  const anyError = tError || kError || providersError || modelsError;
+  const firstError = tunnelsErr || keysErr || providersErr || modelsErr;
 
-  const [provider, setProvider] = useState<string>("");
-  const [model, setModel] = useState<string>("");
+  const [userProvider, setUserProvider] = useState<string | null>(null);
+  const [userModel, setUserModel] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (providers.length > 0 && !provider) {
-      setProvider(providers[0].id);
-    }
-  }, [providers, provider]);
+  const provider = userProvider ?? providers[0]?.id ?? "";
 
   const providerModels = useMemo(
     () => models.filter((m) => m.provider === provider),
     [models, provider],
   );
 
-  useEffect(() => {
-    if (providerModels.length > 0 && !providerModels.find((m) => m.name === model)) {
-      setModel(providerModels[0].name);
-    }
-  }, [providerModels, model]);
+  const model = userModel ?? providerModels[0]?.name ?? "";
 
   const keysWindow = useVisibleWindow(25, keys.length);
   const visibleKeys = keys.slice(0, keysWindow.visible);
@@ -238,10 +244,10 @@ function EndpointPage() {
           title="Couldn’t load endpoint data"
           error={firstError}
           onRetry={() => {
-            tunnelsQ.refetch();
-            keysQ.refetch();
-            providersQ.refetch();
-            modelsQ.refetch();
+            refetchTunnels();
+            refetchKeys();
+            refetchProviders();
+            refetchModels();
           }}
         />
       </div>
@@ -301,7 +307,8 @@ function EndpointPage() {
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={provider}
-                onChange={(e) => setProvider(e.target.value)}
+                onChange={(e) => setUserProvider(e.target.value)}
+                aria-label="Provider"
                 className="bg-surface-2 border border-border rounded-lg px-2 py-1.5 text-xs"
               >
                 {providers.map((p) => (
@@ -312,7 +319,8 @@ function EndpointPage() {
               </select>
               <select
                 value={model}
-                onChange={(e) => setModel(e.target.value)}
+                onChange={(e) => setUserModel(e.target.value)}
+                aria-label="Model"
                 className="bg-surface-2 border border-border rounded-lg px-2 py-1.5 text-xs font-mono"
               >
                 {providerModels.length === 0 && <option value="">No models</option>}
@@ -412,7 +420,7 @@ function EndpointPage() {
                 <th className="px-4 py-2">Prefix</th>
                 <th className="px-4 py-2">RPM</th>
                 <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2" />
+                <th className="px-4 py-2" aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
@@ -609,6 +617,7 @@ function SegBtn({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className={
@@ -651,7 +660,7 @@ function TunnelCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-semibold">{title}</h3>
-            <Switch checked={enabled} onCheckedChange={onToggle} />
+            <Switch checked={enabled} onCheckedChange={onToggle} aria-label={`Toggle ${title}`} />
           </div>
           <p className="text-xs text-text-muted mt-1">{description}</p>
         </div>
@@ -685,6 +694,7 @@ function TunnelCard({
           <Input
             readOnly
             value={tunnel.url}
+            aria-label={`${title} URL`}
             className="bg-transparent border-0 h-auto p-0 font-mono text-xs focus-visible:ring-0"
           />
           <CopyButton value={tunnel.url} />

@@ -11,22 +11,37 @@ export const Route = createFileRoute("/_app/mcp/")({
 });
 
 function McpIndexPage() {
-  const clients = useQuery<McpClient[]>({
+  const {
+    data: clients = [],
+    isLoading: clientsLoading,
+    isError: clientsError,
+    error: clientsErr,
+  } = useQuery<McpClient[]>({
     queryKey: ["mcp-clients"],
     queryFn: () => apiFetch("/api/mcp/clients"),
   });
-  const instances = useQuery<McpInstance[]>({
+  const {
+    data: instances = [],
+    isLoading: instancesLoading,
+    isError: instancesError,
+    error: instancesErr,
+  } = useQuery<McpInstance[]>({
     queryKey: ["mcp-instances"],
     queryFn: () => apiFetch("/api/mcp/instances"),
   });
-  const tools = useQuery<McpTool[]>({
+  const {
+    data: tools = [],
+    isLoading: toolsLoading,
+    isError: toolsError,
+    error: toolsErr,
+  } = useQuery<McpTool[]>({
     queryKey: ["mcp-tools"],
     queryFn: () => apiFetch("/api/mcp/tools"),
   });
 
-  const isLoading = clients.isLoading || instances.isLoading || tools.isLoading;
-  const isError = clients.isError || instances.isError || tools.isError;
-  const error = clients.error || instances.error || tools.error;
+  const isLoading = clientsLoading || instancesLoading || toolsLoading;
+  const isError = clientsError || instancesError || toolsError;
+  const error = clientsErr || instancesErr || toolsErr;
 
   return (
     <div>
@@ -44,7 +59,7 @@ function McpIndexPage() {
           <Link to="/mcp/clients">
             <MetricCard
               label="Clients"
-              value={clients.data?.length ?? 0}
+              value={clients.length}
               icon="devices"
               accent="info"
               hint="Registered MCP clients"
@@ -53,7 +68,7 @@ function McpIndexPage() {
           <Link to="/mcp/instances">
             <MetricCard
               label="Instances"
-              value={instances.data?.length ?? 0}
+              value={instances.length}
               icon="memory"
               accent="success"
               hint="Running server instances"
@@ -62,7 +77,7 @@ function McpIndexPage() {
           <Link to="/mcp/tools">
             <MetricCard
               label="Tools"
-              value={tools.data?.length ?? 0}
+              value={tools.length}
               icon="build"
               accent="warning"
               hint="Available tools across all clients"

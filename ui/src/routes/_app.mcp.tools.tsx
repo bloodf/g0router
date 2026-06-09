@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,7 @@ export const Route = createFileRoute("/_app/mcp/tools")({
 });
 
 function McpToolsPage() {
+  const qc = useQueryClient();
   const [selected, setSelected] = useState<McpTool | null>(null);
   const [args, setArgs] = useState("{}");
   const [result, setResult] = useState<unknown | null>(null);
@@ -37,6 +38,7 @@ function McpToolsPage() {
         body: { arguments: parsed, allowed_tools: [name] },
       }),
     onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["mcp-tools"] });
       setResult(res);
       toast.success("Tool executed");
     },
@@ -132,10 +134,11 @@ function McpToolsPage() {
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="text-xs font-medium block mb-1 text-text-muted">
+              <label htmlFor="mcp-tool-args" className="text-xs font-medium block mb-1 text-text-muted">
                 Arguments (JSON)
               </label>
               <textarea
+                id="mcp-tool-args"
                 className="w-full bg-surface-2 border border-border rounded-lg px-3 py-2 text-sm focus:border-brand-500 outline-none min-h-[120px] font-mono"
                 value={args}
                 onChange={(e) => setArgs(e.target.value)}
@@ -143,8 +146,8 @@ function McpToolsPage() {
             </div>
             {result !== null && (
               <div className="space-y-1">
-                <label className="text-xs font-medium block text-text-muted">Result</label>
-                <pre className="text-xs bg-surface-2 border border-border rounded-lg p-3 overflow-auto max-h-60 font-mono">
+                <span className="text-xs font-medium block text-text-muted">Result</span>
+                <pre id="mcp-tool-result" className="text-xs bg-surface-2 border border-border rounded-lg p-3 overflow-auto max-h-60 font-mono">
                   {JSON.stringify(result, null, 2)}
                 </pre>
               </div>

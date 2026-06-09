@@ -44,6 +44,8 @@ interface EdgeStat {
   last_ts: number;
 }
 
+const EMPTY_ARR: never[] = [];
+
 function eventStatus(ev: TrafficEvent): "success" | "error" {
   return ev.status_class.startsWith("2") ? "success" : "error";
 }
@@ -62,26 +64,22 @@ export function ProviderTopology({
   const [selected, setSelected] = useState<SelectedNode | null>(null);
   const [tick, setTick] = useState(0);
 
-  const providersQ = useQuery({
+  const { data: providers = EMPTY_ARR } = useQuery({
     queryKey: ["providers"],
     queryFn: () => apiFetch<Provider[]>("/api/providers"),
   });
-  const connectionsQ = useQuery({
+  const { data: connections = EMPTY_ARR } = useQuery({
     queryKey: ["connections"],
     queryFn: () => apiFetch<Connection[]>("/api/connections"),
   });
-  const combosQ = useQuery({
+  const { data: combos = EMPTY_ARR } = useQuery({
     queryKey: ["combos"],
     queryFn: () => apiFetch<Combo[]>("/api/combos"),
   });
-  const keysQ = useQuery({
+  const { data: keys = EMPTY_ARR } = useQuery({
     queryKey: ["keys"],
     queryFn: () => apiFetch<ApiKey[]>("/api/keys"),
   });
-  const providers = providersQ.data ?? [];
-  const connections = connectionsQ.data ?? [];
-  const combos = combosQ.data ?? [];
-  const keys = keysQ.data ?? [];
 
   const { events, lastEvent } = useTrafficStream({ enabled: !paused });
 
@@ -165,7 +163,7 @@ export function ProviderTopology({
       }
     }
     return { edgeStats: stats, activeEdgeIds: active };
-    // tick drives recompute every second; lastEvent triggers on push.
+    // tick/lastEvent drive recompute because the source is a mutable ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, lastEvent, filters.window_sec]);
 
@@ -288,7 +286,7 @@ export function ProviderTopology({
     });
 
     return { nodes: layoutFlow(trimmedNodes, filteredEdges, "LR"), edges: filteredEdges };
-  }, [visibleProviders, combos, keys, edgeStats, activeEdgeIds, filters]);
+  }, [visibleProviders, combos, keys, edgeStats, activeEdgeIds]);
 
   const h = variant === "compact" ? 320 : "calc(100vh - 200px)";
 

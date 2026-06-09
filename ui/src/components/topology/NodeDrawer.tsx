@@ -42,36 +42,84 @@ function eventStatus(ev: TrafficEvent): "success" | "error" {
 export function NodeDrawer({ selected, onClose, events }: Props) {
   const open = !!selected;
 
-  const providersQ = useQuery({
+  const {
+    data: providers = [],
+    isLoading: providersLoading,
+    isError: providersError,
+    error: providersErr,
+    refetch: refetchProviders,
+  } = useQuery({
     queryKey: ["providers"],
     queryFn: () => apiFetch<Provider[]>("/api/providers"),
     enabled: open,
   });
-  const connectionsQ = useQuery({
+  const {
+    data: connections = [],
+    isLoading: connectionsLoading,
+    isError: connectionsError,
+    error: connectionsErr,
+    refetch: refetchConnections,
+  } = useQuery({
     queryKey: ["connections"],
     queryFn: () => apiFetch<Connection[]>("/api/connections"),
     enabled: open && selected?.kind === "provider",
   });
-  const combosQ = useQuery({
+  const {
+    data: combos = [],
+    isLoading: combosLoading,
+    isError: combosError,
+    error: combosErr,
+    refetch: refetchCombos,
+  } = useQuery({
     queryKey: ["combos"],
     queryFn: () => apiFetch<Combo[]>("/api/combos"),
     enabled: open,
   });
-  const keysQ = useQuery({
+  const {
+    data: keys = [],
+    isLoading: keysLoading,
+    isError: keysError,
+    error: keysErr,
+    refetch: refetchKeys,
+  } = useQuery({
     queryKey: ["keys"],
     queryFn: () => apiFetch<ApiKey[]>("/api/keys"),
     enabled: open,
   });
 
-  const providers = providersQ.data ?? [];
-  const connections = connectionsQ.data ?? [];
-  const combos = combosQ.data ?? [];
-  const keys = keysQ.data ?? [];
-
   const queriesFor = (kind: SelectedNode["kind"]) => {
-    if (kind === "provider") return [providersQ, connectionsQ];
-    if (kind === "combo") return [combosQ];
-    return [keysQ];
+    if (kind === "provider")
+      return [
+        {
+          isLoading: providersLoading,
+          isError: providersError,
+          error: providersErr,
+          refetch: refetchProviders,
+        },
+        {
+          isLoading: connectionsLoading,
+          isError: connectionsError,
+          error: connectionsErr,
+          refetch: refetchConnections,
+        },
+      ];
+    if (kind === "combo")
+      return [
+        {
+          isLoading: combosLoading,
+          isError: combosError,
+          error: combosErr,
+          refetch: refetchCombos,
+        },
+      ];
+    return [
+      {
+        isLoading: keysLoading,
+        isError: keysError,
+        error: keysErr,
+        refetch: refetchKeys,
+      },
+    ];
   };
   const active = selected ? queriesFor(selected.kind) : [];
 
@@ -263,7 +311,7 @@ function ComboDetail({ combo }: { combo?: Combo }) {
         <div className="space-y-1.5">
           {combo.steps?.map((s, i) => (
             <div
-              key={i}
+              key={`step-${s.provider}-${s.model}-${i}`}
               className="flex items-center gap-2 p-2 rounded-md border border-border text-sm"
             >
               <span className="w-5 h-5 rounded-full bg-brand-500/10 text-brand-600 text-xs flex items-center justify-center font-semibold">

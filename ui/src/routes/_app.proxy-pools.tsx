@@ -148,6 +148,7 @@ function ProxyPoolsPage() {
               value={batchText}
               onChange={(e) => setBatchText(e.target.value)}
               placeholder={`http://user:pass@host:port\nhost:port\nsocks5://host:1080`}
+              aria-label="Proxy list"
             />
             <p className="text-xs text-text-muted">
               One proxy per line. Supported formats: host:port, protocol://host:port, and

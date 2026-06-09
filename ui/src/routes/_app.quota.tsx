@@ -173,11 +173,12 @@ function QuotaPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search providers or accounts…"
+            aria-label="Search providers or accounts"
             className="pl-8 h-9"
           />
         </div>
         <Select value={providerFilter} onValueChange={setProviderFilter}>
-          <SelectTrigger className="h-9 w-full sm:w-[180px]">
+          <SelectTrigger className="h-9 w-full sm:w-[180px]" aria-label="Provider filter">
             <SelectValue placeholder="All providers" />
           </SelectTrigger>
           <SelectContent>
@@ -190,7 +191,7 @@ function QuotaPage() {
           </SelectContent>
         </Select>
         <Select value={sortMode} onValueChange={(v) => setSortMode(v as SortMode)}>
-          <SelectTrigger className="h-9 w-full sm:w-[200px]">
+          <SelectTrigger className="h-9 w-full sm:w-[200px]" aria-label="Sort mode">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

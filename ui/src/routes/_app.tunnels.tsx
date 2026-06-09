@@ -180,7 +180,7 @@ function TunnelDetailCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
             <h3 className="font-semibold">{meta.title}</h3>
-            <Switch checked={enabled} onCheckedChange={onToggle} />
+            <Switch checked={enabled} onCheckedChange={onToggle} aria-label={`Toggle ${meta.title}`} />
           </div>
           <p className="text-xs text-text-muted mt-1">{meta.description}</p>
         </div>
@@ -215,6 +215,7 @@ function TunnelDetailCard({
           <Input
             readOnly
             value={tunnel.url}
+            aria-label={`${meta.title} URL`}
             className="bg-transparent border-0 h-auto p-0 font-mono text-xs focus-visible:ring-0"
           />
           <CopyButton value={tunnel.url} />

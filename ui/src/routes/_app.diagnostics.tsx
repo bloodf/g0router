@@ -148,7 +148,6 @@ function AuthDiagnosticCard() {
 }
 
 function BrowserDiagnostic() {
-  const [tick, setTick] = useState(0);
   const [screenSize, setScreenSize] = useState("");
 
   useEffect(() => {
@@ -158,9 +157,9 @@ function BrowserDiagnostic() {
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
-  }, [tick]);
+  }, []);
 
-  const refresh = () => setTick((t) => t + 1);
+  const refresh = () => setScreenSize(`${window.innerWidth} × ${window.innerHeight}`);
 
   return (
     <DiagnosticCard

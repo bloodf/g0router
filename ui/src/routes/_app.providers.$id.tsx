@@ -60,17 +60,20 @@ function ProviderDetail() {
     queryKey: ["provider", id, "connections"],
     queryFn: () => apiFetch(`/api/providers/${id}/connections`),
   });
-  const modelsQ = useQuery<Model[]>({
+  const { data: models = [] } = useQuery<Model[]>({
     queryKey: ["provider", id, "models"],
     queryFn: () => apiFetch(`/api/providers/${id}/models`),
   });
-  const models = modelsQ.data ?? [];
-  const suggestedQ = useQuery<{ id: string; name: string }[]>({
+  const {
+    data: suggested = [],
+    isFetching: suggestedFetching,
+    isError: suggestedError,
+    error: suggestedErr,
+  } = useQuery<{ id: string; name: string }[]>({
     queryKey: ["provider", id, "suggested-models"],
     queryFn: () => apiFetch(`/api/providers/${id}/suggested-models`),
     enabled: suggestedOpen,
   });
-  const suggested = suggestedQ.data ?? [];
 
   const del = useMutation({
     mutationFn: (cid: string) => apiFetch(`/api/connections/${cid}`, { method: "DELETE" }),
@@ -188,17 +191,17 @@ function ProviderDetail() {
                 variant="outline"
                 size="sm"
                 onClick={() => setSuggestedOpen(true)}
-                disabled={suggestedQ.isFetching}
+                disabled={suggestedFetching}
               >
                 <Icon name="auto_awesome" size={16} className="mr-1.5" />
-                {suggestedQ.isFetching ? "Loading..." : "Load suggestions"}
+                {suggestedFetching ? "Loading..." : "Load suggestions"}
               </Button>
             </div>
-            {suggestedQ.isError ? (
+            {suggestedError ? (
               <div className="text-sm text-destructive">
-                Failed to load suggestions: {String((suggestedQ.error as any)?.message || suggestedQ.error)}
+                Failed to load suggestions: {String((suggestedErr as any)?.message || suggestedErr)}
               </div>
-            ) : suggestedOpen && !suggestedQ.isFetching ? (
+            ) : suggestedOpen && !suggestedFetching ? (
               <div className="flex flex-wrap gap-2">
                 {suggested.length > 0 ? (
                   suggested.map((m) => (
@@ -319,6 +322,7 @@ function ProviderDetail() {
       />
 
       <EditConnectionDialog
+        key={editing?.id ?? "closed"}
         connection={editing}
         provider={provider}
         open={!!editing}
