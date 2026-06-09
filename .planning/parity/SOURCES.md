@@ -12,7 +12,9 @@ Cloned 2026-06-09. No re-sync during Stage 1. Final upstream delta review only a
 | Repo | Path | Frozen SHA | Commit date | License |
 |------|------|-----------|-------------|---------|
 | decolua/9router | `~/Developer/github.com/bloodf/_refs/9router` | `827e5c382b11f90b876f856ffa99cbd50f6abd6b` | 2026-06-06 (v0.4.71) | MIT |
-| maximhq/bifrost | `~/Developer/github.com/bloodf/_refs/bifrost` | `ca212988f50a836954d4b454a9fec7af05affcf4` | 2026-06-10 | Apache-2.0 |
+| maximhq/bifrost | `~/Developer/github.com/bloodf/_refs/bifrost` | `ca212988f50a836954d4b454a9fec7af05affcf4` | 2026-06-10 +0530 | Apache-2.0 |
+
+Commit dates shown in author-local timezone; clone date is local (UTC-3).
 
 ## License decisions
 
