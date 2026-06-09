@@ -56,3 +56,7 @@ coverage.out
 .agentic/tracker-states.json
 .agentic/session-log/
 .agentic/worktrees/
+
+# CLI harness ephemera
+.planning/harness/artifacts/
+.planning/harness/jobs/

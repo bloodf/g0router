@@ -30,22 +30,50 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 21
-current_wave: "v2.0 — Wave 2: Core Providers + Admin"
-last_completed_wave: "Phase 6 — Management API Foundation"
-last_updated: "2026-06-09T19:10:00Z"
+current_wave: "Parity Program — Stage 0: Deep Analysis"
+last_completed_wave: "Parity A0 — CLI harness + frozen reference sources"
+last_updated: "2026-06-09T21:25:00Z"
 last_agent: "Fable"
 notes: |
-  v2.0 clean-slate port: Phases 1-6 complete. Phase 6 adds the management
-  API foundation: SQLite store (WAL, additive-only ensureColumn migrations,
-  AES-256-GCM *_enc secret columns, auto-generated secret.key), auth package
-  (PBKDF2 hashing, sessions, PKCE OAuth for Anthropic), admin handlers
-  (auth/settings/providers/connections/oauth) behind RequireSession at
-  /api/*. Default admin admin/123456 seeded on first run. All gates pass.
-  Next: Phase 7 Dashboard Shell + Providers UI.
+  Direction change: the 19-phase roadmap is superseded by the three-stage
+  parity program (master plan in Cursor). Stage 1 targets 1-1 behavioral +
+  UI parity with decolua/9router; Stage 2 adds Bifrost OpenAI surface + MCP
+  gateway; Stage 3 plans the Bifrost remainder. Stage 0 (now active)
+  produces a source-evidence parity matrix at .planning/parity/ before any
+  feature code. Execution runs on a CLI harness (.planning/harness/):
+  pi+MiniMax-M3 implements, Kimi analyzes/reviews diffs, pi+gpt-5.5 is the
+  plan critic, pi+M2.7-highspeed runs search and gates. Plans are authored
+  only by Fable in Cursor. Phases 1-6 deliverables remain the code base;
+  A4 audit may rewrite them.
 
-  NOTE: this Current State block is the v2.0 milestone view. The prior
-  Stage 1-20 / Wave 8.* history below is preserved for context but refers
-  to the v1 architecture that has now been removed.
+  NOTE: this Current State block is the active view. The prior Stage 1-20 /
+  Wave 8.* history below refers to the removed v1 architecture.
+```
+
+---
+
+## Parity Program — Stage 0
+
+### A0 — CLI harness + frozen reference sources
+
+```yaml
+task: parity-a0
+status: DONE
+summary: |
+  Cloned frozen reference repos: decolua/9router @ 827e5c3 (MIT, v0.4.71)
+  and maximhq/bifrost @ ca21298 (Apache-2.0) into ~/Developer/github.com/
+  bloodf/_refs/. SHAs + license decisions recorded in
+  .planning/parity/SOURCES.md. Scaffolded .planning/harness/ with
+  run-worker.sh, run-critic.sh, run-gates.sh, parse-verdict.sh, prompt
+  templates (analyzer-base, critic-plan, critic-diff with stop-slop rules
+  inlined), and README.md pinning model invocations. Smoke-tested all four
+  lanes: kimi -p (works; lingers after completion — timeout wrapper, exit
+  124 != failure; file writes confirmed), pi MiniMax-M3, pi
+  MiniMax-M2.7-highspeed with read/bash tools, pi gpt-5.5 no-tools critic
+  (VERDICT: PASS round-trip through run-worker.sh + parse-verdict.sh).
+  Kimi quirk: -y/--auto cannot combine with -p.
+completed_at: "2026-06-09T21:25:00Z"
+verdict: PASS
 ```
 
 ---
