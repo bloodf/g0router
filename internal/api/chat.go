@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -34,9 +33,9 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// Phase 4: inject API key from env for the default OpenAI provider.
+	// Phase 5: inject API key from env based on resolved provider.
 	if key.Value == "" {
-		key.Value = os.Getenv("G0ROUTER_OPENAI_KEY")
+		key.Value = resolveAPIKey(provider)
 	}
 
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}

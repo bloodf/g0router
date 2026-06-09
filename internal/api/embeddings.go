@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -35,7 +34,7 @@ func (h *EmbeddingsHandler) Handle(ctx *fasthttp.RequestCtx) {
 	}
 
 	if key.Value == "" {
-		key.Value = os.Getenv("G0ROUTER_OPENAI_KEY")
+		key.Value = resolveAPIKey(provider)
 	}
 
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}

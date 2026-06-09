@@ -2,12 +2,12 @@
 
 ## Current Position
 
-**Milestone:** v2.0 9router + BiFrost Clean Slate Port  
-**Phase:** 4 (OpenAI API Handlers) — NEXT  
-**Plan:** `.planning/ROADMAP.md`  
-**Status:** Ready for autonomous execution
+**Milestone:** v2.0 9router + BiFrost Clean Slate Port
+**Phase:** 5 (Anthropic + Gemini Providers) — COMPLETE
+**Plan:** `.planning/phases/05-anthropic-gemini-providers/PLAN.md`
+**Status:** Ready for next phase
 
-**Last activity:** 2026-06-09 — Phase 3 OpenAI Provider complete. OpenAI provider implements chat (non-streaming + streaming SSE), embeddings, list models, and error converter via fasthttp. Shared provider utilities (ClientPool, SSEScanner, JSON helpers) created. 20+ not-implemented stubs for future phases. All gates pass.
+**Last activity:** 2026-06-09 — Phase 5 Anthropic + Gemini Providers complete. Both converter-based providers implement chat (non-streaming + streaming SSE), Gemini adds embeddings, with full error converters and not-implemented stubs. Router updated with prefix-based model resolution. All gates pass.
 
 ---
 
@@ -41,6 +41,24 @@
 
 ---
 
+## Phase 4 — OpenAI API Handlers — Deliverables
+
+| Commit | Subject |
+|---|---|
+| (to be added on commit) | phase-04/task-1: fasthttp server with CORS, request ID, chat/embeddings/models handlers |
+
+---
+
+## Phase 5 — Anthropic + Gemini Providers — Deliverables
+
+| Commit | Subject |
+|---|---|
+| (to be added on commit) | phase-05/task-1: Anthropic provider with chat converter, streaming, error converter + tests |
+| (to be added on commit) | phase-05/task-2: Gemini provider with chat/embedding converters, streaming, error converter + tests |
+| (to be added on commit) | phase-05/task-3: update router with prefix-based Anthropic/Gemini resolution + env key helpers |
+
+---
+
 ## Accumulated Context
 
 - Clean-slate pivot from previous g0router architecture. Phase 1 wipes the v1 code (`api/`, `internal/`, `ui/src/`) and the v1-era root `e2e_*.go` files.
@@ -51,6 +69,8 @@
 - Phase 1 leaves `go.mod` with a single direct dep (`github.com/valyala/fasthttp v1.71.0`).
 - Phase 2 fills `internal/schemas/` with all shared wire-format types.
 - Phase 3 implements the reference OpenAI provider in `internal/providers/openai/` with fasthttp, SSE streaming, and shared utilities.
+- Phase 4 exposes `/v1/chat/completions`, `/v1/embeddings`, and `/v1/models` via fasthttp handlers.
+- Phase 5 adds converter-based Anthropic and Gemini providers with format translation.
 
 ---
 
@@ -62,13 +82,10 @@ _None._
 
 ## Next Step
 
-Continue **Wave 1: Foundation** with **Phase 4: OpenAI API Handlers**.
+Continue **Wave 2: Core Providers + Admin** with **Phase 6: Management API Foundation**.
 
-Expose `/v1/chat/completions`, `/v1/embeddings`, and `/v1/models` via fasthttp handlers in `internal/server/` or `internal/api/`. Wire the OpenAI provider into the handler layer.
+Build the admin API foundation: auth, settings, providers, and connections.
 
 ### What "next phase" should keep in mind
-- `cmd/g0router/main.go` remains minimal. Register new routes in `internal/server/`.
-- Use the schema types from Phase 2 for request/response shapes.
-- Use the OpenAI provider from Phase 3 for backend calls.
 - `go test ./...` and `go vet ./...` must pass green at every commit.
-- Commit format: `phase-04/task-N: <description>`.
+- Commit format: `phase-06/task-N: <description>`.
