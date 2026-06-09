@@ -31,7 +31,11 @@ func (s *Store) CreateConnection(c *Connection) error {
 		return err
 	}
 	now := time.Now().Unix()
-	c.ID = newID()
+	id, err := newID()
+	if err != nil {
+		return err
+	}
+	c.ID = id
 	c.CreatedAt = now
 	c.UpdatedAt = now
 	_, err = s.db.Exec(

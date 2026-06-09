@@ -63,9 +63,14 @@ func (s *Store) DB() *sql.DB {
 	return s.db
 }
 
+// randRead is a seam for injecting crypto/rand failures in tests.
+var randRead = rand.Read
+
 // newID returns a random 32-char hex identifier.
-func newID() string {
+func newID() (string, error) {
 	b := make([]byte, 16)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := randRead(b); err != nil {
+		return "", fmt.Errorf("generate id: %w", err)
+	}
+	return hex.EncodeToString(b), nil
 }

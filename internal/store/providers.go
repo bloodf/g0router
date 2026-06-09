@@ -21,10 +21,14 @@ type ProviderRecord struct {
 // CreateProvider inserts a provider, assigning its ID and timestamps.
 func (s *Store) CreateProvider(p *ProviderRecord) error {
 	now := time.Now().Unix()
-	p.ID = newID()
+	id, err := newID()
+	if err != nil {
+		return err
+	}
+	p.ID = id
 	p.CreatedAt = now
 	p.UpdatedAt = now
-	_, err := s.db.Exec(
+	_, err = s.db.Exec(
 		"INSERT INTO providers (id, name, type, base_url, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
 		p.ID, p.Name, p.Type, p.BaseURL, boolToInt(p.Enabled), p.CreatedAt, p.UpdatedAt,
 	)

@@ -9,6 +9,20 @@ import (
 	"time"
 )
 
+func TestNewIDRandFailure(t *testing.T) {
+	prev := randRead
+	t.Cleanup(func() { randRead = prev })
+
+	randRead = func(b []byte) (int, error) {
+		return 0, errors.New("simulated rand failure")
+	}
+
+	st := newTestStore(t)
+	if _, err := st.CreateUser("u", "h"); err == nil {
+		t.Fatal("CreateUser returned nil error with failing randRead")
+	}
+}
+
 func newTestStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()

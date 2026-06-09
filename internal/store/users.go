@@ -19,14 +19,18 @@ type User struct {
 // CreateUser inserts a new user and returns it with its generated ID.
 func (s *Store) CreateUser(username, passwordHash string) (*User, error) {
 	now := time.Now().Unix()
+	id, err := newID()
+	if err != nil {
+		return nil, err
+	}
 	u := &User{
-		ID:           newID(),
+		ID:           id,
 		Username:     username,
 		PasswordHash: passwordHash,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
-	_, err := s.db.Exec(
+	_, err = s.db.Exec(
 		"INSERT INTO users (id, username, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
 		u.ID, u.Username, u.PasswordHash, u.CreatedAt, u.UpdatedAt,
 	)
