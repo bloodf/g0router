@@ -1,0 +1,595 @@
+version: 1
+plan:
+  name: 'g0router v2.0 — Phase 1: Scaffolding'
+  max_concurrency: 3
+  max_consecutive_failures: 2
+  max_cycles: 10
+  auto_reject_retries: 1
+  verifier_config:
+    default_verifiers: [verifier]
+    audit_sample_rate: 0.0
+tasks:
+  - id: go-skeleton
+    title: 'Go skeleton: delete old code, scaffold internal/* packages, minimal main.go'
+    prompt: |
+      You are working in the g0router v2.0 repository at the workspace root
+      (/Users/heitor/Developer/github.com/bloodf/g0router). This is a clean-slate
+      port: the old `api/`, `internal/`, and `ui/src/` directories and three root
+      e2e_*.go files are obsolete and must be removed. The new architecture is
+      documented in `docs/superpowers/specs/2026-06-08-9router-bifrost-port-design.md`
+      (read it first), with this phase's plan at
+      `.planning/phases/phase-01-scaffolding/PLAN.md`.
+
+      ## Repo conventions (must follow)
+      - TDD: every package gets a `_test.go` BEFORE real implementation.
+      - No mocks: use interfaces and fakes for tests.
+      - No `init()` functions: explicit constructors only.
+      - Errors are values: return `error`, never panic; wrap with
+        `fmt.Errorf("context: %w", err)`.
+      - No global state: pass dependencies via struct fields or function params.
+      - Naming: `camelCase` locals, `PascalCase` exports; package names lowercase
+        singular nouns.
+      - Commits: `phase-01/task-N: <short description>` for every commit you make
+        in this task. Use 1, 2, 3 for sequential task ids (e.g. task-1: delete
+        old code, task-2: scaffold internal/*, task-3: main.go + embed.go).
+
+      ## What to do (in this order)
+
+      ### Task 1: Delete old code
+      Remove these directories and files entirely (use `git rm -rf` so the
+      deletions are tracked):
+      - `api/` (whole directory)
+      - `internal/` (whole directory — the whole `internal/` tree is going away
+        and will be replaced)
+      - The three root-level e2e test files: `e2e_test.go`,
+        `e2e_binary_test.go`, `e2e_api_comprehensive_test.go`. They import the
+        old `api/` and `internal/...` paths and will not compile against the
+        new layout. Phase 19 (E2E) will rewrite them against the new architecture.
+
+      DO NOT delete:
+      - `cmd/g0router/` (you will EDIT `main.go` and `main_test.go` there)
+      - `embed.go`, `embed_test.go` (at repo root — you will EDIT `embed.go`
+        if needed; `embed_test.go` asserts that the built UI's `index.html`
+        contains `<div id="root"></div>`, so the UI placeholder must include it)
+      - `go.mod`, `go.sum` (you will run `go mod tidy`)
+      - `Dockerfile`, `deploy/`, `docker-compose.yml`, `Makefile`
+      - `ui/package.json` and the whole UI build toolchain (`ui/vite.config.ts`,
+        `ui/tsconfig.json`, `ui/eslint.config.js`, `ui/playwright.config.ts`,
+        `ui/components.json`, `ui/public/`, `ui/index.html`, `ui/node_modules/`)
+      - The `tests/` directory
+      - Project metadata: `AGENTS.md`, `CLAUDE.md`, `glossary.md`, `.agentic/`,
+        `.claude/`, `.omc/`, `.pi/`, `.gitignore`, `.env.example`
+      - The whole `docs/` tree (including the new `.planning/` planning artifacts)
+      - `coverage.out`, `single.out`, `debug_data/`, `e2e_data/`, `test_data_dir/`,
+        `lancedb/`, the prebuilt `g0router` binary at root — these are stale
+        artifacts and can stay (or be gitignored), do NOT touch them in this task.
+
+      Verify after deletion:
+      ```
+      ls api internal 2>&1   # should say "No such file or directory"
+      ls e2e_*.go 2>&1       # should say "No such file or directory"
+      ```
+
+      Commit: `phase-01/task-1: remove obsolete api/, internal/, and root e2e tests`
+
+      ### Task 2: Create the new `internal/` package layout
+      Create these top-level packages under `internal/`, each with a `doc.go`
+      that explains the package's purpose in 1-3 lines, and a `_test.go` with
+      at least one passing placeholder test (use the pattern from the handoff):
+      ```go
+      package <name>
+
+      import "testing"
+
+      func TestPackageCompiles(t *testing.T) {
+          // Phase 1 placeholder; real tests come in Phase 2+.
+      }
+      ```
+
+      Top-level packages (14 total):
+      ```
+      internal/schemas/        # Shared Go types
+      internal/server/         # fasthttp server, route registration, middleware
+      internal/api/            # OpenAI-compatible /v1/* handlers
+      internal/admin/          # Management /api/* handlers
+      internal/inference/      # Routing, fallbacks, key selection
+      internal/catalog/        # Model catalog + pricing
+      internal/governance/     # Virtual keys, provider configs, quotas
+      internal/auth/           # Sessions, OAuth, API key auth
+      internal/store/          # SQLite persistence
+      internal/logging/        # Request log + audit
+      internal/mcp/            # MCP gateway
+      internal/config/         # Runtime config loading
+      internal/platform/       # 9router-specific features (RTK, caveman, combos, translator, sync, nodes, proxypool)
+      ```
+
+      Then create the `internal/providers/` subpackages. Each must have a
+      `doc.go` + a `_test.go` with the same placeholder pattern:
+      ```
+      internal/providers/
+        doc.go                  # package-level comment for the parent dir
+        utils/                  # Shared fasthttp client, SSE scanner pools
+        openai/                 # Reference provider
+        anthropic/
+        gemini/
+        groq/
+        mistral/
+        cohere/
+        fireworks/
+        together/
+        deepseek/
+        minimax/
+        ollama/
+        bedrock/
+        vertex/
+      ```
+
+      Note on Go's package directory rules: a directory can only hold ONE Go
+      package, so `internal/providers/` itself cannot have a `doc.go` that
+      declares `package providers` if its subdirectories each declare
+      `package <name>`. Solution: either (a) put a `package providers` file
+      in `internal/providers/` AND use distinct package names in each
+      subdirectory (e.g. `package openai`, `package anthropic`, etc.) — Go
+      allows this because the subdirectory IS the package; or (b) skip the
+      parent dir `doc.go` and put docs in each subdirectory's `doc.go`.
+      Pick the cleanest of these two. If you go with (a), the parent file
+      can just be `package providers` with a comment block describing the
+      provider tree; subdirs use their own names.
+
+      Verify with:
+      ```
+      find internal -type d | sort
+      find internal -name '*_test.go' | wc -l   # should be >= 28
+      go test ./internal/...
+      go vet ./internal/...
+      ```
+      All tests must pass; `go vet` must be clean.
+
+      Commit: `phase-01/task-2: scaffold internal/ package layout with placeholder tests`
+
+      ### Task 3: Minimal `cmd/g0router/main.go` and `embed.go`
+      Rewrite `cmd/g0router/main.go` to be a minimal fasthttp skeleton:
+
+      - Parse environment/config (read `G0ROUTER_LISTEN` env, default `:20128`
+        to match the UI's vite dev proxy which targets `127.0.0.1:20129` — use
+        `:20128` here so the two don't clash; this is a backend default, the
+        vite proxy can stay pointed at `:20129` for now).
+      - Initialize a fasthttp server with two routes:
+        - `GET /api/health` — returns `200` with body `{"status":"ok"}`
+          and `Content-Type: application/json`.
+        - All other paths — serve the embedded UI catch-all from `embed.go`.
+          If the path matches a file in the embedded `ui/dist`, serve it
+          (with proper Content-Type detection by extension). Otherwise serve
+          `index.html` (SPA fallback).
+      - Use `fmt.Errorf("...: %w", err)` for any error wrapping.
+      - Use `log.Fatalf` only for unrecoverable startup errors.
+      - The main package should be testable. Keep `main_test.go` and ensure
+        it still compiles. The existing test (if any) can be a smoke test
+        that the binary starts and serves `/api/health` — but for Phase 1
+        it is acceptable to have a trivial `TestMainCompiles` placeholder.
+
+      Required imports you should reach for:
+      - `github.com/valyala/fasthttp` (already in `go.mod`)
+      - `github.com/bloodf/g0router/embed.go` package is the ROOT package
+        (`package g0router`); its `UI()` returns the sub-FS. The main package
+        can import it as `github.com/bloodf/g0router`.
+      - For JSON: `encoding/json`.
+      - For env: `os.Getenv`.
+
+      DO NOT:
+      - Import anything from the deleted `internal/cli/` or `api/` packages.
+      - Implement providers, catalog, governance, or admin endpoints.
+      - Add new top-level deps.
+
+      Update `embed.go` if needed. The current `embed.go` already points to
+      `ui/dist` — that is correct. DO NOT change the `//go:embed` directive
+      unless the directory genuinely moved.
+
+      Also update `cmd/g0router/main.go` to remove the old `internal/cli`
+      import. The current `main_test.go` may reference symbols from the old
+      CLI; either delete it and replace with a placeholder, or update it to
+      match the new minimal `main.go`. The simpler path: replace
+      `main_test.go` with a one-line placeholder test that just asserts
+      `main` compiles.
+
+      Verify:
+      ```
+      go build ./cmd/g0router       # must produce ./g0router binary
+      go test ./...                 # all tests pass
+      go vet ./...                  # clean
+      ```
+
+      If the binary builds, run it briefly to sanity-check the health endpoint:
+      ```
+      ./g0router &                  # start in background
+      sleep 1
+      curl -sS http://127.0.0.1:20128/api/health    # expect {"status":"ok"}
+      kill %1 || pkill -f g0router
+      ```
+      (This is a smoke test, not a test you need to commit. If the UI
+      placeholder from the parallel UI task is not yet built into `ui/dist`,
+      the catch-all will 404 on `/` — that is expected for the smoke test,
+      as long as `/api/health` returns 200. If `/api/dist/index.html` is
+      missing entirely, fasthttp will return 404 for non-`/api/health` paths,
+      which is acceptable for this phase.)
+
+      Commit: `phase-01/task-3: rewrite cmd/g0router/main.go as minimal fasthttp skeleton`
+
+      ### Task 4: `go mod tidy`
+      Run `go mod tidy` from the repo root. It will likely drop the indirect
+      deps that were only used by the old `api/` and `internal/...` code.
+
+      If `go mod tidy` removes a dep you actually need (it shouldn't — the
+      new packages have no third-party imports beyond `valyala/fasthttp` and
+      the `modernc.org/sqlite` family which is also in `go.mod` for the store
+      package — but the new packages don't use sqlite yet either), pin it
+      back with an explicit `require` block + a `// used by <package>` comment.
+
+      Re-run all gates after `go mod tidy`:
+      ```
+      go test ./...
+      go vet ./...
+      go build ./cmd/g0router
+      ```
+
+      Commit only if `go.mod` or `go.sum` changed: `phase-01/task-4: go mod tidy`.
+      If nothing changed, skip the commit.
+
+      ## What NOT to do
+      - Do NOT delete any file listed in the "DO NOT delete" section above.
+      - Do NOT implement any provider, converter, catalog entry, virtual key,
+        or admin endpoint. The plan is explicit: Phase 1 is the empty
+        skeleton only.
+      - Do NOT add new Go dependencies.
+      - Do NOT touch `ui/` files — the parallel UI task owns that directory.
+      - Do NOT touch `e2e/`, `tests/`, `Makefile`, `Dockerfile`, `docker-compose.yml`.
+      - Do NOT skip placeholder tests in any package. If a package exists,
+        it must have a `_test.go` that passes.
+
+      ## Deliverable
+      When done, write a `deliverable.md` at the repo root containing:
+      1. The exact list of files/directories you created and removed.
+      2. The last 3 lines of `go test ./...`, `go vet ./...`,
+         `go build ./cmd/g0router`.
+      3. The commit hashes (output of `git log --oneline phase-01/..HEAD~N..HEAD`
+         or just the hashes you made).
+      4. A one-line status: "Phase 1 Go skeleton complete" or any caveat.
+
+      Do NOT block on CI or external systems. Do NOT push to remote unless
+      asked. Local commits are sufficient; the final integration gate will
+      re-derive everything from `git log` + a clean test run.
+    assigned_to: coder
+    verify_skip_reason: >
+      This is a scaffolding task with internal _test.go placeholders only —
+      no real behavior to verify. The final integration gate (role:
+      verify-as-task) re-runs `go test ./...`, `go vet ./...`, and
+      `go build ./cmd/g0router` from a clean state and is the trust anchor.
+      Producer self-checks the same gates before declaring done.
+    max_retries: 2
+
+  - id: ui-placeholder
+    title: 'UI placeholder: minimal Vite+React 19 build that passes npm run build'
+    prompt: |
+      You are working in the g0router v2.0 repository at the workspace root
+      (/Users/heitor/Developer/github.com/bloodf/g0router). The Go skeleton
+      task is running in parallel and will delete `ui/src/`. After that
+      deletion, you (or this task's execution) must rebuild `ui/src/` with
+      a minimal placeholder so `npm run build` passes.
+
+      ## Coordination note
+      The Go skeleton task may not have deleted `ui/src/` yet when you start.
+      That is fine. To avoid a race:
+      1. Run `ls ui/src 2>&1` first.
+      2. If `ui/src` still exists, wait briefly (poll every 5s, max 60s) for
+         the Go skeleton task to delete it. If it does not disappear in 60s,
+         proceed to delete it yourself with `git rm -rf ui/src`.
+      3. Once `ui/src` is gone (or never existed), create the new minimal
+         files.
+
+      ## Constraints (read these first)
+      - The current `ui/vite.config.ts` uses `TanStackRouterVite()` from
+        `@tanstack/router-plugin/vite`. This plugin expects a `routeTree.gen.ts`
+        file in `ui/src/`. If `routes/` is empty or missing, the plugin's
+        build step may still succeed (it generates an empty `routeTree`),
+        but a safer bet is to provide a minimal `routes/__root.tsx` and a
+        committed `src/routeTree.gen.ts` stub.
+      - The current `ui/tsconfig.json` includes `"src/**/*.ts"` and
+        `"src/**/*.tsx"`. The minimum new files must satisfy TypeScript
+        strict mode.
+      - The current `ui/package.json` includes React 19, Tailwind 4 via
+        `@tailwindcss/vite`, shadcn/ui deps. For Phase 1 you do NOT need to
+        import shadcn/ui components — a simple inline-styled placeholder is
+        fine. Tailwind 4 utilities can be used; if you want to avoid Tailwind
+        entirely, plain inline styles are also acceptable.
+      - The placeholder page must include `<div id="root"></div>` in the
+        built `index.html` (the kept root-level `embed_test.go` asserts on
+        this). Vite generates `index.html` in `ui/dist/index.html` from the
+        `ui/index.html` template; the template already contains
+        `<div id="root"></div>`. DO NOT delete or rename that div.
+      - DO NOT modify `ui/index.html`, `ui/vite.config.ts`, `ui/tsconfig.json`,
+        `ui/eslint.config.js`, `ui/playwright.config.ts`, `ui/components.json`,
+        `ui/package.json`, or `ui/package-lock.json` (the build toolchain is
+        frozen for Phase 1).
+
+      ## Files to create
+
+      ### ui/src/main.tsx
+      A minimal React 19 entry point that mounts `<App />` to
+      `<div id="root">` using `createRoot` from `react-dom/client`. Do NOT
+      import the old `router.tsx` or `routeTree.gen.ts` (those point at the
+      old routes). The simplest possible entry:
+      ```ts
+      import { StrictMode } from 'react'
+      import { createRoot } from 'react-dom/client'
+      import App from './App'
+      import './index.css'
+
+      const rootEl = document.getElementById('root')
+      if (!rootEl) throw new Error('root element not found')
+      createRoot(rootEl).render(
+        <StrictMode>
+          <App />
+        </StrictMode>
+      )
+      ```
+
+      ### ui/src/App.tsx
+      A trivial page that says "g0router v2.0 — coming soon" with a link to
+      `/api/health`. Keep it minimal:
+      ```tsx
+      export default function App() {
+        return (
+          <main className="min-h-screen flex flex-col items-center justify-center p-8 text-center">
+            <h1 className="text-3xl font-semibold">g0router v2.0</h1>
+            <p className="mt-2 text-muted-foreground">coming soon</p>
+            <a
+              href="/api/health"
+              className="mt-6 underline text-blue-600 hover:text-blue-800"
+              target="_blank"
+              rel="noreferrer"
+            >
+              /api/health
+            </a>
+          </main>
+        )
+      }
+      ```
+      (If you prefer to avoid Tailwind class names, plain inline styles are
+      also fine — the goal is "builds and renders".)
+
+      ### ui/src/index.css
+      A minimal stylesheet. Plain CSS is fine:
+      ```css
+      :root {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color-scheme: light dark;
+      }
+      body { margin: 0; }
+      ```
+      (If you want to use Tailwind 4 utilities in `App.tsx`, replace this
+      with a minimal `@import "tailwindcss";` to make Tailwind classes
+      resolve. The package.json + vite.config.ts already wire Tailwind.)
+
+      ### ui/src/routeTree.gen.ts (stub, committed)
+      TanStackRouterVite auto-generates this file, but for the build to be
+      fully reproducible in CI without the watcher running, commit a stub
+      that exports an empty `routeTree`:
+      ```ts
+      // This file is normally generated by TanStack Router. It is committed
+      // as a stub for Phase 1 because the UI has no routes yet.
+      // The TanStackRouterVite plugin will overwrite it on the next dev run.
+      import { rootRoute } from '@tanstack/react-router'
+      export const routeTree = rootRoute
+      ```
+      (If committing this stub causes a runtime mismatch with what the
+      plugin generates, the cleanest fix is to add a no-op route file at
+      `ui/src/routes/__root.tsx` that exports `createRootRoute()`. Then
+      the plugin will regenerate `routeTree.gen.ts` correctly during
+      `npm run build` and your committed stub gets overwritten — which is
+      fine, but you should not commit the stub in that case. Use your
+      judgment: try the build first without the stub; if it fails because
+      the plugin's first-pass generates nothing, add the stub and re-build.)
+
+      ## Verify
+      ```
+      cd ui
+      npm run build
+      ```
+      This must produce `ui/dist/index.html` (and a `ui/dist/assets/...` JS
+      bundle). The generated `index.html` must contain `<div id="root"></div>`.
+
+      Also confirm:
+      ```
+      grep -c '<div id="root"></div>' ui/dist/index.html   # must be 1
+      ```
+      (It may be `<div id="root">` without the explicit `</div>` in the
+      built output if Vite optimizes it — either form satisfies the
+      `strings.Contains` check in `embed_test.go` because the substring
+      `<div id="root"></div>` is checked literally. If the built output
+      has `<div id="root">` with the closing tag on a later line, that is
+      OK because Go's `strings.Contains` does not require single-line
+      matches — but the `embed_test.go` check is a literal substring search
+      for `<div id="root"></div>`. To be safe, ensure the template's
+      `<div id="root"></div>` is preserved verbatim. If the build process
+      strips it, you may need to add a comment `<!--root-->` inside the
+      div, but this is unlikely.)
+
+      Do NOT run `npx playwright test` — the handoff says no new E2E tests
+      in Phase 1. Just confirm `npx playwright test --list` does not crash:
+      ```
+      npx playwright test --list
+      ```
+      (This should print something like "No tests found" or list the
+      existing E2E tests, but not crash. If it crashes because of a
+      config error, fix only the minimum required.)
+
+      ## Commits
+      Commit (single commit is fine for this track):
+      `phase-01/task-1: scaffold minimal UI placeholder (main.tsx, App.tsx, index.css)`
+
+      ## Deliverable
+      Write a `deliverable.md` at the repo root containing:
+      1. The exact list of files you created.
+      2. The last 3 lines of `npm run build`.
+      3. The last 3 lines of `npx playwright test --list`.
+      4. The output of `grep -c '<div id="root"></div>' ui/dist/index.html`.
+      5. The commit hash.
+      6. A one-line status: "Phase 1 UI placeholder complete" or any caveat.
+    assigned_to: ada
+    verify_skip_reason: >
+      This is a minimal UI placeholder task — the work is bounded to
+      `ui/src/` and the only real check is `npm run build` passes. The
+      final integration gate re-runs `npm run build` from a clean state
+      and inspects `ui/dist/index.html` for the root div, which is the
+      trust anchor. Producer self-checks the build before declaring done.
+    max_retries: 2
+
+  - id: final-gate
+    title: 'Final integration gate: run all 4 quality gates + playwright list'
+    role: verify-as-task
+    prompt: |
+      You are the independent verifier for the g0router v2.0 Phase 1
+      scaffolding deliverable. Both the Go skeleton task and the UI
+      placeholder task have completed. Your job is to re-derive the success
+      criteria from a clean state and report PASS or FAIL with raw evidence.
+
+      You MUST run each gate from a fresh shell and capture the last 3
+      lines of output (or full output if shorter than 10 lines). Do NOT
+      rely on the producers' deliverable.md files — your job is to be
+      adversarial and re-run the checks yourself.
+
+      ## Workspace
+      `/Users/heitor/Developer/github.com/bloodf/g0router`
+
+      ## Gates to run, in order
+
+      1. `go test ./...`
+         - From repo root.
+         - Expected: exit 0, all tests pass.
+         - Report the count of `ok` lines (one per package) and any failures.
+
+      2. `go vet ./...`
+         - From repo root.
+         - Expected: exit 0, no output (vet is silent on success).
+
+      3. `cd ui && npm run build && cd ..`
+         - From `ui/` subdir.
+         - Expected: exit 0, produces `ui/dist/index.html`.
+         - Verify `grep -c '<div id="root"></div>' ui/dist/index.html` >= 1.
+
+      4. `go build ./cmd/g0router`
+         - From repo root.
+         - Expected: exit 0, produces `./g0router` binary at repo root.
+
+      5. `npx playwright test --list`
+         - From `ui/` subdir (or root, where the playwright.config is — it
+           lives at `ui/playwright.config.ts`).
+         - Expected: exits 0 (or 1 with "no tests found" — both acceptable
+           for Phase 1). Must NOT crash with a config error or a missing
+           dependency.
+
+      ## Structural checks (semantic, in addition to the gates)
+
+      Independently verify the Phase 1 deliverable structure:
+
+      A. **Old code is gone**:
+         ```
+         ! test -d api          # must succeed (api must not exist)
+         ! test -d internal/.gitkeep 2>/dev/null  # informational
+         find internal -mindepth 1 -maxdepth 1 -type d | sort
+         # Must contain at least: schemas server api admin inference
+         # catalog governance auth store logging mcp config platform
+         # and the 14 provider subdirs under internal/providers/
+         ! test -f e2e_test.go
+         ! test -f e2e_binary_test.go
+         ! test -f e2e_api_comprehensive_test.go
+         ```
+
+      B. **Placeholder tests exist in every package**:
+         ```
+         find internal -name '*_test.go' | wc -l
+         # must be >= 28 (14 top-level + 14 provider subdirs)
+         # Each file should contain at least one `func Test` declaration.
+         ```
+
+      C. **main.go is a minimal skeleton**:
+         ```
+         grep -E 'func.*fasthttp|/api/health|UI\(\)' cmd/g0router/main.go
+         # should match at least the health endpoint and the UI() call.
+         grep 'github.com/bloodf/g0router/internal/cli' cmd/g0router/main.go
+         # should match nothing (old CLI import is gone).
+         ```
+
+      D. **embed.go points to ui/dist**:
+         ```
+         grep 'go:embed' embed.go
+         # must reference ui/dist
+         ```
+
+      E. **Commit format is correct**:
+         ```
+         git log --oneline -20 | grep -E 'phase-01/task-[0-9]+'
+         # should match at least 3 commits (Go skeleton produced 3-4)
+         ```
+
+      F. **No accidental deletion of retained files**:
+         ```
+         test -f cmd/g0router/main.go
+         test -f cmd/g0router/main_test.go
+         test -f embed.go
+         test -f embed_test.go
+         test -f go.mod
+         test -f Dockerfile
+         test -f ui/package.json
+         test -f ui/vite.config.ts
+         test -f ui/index.html
+         test -d ui/public/providers
+         test -d tests
+         test -d .planning
+         test -d docs
+         # all must succeed
+         ```
+
+      ## Output format
+
+      Write your verdict to `deliverable.md` at the repo root:
+
+      ```
+      # Phase 1 Final Gate Report
+
+      ## Verdict: PASS | FAIL
+
+      ## Gates
+      ### 1. go test ./... — PASS | FAIL
+      (last 3 lines of output)
+
+      ### 2. go vet ./... — PASS | FAIL
+      (last 3 lines of output)
+
+      ### 3. npm run build — PASS | FAIL
+      (last 3 lines of output)
+      (grep result for root div)
+
+      ### 4. go build ./cmd/g0router — PASS | FAIL
+      (last 3 lines of output)
+
+      ### 5. npx playwright test --list — PASS | FAIL
+      (last 3 lines of output)
+
+      ## Structural checks
+      A. Old code gone: PASS | FAIL (details)
+      B. Placeholder tests >= 28: PASS | FAIL (count)
+      C. main.go minimal skeleton: PASS | FAIL (grep results)
+      D. embed.go points to ui/dist: PASS | FAIL
+      E. Commit format phase-01/task-N: PASS | FAIL (matches)
+      F. Retained files intact: PASS | FAIL (any missing)
+
+      ## Summary
+      <one paragraph: what worked, what didn't, what to fix>
+      ```
+
+      Then report back to the parent session via `mavis communication send`
+      with the verdict and a one-line summary.
+    assigned_to: verifier
+    depends_on: [go-skeleton, ui-placeholder]
+    max_retries: 1

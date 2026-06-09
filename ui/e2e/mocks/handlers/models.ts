@@ -1,10 +1,16 @@
 import type { Page } from "@playwright/test";
 import type { MockStore } from "../store";
+import { getAllCatalogModels } from "../catalog";
 import { json, error } from "./utils";
 
 export function registerModelsHandlers(page: Page, store: MockStore) {
   page.route("/api/models", async (route) => {
-    if (route.request().method() === "GET") return json(route, Array.from(store.models.values()));
+    if (route.request().method() === "GET") {
+      const seeded = Array.from(store.models.values());
+      const seededIds = new Set(seeded.map((m) => `${m.provider}/${m.id}`));
+      const catalog = getAllCatalogModels().filter((m) => !seededIds.has(`${m.provider}/${m.id}`));
+      return json(route, [...seeded, ...catalog]);
+    }
     return route.continue();
   });
   page.route("/api/models/disabled", async (route) => {

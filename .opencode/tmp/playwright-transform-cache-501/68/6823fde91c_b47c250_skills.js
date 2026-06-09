@@ -1,0 +1,14 @@
+export function seedSkills() {
+  return [{
+    name: "filesystem",
+    category: "Endpoint Skills",
+    description: "Read and write files",
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem"
+  }, {
+    name: "github",
+    category: "Endpoint Skills",
+    description: "GitHub API operations",
+    url: "https://github.com/modelcontextprotocol/servers/tree/main/src/github"
+  }];
+}
+//# sourceMappingURL=data:application/json;charset=utf-8;base64,eyJ2ZXJzaW9uIjozLCJuYW1lcyI6WyJzZWVkU2tpbGxzIiwibmFtZSIsImNhdGVnb3J5IiwiZGVzY3JpcHRpb24iLCJ1cmwiXSwic291cmNlcyI6WyJza2lsbHMudHMiXSwic291cmNlc0NvbnRlbnQiOlsiaW1wb3J0IHR5cGUgeyBTa2lsbCB9IGZyb20gXCIuLi8uLi9zcmMvbGliL3R5cGVzXCI7XG5cbmV4cG9ydCBmdW5jdGlvbiBzZWVkU2tpbGxzKCk6IFNraWxsW10ge1xuICByZXR1cm4gW1xuICAgIHsgbmFtZTogXCJmaWxlc3lzdGVtXCIsIGNhdGVnb3J5OiBcIkVuZHBvaW50IFNraWxsc1wiLCBkZXNjcmlwdGlvbjogXCJSZWFkIGFuZCB3cml0ZSBmaWxlc1wiLCB1cmw6IFwiaHR0cHM6Ly9naXRodWIuY29tL21vZGVsY29udGV4dHByb3RvY29sL3NlcnZlcnMvdHJlZS9tYWluL3NyYy9maWxlc3lzdGVtXCIgfSxcbiAgICB7IG5hbWU6IFwiZ2l0aHViXCIsIGNhdGVnb3J5OiBcIkVuZHBvaW50IFNraWxsc1wiLCBkZXNjcmlwdGlvbjogXCJHaXRIdWIgQVBJIG9wZXJhdGlvbnNcIiwgdXJsOiBcImh0dHBzOi8vZ2l0aHViLmNvbS9tb2RlbGNvbnRleHRwcm90b2NvbC9zZXJ2ZXJzL3RyZWUvbWFpbi9zcmMvZ2l0aHViXCIgfSxcbiAgXTtcbn1cbiJdLCJtYXBwaW5ncyI6IkFBRUEsT0FBTyxTQUFTQSxVQUFVQSxDQUFBLEVBQVk7RUFDcEMsT0FBTyxDQUNMO0lBQUVDLElBQUksRUFBRSxZQUFZO0lBQUVDLFFBQVEsRUFBRSxpQkFBaUI7SUFBRUMsV0FBVyxFQUFFLHNCQUFzQjtJQUFFQyxHQUFHLEVBQUU7RUFBMkUsQ0FBQyxFQUN6SztJQUFFSCxJQUFJLEVBQUUsUUFBUTtJQUFFQyxRQUFRLEVBQUUsaUJBQWlCO0lBQUVDLFdBQVcsRUFBRSx1QkFBdUI7SUFBRUMsR0FBRyxFQUFFO0VBQXVFLENBQUMsQ0FDbks7QUFDSCIsImlnbm9yZUxpc3QiOltdfQ==

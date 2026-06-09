@@ -29,12 +29,77 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 20
-current_wave: "Full E2E test suite — Go API + Playwright UI coverage"
-last_completed_wave: "Slice 6 — Missing Pages (alerts, guardrails, model-limits, prompts, feature-flags, proxy-pools, MCP)"
-last_updated: "2026-06-08T21:53:00Z"
-last_agent: "assistant"
-notes: "Replaced 11 ComingSoon routes with real CRUD/feature pages. Aligned UI types to backend handlers. npm run build passes."
+current_stage: 21
+current_wave: "v2.0 — Wave 1: Foundation"
+last_completed_wave: "Phase 1 — Scaffolding (v2.0 clean-slate port)"
+last_updated: "2026-06-09T15:00:00Z"
+last_agent: "Mavis"
+notes: |
+  v2.0 clean-slate port: Phase 1 Scaffolding complete. Old api/, internal/,
+  ui/src/ wiped. New 14+14 internal package layout with placeholder tests.
+  Minimal fasthttp main.go serves /api/health + embedded UI. 5/5 quality
+  gates, 6/6 structural checks, 8/8 adversarial probes PASS (independent
+  re-derivation). Final gate: deliverable.md. Plan plan_63b4da91, 2 cycles,
+  $0.36. See Phase 1 entry below for full details.
+
+  NOTE: this Current State block is the v2.0 milestone view. The prior
+  Stage 1-20 / Wave 8.* history below is preserved for context but refers
+  to the v1 architecture that has now been removed.
+```
+
+---
+
+## v2.0 Milestone — 9router + BiFrost Clean Slate Port
+
+Wave 1 of 6. 19 phases total in `.planning/ROADMAP.md`.
+
+### Phase 1 — Scaffolding
+
+```yaml
+phase: 1
+status: DONE
+summary: |
+  Wiped v1 code (api/, internal/, ui/src/, root e2e_*.go) and scaffolded the
+  new 14+14 internal package layout with placeholder tests. Wrote a minimal
+  fasthttp cmd/g0router/main.go that serves GET /api/health and a SPA-style
+  catch-all from the embedded UI. Wrote a minimal Vite+React 19 UI
+  placeholder (main.tsx + App.tsx + index.css + routes/__root.tsx) so
+  `npm run build` ships a real bundle with the required <div id="root"></div>.
+  go.mod tidied to a single direct dep (fasthttp). The new architecture is
+  documented in docs/superpowers/specs/2026-06-08-9router-bifrost-port-design.md.
+completed_at: "2026-06-09T15:00:00Z"
+plan: plan_63b4da91
+verdict: PASS
+gates:
+  - { command: "go test ./...", status: PASS, notes: "30 ok / 1 ignored (ui/node_modules pre-existing)" }
+  - { command: "go vet ./...", status: PASS }
+  - { command: "cd ui && npm run build", status: PASS, notes: "193.87 kB JS, 477ms" }
+  - { command: "go build ./cmd/g0router", status: PASS, notes: "9.5 MB binary" }
+  - { command: "npx playwright test --list", status: PASS, notes: "79 tests in 30 files, no crash" }
+adversarial_probes:
+  - "Started binary, hit /api/health, /, /dashboard, /assets/*.js — all 200 OK"
+  - "No leftover internal/cli imports"
+  - "No leftover github.com/bloodf/g0router/api/ imports"
+  - "All 28 internal packages contain only doc.go + _test.go (no half-implementations)"
+  - "go.mod is minimal (1 direct dep)"
+  - "All 28 placeholder _test.go files have exactly 1 func Test each"
+  - "No TODO/FIXME/panic in placeholders"
+  - "embed_test.go is a real integration test, not a placeholder"
+commits:
+  - "6338148 phase-01/task-1: remove obsolete api/, internal/, and root e2e tests"
+  - "63124ba phase-01/task-2: scaffold internal/ package layout with placeholder tests"
+  - "c900b55 phase-01/task-3: rewrite cmd/g0router/main.go as minimal fasthttp skeleton"
+  - "e36a19c phase-01/task-4: go mod tidy"
+  - "79db515 phase-01/task-1: scaffold minimal UI placeholder (main.tsx, App.tsx, index.css)"
+
+caveats:
+  - "Naming collision: phase-01/task-1 prefix used by both Go and UI tracks. Producers worked on disjoint files; no conflict. Future parallel plans: prefix UI tasks differently (e.g. phase-N/ui-task-N)."
+  - "Optional cleanup: rm -rf api on macOS hosts drops a stray gitignored .DS_Store that the OS re-created in the post-deletion empty folder. Not tracked, not in any gate. Defer to a later phase."
+  - "Dirty pre-existing WIP at handoff: ui/e2e/mocks/{fixture,handlers,handlers/catalog}.ts and docs/superpowers/specs/2026-06-08-9router-bifrost-port-design.md. Phase 1 left them as-is; commit or clean in Phase 2+."
+
+deliverable: "deliverable.md (335 lines, full final-gate report)"
+
+next: "Phase 2 — Schemas + Catalog (internal/schemas/ + internal/catalog/)"
 ```
 
 ---
