@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/bloodf/g0router/internal/inference"
@@ -41,7 +40,13 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	b, _ := json.Marshal(resp)
+	b, err := jsonMarshal(resp)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetContentTypeBytes([]byte("text/plain"))
+		ctx.SetBodyString("internal error")
+		return
+	}
 	ctx.SetStatusCode(fasthttp.StatusOK)
 	ctx.SetContentTypeBytes([]byte("application/json"))
 	ctx.SetBody(b)
