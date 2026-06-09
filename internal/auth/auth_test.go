@@ -32,6 +32,21 @@ func TestNewTokenRandFailure(t *testing.T) {
 	}
 }
 
+func TestRandomURLSafeFailure(t *testing.T) {
+	prev := randRead
+	t.Cleanup(func() { randRead = prev })
+
+	randRead = func(b []byte) (int, error) {
+		return 0, errors.New("simulated rand failure")
+	}
+
+	st := newTestStore(t)
+	flow := NewOAuthFlow(OAuthConfig{Provider: "anthropic", ClientID: "c", AuthorizeURL: "https://example.com/a", TokenURL: "https://example.com/t"}, st, nil)
+	if _, _, err := flow.Start(); err == nil {
+		t.Fatal("Start returned nil error with failing randRead")
+	}
+}
+
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
 	dir := t.TempDir()

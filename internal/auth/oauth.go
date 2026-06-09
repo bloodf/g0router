@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -72,8 +71,14 @@ func (f *OAuthFlow) Config() OAuthConfig {
 // Start generates state + PKCE verifier, persists them, and returns the
 // authorization URL the user should visit.
 func (f *OAuthFlow) Start() (authURL, state string, err error) {
-	state = randomURLSafe(32)
-	verifier := randomURLSafe(64)
+	state, err = randomURLSafe(32)
+	if err != nil {
+		return "", "", fmt.Errorf("generate oauth state: %w", err)
+	}
+	verifier, err := randomURLSafe(64)
+	if err != nil {
+		return "", "", fmt.Errorf("generate oauth verifier: %w", err)
+	}
 
 	if err := f.store.CreateOAuthSession(&store.OAuthSession{
 		State:     state,
@@ -159,10 +164,12 @@ func (f *OAuthFlow) requestToken(form url.Values) (*OAuthToken, error) {
 	return tok, nil
 }
 
-func randomURLSafe(n int) string {
+func randomURLSafe(n int) (string, error) {
 	b := make([]byte, n)
-	rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
+	if _, err := randRead(b); err != nil {
+		return "", fmt.Errorf("random bytes: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 func pkceChallenge(verifier string) string {
