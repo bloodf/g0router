@@ -1,5 +1,12 @@
 # Parity Reference Sources (frozen)
 
+## North star
+g0router is a **total replacement** for both references. End state: a user running 9router or Bifrost can switch to g0router and lose nothing.
+- v1.0 = drop-in 9router replacement (behavior + page-by-page dashboard parity, Go-native equivalents for platform-bound features).
+- v1.1 = full Bifrost OpenAI surface + MCP gateway.
+- Stage 3 = remaining Bifrost capabilities (adaptive LB, semantic cache, guardrails, hierarchical governance, observability, cluster mode) — planned, user-approved, then built.
+PARITY.md rows and micro-plans are scoped against this bar: a gap in either reference is a gap in g0router.
+
 Cloned 2026-06-09. No re-sync during Stage 1. Final upstream delta review only at v1.0 tag.
 
 | Repo | Path | Frozen SHA | Commit date | License |

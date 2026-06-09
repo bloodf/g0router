@@ -2,7 +2,7 @@
 # Dispatch a worker job from a job JSON spec. Usage: run-worker.sh <job.json>
 set -uo pipefail
 
-JOB="$1"
+JOB="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 HARNESS_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$HARNESS_DIR/../.." && pwd)"
 
