@@ -348,7 +348,6 @@ test.describe.serial("Routing Rules CRUD", () => {
   });
 
   test("create routing rule", async ({ page }) => {
-    test.skip(true, "UI form missing required condition fields (cond_field, cond_operator, cond_value)");
     await page.goto("/routing-rules");
     await expect(page.locator("body")).toContainText("Routing Rules", { timeout: 10000 });
 
@@ -359,10 +358,13 @@ test.describe.serial("Routing Rules CRUD", () => {
     const dialog = page.locator('[role="dialog"]').first();
     const inputs = dialog.locator('input[type="text"], input[type="number"]');
     const count = await inputs.count();
-    if (count >= 3) {
+    if (count >= 6) {
       await inputs.nth(0).fill(ruleName);
       await inputs.nth(1).fill("1");
-      await inputs.nth(2).fill("openai");
+      await inputs.nth(2).fill("model");
+      await inputs.nth(3).fill("equals");
+      await inputs.nth(4).fill("gpt-4o");
+      await inputs.nth(5).fill("openai");
       await dialog.locator('button[type="submit"]:has-text("Save")').click();
       await expect(page.locator("body")).toContainText(/created|success/i, { timeout: 5000 });
       await expect(page.locator("body")).toContainText(ruleName);
@@ -370,11 +372,34 @@ test.describe.serial("Routing Rules CRUD", () => {
   });
 
   test("edit routing rule", async ({ page }) => {
-    test.skip(true, "Depends on create routing rule which is skipped");
+    await page.goto("/routing-rules");
+    await expect(page.locator("body")).toContainText(ruleName, { timeout: 10000 });
+
+    const row = page.locator('tr', { hasText: ruleName }).first();
+    await row.locator('button').first().click();
+
+    const dialog = page.locator('[role="dialog"]').first();
+    const inputs = dialog.locator('input[type="text"]');
+    if (await inputs.count() > 0) {
+      await inputs.nth(0).fill(updatedName);
+      await dialog.locator('button[type="submit"]:has-text("Save")').click();
+      await expect(page.locator("body")).toContainText(/updated|success/i, { timeout: 5000 });
+      await expect(page.locator("body")).toContainText(updatedName);
+    }
   });
 
   test("delete routing rule", async ({ page }) => {
-    test.skip(true, "Depends on create routing rule which is skipped");
+    await page.goto("/routing-rules");
+    await page.waitForTimeout(1000);
+
+    const row = page.locator('tr', { hasText: updatedName }).first();
+    if (await row.isVisible().catch(() => false)) {
+      await row.locator('button').nth(1).click();
+      await page.waitForTimeout(300);
+      await page.locator('text=Delete record?').waitFor({ state: 'visible', timeout: 5000 });
+      await page.locator('button:has-text("Cancel") + button, [role="dialog"] button:has-text("Delete")').first().click();
+      await expect(page.locator("body")).toContainText(/deleted|success/i, { timeout: 5000 });
+    }
   });
 });
 
