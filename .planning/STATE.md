@@ -3,11 +3,11 @@
 ## Current Position
 
 **Milestone:** v2.0 9router + BiFrost Clean Slate Port
-**Phase:** 5 (Anthropic + Gemini Providers) — COMPLETE
-**Plan:** `.planning/phases/05-anthropic-gemini-providers/PLAN.md`
+**Phase:** 6 (Management API Foundation) — COMPLETE
+**Plan:** `.planning/phases/06-management-api-foundation/PLAN.md`
 **Status:** Ready for next phase
 
-**Last activity:** 2026-06-09 — Phase 5 Anthropic + Gemini Providers complete. Both converter-based providers implement chat (non-streaming + streaming SSE), Gemini adds embeddings, with full error converters and not-implemented stubs. Router updated with prefix-based model resolution. All gates pass.
+**Last activity:** 2026-06-09 — Phase 6 Management API Foundation complete. SQLite store (WAL, additive-only ensureColumn migrations, AES-256-GCM encrypted *_enc secret columns, auto-generated key file), auth package (PBKDF2 hashing, session manager, PKCE OAuth flow for Anthropic), admin handlers (login/logout/me, settings, provider CRUD, connection CRUD with masked secrets, OAuth start/callback/refresh), all wired behind RequireSession middleware at /api/*. Default admin seeded on first run. All gates pass.
 
 ---
 
@@ -59,6 +59,18 @@
 
 ---
 
+## Phase 6 — Management API Foundation — Deliverables
+
+| Commit | Subject |
+|---|---|
+| `cbad6f80` | phase-06/task-1: SQLite store with WAL, additive migrations, AES-GCM cipher, and repositories (users, sessions, settings, providers, connections, oauth sessions) |
+| `e1a4a869` | phase-06/task-2: auth package with PBKDF2 password hashing, session manager, and PKCE OAuth flow (Anthropic) |
+| `31d0f43c` | phase-06/task-3: admin handlers — login/logout/me, settings, provider CRUD, connection CRUD with masked secrets, OAuth start/callback/refresh |
+| `35618972` | phase-06/task-4: wire admin routes into fasthttp server; main.go opens store, seeds default admin, serves management API |
+| `7c5d4a82` | phase-06/task-5: end-to-end management API integration test (login, settings, provider/connection CRUD, encrypted secrets, OAuth flow, logout) |
+
+---
+
 ## Accumulated Context
 
 - Clean-slate pivot from previous g0router architecture. Phase 1 wipes the v1 code (`api/`, `internal/`, `ui/src/`) and the v1-era root `e2e_*.go` files.
@@ -71,6 +83,7 @@
 - Phase 3 implements the reference OpenAI provider in `internal/providers/openai/` with fasthttp, SSE streaming, and shared utilities.
 - Phase 4 exposes `/v1/chat/completions`, `/v1/embeddings`, and `/v1/models` via fasthttp handlers.
 - Phase 5 adds converter-based Anthropic and Gemini providers with format translation.
+- Phase 6 adds the management API: SQLite store (modernc.org/sqlite, WAL, additive-only migrations, encrypted `*_enc` columns), session auth, settings/provider/connection CRUD, PKCE OAuth (Anthropic). Auth routes live at `/api/auth/*`. Encryption key auto-generated at `<datadir>/secret.key`; data dir defaults to `~/.g0router` (override `G0ROUTER_DATA`). Default admin `admin`/`123456` seeded on first run only.
 
 ---
 
@@ -82,10 +95,12 @@ _None._
 
 ## Next Step
 
-Continue **Wave 2: Core Providers + Admin** with **Phase 6: Management API Foundation**.
+Continue **Wave 2: Core Providers + Admin** with **Phase 7: Dashboard Shell + Providers UI**.
 
-Build the admin API foundation: auth, settings, providers, and connections.
+React dashboard: login page, shell layout, providers list/detail, connections page. Management API client targeting `/api/auth/login`, `/api/settings`, `/api/providers`, `/api/connections`, `/api/oauth/{provider}/*`.
 
 ### What "next phase" should keep in mind
-- `go test ./...` and `go vet ./...` must pass green at every commit.
-- Commit format: `phase-06/task-N: <description>`.
+- `go test ./...` and `go vet ./...` must pass green at every commit; `cd ui && npm run build` for UI work.
+- Commit format: `phase-07/task-N: <description>`.
+- Connection responses mask secrets (`secret_set` / `access_token_set` booleans) — the UI never echoes secrets; empty secret fields on update preserve stored values.
+- Default admin is `admin`/`123456`; a password-change endpoint still needs to be added.

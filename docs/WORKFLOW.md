@@ -30,17 +30,18 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 21
-current_wave: "v2.0 — Wave 1: Foundation"
-last_completed_wave: "Phase 1 — Scaffolding (v2.0 clean-slate port)"
-last_updated: "2026-06-09T15:00:00Z"
-last_agent: "Mavis"
+current_wave: "v2.0 — Wave 2: Core Providers + Admin"
+last_completed_wave: "Phase 6 — Management API Foundation"
+last_updated: "2026-06-09T19:10:00Z"
+last_agent: "Fable"
 notes: |
-  v2.0 clean-slate port: Phase 1 Scaffolding complete. Old api/, internal/,
-  ui/src/ wiped. New 14+14 internal package layout with placeholder tests.
-  Minimal fasthttp main.go serves /api/health + embedded UI. 5/5 quality
-  gates, 6/6 structural checks, 8/8 adversarial probes PASS (independent
-  re-derivation). Final gate: deliverable.md. Plan plan_63b4da91, 2 cycles,
-  $0.36. See Phase 1 entry below for full details.
+  v2.0 clean-slate port: Phases 1-6 complete. Phase 6 adds the management
+  API foundation: SQLite store (WAL, additive-only ensureColumn migrations,
+  AES-256-GCM *_enc secret columns, auto-generated secret.key), auth package
+  (PBKDF2 hashing, sessions, PKCE OAuth for Anthropic), admin handlers
+  (auth/settings/providers/connections/oauth) behind RequireSession at
+  /api/*. Default admin admin/123456 seeded on first run. All gates pass.
+  Next: Phase 7 Dashboard Shell + Providers UI.
 
   NOTE: this Current State block is the v2.0 milestone view. The prior
   Stage 1-20 / Wave 8.* history below is preserved for context but refers
@@ -51,7 +52,57 @@ notes: |
 
 ## v2.0 Milestone — 9router + BiFrost Clean Slate Port
 
-Wave 1 of 6. 19 phases total in `.planning/ROADMAP.md`.
+Wave 2 of 6. 19 phases total in `.planning/ROADMAP.md`.
+
+### Phase 6 — Management API Foundation
+
+```yaml
+phase: 6
+status: DONE
+summary: |
+  Built the admin API foundation with strict TDD (RED before GREEN per task).
+  internal/store: SQLite via modernc.org/sqlite (pure Go), WAL mode,
+  additive-only ensureColumn migrations, AES-256-GCM cipher with key
+  auto-generated at <datadir>/secret.key (0600, no env vars), repositories
+  for users/sessions/settings/providers/connections/oauth_sessions with
+  secrets at rest in *_enc columns. internal/auth: PBKDF2-SHA256 password
+  hashing (210k iters), session manager with seeding, PKCE (S256) OAuth flow
+  with single-use server-side state (Anthropic config included).
+  internal/admin: {data, error} snake_case envelope handlers — login/logout/
+  me, settings GET/PUT, provider CRUD, connection CRUD with masked secrets
+  (*_set booleans; empty update fields preserve stored secrets), OAuth
+  start/callback/refresh, RequireSession middleware (Bearer or g0_session
+  cookie). internal/server/routes_admin.go wires it all; main.go opens the
+  store under ~/.g0router (G0ROUTER_DATA override) and seeds admin/123456 on
+  first run only. End-to-end integration test drives the full surface over
+  an in-memory listener with a fake OAuth token endpoint.
+completed_at: "2026-06-09T19:10:00Z"
+verdict: PASS
+gates:
+  - { command: "go test ./...", status: PASS, notes: "30 packages ok" }
+  - { command: "go vet ./...", status: PASS }
+  - { command: "go build ./...", status: PASS }
+  - { command: "manual curl smoke", status: PASS, notes: "real binary: login, provider+connection create, 401 unauthenticated" }
+tasks:
+  - "task-1: SQLite store — WAL, migrations, cipher, repositories (DONE)"
+  - "task-2: auth — password hashing, sessions, PKCE OAuth flow (DONE)"
+  - "task-3: admin handlers — auth/settings/providers/connections/oauth (DONE)"
+  - "task-4: wire admin routes + main.go store/seed bootstrap (DONE)"
+  - "task-5: end-to-end management API integration test (DONE)"
+  - "task-6: gates + docs + summary (DONE)"
+commits:
+  - "cbad6f80 phase-06/task-1: SQLite store with WAL, additive migrations, AES-GCM cipher, and repositories"
+  - "e1a4a869 phase-06/task-2: auth package with PBKDF2 password hashing, session manager, and PKCE OAuth flow (Anthropic)"
+  - "31d0f43c phase-06/task-3: admin handlers — login/logout/me, settings, provider CRUD, connection CRUD with masked secrets, OAuth start/callback/refresh"
+  - "35618972 phase-06/task-4: wire admin routes into fasthttp server; main.go opens store, seeds default admin, serves management API"
+  - "7c5d4a82 phase-06/task-5: end-to-end management API integration test"
+caveats:
+  - "Auth routes are /api/auth/* (execution brief) rather than PLAN.md's /api/login — Phase 7 UI must target /api/auth/*."
+  - "No env-based default password (AGENTS.md forbids secret env vars): seeded admin/123456 on first run, change-password endpoint deferred to Phase 7."
+  - "Provider 'suggested models' endpoint deferred — no catalog data yet (Phase 9)."
+  - "DeleteExpiredSessions exists but is not yet scheduled periodically."
+next: "Phase 7 — Dashboard Shell + Providers UI"
+```
 
 ### Phase 1 — Scaffolding
 
