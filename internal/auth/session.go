@@ -60,7 +60,10 @@ func (s *Sessions) Login(username, password string) (string, error) {
 		return "", ErrInvalidCredentials
 	}
 
-	token := newToken()
+	token, err := newToken()
+	if err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
 	expiresAt := time.Now().Add(s.ttl).Unix()
 	if err := s.store.CreateSession(token, user.ID, expiresAt); err != nil {
 		return "", fmt.Errorf("create session: %w", err)
@@ -98,8 +101,13 @@ func (s *Sessions) Logout(token string) error {
 	return nil
 }
 
-func newToken() string {
+// randRead is a seam for injecting crypto/rand failures in tests.
+var randRead = rand.Read
+
+func newToken() (string, error) {
 	b := make([]byte, 32)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := randRead(b); err != nil {
+		return "", fmt.Errorf("generate token: %w", err)
+	}
+	return hex.EncodeToString(b), nil
 }

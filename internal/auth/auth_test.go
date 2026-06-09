@@ -14,6 +14,24 @@ import (
 	"github.com/bloodf/g0router/internal/store"
 )
 
+func TestNewTokenRandFailure(t *testing.T) {
+	prev := randRead
+	t.Cleanup(func() { randRead = prev })
+
+	randRead = func(b []byte) (int, error) {
+		return 0, errors.New("simulated rand failure")
+	}
+
+	st := newTestStore(t)
+	sessions := NewSessions(st, time.Hour)
+	if _, err := sessions.SeedAdmin("admin", "123456"); err != nil {
+		t.Fatalf("SeedAdmin: %v", err)
+	}
+	if _, err := sessions.Login("admin", "123456"); err == nil {
+		t.Fatal("Login returned nil error with failing randRead")
+	}
+}
+
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
 	dir := t.TempDir()

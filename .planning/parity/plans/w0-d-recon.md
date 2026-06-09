@@ -6,17 +6,40 @@ exactly, and route files must exist for every recon-2 path (no extras).
 
 ## Recon-1 — `lib/types` symbols imported by e2e mocks and src
 
-Source command: `grep -rh "lib/types" ui/e2e ui/src | sort -u`
-Parsed with: `grep -oE '\{[^}]+\}' | tr ',' '\n' | strip braces/whitespace | sort -u`
+Source command (multi-line safe — joins continuation lines, extracts every
+`import type { ... } from "...lib/types"` symbol across all files in
+`ui/e2e/` and `ui/src/`):
 
-AUD-075 cited 36 (count of `import type { ... } from "lib/types"` *lines*).
-True unique-symbol count is 29 — the per-line dedup of multi-symbol imports.
+```python
+import re, os
+symbols = set()
+for root, _, files in os.walk('ui/e2e'):
+    for f in files:
+        if f.endswith(('.ts', '.tsx')):
+            with open(os.path.join(root, f)) as fh:
+                for m in re.finditer(r'import type\s*\{([^}]+)\}\s*from\s*[\"\\'][^\"\\']*lib/types', fh.read()):
+                    for sym in m.group(1).split(','):
+                        sym = sym.strip()
+                        if sym: symbols.add(sym)
+# (same loop for ui/src/)
+for s in sorted(symbols): print(s)
+```
+
+AUD-075 cited 36 (count of `import type { ... } from "lib/types"` *lines*,
+including the `} from` closer of multi-line imports). True unique-symbol
+count is **32** — the multi-line import in `ui/e2e/mocks/store.ts` is a
+single statement spread across 33 lines, so an awk-based single-line parser
+missed all 32 symbols inside it. The three types absent from any single-line
+import block are `AuthStatus`, `Settings`, and `TrafficEvent`.
+
+32 symbols:
 
 ```
 AlertChannel
 Alias
 ApiKey
 AuditLog
+AuthStatus
 ChatSession
 Combo
 Connection
@@ -36,8 +59,10 @@ Provider
 ProxyPool
 Quota
 RoutingRule
+Settings
 Skill
 Team
+TrafficEvent
 Tunnel
 UsageLog
 User
@@ -48,9 +73,10 @@ VirtualKey
 
 Source command: `grep -rhoE 'page\.goto\("[^"]+"' ui/e2e | sed -E 's/page\.goto\("//; s/"$//' | sort -u`
 
-Excludes `page.goto(route.path)` (variable navigation in `ui/e2e/helpers.ts:745`)
-because that pattern resolves to the per-spec route list at runtime, not a
-literal path. `helpers.ts` itself only hard-codes `/login`.
+Excludes `page.goto(route.path)` (variable navigation in
+`ui/e2e/helpers.ts:745`) because that pattern resolves to the per-spec route
+list at runtime, not a literal path. `helpers.ts` itself only hard-codes
+`/login`.
 
 31 paths:
 
@@ -96,8 +122,8 @@ Read for type-shape reference only (AUD-075 scope: types must mirror snake_case
 - `internal/admin/connections.go`: `id, provider_id, name, kind, secret_set,
   access_token_set, refresh_token_set, expires_at, metadata, created_at,
   updated_at` — all snake_case
-- `internal/admin/providers.go`: `id, name, type, base_url, enabled, created_at,
-  updated_at` — all snake_case
+- `internal/admin/providers.go`: `id, name, type, base_url, enabled,
+  created_at, updated_at` — all snake_case
 - `internal/admin/handlers.go`: uses `{data, error}` envelope pattern
 
 Implication for types.ts: every field name is `snake_case`; names are NOT
