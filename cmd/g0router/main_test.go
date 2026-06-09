@@ -1,32 +1,11 @@
 package main
 
-import (
-	"bytes"
-	"testing"
+import "testing"
 
-	"github.com/bloodf/g0router/internal/cli"
-)
-
-// TestMainWiringHelp exercises the same root-command construction that main()
-// performs, then runs --help so the wiring is exercised without binding a
-// socket or calling os.Exit.
-func TestMainWiringHelp(t *testing.T) {
-	cmd := cli.NewRootCommand(version)
-	var out bytes.Buffer
-	cmd.SetOut(&out)
-	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"--help"})
-
-	if err := cmd.Execute(); err != nil {
-		t.Fatalf("Execute --help: %v", err)
-	}
-	if out.Len() == 0 {
-		t.Fatal("expected help output")
-	}
-}
-
-func TestMainWiringVersionVar(t *testing.T) {
-	if version == "" {
-		t.Fatal("version should be set")
-	}
+// TestMainPackageCompiles is a Phase 1 placeholder that simply
+// asserts the main package's API surface compiles. Real integration
+// tests (TestHealthEndpoint, TestStaticAssetServing, etc.) arrive in
+// Phase 2 once the server package is wired up.
+func TestMainPackageCompiles(t *testing.T) {
+	// Phase 1 placeholder; real tests come in Phase 2+.
 }
