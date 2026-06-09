@@ -4,12 +4,15 @@ import (
 	"io/fs"
 
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/store"
 	httprouter "github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 )
 
 // New creates a fasthttp server with API routes and UI fallback.
-func New(uiFS fs.FS) *fasthttp.Server {
+// st backs the management API; pass nil to serve only the OpenAI-compatible
+// surface (no admin routes).
+func New(uiFS fs.FS, st *store.Store) *fasthttp.Server {
 	infRouter := inference.NewRouter()
 
 	r := httprouter.New()
@@ -20,6 +23,11 @@ func New(uiFS fs.FS) *fasthttp.Server {
 
 	// OpenAI-compatible API routes
 	RegisterOpenAIRoutes(r, infRouter)
+
+	// Management API routes
+	if st != nil {
+		RegisterAdminRoutes(r, NewAdminHandlers(st))
+	}
 
 	handler := Chain(r.Handler,
 		RequestIDMiddleware,
