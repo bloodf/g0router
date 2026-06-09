@@ -14,26 +14,23 @@ export function registerPricingHandlers(page: Page, store: MockStore) {
     }
     return route.continue();
   });
-  page.route(/\/api\/pricing\/[^/]+\/[^/]+$/, async (route) => {
-    const parts = route.request().url().split("/");
-    const provider = parts[parts.length - 2];
-    const model = parts[parts.length - 1];
+  page.route(/\/api\/pricing\/[^/]+$/, async (route) => {
+    const id = route.request().url().split("/").pop()!;
     const method = route.request().method();
     if (method === "GET") {
-      const p = Array.from(store.pricing.values()).find((pr) => pr.provider === provider && pr.model === model);
+      const p = store.pricing.get(id);
       return p ? json(route, p) : error(route, "Not found", 404);
     }
     if (method === "PUT") {
       const body = await route.request().postDataJSON();
-      const existing = Array.from(store.pricing.values()).find((pr) => pr.provider === provider && pr.model === model);
+      const existing = store.pricing.get(id);
       if (!existing) return error(route, "Not found", 404);
       const updated = { ...existing, ...body };
-      store.pricing.set(updated.id, updated);
+      store.pricing.set(id, updated);
       return json(route, updated);
     }
     if (method === "DELETE") {
-      const existing = Array.from(store.pricing.values()).find((pr) => pr.provider === provider && pr.model === model);
-      if (existing) store.pricing.delete(existing.id);
+      store.pricing.delete(id);
       return json(route, {});
     }
     return route.continue();

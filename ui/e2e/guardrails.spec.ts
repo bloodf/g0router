@@ -13,9 +13,9 @@ test.describe("Guardrails", () => {
 
   test("test guardrails prompt", async ({ page }) => {
     await page.goto("/guardrails");
-    const textarea = page.locator('textarea').first();
-    await textarea.fill("my secret password");
+    const input = page.locator('input[aria-label="Test prompt"]').first();
+    await input.fill("my secret password");
     await page.locator('button:has-text("Test")').first().click();
-    await expect(page.locator("body")).toContainText("blocked", { timeout: 5000 });
+    await expect(page.locator("body")).toContainText(/blocked/i, { timeout: 5000 });
   });
 });

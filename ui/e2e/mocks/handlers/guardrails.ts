@@ -17,8 +17,11 @@ export function registerGuardrailsHandlers(page: Page, store: MockStore) {
     if (route.request().method() === "POST") {
       const body = await route.request().postDataJSON();
       const prompt = body.prompt || "";
-      const blocked = store.guardrails.guardrails_enabled && store.guardrails.guardrails_blocklist.some((w) => prompt.toLowerCase().includes(w.toLowerCase()));
-      return json(route, { blocked, reason: blocked ? "Contains blocked term" : undefined });
+      const matches = store.guardrails.guardrails_enabled
+        ? store.guardrails.guardrails_blocklist.filter((w) => prompt.toLowerCase().includes(w.toLowerCase()))
+        : [];
+      const blocked = matches.length > 0;
+      return json(route, { blocked, redacted_prompt: prompt, matches });
     }
     return route.continue();
   });

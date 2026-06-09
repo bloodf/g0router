@@ -160,9 +160,11 @@ test.describe.serial("API Keys CRUD", () => {
     await expect(page.locator("body")).toContainText(keyName, { timeout: 10000 });
 
     const row = page.locator('tr', { hasText: keyName }).first();
-    await row.locator('button').nth(1).click(); // edit button (skip Copy)
+    const actionsCell = row.locator('td').last();
+    await actionsCell.locator('button').nth(1).click(); // edit button (skip Regenerate)
 
     const dialog = page.locator('[role="dialog"]').first();
+    await dialog.waitFor({ state: 'visible', timeout: 5000 });
     await dialog.locator('input[type="text"]').first().fill(updatedName);
     await dialog.locator('button[type="submit"]:has-text("Save")').click();
 
@@ -176,7 +178,8 @@ test.describe.serial("API Keys CRUD", () => {
 
     const row = page.locator('tr', { hasText: updatedName }).first();
     if (await row.isVisible().catch(() => false)) {
-      await row.locator('button').nth(2).click(); // delete button (skip Copy + edit)
+      const actionsCell = row.locator('td').last();
+      await actionsCell.locator('button').nth(2).click(); // delete button (skip Regenerate + edit)
       await page.waitForTimeout(300);
 
       await page.locator('text=Delete record?').waitFor({ state: 'visible', timeout: 5000 });
@@ -358,13 +361,13 @@ test.describe.serial("Routing Rules CRUD", () => {
     const dialog = page.locator('[role="dialog"]').first();
     const inputs = dialog.locator('input[type="text"], input[type="number"]');
     const count = await inputs.count();
-    if (count >= 6) {
+    if (count >= 5) {
       await inputs.nth(0).fill(ruleName);
       await inputs.nth(1).fill("1");
       await inputs.nth(2).fill("model");
-      await inputs.nth(3).fill("equals");
-      await inputs.nth(4).fill("gpt-4o");
-      await inputs.nth(5).fill("openai");
+      await dialog.locator('select').first().selectOption("equals");
+      await inputs.nth(3).fill("gpt-4o");
+      await inputs.nth(4).fill("openai");
       await dialog.locator('button[type="submit"]:has-text("Save")').click();
       await expect(page.locator("body")).toContainText(/created|success/i, { timeout: 5000 });
       await expect(page.locator("body")).toContainText(ruleName);
