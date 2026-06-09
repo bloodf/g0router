@@ -9,27 +9,693 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as VirtualKeysRouteImport } from './routes/virtual-keys'
+import { Route as UsageRouteImport } from './routes/usage'
+import { Route as TunnelsRouteImport } from './routes/tunnels'
+import { Route as TrafficRouteImport } from './routes/traffic'
+import { Route as TeamsRouteImport } from './routes/teams'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as RoutingRulesRouteImport } from './routes/routing-rules'
+import { Route as QuotaRouteImport } from './routes/quota'
+import { Route as ProxyPoolsRouteImport } from './routes/proxy-pools'
+import { Route as ProvidersRouteImport } from './routes/providers'
+import { Route as PromptsRouteImport } from './routes/prompts'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as ModelsRouteImport } from './routes/models'
+import { Route as ModelLimitsRouteImport } from './routes/model-limits'
+import { Route as MitmRouteImport } from './routes/mitm'
+import { Route as McpRouteImport } from './routes/mcp'
+import { Route as LogsRouteImport } from './routes/logs'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as KeysRouteImport } from './routes/keys'
+import { Route as GuardrailsRouteImport } from './routes/guardrails'
+import { Route as FeatureFlagsRouteImport } from './routes/feature-flags'
+import { Route as EndpointRouteImport } from './routes/endpoint'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ConsoleRouteImport } from './routes/console'
+import { Route as ConnectionsRouteImport } from './routes/connections'
+import { Route as CombosRouteImport } from './routes/combos'
+import { Route as ChatRouteImport } from './routes/chat'
+import { Route as AuditRouteImport } from './routes/audit'
+import { Route as AliasesRouteImport } from './routes/aliases'
+import { Route as AlertsRouteImport } from './routes/alerts'
+import { Route as McpToolsRouteImport } from './routes/mcp.tools'
 
-export interface FileRoutesByFullPath {}
-export interface FileRoutesByTo {}
+const VirtualKeysRoute = VirtualKeysRouteImport.update({
+  id: '/virtual-keys',
+  path: '/virtual-keys',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsageRoute = UsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TunnelsRoute = TunnelsRouteImport.update({
+  id: '/tunnels',
+  path: '/tunnels',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TrafficRoute = TrafficRouteImport.update({
+  id: '/traffic',
+  path: '/traffic',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamsRoute = TeamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoutingRulesRoute = RoutingRulesRouteImport.update({
+  id: '/routing-rules',
+  path: '/routing-rules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QuotaRoute = QuotaRouteImport.update({
+  id: '/quota',
+  path: '/quota',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProxyPoolsRoute = ProxyPoolsRouteImport.update({
+  id: '/proxy-pools',
+  path: '/proxy-pools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProvidersRoute = ProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PromptsRoute = PromptsRouteImport.update({
+  id: '/prompts',
+  path: '/prompts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelsRoute = ModelsRouteImport.update({
+  id: '/models',
+  path: '/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ModelLimitsRoute = ModelLimitsRouteImport.update({
+  id: '/model-limits',
+  path: '/model-limits',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MitmRoute = MitmRouteImport.update({
+  id: '/mitm',
+  path: '/mitm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsRoute = LogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KeysRoute = KeysRouteImport.update({
+  id: '/keys',
+  path: '/keys',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuardrailsRoute = GuardrailsRouteImport.update({
+  id: '/guardrails',
+  path: '/guardrails',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeatureFlagsRoute = FeatureFlagsRouteImport.update({
+  id: '/feature-flags',
+  path: '/feature-flags',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EndpointRoute = EndpointRouteImport.update({
+  id: '/endpoint',
+  path: '/endpoint',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConsoleRoute = ConsoleRouteImport.update({
+  id: '/console',
+  path: '/console',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConnectionsRoute = ConnectionsRouteImport.update({
+  id: '/connections',
+  path: '/connections',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CombosRoute = CombosRouteImport.update({
+  id: '/combos',
+  path: '/combos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChatRoute = ChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuditRoute = AuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AliasesRoute = AliasesRouteImport.update({
+  id: '/aliases',
+  path: '/aliases',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlertsRoute = AlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const McpToolsRoute = McpToolsRouteImport.update({
+  id: '/tools',
+  path: '/tools',
+  getParentRoute: () => McpRoute,
+} as any)
+
+export interface FileRoutesByFullPath {
+  '/alerts': typeof AlertsRoute
+  '/aliases': typeof AliasesRoute
+  '/audit': typeof AuditRoute
+  '/chat': typeof ChatRoute
+  '/combos': typeof CombosRoute
+  '/connections': typeof ConnectionsRoute
+  '/console': typeof ConsoleRoute
+  '/dashboard': typeof DashboardRoute
+  '/endpoint': typeof EndpointRoute
+  '/feature-flags': typeof FeatureFlagsRoute
+  '/guardrails': typeof GuardrailsRoute
+  '/keys': typeof KeysRoute
+  '/login': typeof LoginRoute
+  '/logs': typeof LogsRoute
+  '/mcp': typeof McpRouteWithChildren
+  '/mitm': typeof MitmRoute
+  '/model-limits': typeof ModelLimitsRoute
+  '/models': typeof ModelsRoute
+  '/pricing': typeof PricingRoute
+  '/prompts': typeof PromptsRoute
+  '/providers': typeof ProvidersRoute
+  '/proxy-pools': typeof ProxyPoolsRoute
+  '/quota': typeof QuotaRoute
+  '/routing-rules': typeof RoutingRulesRoute
+  '/settings': typeof SettingsRoute
+  '/teams': typeof TeamsRoute
+  '/traffic': typeof TrafficRoute
+  '/tunnels': typeof TunnelsRoute
+  '/usage': typeof UsageRoute
+  '/virtual-keys': typeof VirtualKeysRoute
+  '/mcp/tools': typeof McpToolsRoute
+}
+export interface FileRoutesByTo {
+  '/alerts': typeof AlertsRoute
+  '/aliases': typeof AliasesRoute
+  '/audit': typeof AuditRoute
+  '/chat': typeof ChatRoute
+  '/combos': typeof CombosRoute
+  '/connections': typeof ConnectionsRoute
+  '/console': typeof ConsoleRoute
+  '/dashboard': typeof DashboardRoute
+  '/endpoint': typeof EndpointRoute
+  '/feature-flags': typeof FeatureFlagsRoute
+  '/guardrails': typeof GuardrailsRoute
+  '/keys': typeof KeysRoute
+  '/login': typeof LoginRoute
+  '/logs': typeof LogsRoute
+  '/mcp': typeof McpRouteWithChildren
+  '/mitm': typeof MitmRoute
+  '/model-limits': typeof ModelLimitsRoute
+  '/models': typeof ModelsRoute
+  '/pricing': typeof PricingRoute
+  '/prompts': typeof PromptsRoute
+  '/providers': typeof ProvidersRoute
+  '/proxy-pools': typeof ProxyPoolsRoute
+  '/quota': typeof QuotaRoute
+  '/routing-rules': typeof RoutingRulesRoute
+  '/settings': typeof SettingsRoute
+  '/teams': typeof TeamsRoute
+  '/traffic': typeof TrafficRoute
+  '/tunnels': typeof TunnelsRoute
+  '/usage': typeof UsageRoute
+  '/virtual-keys': typeof VirtualKeysRoute
+  '/mcp/tools': typeof McpToolsRoute
+}
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/alerts': typeof AlertsRoute
+  '/aliases': typeof AliasesRoute
+  '/audit': typeof AuditRoute
+  '/chat': typeof ChatRoute
+  '/combos': typeof CombosRoute
+  '/connections': typeof ConnectionsRoute
+  '/console': typeof ConsoleRoute
+  '/dashboard': typeof DashboardRoute
+  '/endpoint': typeof EndpointRoute
+  '/feature-flags': typeof FeatureFlagsRoute
+  '/guardrails': typeof GuardrailsRoute
+  '/keys': typeof KeysRoute
+  '/login': typeof LoginRoute
+  '/logs': typeof LogsRoute
+  '/mcp': typeof McpRouteWithChildren
+  '/mitm': typeof MitmRoute
+  '/model-limits': typeof ModelLimitsRoute
+  '/models': typeof ModelsRoute
+  '/pricing': typeof PricingRoute
+  '/prompts': typeof PromptsRoute
+  '/providers': typeof ProvidersRoute
+  '/proxy-pools': typeof ProxyPoolsRoute
+  '/quota': typeof QuotaRoute
+  '/routing-rules': typeof RoutingRulesRoute
+  '/settings': typeof SettingsRoute
+  '/teams': typeof TeamsRoute
+  '/traffic': typeof TrafficRoute
+  '/tunnels': typeof TunnelsRoute
+  '/usage': typeof UsageRoute
+  '/virtual-keys': typeof VirtualKeysRoute
+  '/mcp/tools': typeof McpToolsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: never
+  fullPaths:
+    | '/alerts'
+    | '/aliases'
+    | '/audit'
+    | '/chat'
+    | '/combos'
+    | '/connections'
+    | '/console'
+    | '/dashboard'
+    | '/endpoint'
+    | '/feature-flags'
+    | '/guardrails'
+    | '/keys'
+    | '/login'
+    | '/logs'
+    | '/mcp'
+    | '/mitm'
+    | '/model-limits'
+    | '/models'
+    | '/pricing'
+    | '/prompts'
+    | '/providers'
+    | '/proxy-pools'
+    | '/quota'
+    | '/routing-rules'
+    | '/settings'
+    | '/teams'
+    | '/traffic'
+    | '/tunnels'
+    | '/usage'
+    | '/virtual-keys'
+    | '/mcp/tools'
   fileRoutesByTo: FileRoutesByTo
-  to: never
-  id: '__root__'
+  to:
+    | '/alerts'
+    | '/aliases'
+    | '/audit'
+    | '/chat'
+    | '/combos'
+    | '/connections'
+    | '/console'
+    | '/dashboard'
+    | '/endpoint'
+    | '/feature-flags'
+    | '/guardrails'
+    | '/keys'
+    | '/login'
+    | '/logs'
+    | '/mcp'
+    | '/mitm'
+    | '/model-limits'
+    | '/models'
+    | '/pricing'
+    | '/prompts'
+    | '/providers'
+    | '/proxy-pools'
+    | '/quota'
+    | '/routing-rules'
+    | '/settings'
+    | '/teams'
+    | '/traffic'
+    | '/tunnels'
+    | '/usage'
+    | '/virtual-keys'
+    | '/mcp/tools'
+  id:
+    | '__root__'
+    | '/alerts'
+    | '/aliases'
+    | '/audit'
+    | '/chat'
+    | '/combos'
+    | '/connections'
+    | '/console'
+    | '/dashboard'
+    | '/endpoint'
+    | '/feature-flags'
+    | '/guardrails'
+    | '/keys'
+    | '/login'
+    | '/logs'
+    | '/mcp'
+    | '/mitm'
+    | '/model-limits'
+    | '/models'
+    | '/pricing'
+    | '/prompts'
+    | '/providers'
+    | '/proxy-pools'
+    | '/quota'
+    | '/routing-rules'
+    | '/settings'
+    | '/teams'
+    | '/traffic'
+    | '/tunnels'
+    | '/usage'
+    | '/virtual-keys'
+    | '/mcp/tools'
   fileRoutesById: FileRoutesById
 }
-export interface RootRouteChildren {}
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {}
+export interface RootRouteChildren {
+  AlertsRoute: typeof AlertsRoute
+  AliasesRoute: typeof AliasesRoute
+  AuditRoute: typeof AuditRoute
+  ChatRoute: typeof ChatRoute
+  CombosRoute: typeof CombosRoute
+  ConnectionsRoute: typeof ConnectionsRoute
+  ConsoleRoute: typeof ConsoleRoute
+  DashboardRoute: typeof DashboardRoute
+  EndpointRoute: typeof EndpointRoute
+  FeatureFlagsRoute: typeof FeatureFlagsRoute
+  GuardrailsRoute: typeof GuardrailsRoute
+  KeysRoute: typeof KeysRoute
+  LoginRoute: typeof LoginRoute
+  LogsRoute: typeof LogsRoute
+  McpRoute: typeof McpRouteWithChildren
+  MitmRoute: typeof MitmRoute
+  ModelLimitsRoute: typeof ModelLimitsRoute
+  ModelsRoute: typeof ModelsRoute
+  PricingRoute: typeof PricingRoute
+  PromptsRoute: typeof PromptsRoute
+  ProvidersRoute: typeof ProvidersRoute
+  ProxyPoolsRoute: typeof ProxyPoolsRoute
+  QuotaRoute: typeof QuotaRoute
+  RoutingRulesRoute: typeof RoutingRulesRoute
+  SettingsRoute: typeof SettingsRoute
+  TeamsRoute: typeof TeamsRoute
+  TrafficRoute: typeof TrafficRoute
+  TunnelsRoute: typeof TunnelsRoute
+  UsageRoute: typeof UsageRoute
+  VirtualKeysRoute: typeof VirtualKeysRoute
 }
 
-const rootRouteChildren: RootRouteChildren = {}
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/virtual-keys': {
+      id: '/virtual-keys'
+      path: '/virtual-keys'
+      fullPath: '/virtual-keys'
+      preLoaderRoute: typeof VirtualKeysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/usage': {
+      id: '/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof UsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tunnels': {
+      id: '/tunnels'
+      path: '/tunnels'
+      fullPath: '/tunnels'
+      preLoaderRoute: typeof TunnelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/traffic': {
+      id: '/traffic'
+      path: '/traffic'
+      fullPath: '/traffic'
+      preLoaderRoute: typeof TrafficRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teams': {
+      id: '/teams'
+      path: '/teams'
+      fullPath: '/teams'
+      preLoaderRoute: typeof TeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/routing-rules': {
+      id: '/routing-rules'
+      path: '/routing-rules'
+      fullPath: '/routing-rules'
+      preLoaderRoute: typeof RoutingRulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/quota': {
+      id: '/quota'
+      path: '/quota'
+      fullPath: '/quota'
+      preLoaderRoute: typeof QuotaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/proxy-pools': {
+      id: '/proxy-pools'
+      path: '/proxy-pools'
+      fullPath: '/proxy-pools'
+      preLoaderRoute: typeof ProxyPoolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/providers': {
+      id: '/providers'
+      path: '/providers'
+      fullPath: '/providers'
+      preLoaderRoute: typeof ProvidersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/prompts': {
+      id: '/prompts'
+      path: '/prompts'
+      fullPath: '/prompts'
+      preLoaderRoute: typeof PromptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/models': {
+      id: '/models'
+      path: '/models'
+      fullPath: '/models'
+      preLoaderRoute: typeof ModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/model-limits': {
+      id: '/model-limits'
+      path: '/model-limits'
+      fullPath: '/model-limits'
+      preLoaderRoute: typeof ModelLimitsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mitm': {
+      id: '/mitm'
+      path: '/mitm'
+      fullPath: '/mitm'
+      preLoaderRoute: typeof MitmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs': {
+      id: '/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof LogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/keys': {
+      id: '/keys'
+      path: '/keys'
+      fullPath: '/keys'
+      preLoaderRoute: typeof KeysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guardrails': {
+      id: '/guardrails'
+      path: '/guardrails'
+      fullPath: '/guardrails'
+      preLoaderRoute: typeof GuardrailsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feature-flags': {
+      id: '/feature-flags'
+      path: '/feature-flags'
+      fullPath: '/feature-flags'
+      preLoaderRoute: typeof FeatureFlagsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/endpoint': {
+      id: '/endpoint'
+      path: '/endpoint'
+      fullPath: '/endpoint'
+      preLoaderRoute: typeof EndpointRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/console': {
+      id: '/console'
+      path: '/console'
+      fullPath: '/console'
+      preLoaderRoute: typeof ConsoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/connections': {
+      id: '/connections'
+      path: '/connections'
+      fullPath: '/connections'
+      preLoaderRoute: typeof ConnectionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/combos': {
+      id: '/combos'
+      path: '/combos'
+      fullPath: '/combos'
+      preLoaderRoute: typeof CombosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chat': {
+      id: '/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/audit': {
+      id: '/audit'
+      path: '/audit'
+      fullPath: '/audit'
+      preLoaderRoute: typeof AuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/aliases': {
+      id: '/aliases'
+      path: '/aliases'
+      fullPath: '/aliases'
+      preLoaderRoute: typeof AliasesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alerts': {
+      id: '/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AlertsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/tools': {
+      id: '/mcp/tools'
+      path: '/tools'
+      fullPath: '/mcp/tools'
+      preLoaderRoute: typeof McpToolsRouteImport
+      parentRoute: typeof McpRoute
+    }
+  }
+}
+
+interface McpRouteChildren {
+  McpToolsRoute: typeof McpToolsRoute
+}
+
+const McpRouteChildren: McpRouteChildren = {
+  McpToolsRoute: McpToolsRoute,
+}
+
+const McpRouteWithChildren = McpRoute._addFileChildren(McpRouteChildren)
+
+const rootRouteChildren: RootRouteChildren = {
+  AlertsRoute: AlertsRoute,
+  AliasesRoute: AliasesRoute,
+  AuditRoute: AuditRoute,
+  ChatRoute: ChatRoute,
+  CombosRoute: CombosRoute,
+  ConnectionsRoute: ConnectionsRoute,
+  ConsoleRoute: ConsoleRoute,
+  DashboardRoute: DashboardRoute,
+  EndpointRoute: EndpointRoute,
+  FeatureFlagsRoute: FeatureFlagsRoute,
+  GuardrailsRoute: GuardrailsRoute,
+  KeysRoute: KeysRoute,
+  LoginRoute: LoginRoute,
+  LogsRoute: LogsRoute,
+  McpRoute: McpRouteWithChildren,
+  MitmRoute: MitmRoute,
+  ModelLimitsRoute: ModelLimitsRoute,
+  ModelsRoute: ModelsRoute,
+  PricingRoute: PricingRoute,
+  PromptsRoute: PromptsRoute,
+  ProvidersRoute: ProvidersRoute,
+  ProxyPoolsRoute: ProxyPoolsRoute,
+  QuotaRoute: QuotaRoute,
+  RoutingRulesRoute: RoutingRulesRoute,
+  SettingsRoute: SettingsRoute,
+  TeamsRoute: TeamsRoute,
+  TrafficRoute: TrafficRoute,
+  TunnelsRoute: TunnelsRoute,
+  UsageRoute: UsageRoute,
+  VirtualKeysRoute: VirtualKeysRoute,
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
