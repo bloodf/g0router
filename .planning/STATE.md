@@ -3,11 +3,11 @@
 ## Current Position
 
 **Milestone:** v2.0 9router + BiFrost Clean Slate Port  
-**Phase:** 3 (OpenAI Provider) — NEXT  
+**Phase:** 4 (OpenAI API Handlers) — NEXT  
 **Plan:** `.planning/ROADMAP.md`  
 **Status:** Ready for autonomous execution
 
-**Last activity:** 2026-06-09 — Phase 2 Schemas + Catalog complete. 14 schema files created in `internal/schemas/` covering chat, completions, embeddings, images, audio, files, batch, responses, errors, provider interface, governance, catalog, and MCP stubs. 10 JSON round-trip tests + compile-check test. All gates pass.
+**Last activity:** 2026-06-09 — Phase 3 OpenAI Provider complete. OpenAI provider implements chat (non-streaming + streaming SSE), embeddings, list models, and error converter via fasthttp. Shared provider utilities (ClientPool, SSEScanner, JSON helpers) created. 20+ not-implemented stubs for future phases. All gates pass.
 
 ---
 
@@ -33,6 +33,14 @@
 
 ---
 
+## Phase 3 — OpenAI Provider — Deliverables
+
+| Commit | Subject |
+|---|---|
+| `ee8c48a` | phase-03/task-1: OpenAI provider (chat, embeddings, models, streaming) + utils + tests |
+
+---
+
 ## Accumulated Context
 
 - Clean-slate pivot from previous g0router architecture. Phase 1 wipes the v1 code (`api/`, `internal/`, `ui/src/`) and the v1-era root `e2e_*.go` files.
@@ -41,7 +49,8 @@
 - 9router features targeted for management layer and dashboard.
 - 19 phases grouped into 6 execution waves.
 - Phase 1 leaves `go.mod` with a single direct dep (`github.com/valyala/fasthttp v1.71.0`).
-- Phase 2 fills `internal/schemas/` with all shared wire-format types. No catalog implementation yet — that arrives in Phase 9 (Models + Aliases + Combos).
+- Phase 2 fills `internal/schemas/` with all shared wire-format types.
+- Phase 3 implements the reference OpenAI provider in `internal/providers/openai/` with fasthttp, SSE streaming, and shared utilities.
 
 ---
 
@@ -53,12 +62,13 @@ _None._
 
 ## Next Step
 
-Continue **Wave 1: Foundation** with **Phase 3: OpenAI Provider**.
+Continue **Wave 1: Foundation** with **Phase 4: OpenAI API Handlers**.
 
-Read `.planning/phases/03-openai-provider/PLAN.md`. The Provider interface now exists in `internal/schemas/provider.go`. Phase 3 implements the reference OpenAI provider in `internal/providers/openai/`.
+Expose `/v1/chat/completions`, `/v1/embeddings`, and `/v1/models` via fasthttp handlers in `internal/server/` or `internal/api/`. Wire the OpenAI provider into the handler layer.
 
 ### What "next phase" should keep in mind
-- The schemas package is locked. New types only if the OpenAI provider reveals a gap.
+- `cmd/g0router/main.go` remains minimal. Register new routes in `internal/server/`.
+- Use the schema types from Phase 2 for request/response shapes.
+- Use the OpenAI provider from Phase 3 for backend calls.
 - `go test ./...` and `go vet ./...` must pass green at every commit.
-- `cmd/g0router/main.go` remains minimal. Provider registration goes through `internal/providers/`.
-- Commit format: `phase-03/task-N: <description>`.
+- Commit format: `phase-04/task-N: <description>`.
