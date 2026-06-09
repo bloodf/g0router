@@ -27,9 +27,8 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	if key.Value == "" {
-		key.Value = resolveAPIKey(provider)
-	}
+	// Keys are provided by the management layer (WebUI) via the router.
+	// Phase 6+ will wire the key store; empty keys yield provider auth errors.
 
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
 	resp, perr := provider.ListModels(gatewayCtx, key)
