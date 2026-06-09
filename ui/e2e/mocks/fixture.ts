@@ -1,6 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { MockStore } from "./store";
-import { setupMockApi } from "./handlers";
+import { setupMockApi } from "./handlers/index";
 
 export type MockFixtures = {
   mockStore: MockStore;
