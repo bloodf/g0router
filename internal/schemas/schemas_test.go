@@ -7,6 +7,7 @@ import (
 
 func ptrFloat64(v float64) *float64 { return &v }
 func ptrInt(v int) *int             { return &v }
+func ptrStr(v string) *string       { return &v }
 
 func TestChatRequestRoundTrip(t *testing.T) {
 	req := ChatRequest{
@@ -120,5 +121,129 @@ func TestStreamChunkRoundTrip(t *testing.T) {
 	}
 	if got.Choices[0].Delta.Content != "hi" {
 		t.Errorf("delta content = %q, want hi", got.Choices[0].Delta.Content)
+	}
+}
+
+func TestImageGenerationRequestRoundTrip(t *testing.T) {
+	req := ImageGenerationRequest{
+		Prompt: "a cat",
+		Model:  "dall-e-3",
+	}
+	b, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got ImageGenerationRequest
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Prompt != "a cat" {
+		t.Errorf("prompt = %q, want a cat", got.Prompt)
+	}
+	if got.Model != "dall-e-3" {
+		t.Errorf("model = %q, want dall-e-3", got.Model)
+	}
+}
+
+func TestTranscriptionResponseRoundTrip(t *testing.T) {
+	resp := TranscriptionResponse{
+		Text: "hello world",
+	}
+	b, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got TranscriptionResponse
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Text != "hello world" {
+		t.Errorf("text = %q, want hello world", got.Text)
+	}
+}
+
+func TestFileObjectRoundTrip(t *testing.T) {
+	f := FileObject{
+		ID:       "file-123",
+		Filename: "data.json",
+		Purpose:  "batch",
+	}
+	b, err := json.Marshal(f)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got FileObject
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.ID != "file-123" {
+		t.Errorf("id = %q, want file-123", got.ID)
+	}
+	if got.Filename != "data.json" {
+		t.Errorf("filename = %q, want data.json", got.Filename)
+	}
+}
+
+func TestBatchRoundTrip(t *testing.T) {
+	batch := Batch{
+		ID:          "batch-123",
+		Status:      "completed",
+		InputFileID: "file-abc",
+	}
+	b, err := json.Marshal(batch)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got Batch
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.ID != "batch-123" {
+		t.Errorf("id = %q, want batch-123", got.ID)
+	}
+	if got.Status != "completed" {
+		t.Errorf("status = %q, want completed", got.Status)
+	}
+}
+
+func TestResponsesRequestRoundTrip(t *testing.T) {
+	req := ResponsesRequest{
+		Model: "gpt-4o",
+		Input: "hello",
+	}
+	b, err := json.Marshal(req)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got ResponsesRequest
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Model != "gpt-4o" {
+		t.Errorf("model = %q, want gpt-4o", got.Model)
+	}
+}
+
+func TestErrorResponseRoundTrip(t *testing.T) {
+	resp := ErrorResponse{
+		Error: APIError{
+			Message: "bad request",
+			Type:    "invalid_request_error",
+			Code:    ptrStr("400"),
+		},
+	}
+	b, err := json.Marshal(resp)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var got ErrorResponse
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Error.Message != "bad request" {
+		t.Errorf("message = %q, want bad request", got.Error.Message)
+	}
+	if got.Error.Code == nil || *got.Error.Code != "400" {
+		t.Errorf("code = %v, want 400", got.Error.Code)
 	}
 }
