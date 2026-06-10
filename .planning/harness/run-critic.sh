@@ -48,6 +48,29 @@ $(cat "$TARGET")
 $(cat "$DIFF_FILE")"
     timeout -k 5 1800 kimi -p "$PROMPT" </dev/null >"$ART" 2>&1
     ;;
+  diff-gpt)
+    # gpt-5.5 diff reviewer — used when kimi authored the diff (cross-family rule)
+    TARGET="$(abspath "$1")"
+    BASE="${2:-main}"
+    shift 2 || shift $#
+    cd "$REPO_ROOT"
+    [ -s "$TARGET" ] || { echo "FATAL: target empty/missing: $TARGET"; exit 2; }
+    ID="$(basename "$TARGET" .md)-diff-review-gpt"
+    ART="$HARNESS_DIR/artifacts/${ID}.txt"
+    DIFF_FILE="$HARNESS_DIR/artifacts/${ID}.diff"
+    if [ "$#" -gt 0 ]; then
+      git diff "$BASE"...HEAD -- "$@" >"$DIFF_FILE"
+    else
+      git diff "$BASE"...HEAD >"$DIFF_FILE"
+    fi
+    [ -s "$DIFF_FILE" ] || { echo "FATAL: empty diff"; exit 2; }
+    PROMPT="$(cat "$HARNESS_DIR/prompts/critic-diff.md")
+--- MICRO-PLAN: $TARGET ---
+$(cat "$TARGET")
+--- DIFF (vs $BASE) ---
+$(cat "$DIFF_FILE")"
+    timeout -k 5 1800 pi -p --provider openai-codex --model gpt-5.5 --no-session -nt "$PROMPT" </dev/null >"$ART" 2>&1
+    ;;
   *)
     echo "FATAL: mode must be plan|diff"; exit 2
     ;;
