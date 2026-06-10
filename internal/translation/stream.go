@@ -73,7 +73,7 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 	}
 
 	// Flush buffered translator state.
-	flushed, err := reg.TranslateResponse(to, from, nil, state)
+	flushed, err := reg.TranslateResponse(from, to, nil, state)
 	if err != nil {
 		return summary, fmt.Errorf("flush translator state: %w", err)
 	}
