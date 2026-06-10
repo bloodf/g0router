@@ -250,3 +250,16 @@ func TestConvertContentParts(t *testing.T) {
 		}
 	})
 }
+
+func TestCleanSchemaMergeAllOfNonComparableRequired(t *testing.T) {
+	schema := map[string]any{
+		"allOf": []any{
+			map[string]any{"required": []any{map[string]any{"nested": true}}},
+			map[string]any{"required": []any{map[string]any{"nested": true}, "field"}},
+		},
+	}
+	cleanJSONSchemaForGemini(schema) // must not panic on non-string required dedupe
+	if _, ok := schema["allOf"]; ok {
+		t.Fatalf("allOf should be merged away, got %v", schema["allOf"])
+	}
+}
