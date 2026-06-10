@@ -24,14 +24,22 @@ type Content struct {
 
 // Part is a single piece of content (text, image, function call, etc.).
 type Part struct {
-	Text         string        `json:"text,omitempty"`
-	FunctionCall *FunctionCall `json:"functionCall,omitempty"`
+	Text             string            `json:"text,omitempty"`
+	FunctionCall     *FunctionCall     `json:"functionCall,omitempty"`
+	FunctionResponse *FunctionResponse `json:"functionResponse,omitempty"`
 }
 
 // FunctionCall represents a tool invocation in Gemini.
 type FunctionCall struct {
 	Name string         `json:"name"`
 	Args map[string]any `json:"args"`
+}
+
+// FunctionResponse represents a tool result in Gemini.
+type FunctionResponse struct {
+	ID       string         `json:"id,omitempty"`
+	Name     string         `json:"name"`
+	Response map[string]any `json:"response"`
 }
 
 // GenerationConfig holds generation parameters.
@@ -178,7 +186,23 @@ func convertMessages(msgs []schemas.Message) []Content {
 		}
 
 		content := Content{Role: role}
-		if len(m.ToolCalls) > 0 {
+		if m.Role == "tool" {
+			var response map[string]any
+			if err := json.Unmarshal([]byte(m.Content), &response); err != nil {
+				response = map[string]any{"result": m.Content}
+			}
+			fr := &FunctionResponse{
+				Name:     "",
+				Response: response,
+			}
+			if m.Name != nil {
+				fr.Name = *m.Name
+			}
+			if m.ToolCallID != nil {
+				fr.ID = *m.ToolCallID
+			}
+			content.Parts = []Part{{FunctionResponse: fr}}
+		} else if len(m.ToolCalls) > 0 {
 			for _, tc := range m.ToolCalls {
 				var args map[string]any
 				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
