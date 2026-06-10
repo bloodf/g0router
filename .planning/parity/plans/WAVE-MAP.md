@@ -44,7 +44,8 @@ After w1-a..f gate closure and w1-g (Responses API translators, in flight):
 | w1-h | ollama + commandcode translator pairs (+ ollamaTransform util) | `openai-to-ollama.js` (192), `ollama-to-openai.js` (152), `ollamaTransform.js` (85), `openai-to-commandcode.js` (170), `commandcode-to-openai.js` (197) | 002 clauses, 047 NDJSON closure |
 | w1-i | kiro translator pair (+ kiroConstants) | `openai-to-kiro.js` (583; `.old.js` is dead — NOT ported), `kiro-to-openai.js` (195), `config/kiroConstants.js` | 002 clause |
 | w1-j | cursor translator pair ONLY *(corrected 2026-06-10: `cursorProtobuf.js`/`cursorChecksum.js` are consumed solely by `executors/cursor.js` — Wave-2 executor scope, PAR-PROV-023)* | `openai-to-cursor.js` (183), `cursor-to-openai.js` (30) | PAR-TRANS-064/065, 002 clause |
-| w1-k | gemini-format client requests + claude pipeline helpers | `gemini-to-openai.js` request (147), `claudeCloaking.js` (155), `bypassHandler.js` (298), `toolDeduper.js` (49), `reasoningContentInjector.js` (79), deepseek alias | PAR-TRANS-006, 022, 051, 052, 053, 054, 055; 057 verification vs w1-b |
+| w1-k | gemini client request + self-contained helpers | `gemini-to-openai.js` request (147), `index.js:58-72` strip, `toolDeduper.js` (49), `reasoningContentInjector.js` (79) | PAR-TRANS-066, 006, 053, 051, 052 |
+| w1-l | claude pipeline helpers (split from w1-k 2026-06-10: cohesive cloaking/signature/appConstants deps) | `claudeCloaking.js` (155), `bypassHandler.js` (195), `claudeHelper.js:81-215`, appConstants/signature | PAR-TRANS-022, 054, 055; 057 verified vs w1-b |
 
 Order: g2 after w1-g lands; h → i → j → k by ascending integration risk; plans
 written one at a time so each absorbs prior gate learnings.
