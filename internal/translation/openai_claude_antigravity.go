@@ -14,7 +14,6 @@ func openaiToClaudeRequestForAntigravity(model string, body map[string]any, stre
 		return nil, fmt.Errorf("openaiToClaudeRequestForAntigravity: %w", err)
 	}
 
-	// Remove Claude Code system prompt, keep only user's system messages
 	if sys, ok := result["system"]; ok && sys != nil {
 		switch v := sys.(type) {
 		case []any:
@@ -54,7 +53,6 @@ func openaiToClaudeRequestForAntigravity(model string, body map[string]any, stre
 		}
 	}
 
-	// Strip prefix from tool_use in messages
 	if msgs, ok := result["messages"].([]any); ok {
 		for i, msg := range msgs {
 			m, ok := msg.(map[string]any)

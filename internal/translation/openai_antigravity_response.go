@@ -47,17 +47,14 @@ func openaiToAntigravityResponse(chunk map[string]any, state *StreamState) ([]ma
 
 	parts := []map[string]any{}
 
-	// Thinking/reasoning → thought part
 	if reasoningContent, ok := delta["reasoning_content"].(string); ok && reasoningContent != "" {
 		parts = append(parts, map[string]any{"thought": true, "text": reasoningContent})
 	}
 
-	// Text content
 	if content, ok := delta["content"].(string); ok && content != "" {
 		parts = append(parts, map[string]any{"text": content})
 	}
 
-	// Accumulate tool calls silently
 	if rawToolCalls, ok := delta["tool_calls"].([]any); ok {
 		for _, tcRaw := range rawToolCalls {
 			tc, ok := tcRaw.(map[string]any)
@@ -131,7 +128,6 @@ func openaiToAntigravityResponse(chunk map[string]any, state *StreamState) ([]ma
 		}
 	}
 
-	// Skip empty non-finish chunks
 	if len(parts) == 0 && finishReason == "" {
 		return nil, nil
 	}

@@ -36,7 +36,6 @@ func antigravityToOpenAIRequest(model string, body map[string]any, stream bool, 
 			result["top_k"] = topK
 		}
 
-		// Thinking config → reasoning_effort
 		if thinkingConfig, ok := genConfig["thinkingConfig"].(map[string]any); ok && thinkingConfig != nil {
 			budget := 0
 			if b, ok := thinkingConfig["thinkingBudget"]; ok {

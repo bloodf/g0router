@@ -14,7 +14,6 @@ func openaiToGeminiCLIRequest(model string, body map[string]any, stream bool, cr
 	}
 
 	if genConfig, ok := gemini["generationConfig"].(map[string]any); ok {
-		// Add thinking config for CLI from reasoning_effort
 		if rawEffort, ok := body["reasoning_effort"]; ok && rawEffort != nil {
 			if effort, ok := rawEffort.(string); ok && effort != "" {
 				budgetMap := map[string]int{
@@ -35,7 +34,6 @@ func openaiToGeminiCLIRequest(model string, body map[string]any, stream bool, cr
 			}
 		}
 
-		// Thinking config from Claude format
 		if rawThinking, ok := body["thinking"]; ok && rawThinking != nil {
 			if thinking, ok := rawThinking.(map[string]any); ok {
 				if t, ok := thinking["type"].(string); ok && t == "enabled" {
@@ -51,7 +49,6 @@ func openaiToGeminiCLIRequest(model string, body map[string]any, stream bool, cr
 		}
 	}
 
-	// Clean schema for tools
 	if tools, ok := gemini["tools"].([]any); ok && len(tools) > 0 {
 		if tool0, ok := tools[0].(map[string]any); ok {
 			if fdList, ok := tool0["functionDeclarations"].([]any); ok {
