@@ -45,3 +45,26 @@ Verdict artifacts triaged (gpt-5.5, commit-bounded diffs):
 
 - w1-c findings (separate fix micro-plan, implemented by worker per new protocol).
 - Any change to `internal/translation` behavior beyond the items listed above.
+
+---
+
+## Appendix A — complete gate-fix change ledger (added 2026-06-10, Fable 5)
+
+Every gate-fix commit since `5d629345`, with its authorizing artifact. This ledger
+makes rounds 1–2 traceable; reviewers should treat the listed artifacts as the
+authorization source for these changes.
+
+| Commit | Plan | Changes | Authorized by |
+|--------|------|---------|---------------|
+| `caae98b` | w1-f r1 | checked asserts in gemini-cli tool cleanup; vertex test presence assert; cloud_code globals+math/rand removal; antigravity marshal error propagation | w1-f r1 verdict (4 findings) + HANDOFF "Open work" item 1 |
+| `0ffc0fc` | w1-d r1 | safe `role` extraction (+ test); message_stop usage carries cache tokens via prompt_tokens_details (+ test); pipeline tool_use events in round-trip test | HANDOFF blocker list verbatim: "w1-d: safe role extraction; pipeline tool_use event; cache tokens on message_stop" |
+| `7395b76` | w1-d+w1-f r2 | enabled-only temperature drop (plan line 31 wording); dataURI regex de-globalized; strings.Contains; two-tool sequential index test; pipeline body-shape asserts; deterministic antigravity tool emission; explicit unmarshal fallback; wrapped registry errors | r2 verdict artifacts (both plans) |
+| `9a4e3c1` | w1-d r3 | non-panicking regexp.Compile; comment wording | w1-d r3 verdict |
+| `5c6c3ea` | w1-e r1 | tool_calls JS-truthiness keep (openaiHelper.js:20,64); bare-name Claude tool passthrough guard (openaiHelper.js:88); nested placeholder test | HANDOFF "w1-e: filter placeholder preservation" investigation — both are frozen-ref parity deviations found during triage; restoring ref behavior IS the program goal |
+| `388aff1` | w1-f r4 | claude-path discriminator asserts; PAR-TRANS-043 alias identity test; order+fallback tests | w1-f r4 verdict |
+| `19732cd`/`fe3bf64`/`0d72728` | r3 batch | items in the tables above | this fix plan |
+
+### Standing parity rebuttals (do not re-flag)
+
+1. **Antigravity tool-call emission order**: the ref iterates `Object.keys(state._toolCallAccum)`; JS objects iterate integer-like keys in ascending numeric order, so `sort.Ints` over the Go map's indices reproduces the ref's order exactly. Go map iteration is randomized, so the sort is REQUIRED for ref-faithful output — it is parity restoration, not new semantics.
+2. **functionCall has no `id`** (openai-to-antigravity.js:64-69). 3. **`include_thoughts` snake_case** (openai-to-gemini.js:239,247). 4. **10 UI styling keys** (geminiHelper.js:21-22). 5. **toolNameMap param unused in getContentBlocksFromMessage** — identical in ref (openai-to-claude.js:210) since `CLAUDE_OAUTH_TOOL_PREFIX=""`. 6. **All-filtered placeholder message is dropped end-state** (openaiHelper.js:49-51 + 60-74).
