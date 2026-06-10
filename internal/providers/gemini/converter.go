@@ -1,6 +1,8 @@
 package gemini
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 
 	"github.com/bloodf/g0router/internal/schemas"
@@ -163,6 +165,14 @@ func ConvertChatRequest(req *schemas.ChatRequest) *GenerateContentRequest {
 	return gemReq
 }
 
+func generateChatID() string {
+	b := make([]byte, 12)
+	if _, err := rand.Read(b); err != nil {
+		return "chatcmpl-fallback123456"
+	}
+	return "chatcmpl-" + hex.EncodeToString(b)
+}
+
 func joinSystemMessages(parts []string) string {
 	result := ""
 	for i, p := range parts {
@@ -252,6 +262,7 @@ func convertToolChoice(tc *schemas.ToolChoice) *ToolConfig {
 // ConvertChatResponse transforms a Gemini GenerateContentResponse into an OpenAI ChatResponse.
 func ConvertChatResponse(gemResp *GenerateContentResponse, model string) *schemas.ChatResponse {
 	resp := &schemas.ChatResponse{
+		ID:      generateChatID(),
 		Object:  "chat.completion",
 		Model:   model,
 		Choices: []schemas.Choice{},
@@ -359,6 +370,7 @@ func ConvertEmbeddingResponse(gemResp *EmbedContentResponse, model string) *sche
 // ConvertStreamChunk transforms a Gemini stream response into an OpenAI StreamChunk.
 func ConvertStreamChunk(gemResp *GenerateContentResponse, model string) *schemas.StreamChunk {
 	chunk := &schemas.StreamChunk{
+		ID:      generateChatID(),
 		Object:  "chat.completion.chunk",
 		Model:   model,
 		Choices: []schemas.StreamChoice{},

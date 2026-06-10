@@ -1,6 +1,7 @@
 package gemini
 
 import (
+	"regexp"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/schemas"
@@ -44,6 +45,53 @@ func TestConvertChatRequestToolMessageWithCallID(t *testing.T) {
 	}
 	if fr.Name != "get_weather" {
 		t.Errorf("functionResponse name = %q, want get_weather", fr.Name)
+	}
+}
+
+var chatIDRegex = regexp.MustCompile(`^chatcmpl-[A-Za-z0-9]+$`)
+
+func TestConvertChatResponseGeneratesID(t *testing.T) {
+	geminiResp := &GenerateContentResponse{
+		Candidates: []Candidate{
+			{
+				Content: Content{
+					Role:  "model",
+					Parts: []Part{{Text: "Hello there"}},
+				},
+				FinishReason: "STOP",
+			},
+		},
+	}
+
+	converted := ConvertChatResponse(geminiResp, "gemini-1.5-pro")
+
+	if converted.ID == "" {
+		t.Fatal("id should not be empty")
+	}
+	if !chatIDRegex.MatchString(converted.ID) {
+		t.Errorf("id = %q, does not match %s", converted.ID, chatIDRegex.String())
+	}
+}
+
+func TestConvertStreamChunkGeneratesID(t *testing.T) {
+	geminiResp := &GenerateContentResponse{
+		Candidates: []Candidate{
+			{
+				Content: Content{
+					Role:  "model",
+					Parts: []Part{{Text: "Hello"}},
+				},
+			},
+		},
+	}
+
+	chunk := ConvertStreamChunk(geminiResp, "gemini-1.5-pro")
+
+	if chunk.ID == "" {
+		t.Fatal("id should not be empty")
+	}
+	if !chatIDRegex.MatchString(chunk.ID) {
+		t.Errorf("id = %q, does not match %s", chunk.ID, chatIDRegex.String())
 	}
 }
 
