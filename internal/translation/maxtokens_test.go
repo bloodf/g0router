@@ -58,6 +58,40 @@ func TestAdjustMaxTokensThinkingBudget(t *testing.T) {
 	}
 }
 
+func TestAdjustMaxTokensToolsThenThinkingBudget(t *testing.T) {
+	// Tools floor applied first (1000 -> 32000), then budget bump
+	// because 32000 <= 60000, so 60000 + 1024 = 61024.
+	body := map[string]any{
+		"max_tokens": 1000,
+		"tools":      []any{map[string]any{"name": "test"}},
+		"thinking":   map[string]any{"budget_tokens": 60000},
+	}
+	if got := AdjustMaxTokens(body); got != 61024 {
+		t.Errorf("tools then budget bump = %d, want 61024", got)
+	}
+
+	// Tools floor applied (1000 -> 32000), but 32000 > 10000 so no bump.
+	body2 := map[string]any{
+		"max_tokens": 1000,
+		"tools":      []any{map[string]any{"name": "test"}},
+		"thinking":   map[string]any{"budget_tokens": 10000},
+	}
+	if got := AdjustMaxTokens(body2); got != 32000 {
+		t.Errorf("tools floor, no budget bump = %d, want 32000", got)
+	}
+
+	// Budget bump after tools floor: 70000 > 32000 so floor not applied,
+	// then 70000 <= 70000 so bump to 71024.
+	body3 := map[string]any{
+		"max_tokens": 70000,
+		"tools":      []any{map[string]any{"name": "test"}},
+		"thinking":   map[string]any{"budget_tokens": 70000},
+	}
+	if got := AdjustMaxTokens(body3); got != 71024 {
+		t.Errorf("budget bump inclusive = %d, want 71024", got)
+	}
+}
+
 func TestAdjustMaxTokensExplicitValueKept(t *testing.T) {
 	body := map[string]any{"max_tokens": 50000}
 	if got := AdjustMaxTokens(body); got != 50000 {

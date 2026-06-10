@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"strings"
 	"testing"
@@ -118,6 +119,35 @@ func TestWriteSSEStreamAbortsOnErrorChunk(t *testing.T) {
 	}
 }
 
+// TestWriteSSEStreamAbortsOnMarshalError verifies AUD-007: a chunk that
+// fails to marshal aborts the stream — no partial frame, no [DONE].
+func TestWriteSSEStreamAbortsOnMarshalError(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk, 2)
+	ch <- &schemas.StreamChunk{
+		ID: "c1",
+		Choices: []schemas.StreamChoice{{
+			Index: 0,
+			Logprobs: &schemas.Logprobs{
+				Content: []schemas.LogprobContent{{
+					Token:   "x",
+					Logprob: math.Inf(1),
+				}},
+			},
+		}},
+	}
+	ch <- &schemas.StreamChunk{ID: "c2"}
+	close(ch)
+
+	w := &failingWriter{writesLeft: 100}
+	err := writeSSEStream(w, ch)
+	if err == nil {
+		t.Fatal("writeSSEStream: want error when marshal fails")
+	}
+	if out := w.sb.String(); out != "" {
+		t.Errorf("output = %q, want empty (stream must abort before writing)", out)
+	}
+}
+
 // TestChatStreamPassthroughNormalization verifies PAR-TRANS-049 passthrough
 // normalization: invalid IDs are fixed (stream.js:106), required fields are
 // injected (stream.js:109-112), empty chunks are filtered (stream.js:129-131),
@@ -146,6 +176,67 @@ func TestChatStreamPassthroughNormalization(t *testing.T) {
 	// Empty chunk filtered → only 2 data frames (1 chunk + DONE)
 	if got := strings.Count(out, "data: "); got != 2 {
 		t.Errorf("frame count = %d, want 2 (1 chunk + [DONE])", got)
+	}
+	// Required fields injected.
+	if !strings.Contains(out, `"object":"chat.completion.chunk"`) {
+		t.Errorf("missing object field: %q", out)
+	}
+	if !strings.Contains(out, `"created":`) {
+		t.Errorf("missing created field: %q", out)
+	}
+}
+
+// TestChatHandlerPassthroughNormalization drives ChatHandler end-to-end with a
+// fake provider stream and verifies passthrough normalization at the handler
+// level: invalid IDs are fixed, required fields are injected, empty chunks are
+// filtered, and the stream terminates with [DONE].
+func TestChatHandlerPassthroughNormalization(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk, 3)
+	ch <- &schemas.StreamChunk{ID: "chat", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
+	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}}}} // empty → filtered
+	close(ch)
+
+	fakeR := &fakeMessagesResolver{streamCh: ch}
+	h := &ChatHandler{router: fakeR}
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}],"stream":true}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want %d", ctx.Response.StatusCode(), fasthttp.StatusOK)
+	}
+
+	out := string(ctx.Response.Body())
+	// Invalid id fixed.
+	if strings.Contains(out, `"id":"chat"`) {
+		t.Errorf("invalid id not fixed: %q", out)
+	}
+	if !strings.Contains(out, "chatcmpl-") {
+		t.Errorf("expected fixed id with chatcmpl- prefix: %q", out)
+	}
+	// Required fields injected.
+	if !strings.Contains(out, `"object":"chat.completion.chunk"`) {
+		t.Errorf("missing object field: %q", out)
+	}
+	if !strings.Contains(out, `"created":`) {
+		t.Errorf("missing created field: %q", out)
+	}
+	// Azure fields stripped (output must not contain them).
+	if strings.Contains(out, "prompt_filter_results") {
+		t.Errorf("prompt_filter_results should not appear: %q", out)
+	}
+	if strings.Contains(out, "content_filter_results") {
+		t.Errorf("content_filter_results should not appear: %q", out)
+	}
+	// Empty chunk filtered → only 2 data frames (1 chunk + DONE).
+	if got := strings.Count(out, "data: "); got != 2 {
+		t.Errorf("frame count = %d, want 2 (1 chunk + [DONE])", got)
+	}
+	if !strings.HasSuffix(out, "data: [DONE]\n\n") {
+		t.Errorf("missing [DONE] terminator: %q", out)
 	}
 }
 

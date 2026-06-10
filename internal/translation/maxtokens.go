@@ -21,11 +21,11 @@ func AdjustMaxTokens(body map[string]any) int {
 	}
 
 	if hasTools(body) && value < defaultMinTokens {
-		return defaultMinTokens
+		value = defaultMinTokens
 	}
 
 	if budget := getThinkingBudget(body); budget > 0 && value <= budget {
-		return budget + 1024
+		value = budget + 1024
 	}
 
 	return value

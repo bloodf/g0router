@@ -254,6 +254,29 @@ func TestProcessPassthroughInjectsRequiredFields(t *testing.T) {
 }
 
 func TestProcessPassthroughStripsAzureFields(t *testing.T) {
+	// Processor-level: ProcessPassthroughStream over a chunk channel.
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 1)
+	ch <- &schemas.StreamChunk{
+		ID:      "chatcmpl-12345678",
+		Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}},
+	}
+	close(ch)
+
+	_, err := ProcessPassthroughStream(w, ch)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := w.buf.String()
+	if strings.Contains(out, "prompt_filter_results") {
+		t.Errorf("prompt_filter_results should not appear in SSE: %q", out)
+	}
+	if strings.Contains(out, "content_filter_results") {
+		t.Errorf("content_filter_results should not appear in SSE: %q", out)
+	}
+
+	// Helper-level sub-check: stripAzureFields on a map with Azure fields.
 	payload := map[string]any{
 		"id":      "chatcmpl-12345678",
 		"object":  "chat.completion.chunk",
