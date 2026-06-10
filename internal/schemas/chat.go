@@ -2,22 +2,32 @@ package schemas
 
 // ChatRequest is the payload for POST /v1/chat/completions.
 type ChatRequest struct {
-	Model            string           `json:"model"`
-	Messages         []Message        `json:"messages"`
-	Temperature      *float64         `json:"temperature,omitempty"`
-	MaxTokens        *int             `json:"max_tokens,omitempty"`
-	TopP             *float64         `json:"top_p,omitempty"`
-	N                *int             `json:"n,omitempty"`
-	Stream           bool             `json:"stream"`
-	Stop             []string         `json:"stop,omitempty"`
-	PresencePenalty  *float64         `json:"presence_penalty,omitempty"`
-	FrequencyPenalty *float64         `json:"frequency_penalty,omitempty"`
-	LogitBias        map[string]int   `json:"logit_bias,omitempty"`
-	User             string           `json:"user,omitempty"`
-	Tools            []Tool           `json:"tools,omitempty"`
-	ToolChoice       *ToolChoice      `json:"tool_choice,omitempty"`
-	ResponseFormat   *ResponseFormat  `json:"response_format,omitempty"`
-	Seed             *int             `json:"seed,omitempty"`
+	Model               string          `json:"model"`
+	Messages            []Message       `json:"messages"`
+	Temperature         *float64        `json:"temperature,omitempty"`
+	MaxTokens           *int            `json:"max_tokens,omitempty"`
+	MaxCompletionTokens *int            `json:"max_completion_tokens,omitempty"`
+	TopP                *float64        `json:"top_p,omitempty"`
+	TopK                *int            `json:"top_k,omitempty"`
+	N                   *int            `json:"n,omitempty"`
+	Stream              bool            `json:"stream"`
+	Stop                []string        `json:"stop,omitempty"`
+	PresencePenalty     *float64        `json:"presence_penalty,omitempty"`
+	FrequencyPenalty    *float64        `json:"frequency_penalty,omitempty"`
+	LogitBias           map[string]int  `json:"logit_bias,omitempty"`
+	User                string          `json:"user,omitempty"`
+	Tools               []Tool          `json:"tools,omitempty"`
+	ToolChoice          *ToolChoice     `json:"tool_choice,omitempty"`
+	ResponseFormat      *ResponseFormat `json:"response_format,omitempty"`
+	Seed                *int            `json:"seed,omitempty"`
+	ReasoningEffort     string          `json:"reasoning_effort,omitempty"`
+	Thinking            *ThinkingConfig `json:"thinking,omitempty"`
+}
+
+// ThinkingConfig carries extended reasoning configuration.
+type ThinkingConfig struct {
+	Type         string `json:"type"`
+	BudgetTokens int    `json:"budget_tokens,omitempty"`
 }
 
 // ChatResponse is the non-streaming response for chat completions.
