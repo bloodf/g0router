@@ -79,3 +79,77 @@ func (r *Registry) ResponseTranslatorFor(from, to Format) ResponseTranslator {
 func (r *Registry) NeedsTranslation(from, to Format) bool {
 	return from != to
 }
+
+// TranslateRequest runs the source -> openai -> target pipeline.
+func (r *Registry) TranslateRequest(from, to Format, model string, body map[string]any, stream bool) (map[string]any, error) {
+	result := body
+	if !r.NeedsTranslation(from, to) {
+		return result, nil
+	}
+
+	// Step 1: source -> openai (if source is not openai).
+	if from != FormatOpenAI {
+		fn := r.RequestTranslatorFor(from, FormatOpenAI)
+		if fn != nil {
+			var err error
+			result, err = fn(model, result, stream)
+			if err != nil {
+				return nil, fmt.Errorf("translate %s->openai: %w", from, err)
+			}
+		}
+	}
+
+	// Step 2: openai -> target (if target is not openai).
+	if to != FormatOpenAI {
+		fn := r.RequestTranslatorFor(FormatOpenAI, to)
+		if fn != nil {
+			var err error
+			result, err = fn(model, result, stream)
+			if err != nil {
+				return nil, fmt.Errorf("translate openai->%s: %w", to, err)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// TranslateResponse runs the target -> openai -> source pipeline, preserving
+// fan-out: each step may return zero, one, or many chunks.
+func (r *Registry) TranslateResponse(to, from Format, chunk map[string]any, state *StreamState) ([]map[string]any, error) {
+	if !r.NeedsTranslation(from, to) {
+		return []map[string]any{chunk}, nil
+	}
+
+	results := []map[string]any{chunk}
+
+	// Step 1: target -> openai (if target is not openai).
+	if to != FormatOpenAI {
+		fn := r.ResponseTranslatorFor(to, FormatOpenAI)
+		if fn != nil {
+			converted, err := fn(chunk, state)
+			if err != nil {
+				return nil, fmt.Errorf("translate %s->openai response: %w", to, err)
+			}
+			results = converted
+		}
+	}
+
+	// Step 2: openai -> source (if source is not openai).
+	if from != FormatOpenAI {
+		fn := r.ResponseTranslatorFor(FormatOpenAI, from)
+		if fn != nil {
+			var finalResults []map[string]any
+			for _, c := range results {
+				converted, err := fn(c, state)
+				if err != nil {
+					return nil, fmt.Errorf("translate openai->%s response: %w", from, err)
+				}
+				finalResults = append(finalResults, converted...)
+			}
+			results = finalResults
+		}
+	}
+
+	return results, nil
+}
