@@ -142,7 +142,9 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 			}
 			var chunk schemas.StreamChunk
 			if err := json.Unmarshal([]byte(line), &chunk); err != nil {
-				continue
+				// AUD-045: a malformed chunk means the stream is corrupt;
+				// abort instead of silently dropping data.
+				return
 			}
 			ch <- &chunk
 			if postHookRunner != nil {

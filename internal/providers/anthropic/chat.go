@@ -147,7 +147,9 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 
 			var event StreamEvent
 			if err := json.Unmarshal([]byte(line), &event); err != nil {
-				continue
+				// AUD-045: a malformed event means the stream is corrupt;
+				// abort instead of silently dropping data.
+				return
 			}
 
 			switch event.Type {

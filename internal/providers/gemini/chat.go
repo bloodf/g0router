@@ -148,7 +148,9 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 
 			var gemResp GenerateContentResponse
 			if err := json.Unmarshal([]byte(line), &gemResp); err != nil {
-				continue
+				// AUD-045: a malformed chunk means the stream is corrupt;
+				// abort instead of silently dropping data.
+				return
 			}
 
 			chunk := ConvertStreamChunk(&gemResp, request.Model)
