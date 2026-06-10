@@ -27,7 +27,6 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 	systemParts := []string{}
 
 	if rawMsgs, ok := body["messages"].([]any); ok {
-		// Extract system messages.
 		for _, msg := range rawMsgs {
 			m, ok := msg.(map[string]any)
 			if !ok {
@@ -44,7 +43,6 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 			}
 		}
 
-		// Filter out system messages.
 		nonSystem := make([]map[string]any, 0, len(rawMsgs))
 		for _, msg := range rawMsgs {
 			m, ok := msg.(map[string]any)
@@ -56,7 +54,6 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 			}
 		}
 
-		// Process messages with merging logic.
 		var currentRole string
 		var currentParts []any
 
@@ -312,7 +309,6 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		}
 	}
 
-	// Attach toolNameMap to result for response translation.
 	if len(toolNameMap) > 0 {
 		result["_toolNameMap"] = toolNameMap
 	}

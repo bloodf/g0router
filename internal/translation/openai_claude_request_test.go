@@ -66,11 +66,9 @@ func TestOpenAIClaudeMessageMergeAndToolResultSplit(t *testing.T) {
 	if len(msgs) != 4 {
 		t.Fatalf("len(messages) = %d, want 4", len(msgs))
 	}
-	// user "hello"
 	if msgs[0].(map[string]any)["role"] != "user" {
 		t.Errorf("msg[0] role = %v", msgs[0].(map[string]any)["role"])
 	}
-	// assistant "hi"
 	if msgs[1].(map[string]any)["role"] != "assistant" {
 		t.Errorf("msg[1] role = %v", msgs[1].(map[string]any)["role"])
 	}
@@ -440,6 +438,34 @@ func TestOpenAIClaudeImageBlocks(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("raw image passthrough", func(t *testing.T) {
+		body := map[string]any{
+			"messages": []any{
+				map[string]any{
+					"role": "user",
+					"content": []any{
+						map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/png", "data": "abc"}},
+					},
+				},
+			},
+		}
+		out, err := openaiToClaudeRequest("claude-3", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := out["messages"].([]any)
+		blocks := msgs[0].(map[string]any)["content"].([]any)
+		if len(blocks) != 1 {
+			t.Fatalf("len(blocks) = %d, want 1", len(blocks))
+		}
+		want := map[string]any{"type": "image", "source": map[string]any{"type": "base64", "media_type": "image/png", "data": "abc"}}
+		gotJSON, _ := json.Marshal(blocks[0])
+		wantJSON, _ := json.Marshal(want)
+		if string(gotJSON) != string(wantJSON) {
+			t.Errorf("block = %s, want %s", gotJSON, wantJSON)
+		}
+	})
 }
 
 func TestOpenAIClaudeToolCallArgumentsParse(t *testing.T) {

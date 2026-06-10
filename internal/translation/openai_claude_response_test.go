@@ -40,7 +40,6 @@ func TestClaudeOpenAIMessageStart(t *testing.T) {
 
 func TestClaudeOpenAITextDelta(t *testing.T) {
 	s := NewStreamState()
-	// message_start
 	claudeToOpenAIResponse(map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
@@ -48,7 +47,6 @@ func TestClaudeOpenAITextDelta(t *testing.T) {
 			"model": "claude-3",
 		},
 	}, s)
-	// text delta
 	out, err := claudeToOpenAIResponse(map[string]any{
 		"type": "content_block_delta",
 		"index": 0,
@@ -69,7 +67,6 @@ func TestClaudeOpenAITextDelta(t *testing.T) {
 
 func TestClaudeOpenAIThinkingNoMarkers(t *testing.T) {
 	s := NewStreamState()
-	// message_start
 	claudeToOpenAIResponse(map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
@@ -77,7 +74,6 @@ func TestClaudeOpenAIThinkingNoMarkers(t *testing.T) {
 			"model": "claude-3",
 		},
 	}, s)
-	// thinking block start
 	out, err := claudeToOpenAIResponse(map[string]any{
 		"type":           "content_block_start",
 		"index":          0,
@@ -121,7 +117,6 @@ func TestClaudeOpenAIThinkingNoMarkers(t *testing.T) {
 
 func TestClaudeOpenAIToolUseStartAndArgs(t *testing.T) {
 	s := NewStreamState()
-	// message_start
 	claudeToOpenAIResponse(map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
@@ -129,7 +124,6 @@ func TestClaudeOpenAIToolUseStartAndArgs(t *testing.T) {
 			"model": "claude-3",
 		},
 	}, s)
-	// tool_use start
 	out, err := claudeToOpenAIResponse(map[string]any{
 		"type":          "content_block_start",
 		"index":         1,
@@ -158,7 +152,6 @@ func TestClaudeOpenAIToolUseStartAndArgs(t *testing.T) {
 	if fn["name"] != "Read" {
 		t.Errorf("function.name = %v", fn["name"])
 	}
-	// input_json_delta
 	out, err = claudeToOpenAIResponse(map[string]any{
 		"type":  "content_block_delta",
 		"index": 1,
@@ -177,6 +170,10 @@ func TestClaudeOpenAIToolUseStartAndArgs(t *testing.T) {
 	fn = tc["function"].(map[string]any)
 	if fn["arguments"] != `{"a":1` {
 		t.Errorf("arguments = %v", fn["arguments"])
+	}
+	// Verify accumulated buffer is tracked in state (row-042 contract).
+	if s.ClaudeBlockTools[1].Arguments != `{"a":1` {
+		t.Errorf("ClaudeBlockTools[1].Arguments = %v, want {\"a\":1", s.ClaudeBlockTools[1].Arguments)
 	}
 
 	// Second tool_use block gets the next sequential tool call index.
@@ -209,7 +206,6 @@ func TestClaudeOpenAIToolUseStartAndArgs(t *testing.T) {
 
 func TestClaudeOpenAIServerToolSkipped(t *testing.T) {
 	s := NewStreamState()
-	// message_start
 	claudeToOpenAIResponse(map[string]any{
 		"type": "message_start",
 		"message": map[string]any{
@@ -217,7 +213,6 @@ func TestClaudeOpenAIServerToolSkipped(t *testing.T) {
 			"model": "claude-3",
 		},
 	}, s)
-	// server_tool_use start
 	out, err := claudeToOpenAIResponse(map[string]any{
 		"type":          "content_block_start",
 		"index":         0,
@@ -229,7 +224,6 @@ func TestClaudeOpenAIServerToolSkipped(t *testing.T) {
 	if len(out) != 0 {
 		t.Fatalf("server_tool start emitted %d chunks; want 0", len(out))
 	}
-	// delta for server tool should be skipped
 	out, err = claudeToOpenAIResponse(map[string]any{
 		"type":  "content_block_delta",
 		"index": 0,
@@ -241,7 +235,6 @@ func TestClaudeOpenAIServerToolSkipped(t *testing.T) {
 	if len(out) != 0 {
 		t.Fatalf("server_tool delta emitted %d chunks; want 0", len(out))
 	}
-	// stop for server tool should be skipped
 	out, err = claudeToOpenAIResponse(map[string]any{
 		"type":  "content_block_stop",
 		"index": 0,

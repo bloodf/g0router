@@ -95,7 +95,6 @@ func claudeToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 		} else if n, ok := chunk["index"].(int); ok {
 			index = n
 		}
-		// Skip deltas for built-in server tool blocks.
 		if index == state.ServerToolBlockIndex {
 			break
 		}
@@ -135,7 +134,6 @@ func claudeToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 		} else if n, ok := chunk["index"].(int); ok {
 			index = n
 		}
-		// Skip stop for built-in server tool blocks.
 		if index == state.ServerToolBlockIndex {
 			state.ServerToolBlockIndex = -1
 			break
