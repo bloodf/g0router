@@ -45,9 +45,11 @@ func FilterToOpenAIFormat(body map[string]any) map[string]any {
 				continue
 			}
 
-			// Keep assistant messages with tool_calls untouched.
+			// Keep assistant messages with tool_calls untouched. The ref tests
+			// truthiness, and an empty array is truthy in JS, so presence of
+			// the array suffices (openaiHelper.js:20).
 			if role, _ := msg["role"].(string); role == "assistant" {
-				if tc, ok := msg["tool_calls"].([]any); ok && len(tc) > 0 {
+				if _, ok := msg["tool_calls"].([]any); ok {
 					filtered = append(filtered, msg)
 					continue
 				}
@@ -111,7 +113,7 @@ func FilterToOpenAIFormat(body map[string]any) map[string]any {
 				continue
 			}
 			if role == "assistant" {
-				if tc, ok := msg["tool_calls"].([]any); ok && len(tc) > 0 {
+				if _, ok := msg["tool_calls"].([]any); ok {
 					pruned = append(pruned, msg)
 					continue
 				}
@@ -165,25 +167,26 @@ func FilterToOpenAIFormat(body map[string]any) map[string]any {
 				normalized = append(normalized, tool)
 				continue
 			}
-			// Claude format: {name, description, input_schema}
+			// Claude format: {name, description, input_schema}. The ref
+			// converts only when name AND (input_schema OR description) are
+			// truthy (openaiHelper.js:88); a bare {name} passes through.
 			if name, ok := tool["name"].(string); ok && name != "" {
-				desc := ""
-				if d, ok := tool["description"].(string); ok {
-					desc = d
+				schema, hasSchema := tool["input_schema"].(map[string]any)
+				desc, _ := tool["description"].(string)
+				if hasSchema || desc != "" {
+					if !hasSchema {
+						schema = map[string]any{"type": "object", "properties": map[string]any{}}
+					}
+					normalized = append(normalized, map[string]any{
+						"type": "function",
+						"function": map[string]any{
+							"name":        name,
+							"description": desc,
+							"parameters":  schema,
+						},
+					})
+					continue
 				}
-				schema := map[string]any{"type": "object", "properties": map[string]any{}}
-				if is, ok := tool["input_schema"].(map[string]any); ok {
-					schema = is
-				}
-				normalized = append(normalized, map[string]any{
-					"type": "function",
-					"function": map[string]any{
-						"name":        name,
-						"description": desc,
-						"parameters":  schema,
-					},
-				})
-				continue
 			}
 			// Gemini format: {functionDeclarations: [{name, description, parameters}]}
 			if fdList, ok := tool["functionDeclarations"].([]any); ok {

@@ -263,3 +263,29 @@ func TestCleanSchemaMergeAllOfNonComparableRequired(t *testing.T) {
 		t.Fatalf("allOf should be merged away, got %v", schema["allOf"])
 	}
 }
+
+func TestCleanSchemaNestedEmptyObjectPlaceholder(t *testing.T) {
+	schema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"config": map[string]any{"type": "object", "properties": map[string]any{}},
+		},
+	}
+	cleanJSONSchemaForGemini(schema)
+	nested := schema["properties"].(map[string]any)["config"].(map[string]any)
+	props, ok := nested["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("nested properties missing: %v", nested)
+	}
+	reason, ok := props["reason"].(map[string]any)
+	if !ok {
+		t.Fatalf("nested reason placeholder missing: %v", props)
+	}
+	if reason["type"] != "string" {
+		t.Errorf("nested reason.type = %v", reason["type"])
+	}
+	req, ok := nested["required"].([]any)
+	if !ok || len(req) != 1 || req[0] != "reason" {
+		t.Errorf("nested required = %v, want [reason]", nested["required"])
+	}
+}

@@ -175,3 +175,40 @@ func TestFilterToolChoiceNormalization(t *testing.T) {
 		})
 	}
 }
+
+func TestFilterKeepsAssistantWithEmptyToolCalls(t *testing.T) {
+	// 9router checks truthiness of msg.tool_calls — an empty array is truthy
+	// in JS, so the assistant message is kept untouched (openaiHelper.js:20,64).
+	body := map[string]any{
+		"messages": []any{
+			map[string]any{"role": "assistant", "content": "", "tool_calls": []any{}},
+		},
+	}
+	out := FilterToOpenAIFormat(body)
+	msgs, ok := out["messages"].([]any)
+	if !ok || len(msgs) != 1 {
+		t.Fatalf("expected assistant message with empty tool_calls kept, got %v", out["messages"])
+	}
+}
+
+func TestFilterClaudeToolWithOnlyNamePassesThrough(t *testing.T) {
+	// 9router converts Claude-shaped tools only when name AND
+	// (input_schema OR description) are present (openaiHelper.js:88);
+	// a bare {name} tool falls through unchanged.
+	body := map[string]any{
+		"messages": []any{map[string]any{"role": "user", "content": "hi"}},
+		"tools":    []any{map[string]any{"name": "bare"}},
+	}
+	out := FilterToOpenAIFormat(body)
+	tools := out["tools"].([]any)
+	tool0, ok := tools[0].(map[string]any)
+	if !ok {
+		t.Fatalf("tool shape: %v", tools[0])
+	}
+	if _, converted := tool0["function"]; converted {
+		t.Errorf("bare-name tool must pass through unconverted, got %v", tool0)
+	}
+	if tool0["name"] != "bare" {
+		t.Errorf("tool = %v, want original {name:bare}", tool0)
+	}
+}
