@@ -49,6 +49,7 @@ func NewRegistry() *Registry {
 		response: make(map[string]ResponseTranslator),
 	}
 	r.Register(FormatClaude, FormatOpenAI, claudeToOpenAIRequest, nil)
+	r.Register(FormatOpenAI, FormatClaude, nil, openaiToClaudeResponse)
 	return r
 }
 
