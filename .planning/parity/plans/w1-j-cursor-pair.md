@@ -1,18 +1,19 @@
 # w1-j — cursor translator pair
 
-Rows: **PAR-TRANS-064 (request), PAR-TRANS-065 (response passthrough)** (added 2026-06-10; cross-ref PAR-PROV-023). Registration parity basis: PAR-TRANS-001. Protobuf/checksum utils are EXCLUDED: `cursorProtobuf.js` and `cursorChecksum.js` are consumed only by `executors/cursor.js` (Wave-2 executor scope) — see WAVE-MAP correction 2026-06-10.
+Rows: **PAR-TRANS-064 (request), PAR-TRANS-065 (response passthrough)** (added 2026-06-10; cross-ref PAR-PROV-023). Registration parity basis: PAR-TRANS-001. Protobuf/checksum utils are EXCLUDED with import-site evidence: `cursorProtobuf.js` is imported only by `executors/cursor.js` (import block ending `executors/cursor.js:8`) plus its own unit test; `cursorChecksum.js` only by `executors/cursor.js:9` (`import { buildCursorHeaders } ...`). Executors are Wave-2 scope per WAVE-MAP row "| 2 | Providers: all 43+ adapters, executors, ..." (WAVE-MAP.md:14), tracked by PAR-PROV-023.
 
 Frozen ref (@ 827e5c3), read whole: `open-sse/translator/request/openai-to-cursor.js` (1-184), `open-sse/translator/response/cursor-to-openai.js` (1-31).
 
 ## Preconditions (a "0 hits" grep exits 1 — that IS the pass)
 
-- `grep -n 'FormatCursor' internal/translation/formats.go` → present
-- `grep -rn 'buildCursorRequest\|cursorToOpenAIResponse' internal/translation/` → 0 hits
+- `grep -n 'FormatCursor' internal/translation/formats.go` → present (verified 2026-06-10: `formats.go:20` `FormatCursor Format = "cursor"`)
+- `grep -rn 'buildCursorRequest\|cursorToOpenAIResponse' internal/translation/` → 0 hits (verified 2026-06-10 at planning time; re-run before implementing — a hit means IMPL-BLOCKED)
 
 ## Exclusive file ownership
 
 NEW: `internal/translation/openai_cursor_request.go` + `_test.go`, `cursor_openai_response.go` + `_test.go`.
 TOUCH-ONLY: `registry.go` (2 Register calls), `registry_test.go` (wiring test).
+Ownership coordination: no other approved/in-flight Wave-1 plan claims these NEW files — w1-g owns `responses_*`/`openai_responses_*` (w1-g-responses-api.md §Exclusive file ownership), w1-h owns `*ollama*`/`*commandcode*` (w1-h-ollama-commandcode.md §Exclusive file ownership), w1-i owns `kiro_*`/`openai_kiro_*` (w1-i-kiro-pair.md §Exclusive file ownership). `registry.go`/`registry_test.go` are shared TOUCH-ONLY across all four; the harness serializes worker jobs (one kimi job at a time), so concurrent edits cannot occur.
 
 ## Tasks
 
