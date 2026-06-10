@@ -97,8 +97,9 @@ type UsageMetadata struct {
 
 // EmbedContentRequest is the Gemini embedding request.
 type EmbedContentRequest struct {
-	Model   string  `json:"-"`
-	Content Content `json:"content"`
+	Model                string  `json:"-"`
+	Content              Content `json:"content"`
+	OutputDimensionality *int    `json:"outputDimensionality,omitempty"`
 }
 
 // EmbedContentResponse is the Gemini embedding response.
@@ -350,12 +351,16 @@ func ConvertEmbeddingRequest(req *schemas.EmbeddingRequest) *EmbedContentRequest
 			text = s
 		}
 	}
-	return &EmbedContentRequest{
+	gemReq := &EmbedContentRequest{
 		Model: req.Model,
 		Content: Content{
 			Parts: []Part{{Text: text}},
 		},
 	}
+	if req.Dimensions != nil {
+		gemReq.OutputDimensionality = req.Dimensions
+	}
+	return gemReq
 }
 
 // ConvertEmbeddingResponse transforms a Gemini EmbedContentResponse into an OpenAI EmbeddingResponse.

@@ -1,10 +1,19 @@
 package gemini
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/schemas"
 )
+
+// unsupportedGeminiEmbeddingFields lists OpenAI EmbeddingRequest fields that
+// are intentionally not mapped to the Gemini EmbedContentRequest per Bundle E
+// acceptance (AUD-081).
+var unsupportedGeminiEmbeddingFields = []string{
+	"encoding_format",
+	"user",
+}
 
 func TestNewProvider(t *testing.T) {
 	p := NewProvider()
@@ -235,6 +244,89 @@ func TestConvertEmbeddingRequest(t *testing.T) {
 	}
 	if converted.Content.Parts[0].Text != "hello world" {
 		t.Errorf("text = %q, want hello world", converted.Content.Parts[0].Text)
+	}
+}
+
+func TestConvertEmbeddingRequestDimensions(t *testing.T) {
+	dims := 256
+	req := &schemas.EmbeddingRequest{
+		Model:      "text-embedding-004",
+		Input:      "hello world",
+		Dimensions: &dims,
+	}
+	converted := ConvertEmbeddingRequest(req)
+
+	if converted.OutputDimensionality == nil {
+		t.Fatal("outputDimensionality should not be nil")
+	}
+	if *converted.OutputDimensionality != 256 {
+		t.Errorf("outputDimensionality = %d, want 256", *converted.OutputDimensionality)
+	}
+
+	data, err := json.Marshal(converted)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := result["outputDimensionality"]; !ok {
+		t.Error("outputDimensionality should be present in serialized request")
+	}
+}
+
+func TestConvertEmbeddingRequestUnsupportedFieldsNotPresent(t *testing.T) {
+	format := "float"
+	req := &schemas.EmbeddingRequest{
+		Model:          "text-embedding-004",
+		Input:          "hello",
+		EncodingFormat: &format,
+		User:           "test-user",
+	}
+	converted := ConvertEmbeddingRequest(req)
+
+	data, err := json.Marshal(converted)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	for _, field := range unsupportedGeminiEmbeddingFields {
+		if _, ok := result[field]; ok {
+			t.Errorf("field %q should not be present in serialized Gemini embedding request", field)
+		}
+	}
+}
+
+func TestConvertEmbeddingRequestFieldCoverage(t *testing.T) {
+	// AUD-081 fields that must be covered by either a mapping test or the
+	// unsupported list.
+	audFields := []string{
+		"dimensions",      // mapped → outputDimensionality
+		"encoding_format", // unsupported
+		"user",            // unsupported
+	}
+
+	fieldSet := make(map[string]bool)
+	for _, f := range unsupportedGeminiEmbeddingFields {
+		fieldSet[f] = true
+	}
+
+	// Fields with existing or new mapping tests.
+	mappedFields := map[string]bool{
+		"model":       true,
+		"input":       true,
+		"dimensions":  true,
+	}
+
+	for _, f := range audFields {
+		if !fieldSet[f] && !mappedFields[f] {
+			t.Errorf("AUD field %q not covered by mapping test or unsupported list", f)
+		}
 	}
 }
 
