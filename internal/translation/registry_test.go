@@ -41,8 +41,22 @@ func TestNeedsTranslation(t *testing.T) {
 	}
 }
 
-func TestRegistryRequestTranslatorForMissing(t *testing.T) {
+func TestNewRegistryWiresClaudeRequest(t *testing.T) {
 	reg := NewRegistry()
+	if reg.RequestTranslatorFor(FormatClaude, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire claude->openai request translator")
+	}
+}
+
+func TestNewRegistryWiresClaudeResponse(t *testing.T) {
+	reg := NewRegistry()
+	if reg.ResponseTranslatorFor(FormatOpenAI, FormatClaude) == nil {
+		t.Error("NewRegistry must wire openai->claude response translator")
+	}
+}
+
+func TestRegistryRequestTranslatorForMissing(t *testing.T) {
+	reg := &Registry{request: make(map[string]RequestTranslator), response: make(map[string]ResponseTranslator)}
 	if fn := reg.RequestTranslatorFor(FormatClaude, FormatOpenAI); fn != nil {
 		t.Error("expected nil for unregistered translator")
 	}
