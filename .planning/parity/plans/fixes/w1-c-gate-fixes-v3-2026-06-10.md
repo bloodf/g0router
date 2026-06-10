@@ -76,3 +76,14 @@ unreachable and untestable. The implementer added two optional tagged fields
 `internal/schemas/chat.go` — a w1-a-owned file. RATIFIED: this is the minimal
 change that makes the row's strip semantics real instead of
 accidental-by-omission; documented in the impl report's Deviations section.
+
+## Round-3 rebuttal (Fable 5, 2026-06-10)
+
+The round-3 BLOCKER ("HasValuableContent returns true for missing choices/delta")
+is a false positive vs the frozen ref: `streamHelpers.js:39` enters the OpenAI
+branch ONLY when `chunk.choices?.[0]?.delta` exists; otherwise control falls
+through to `:61` `return true; // Other formats: keep all chunks`. An OpenAI
+chunk without choices/delta therefore returns TRUE in the ref, exactly as the
+Go port does — and must, or usage-only terminal chunks would be dropped.
+Residual: two narrating comments in stream.go (round-3 MINOR), swept in the
+next worker batch.
