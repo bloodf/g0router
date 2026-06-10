@@ -328,6 +328,10 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 	return result, nil
 }
 
+// getContentBlocksFromMessage mirrors the frozen ref's signature
+// (openai-to-claude.js:210: `getContentBlocksFromMessage(msg, toolNameMap)`);
+// the ref also never reads the map here because CLAUDE_OAUTH_TOOL_PREFIX is
+// the empty string, so tool names pass through uncloaked.
 func getContentBlocksFromMessage(msg map[string]any, toolNameMap map[string]string) []any {
 	blocks := []any{}
 	role, _ := msg["role"].(string)

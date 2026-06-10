@@ -2,7 +2,6 @@ package translation
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 )
 
@@ -175,14 +174,15 @@ func TestOpenAIClaudeResponseFormatJSONSchema(t *testing.T) {
 	sys := out["system"].([]any)
 	last := sys[len(sys)-1].(map[string]any)
 	text := last["text"].(string)
-	if !strings.Contains(text, "You must respond with valid JSON that strictly follows this JSON schema:") {
-		t.Errorf("system text missing schema prompt: %q", text)
-	}
-	if !strings.Contains(text, "```json") {
-		t.Errorf("system text missing code block: %q", text)
-	}
-	if !strings.Contains(text, "Respond ONLY with the JSON object, no other text.") {
-		t.Errorf("system text missing ending: %q", text)
+	// Exact text per the ref (openai-to-claude.js:112-117): prompt header,
+	// fenced 2-space pretty-printed schema, verbatim closing instruction.
+	want := "You must respond with valid JSON that strictly follows this JSON schema:\n" +
+		"```json\n" +
+		"{\n  \"type\": \"object\"\n}\n" +
+		"```\n" +
+		"Respond ONLY with the JSON object, no other text."
+	if text != want {
+		t.Errorf("system text = %q, want %q", text, want)
 	}
 }
 
