@@ -50,3 +50,94 @@ func TestChatRequestNewFieldsRoundTrip(t *testing.T) {
 		t.Errorf("thinking = %+v, want {Type:enabled BudgetTokens:8192}", got.Thinking)
 	}
 }
+
+// TestEnsureToolCallIDsSanitizesInvalid verifies that assistant tool_call IDs
+// containing invalid characters are sanitized to keep only [a-zA-Z0-9_-].
+func TestEnsureToolCallIDsSanitizesInvalid(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "assistant", ToolCalls: []schemas.ToolCall{
+				{ID: "abc!@#def", Type: "", Function: schemas.FunctionCall{Name: "foo", Arguments: "{}"}},
+			}},
+		},
+	}
+
+	EnsureToolCallIDs(req)
+
+	if got := req.Messages[0].ToolCalls[0].ID; got != "abcdef" {
+		t.Errorf("sanitized ID = %q, want %q", got, "abcdef")
+	}
+}
+
+// TestEnsureToolCallIDsRegeneratesEmpty verifies that when an invalid ID
+// becomes empty after sanitization, a deterministic ID is regenerated.
+func TestEnsureToolCallIDsRegeneratesEmpty(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "assistant", ToolCalls: []schemas.ToolCall{
+				{ID: "!!!", Type: "", Function: schemas.FunctionCall{Name: "my-tool", Arguments: "{}"}},
+			}},
+		},
+	}
+
+	EnsureToolCallIDs(req)
+
+	want := "call_msg0_tc0_my-tool"
+	if got := req.Messages[0].ToolCalls[0].ID; got != want {
+		t.Errorf("regenerated ID = %q, want %q", got, want)
+	}
+}
+
+// TestEnsureToolCallIDsKeepsValid verifies that IDs already matching the
+// allowed pattern are left untouched.
+func TestEnsureToolCallIDsKeepsValid(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "assistant", ToolCalls: []schemas.ToolCall{
+				{ID: "valid_ID-123", Type: "", Function: schemas.FunctionCall{Name: "foo", Arguments: "{}"}},
+			}},
+		},
+	}
+
+	EnsureToolCallIDs(req)
+
+	if got := req.Messages[0].ToolCalls[0].ID; got != "valid_ID-123" {
+		t.Errorf("valid ID modified = %q, want %q", got, "valid_ID-123")
+	}
+}
+
+// TestEnsureToolCallIDsFixesToolMessages verifies that role:tool messages
+// with an invalid tool_call_id are sanitized/regenerated the same way.
+func TestEnsureToolCallIDsFixesToolMessages(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "tool", ToolCallID: strPtr("bad!id"), Content: "result"},
+		},
+	}
+
+	EnsureToolCallIDs(req)
+
+	if got := *req.Messages[0].ToolCallID; got != "badid" {
+		t.Errorf("tool_call_id = %q, want %q", got, "badid")
+	}
+}
+
+// TestEnsureToolCallIDsSetsType verifies that a missing Type field on
+// assistant tool_calls is set to "function".
+func TestEnsureToolCallIDsSetsType(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "assistant", ToolCalls: []schemas.ToolCall{
+				{ID: "x", Type: "", Function: schemas.FunctionCall{Name: "foo", Arguments: "{}"}},
+			}},
+		},
+	}
+
+	EnsureToolCallIDs(req)
+
+	if got := req.Messages[0].ToolCalls[0].Type; got != "function" {
+		t.Errorf("type = %q, want %q", got, "function")
+	}
+}
+
+func strPtr(s string) *string { return &s }
