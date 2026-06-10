@@ -33,3 +33,18 @@ Excluded (user-approved, decision 4): 9router Cowork/MCP-bridge rows serving the
 ## Sizing
 
 Total Stage 1: 589 implementable rows, ~60-75 micro-plans, 9 waves. Plans are written wave-by-wave (not all upfront) so later plans absorb learnings; the critic gate applies to every plan regardless.
+
+## Wave 1 remainder slicing (Fable 5, 2026-06-10)
+
+After w1-a..f gate closure and w1-g (Responses API translators, in flight):
+
+| Plan | Scope | Ref surface | Rows |
+|------|-------|-------------|------|
+| w1-g2 | `/v1/responses` route + handler over registry pipeline; `response.failed` flush synthesis | `formats.js:23-24`, index.js route flow, `stream.js` failed-flush | PAR-TRANS-050, 002 (openai-responses clause), 031 route note |
+| w1-h | ollama + commandcode translator pairs (+ ollamaTransform util) | `openai-to-ollama.js` (192), `ollama-to-openai.js` (152), `ollamaTransform.js` (85), `openai-to-commandcode.js` (170), `commandcode-to-openai.js` (197) | 002 clauses, 047 NDJSON closure |
+| w1-i | kiro translator pair (+ kiroConstants) | `openai-to-kiro.js` (583; `.old.js` is dead — NOT ported), `kiro-to-openai.js` (195), `config/kiroConstants.js` | 002 clause |
+| w1-j | cursor translator pair + protobuf/checksum utils | `openai-to-cursor.js` (183), `cursor-to-openai.js` (30), `cursorProtobuf.js` (904), `cursorChecksum.js` (149) | 002 clause |
+| w1-k | gemini-format client requests + claude pipeline helpers | `gemini-to-openai.js` request (147), `claudeCloaking.js` (155), `bypassHandler.js` (298), `toolDeduper.js` (49), `reasoningContentInjector.js` (79), deepseek alias | PAR-TRANS-006, 022, 051, 052, 053, 054, 055; 057 verification vs w1-b |
+
+Order: g2 after w1-g lands; h → i → j → k by ascending integration risk; plans
+written one at a time so each absorbs prior gate learnings.
