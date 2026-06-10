@@ -80,6 +80,13 @@ func NewRegistry() *Registry {
 	r.Register(FormatOpenAI, FormatClaude, openaiToClaudeRequest, openaiToClaudeResponse)
 	r.Register(FormatOpenAI, FormatGemini, openaiToGeminiRequest, nil)
 	r.Register(FormatGemini, FormatOpenAI, nil, geminiToOpenAIResponse)
+	r.Register(FormatOpenAI, FormatGeminiCLI, func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
+		gemini, err := openaiToGeminiCLIRequest(model, body, stream, credentials)
+		if err != nil {
+			return nil, err
+		}
+		return wrapInCloudCodeEnvelope(model, gemini, credentials, false), nil
+	}, nil)
 	return r
 }
 
