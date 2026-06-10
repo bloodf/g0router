@@ -19,12 +19,10 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		"stream":     stream,
 	}
 
-	// Temperature passthrough.
 	if temp, ok := body["temperature"]; ok && temp != nil {
 		result["temperature"] = temp
 	}
 
-	// Messages and system extraction.
 	result["messages"] = []any{}
 	systemParts := []string{}
 
@@ -177,7 +175,6 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		}
 	}
 
-	// Handle response_format for JSON mode.
 	if rf, ok := body["response_format"]; ok && rf != nil {
 		responseFormat, ok := rf.(map[string]any)
 		if ok {
@@ -198,7 +195,6 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		}
 	}
 
-	// System with Claude Code prompt and cache_control.
 	claudeCodePrompt := map[string]any{"type": "text", "text": claudeSystemPrompt}
 	if len(systemParts) > 0 {
 		systemText := strings.Join(systemParts, "\n")
@@ -210,7 +206,6 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		result["system"] = []any{claudeCodePrompt}
 	}
 
-	// Tools conversion.
 	if rawTools, ok := body["tools"].([]any); ok {
 		result["tools"] = []any{}
 		for _, tool := range rawTools {
@@ -267,12 +262,10 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		}
 	}
 
-	// Tool choice.
 	if tc, ok := body["tool_choice"]; ok && tc != nil {
 		result["tool_choice"] = convertOpenAIToolChoice(tc)
 	}
 
-	// Thinking configuration passthrough.
 	if rawThinking, ok := body["thinking"]; ok && rawThinking != nil {
 		if thinking, ok := rawThinking.(map[string]any); ok {
 			thinkingResult := map[string]any{
@@ -291,7 +284,6 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		}
 	}
 
-	// Map OpenAI reasoning_effort → Claude thinking.budget_tokens.
 	if rawEffort, ok := body["reasoning_effort"]; ok && rawEffort != nil {
 		if effort, ok := rawEffort.(string); ok && effort != "" {
 			if _, hasThinking := result["thinking"]; !hasThinking {

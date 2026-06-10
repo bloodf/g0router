@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestRegistryRegisterLookup(t *testing.T) {
+func TestRegistryRegisterLookupMechanics(t *testing.T) {
 	reg := &Registry{
 		request:  make(map[string]RequestTranslator),
 		response: make(map[string]ResponseTranslator),
@@ -33,6 +33,32 @@ func TestRegistryRegisterLookup(t *testing.T) {
 
 	if reg.ResponseTranslatorFor(FormatClaude, FormatOpenAI) != nil {
 		t.Error("expected no response translator")
+	}
+}
+
+func TestRegistryRegisterLookup(t *testing.T) {
+	reg := NewRegistry()
+
+	var called bool
+	override := func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
+		called = true
+		return body, nil
+	}
+	reg.Register(FormatClaude, FormatOpenAI, override, nil)
+
+	fn := reg.RequestTranslatorFor(FormatClaude, FormatOpenAI)
+	if fn == nil {
+		t.Fatal("expected registered request translator")
+	}
+	if _, err := fn("", nil, false, nil); err != nil {
+		t.Fatalf("translator error: %v", err)
+	}
+	if !called {
+		t.Error("override request translator was not called")
+	}
+
+	if reg.ResponseTranslatorFor(FormatKiro, FormatOpenAI) != nil {
+		t.Error("expected no response translator for unwired pair")
 	}
 }
 
