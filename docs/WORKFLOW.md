@@ -30,9 +30,9 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 21
-current_wave: "Parity Program — Stage 0: Deep Analysis"
-last_completed_wave: "Parity A0 — CLI harness + frozen reference sources"
-last_updated: "2026-06-09T21:25:00Z"
+current_wave: "Parity Program — Stage 1 Wave 0: audit remediation (w0-a..e)"
+last_completed_wave: "Parity Stage 0 — A1-A6: 12 domain matrices, PR triage (129 ACCEPT), strict audit, PARITY.md approved (5 critic cycles), 10 checkpoint decisions, wave map + 5 Wave 0 plans gated"
+last_updated: "2026-06-10T00:10:00Z"
 last_agent: "Fable"
 notes: |
   Direction change: the 19-phase roadmap is superseded by the three-stage

@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bloodf/g0router"
@@ -26,6 +27,21 @@ const (
 	defaultAdminUser     = "admin"
 	defaultAdminPassword = "123456"
 )
+
+func parseAllowedOrigins() []string {
+	raw := os.Getenv("G0ROUTER_ALLOWED_ORIGINS")
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o != "" {
+			out = append(out, o)
+		}
+	}
+	return out
+}
 
 func main() {
 	listenAddr := os.Getenv("G0ROUTER_LISTEN")
@@ -66,7 +82,8 @@ func main() {
 		log.Fatalf("open embedded ui: %v", err)
 	}
 
-	srv := server.New(uiFS, st)
+	allowedOrigins := parseAllowedOrigins()
+	srv := server.New(uiFS, st, allowedOrigins)
 
 	versionLine := version
 	if buildDate != "" {

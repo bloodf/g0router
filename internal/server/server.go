@@ -12,7 +12,7 @@ import (
 // New creates a fasthttp server with API routes and UI fallback.
 // st backs the management API; pass nil to serve only the OpenAI-compatible
 // surface (no admin routes).
-func New(uiFS fs.FS, st *store.Store) *fasthttp.Server {
+func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server {
 	infRouter := inference.NewRouter()
 
 	r := httprouter.New()
@@ -31,7 +31,7 @@ func New(uiFS fs.FS, st *store.Store) *fasthttp.Server {
 
 	handler := Chain(r.Handler,
 		RequestIDMiddleware,
-		CORSMiddleware,
+		CORSMiddleware(allowedOrigins),
 	)
 
 	return &fasthttp.Server{

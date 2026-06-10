@@ -27,22 +27,29 @@ func RequestIDMiddleware(next fasthttp.RequestHandler) fasthttp.RequestHandler {
 	}
 }
 
-// CORSMiddleware adds CORS headers for browser clients.
-func CORSMiddleware(next fasthttp.RequestHandler) fasthttp.RequestHandler {
-	return func(ctx *fasthttp.RequestCtx) {
-		origin := string(ctx.Request.Header.Peek("Origin"))
-		if origin == "" {
-			origin = "*"
-		}
-		ctx.Response.Header.Set("Access-Control-Allow-Origin", origin)
-		ctx.Response.Header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		ctx.Response.Header.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
-		ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
+// CORSMiddleware returns a middleware that adds CORS headers only for
+// allowlisted origins.
+func CORSMiddleware(allowedOrigins []string) Middleware {
+	return func(next fasthttp.RequestHandler) fasthttp.RequestHandler {
+		return func(ctx *fasthttp.RequestCtx) {
+			origin := string(ctx.Request.Header.Peek("Origin"))
+			if origin != "" {
+				for _, allowed := range allowedOrigins {
+					if origin == allowed {
+						ctx.Response.Header.Set("Access-Control-Allow-Origin", origin)
+						ctx.Response.Header.Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+						ctx.Response.Header.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
+						ctx.Response.Header.Set("Access-Control-Allow-Credentials", "true")
+						break
+					}
+				}
+			}
 
-		if string(ctx.Method()) == "OPTIONS" {
-			ctx.SetStatusCode(fasthttp.StatusNoContent)
-			return
+			if string(ctx.Method()) == "OPTIONS" {
+				ctx.SetStatusCode(fasthttp.StatusNoContent)
+				return
+			}
+			next(ctx)
 		}
-		next(ctx)
 	}
 }

@@ -63,7 +63,7 @@ func TestAdminRoutesRegistered(t *testing.T) {
 		t.Fatalf("SeedAdmin: %v", err)
 	}
 
-	client := startServer(t, New(testUIFS(), st))
+	client := startServer(t, New(testUIFS(), st, nil))
 
 	// Protected routes reject unauthenticated requests with the envelope, not the UI fallback.
 	for _, route := range []struct{ method, path string }{
@@ -146,8 +146,65 @@ func TestAdminRoutesRegistered(t *testing.T) {
 	}
 }
 
+func TestCORSMiddleware(t *testing.T) {
+	st := newTestStore(t)
+	sessions := auth.NewSessions(st, time.Hour)
+	if _, err := sessions.SeedAdmin("admin", "123456"); err != nil {
+		t.Fatalf("SeedAdmin: %v", err)
+	}
+
+	client := startServer(t, New(testUIFS(), st, []string{"http://localhost:5173"}))
+
+	// (a) Evil origin receives no CORS headers.
+	req, err := http.NewRequest("GET", "http://server/api/health", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Origin", "https://evil.example")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("evil origin: %v", err)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("evil origin got ACAO = %q", got)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Credentials"); got != "" {
+		t.Fatalf("evil origin got ACAC = %q", got)
+	}
+
+	// (b) Allowlisted origin receives both.
+	req2, err := http.NewRequest("GET", "http://server/api/health", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req2.Header.Set("Origin", "http://localhost:5173")
+	resp2, err := client.Do(req2)
+	if err != nil {
+		t.Fatalf("allowlisted origin: %v", err)
+	}
+	if got := resp2.Header.Get("Access-Control-Allow-Origin"); got != "http://localhost:5173" {
+		t.Fatalf("allowlisted origin got ACAO = %q", got)
+	}
+	if got := resp2.Header.Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Fatalf("allowlisted origin got ACAC = %q", got)
+	}
+
+	// Same-origin (no Origin header) still works without CORS headers.
+	req3, err := http.NewRequest("GET", "http://server/api/health", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp3, err := client.Do(req3)
+	if err != nil {
+		t.Fatalf("no origin: %v", err)
+	}
+	if resp3.StatusCode != http.StatusOK {
+		t.Fatalf("no origin status = %d", resp3.StatusCode)
+	}
+}
+
 func TestNewWithoutStoreSkipsAdminRoutes(t *testing.T) {
-	client := startServer(t, New(testUIFS(), nil))
+	client := startServer(t, New(testUIFS(), nil, nil))
 
 	resp, err := client.Post("http://server/api/auth/login", "application/json",
 		strings.NewReader(`{"username":"admin","password":"123456"}`))

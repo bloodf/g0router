@@ -29,12 +29,18 @@ $(cat "$TARGET")$CTX"
   diff)
     TARGET="$(abspath "$1")"
     BASE="${2:-main}"
+    shift 2 || shift $#   # remaining args = optional path filters
     cd "$REPO_ROOT"
     [ -s "$TARGET" ] || { echo "FATAL: target empty/missing: $TARGET"; exit 2; }
     ID="$(basename "$TARGET" .md)-diff-review"
     ART="$HARNESS_DIR/artifacts/${ID}.txt"
     DIFF_FILE="$HARNESS_DIR/artifacts/${ID}.diff"
-    git diff "$BASE"...HEAD >"$DIFF_FILE"
+    if [ "$#" -gt 0 ]; then
+      git diff "$BASE"...HEAD -- "$@" >"$DIFF_FILE"
+    else
+      git diff "$BASE"...HEAD >"$DIFF_FILE"
+    fi
+    [ -s "$DIFF_FILE" ] || { echo "FATAL: empty diff"; exit 2; }
     PROMPT="$(cat "$HARNESS_DIR/prompts/critic-diff.md")
 --- MICRO-PLAN: $TARGET ---
 $(cat "$TARGET")

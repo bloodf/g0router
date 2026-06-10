@@ -3,7 +3,8 @@
 set -uo pipefail
 ART="$1"
 [ -f "$ART" ] || { echo "VERDICT: MISSING (no artifact)"; exit 2; }
-LINE="$(grep -E '^(VERDICT|GATES):' "$ART" | tail -1)"
+# Tolerate CLI bullet/indent prefixes (e.g. kimi prints "• VERDICT: PASS")
+LINE="$(grep -E '^[^A-Za-z]*(VERDICT|GATES):' "$ART" | sed -E 's/^[^A-Za-z]*//' | tail -1)"
 if [ -z "$LINE" ]; then
   echo "VERDICT: MISSING artifact:$ART"
   exit 2

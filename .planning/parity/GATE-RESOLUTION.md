@@ -24,5 +24,19 @@ w0-a/b/c PASSED the gpt-5.5 gate. w0-d/w0-e closed out after 4 cycles with fixes
 - OVERRULED (w0-d, recon step 3 DTO reading): reading JSON tags is reconnaissance for correct type shapes, not scope; no backend file is modified.
 Authorized by user decision ("Fable fixes findings directly, one final gate run") + escalation pattern from PARITY close-out.
 
+## Addendum — w0-a execution deviations (2026-06-09)
+- **Implementer switch**: M3 (pi/MiniMax) died silently 3× mid-plan (tasks 4-6, ~30-40 min sessions, exit 1, no log). Tasks 1-4 salvaged from M3 commits. Tasks 5-6 implemented by Fable (orchestrator) under the user's "continue, don't stop" directive. Kimi diff gate still applies (cross-family for both authors).
+- **Task 5 seam**: fasthttp's in-memory `RequestCtx` response buffer never returns write errors, so the plan's "fake fasthttp writer" is not constructible against `*fasthttp.RequestCtx` directly. The SSE loop was extracted verbatim into `writeSSEStream(w streamWriter, ch)` where `streamWriter` is the 2-method subset of `RequestCtx` the loop uses. No behavior change; enables AUD-008 write-failure injection.
+- **Task 6 mechanism**: provider stream loops run inside goroutines feeding `chan *schemas.StreamChunk`; a literal `return fmt.Errorf(...)` has no receiver. Implemented Bundle A's acceptance ("provider stream aborts on JSON unmarshal error") as goroutine return + channel close. Caller-visible error propagation is w0-e scope (AUD-046) and will ride the mechanism w0-e introduces.
+- **Acceptance grep 2 over-broad**: `grep -rn "rand.Read" internal/store internal/auth` still matches `secret.go:33`, `crypto.go:36`, `password.go:24`. All three already check and wrap the error (`if _, err := rand.Read(...)`) and two are outside w0-a file ownership. AUD-001/002/003 named only `newID`/`newToken`/`randomURLSafe` (unchecked sites). Refined check: same grep filtered to unchecked calls → empty. No code change needed.
+
+## Addendum — w0-a diff gate disposition (2026-06-09)
+Kimi verdict: PASS, 1 MAJOR + 4 MINOR.
+- MAJOR (bare `return` vs `return fmt.Errorf` in provider goroutines): OVERRULED — pre-logged deviation above; the chunk channel cannot carry an error; caller-visible propagation is w0-e/AUD-046 scope.
+- MINOR double-wrapped "generate token" context: FIXED (newToken now wraps as "read random bytes").
+- MINOR unchecked `[DONE]` write: FIXED.
+- MINOR separate test funcs vs table-driven: OVERRULED — style preference; tests are binary and per-handler failure isolation is clearer.
+- MINOR acceptance grep non-empty: pre-logged above (grep over-broad; remaining sites already check errors).
+
 ## Addendum — AUD-004 remediation deviation (2026-06-09)
 AUD-004 remediation text says "rotate exposed ID". The ID (`9d1c250a-e61b-44d9-88ed-5944d1962f5e`) is Anthropic's public Claude Code OAuth client identifier — not our credential, not rotatable by us, and not a secret (RFC 8252 §8.4: native-app client IDs are public). 9router hardcodes the same value (`_refs/9router/src/lib/oauth/constants/oauth.js:21`). Authorized remediation: make it configurable via `G0ROUTER_ANTHROPIC_CLIENT_ID` with the public ID as default (preserves out-of-box parity). Plan w0-b implements this. Decision: orchestrator, surfaced to user in the Wave 0 plan summary.

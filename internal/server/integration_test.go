@@ -64,7 +64,7 @@ func newIntegrationEnv(t *testing.T) (*integrationEnv, *store.Store) {
 	RegisterOpenAIRoutes(r, inference.NewRouter())
 	RegisterAdminRoutes(r, admin.New(st, sessions, flows))
 
-	srv := &fasthttp.Server{Handler: Chain(r.Handler, RequestIDMiddleware, CORSMiddleware)}
+	srv := &fasthttp.Server{Handler: Chain(r.Handler, RequestIDMiddleware, CORSMiddleware(nil))}
 	client := startServer(t, srv)
 	return &integrationEnv{client: client}, st
 }
