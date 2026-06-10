@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -79,7 +80,10 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 			return
 		}
 
-		writeClaudeSSEStream(ctx, ch, h.registry)
+		state := translation.NewStreamState()
+		if _, err := translation.ProcessTranslateStream(ctx, ch, h.registry, translation.FormatOpenAI, translation.FormatClaude, state); err != nil {
+			log.Printf("messages stream error: %v", err)
+		}
 		return
 	}
 
@@ -108,49 +112,4 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	ctx.SetBody(out)
 }
 
-// claudeStreamWriter implements streamWriter and emits Claude-format SSE frames.
-type claudeStreamWriter struct {
-	ctx      *fasthttp.RequestCtx
-	registry *translation.Registry
-	state    *translation.StreamState
-}
 
-func (w *claudeStreamWriter) Write(p []byte) (int, error) {
-	return w.ctx.Write(p)
-}
-
-func (w *claudeStreamWriter) WriteString(s string) (int, error) {
-	return w.ctx.WriteString(s)
-}
-
-// writeClaudeSSEStream drains ch, translating each OpenAI chunk to Claude
-// format and framing it with FormatSSE.
-func writeClaudeSSEStream(ctx *fasthttp.RequestCtx, ch chan *schemas.StreamChunk, registry *translation.Registry) {
-	state := translation.NewStreamState()
-	w := &claudeStreamWriter{ctx: ctx, registry: registry, state: state}
-	for chunk := range ch {
-		if chunk.Error != nil {
-			return
-		}
-		b, err := jsonMarshal(chunk)
-		if err != nil {
-			return
-		}
-		var openaiChunk map[string]any
-		if err := json.Unmarshal(b, &openaiChunk); err != nil {
-			return
-		}
-		events, err := registry.TranslateResponse(translation.FormatOpenAI, translation.FormatClaude, openaiChunk, state)
-		if err != nil {
-			return
-		}
-		for _, ev := range events {
-			if _, werr := w.Write(translation.FormatSSE(translation.FormatClaude, ev)); werr != nil {
-				return
-			}
-		}
-	}
-	if _, werr := w.WriteString("data: [DONE]\n\n"); werr != nil {
-		return
-	}
-}

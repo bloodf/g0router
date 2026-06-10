@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -24,33 +25,12 @@ type streamWriter interface {
 	WriteString(s string) (int, error)
 }
 
-// writeSSEStream drains ch onto w as SSE frames. It aborts on the first
-// marshal failure (AUD-007) or write failure (AUD-008) instead of emitting
-// corrupt frames or blocking the producing goroutine on a dead client.
-func writeSSEStream(w streamWriter, ch chan *schemas.StreamChunk) {
-	for chunk := range ch {
-		if chunk.Error != nil {
-			// AUD-046/047: in-band terminal error from the provider
-			// goroutine — abort instead of framing it as content.
-			return
-		}
-		b, err := jsonMarshal(chunk)
-		if err != nil {
-			return
-		}
-		if _, werr := w.WriteString("data: "); werr != nil {
-			return
-		}
-		if _, werr := w.Write(b); werr != nil {
-			return
-		}
-		if _, werr := w.WriteString("\n\n"); werr != nil {
-			return
-		}
-	}
-	if _, werr := w.WriteString("data: [DONE]\n\n"); werr != nil {
-		return
-	}
+// writeSSEStream drains ch onto w as framed SSE via the shared passthrough
+// processor (PAR-TRANS-049). It returns a non-nil error if the stream
+// aborted on an error chunk or write failure.
+func writeSSEStream(w streamWriter, ch chan *schemas.StreamChunk) error {
+	_, err := translation.ProcessPassthroughStream(w, ch)
+	return err
 }
 
 // ChatHandler handles POST /v1/chat/completions.
@@ -95,7 +75,9 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 			return
 		}
 
-		writeSSEStream(ctx, ch)
+		if err := writeSSEStream(ctx, ch); err != nil {
+			log.Printf("chat stream error: %v", err)
+		}
 		return
 	}
 

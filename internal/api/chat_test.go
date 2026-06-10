@@ -50,25 +50,21 @@ func TestWriteSSEStreamSuccess(t *testing.T) {
 	}
 }
 
-// TestWriteSSEStreamAbortsOnMarshalError verifies AUD-007: a chunk that
-// fails to marshal aborts the stream — no partial frame, no [DONE].
-func TestWriteSSEStreamAbortsOnMarshalError(t *testing.T) {
-	prev := jsonMarshal
-	t.Cleanup(func() { jsonMarshal = prev })
-	jsonMarshal = func(v any) ([]byte, error) {
-		return nil, errors.New("simulated marshal failure")
-	}
-
-	ch := make(chan *schemas.StreamChunk, 2)
+// TestWriteSSEStreamAbortsBeforeFirstFrame verifies a write failure before any
+// frame is emitted leaves empty output and returns an error. Chunk marshal
+// failures are covered in internal/translation/stream_test.go because
+// ProcessPassthroughStream marshals via encoding/json, not the api jsonMarshal seam.
+func TestWriteSSEStreamAbortsBeforeFirstFrame(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk, 1)
 	ch <- &schemas.StreamChunk{ID: "c1"}
-	ch <- &schemas.StreamChunk{ID: "c2"}
 	close(ch)
 
-	w := &failingWriter{writesLeft: 100}
-	writeSSEStream(w, ch)
-
+	w := &failingWriter{writesLeft: 0}
+	if err := writeSSEStream(w, ch); err == nil {
+		t.Fatal("writeSSEStream: want error when first write fails")
+	}
 	if out := w.sb.String(); out != "" {
-		t.Errorf("output = %q, want empty (stream must abort before writing)", out)
+		t.Errorf("output = %q, want empty when write fails before first frame", out)
 	}
 }
 
@@ -80,12 +76,15 @@ func TestWriteSSEStreamAbortsOnWriteError(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "c2"}
 	close(ch)
 
-	w := &failingWriter{writesLeft: 1} // "data: " succeeds, chunk body write fails
-	writeSSEStream(w, ch)
+	w := &failingWriter{writesLeft: 1} // first full SSE frame succeeds; [DONE] write fails
+	err := writeSSEStream(w, ch)
+	if err == nil {
+		t.Fatal("writeSSEStream: want error when write fails mid-stream")
+	}
 
 	out := w.sb.String()
-	if out != "data: " {
-		t.Errorf("output = %q, want %q (must stop at first write failure)", out, "data: ")
+	if got := strings.Count(out, "data: "); got != 1 {
+		t.Errorf("frame count = %d, want 1 (first chunk only before write failure)", got)
 	}
 	if strings.Contains(out, "[DONE]") {
 		t.Errorf("output contains [DONE] after write failure: %q", out)
@@ -102,7 +101,9 @@ func TestWriteSSEStreamAbortsOnErrorChunk(t *testing.T) {
 	close(ch)
 
 	w := &failingWriter{writesLeft: 100}
-	writeSSEStream(w, ch)
+	if err := writeSSEStream(w, ch); err == nil {
+		t.Fatal("writeSSEStream: want error on in-band error chunk")
+	}
 
 	out := w.sb.String()
 	if got := strings.Count(out, "data: "); got != 1 {
