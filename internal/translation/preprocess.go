@@ -7,7 +7,10 @@ import (
 	"github.com/bloodf/g0router/internal/schemas"
 )
 
-var toolIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+var (
+	toolIDPattern    = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	toolIDInvalidRun = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+)
 
 // sanitizeToolID keeps only alphanumeric characters, underscores, and hyphens.
 // If the result is empty it returns "" so the caller can regenerate.
@@ -15,8 +18,7 @@ func sanitizeToolID(id string) string {
 	if id == "" {
 		return ""
 	}
-	sanitized := regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(id, "")
-	return sanitized
+	return toolIDInvalidRun.ReplaceAllString(id, "")
 }
 
 // generateToolCallID creates a deterministic tool call ID from message index,
