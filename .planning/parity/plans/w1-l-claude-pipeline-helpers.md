@@ -2,7 +2,7 @@
 
 Split from w1-k 2026-06-10. These three share claude-cloaking / thinking-signature / appConstants dependencies, so they cohere as one plan.
 
-Rows: PAR-TRANS-022 (claude cloaking — billing header + fake user id + `_ide` tool suffix + decoy tools), PAR-TRANS-054 (handleBypassRequest), PAR-TRANS-055 (prepareClaudeRequest).
+Rows: PAR-TRANS-022 (claude cloaking — billing header + fake user id + `_ide` tool suffix + decoy tools; matrix row 022 corrected 2026-06-10 from `_cc` to `_ide` per ref `appConstants.js:75`), PAR-TRANS-054 (handleBypassRequest), PAR-TRANS-055 (prepareClaudeRequest).
 
 Frozen ref (@ 827e5c3), read whole:
 - `open-sse/utils/claudeCloaking.js:1-155` (row 022)
@@ -20,7 +20,8 @@ Frozen ref (@ 827e5c3), read whole:
 
 ## Exclusive file ownership
 
-NEW (filename-auditable non-overlap; none match `*claude_cloaking*`/`bypass_*`/`claude_prepare*`/`claude_appconstants*` in any other plan): `claude_appconstants.go`+`_test.go` (constants only), `claude_cloaking.go`+`_test.go`, `bypass_handler.go`+`_test.go`, `claude_prepare.go`+`_test.go`, `claude_thinking_signature.go` (constant).
+NEW: `claude_appconstants.go`+`_test.go`, `claude_cloaking.go`+`_test.go`, `bypass_handler.go`+`_test.go`, `claude_prepare.go`+`_test.go`, `claude_thinking_signature.go`.
+Non-overlap is filename-auditable against every other plan's "## Exclusive file ownership": w1-g `responses_*`; w1-h `*ollama*`/`*commandcode*`; w1-i `kiro_*`; w1-j `*cursor*`; w1-k `gemini_openai_request`/`strip_content_types`/`tool_deduper`/`reasoning_injector`. None matches `claude_*`/`bypass_*`.
 TOUCH-ONLY: none (no registry change — these are pipeline helpers, not registered translators; the Wave-2/4 routing layer consumes them).
 
 ## Tasks (each: STEP (a) write named failing tests; STEP (b) port)
@@ -48,6 +49,10 @@ TOUCH-ONLY: none (no registry change — these are pipeline helpers, not registe
 - `grep -c '"_ide"' internal/translation/claude_appconstants.go` ≥ 1.
 - `grep -c 'sk-ant-oat' internal/translation/claude_cloaking.go` ≥ 1.
 - `TestCCDefaultToolsCount` (==26), `TestCCDecoyToolsShape` (==20), `TestClaudeThinkingSignaturePinned` all pass.
+
+## Parity-observability note (addresses "dead helper" gate concern)
+
+These three are exported, directly-unit-tested functions — the SAME shape 9router ships them in: `handleBypassRequest` is a util called from the request handler (`bypassHandler.js` is imported by the chat handler), `prepareClaudeRequest` is a `claudeHelper.js` export called by the Claude-endpoint path, `applyCloaking`/`cloakClaudeTools` are called from `prepareClaudeRequest` and the executor. Wave 1's parity unit is "the function exists and behaves per ref, proven by unit tests"; wiring them into g0router's request handler is Wave-2/4 routing scope (the handlers that consume them do not exist until then). This mirrors the accepted w1-h decision for `OllamaBodyToOpenAI` (exported converter, consumer arrives with its handler wave).
 
 ## Out of scope
 
