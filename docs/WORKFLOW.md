@@ -30,10 +30,10 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: 21
-current_wave: "Parity Program — Stage 1 Wave 1: translation engine core (planning)"
-last_completed_wave: "Parity Stage 1 Wave 0 COMPLETE: w0-a..e merged (crypto rand/marshal errors, CORS/secrets/DDL, converter data loss, UI scaffolding, converter fields + stream error propagation). Implementers: M3 (retired after 3 silent deaths) → Kimi + Fable. All diff gates closed; dispositions in .planning/parity/GATE-RESOLUTION.md"
-last_updated: "2026-06-10T03:05:00Z"
-last_agent: "Fable"
+current_wave: "Parity Program — Stage 1 Wave 1: translation engine core (w1-b implemented, awaiting diff gate)"
+last_completed_wave: "Parity Stage 1 Wave 1 plan w1-b COMPLETE: format registry + /v1/messages endpoint (Claude format end-to-end). Rows PAR-TRANS-001/002/003/004/005/044/048-partial/056/057. Files: internal/translation/* (formats, registry, claude_request, claude_response, sse), internal/api/messages.go, internal/server/routes_openai.go + tests. go test ./... and go vet ./... green. Report at .planning/harness/artifacts/w1-b-impl-report.md. Implementer: Kimi. Diff gate: gpt-5.5."
+last_updated: "2026-06-10T03:27:00Z"
+last_agent: "Kimi"
 notes: |
   Direction change: the 19-phase roadmap is superseded by the three-stage
   parity program (master plan in Cursor). Stage 1 targets 1-1 behavioral +
