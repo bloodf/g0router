@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 
 	"github.com/bloodf/g0router/internal/schemas"
 )
@@ -284,14 +285,17 @@ func ConvertChatResponse(gemResp *GenerateContentResponse, model string) *schema
 			FinishReason: mapFinishReason(cand.FinishReason),
 		}
 
+		toolCallCounts := make(map[string]int)
 		for _, part := range cand.Content.Parts {
 			if part.Text != "" {
 				choice.Message.Content += part.Text
 			}
 			if part.FunctionCall != nil {
+				toolCallCounts[part.FunctionCall.Name]++
+				count := toolCallCounts[part.FunctionCall.Name]
 				argsJSON, _ := json.Marshal(part.FunctionCall.Args)
 				choice.Message.ToolCalls = append(choice.Message.ToolCalls, schemas.ToolCall{
-					ID:   "call_" + part.FunctionCall.Name,
+					ID:   fmt.Sprintf("call_%s_%d", part.FunctionCall.Name, count),
 					Type: "function",
 					Function: schemas.FunctionCall{
 						Name:      part.FunctionCall.Name,

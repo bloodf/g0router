@@ -95,6 +95,46 @@ func TestConvertStreamChunkGeneratesID(t *testing.T) {
 	}
 }
 
+func TestConvertChatResponseDistinctToolCallIDs(t *testing.T) {
+	geminiResp := &GenerateContentResponse{
+		Candidates: []Candidate{
+			{
+				Content: Content{
+					Role: "model",
+					Parts: []Part{
+						{
+							FunctionCall: &FunctionCall{
+								Name: "get_weather",
+								Args: map[string]any{"city": "Paris"},
+							},
+						},
+						{
+							FunctionCall: &FunctionCall{
+								Name: "get_weather",
+								Args: map[string]any{"city": "London"},
+							},
+						},
+					},
+				},
+				FinishReason: "STOP",
+			},
+		},
+	}
+
+	converted := ConvertChatResponse(geminiResp, "gemini-1.5-pro")
+
+	if len(converted.Choices) != 1 {
+		t.Fatalf("choices len = %d, want 1", len(converted.Choices))
+	}
+	msg := converted.Choices[0].Message
+	if len(msg.ToolCalls) != 2 {
+		t.Fatalf("tool_calls len = %d, want 2", len(msg.ToolCalls))
+	}
+	if msg.ToolCalls[0].ID == msg.ToolCalls[1].ID {
+		t.Errorf("tool call IDs are equal (%q), expected distinct values", msg.ToolCalls[0].ID)
+	}
+}
+
 func TestConvertChatRequestMultipleSystemMessages(t *testing.T) {
 	req := &schemas.ChatRequest{
 		Model: "gemini-1.5-pro",
