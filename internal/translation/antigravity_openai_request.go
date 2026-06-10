@@ -59,7 +59,6 @@ func antigravityToOpenAIRequest(model string, body map[string]any, stream bool, 
 		}
 	}
 
-	// System instruction
 	if sysInstr, ok := req["systemInstruction"]; ok && sysInstr != nil {
 		systemText := extractTextAntigravity(sysInstr)
 		if systemText != "" {
@@ -70,7 +69,6 @@ func antigravityToOpenAIRequest(model string, body map[string]any, stream bool, 
 		}
 	}
 
-	// Convert contents to messages
 	if contents, ok := req["contents"].([]any); ok {
 		for _, content := range contents {
 			converted, err := convertAntigravityContent(content)
@@ -88,7 +86,6 @@ func antigravityToOpenAIRequest(model string, body map[string]any, stream bool, 
 		}
 	}
 
-	// Tools
 	if tools, ok := req["tools"].([]any); ok && len(tools) > 0 {
 		result["tools"] = []any{}
 		for _, tool := range tools {
