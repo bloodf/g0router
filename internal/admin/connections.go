@@ -126,6 +126,13 @@ func (h *Handlers) UpdateConnection(ctx *fasthttp.RequestCtx) {
 	}
 
 	if req.ProviderID != "" {
+		if _, err := h.store.GetProvider(req.ProviderID); errors.Is(err, store.ErrNotFound) {
+			writeError(ctx, fasthttp.StatusBadRequest, "unknown provider_id")
+			return
+		} else if err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, "load provider")
+			return
+		}
 		existing.ProviderID = req.ProviderID
 	}
 	if req.Name != "" {

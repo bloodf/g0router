@@ -523,6 +523,36 @@ func TestPathIDRejectsNonString(t *testing.T) {
 	}
 }
 
+func TestUpdateConnectionRejectsUnknownProviderID(t *testing.T) {
+	env := newTestEnv(t)
+	token := loginToken(t, env)
+	authHeader := map[string]string{"Authorization": "Bearer " + token}
+
+	status, envl := call(t, env.handlers.CreateProvider, "POST", "/api/providers",
+		`{"name":"Anthropic","type":"anthropic","enabled":true}`, nil, nil)
+	if status != fasthttp.StatusCreated {
+		t.Fatalf("create provider status = %d", status)
+	}
+	providerID := dataField[map[string]any](t, envl)["id"].(string)
+
+	body := fmt.Sprintf(`{"provider_id":%q,"name":"main","kind":"api_key"}`, providerID)
+	status, envl = call(t, env.handlers.CreateConnection, "POST", "/api/connections", body, nil, nil)
+	if status != fasthttp.StatusCreated {
+		t.Fatalf("create connection status = %d", status)
+	}
+	connID := dataField[map[string]any](t, envl)["id"].(string)
+
+	// Update with unknown provider_id → 400 same shape as CreateConnection.
+	status, envl = call(t, env.handlers.UpdateConnection, "PUT", "/api/connections/"+connID,
+		`{"provider_id":"nope","name":"renamed","kind":"api_key"}`, map[string]any{"id": connID}, authHeader)
+	if status != fasthttp.StatusBadRequest {
+		t.Fatalf("unknown provider_id status = %d, want 400", status)
+	}
+	if msg := errMessage(t, envl); msg != "unknown provider_id" {
+		t.Fatalf("error message = %q, want %q", msg, "unknown provider_id")
+	}
+}
+
 func TestRefreshConnectionRequiresRefreshToken(t *testing.T) {
 	env := newTestEnv(t)
 	env.withOAuth(t)
