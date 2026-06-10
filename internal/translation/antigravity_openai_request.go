@@ -74,7 +74,10 @@ func antigravityToOpenAIRequest(model string, body map[string]any, stream bool, 
 	// Convert contents to messages
 	if contents, ok := req["contents"].([]any); ok {
 		for _, content := range contents {
-			converted := convertAntigravityContent(content)
+			converted, err := convertAntigravityContent(content)
+			if err != nil {
+				return nil, fmt.Errorf("antigravityToOpenAIRequest: %w", err)
+			}
 			if converted == nil {
 				continue
 			}
@@ -182,10 +185,10 @@ func normalizeSchemaTypes(schema map[string]any) map[string]any {
 	return result
 }
 
-func convertAntigravityContent(content any) any {
+func convertAntigravityContent(content any) (any, error) {
 	m, ok := content.(map[string]any)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	role := "user"
@@ -200,7 +203,7 @@ func convertAntigravityContent(content any) any {
 
 	partsRaw, ok := m["parts"].([]any)
 	if !ok {
-		return nil
+		return nil, nil
 	}
 
 	textParts := []map[string]any{}
@@ -262,7 +265,10 @@ func convertAntigravityContent(content any) any {
 			if a, ok := fc["args"].(map[string]any); ok {
 				args = a
 			}
-			argsJSON, _ := json.Marshal(args)
+			argsJSON, err := json.Marshal(args)
+			if err != nil {
+				return nil, fmt.Errorf("marshal functionCall args: %w", err)
+			}
 			toolCalls = append(toolCalls, map[string]any{
 				"id":   id,
 				"type": "function",
@@ -291,7 +297,10 @@ func convertAntigravityContent(content any) any {
 			if resultVal == nil {
 				resultVal = resp
 			}
-			contentJSON, _ := json.Marshal(resultVal)
+			contentJSON, err := json.Marshal(resultVal)
+			if err != nil {
+				return nil, fmt.Errorf("marshal functionResponse result: %w", err)
+			}
 			toolResults = append(toolResults, map[string]any{
 				"role":         "tool",
 				"tool_call_id": id,
@@ -305,7 +314,7 @@ func convertAntigravityContent(content any) any {
 		for i, r := range toolResults {
 			results[i] = r
 		}
-		return results
+		return results, nil
 	}
 
 	if len(toolCalls) > 0 {
@@ -323,7 +332,7 @@ func convertAntigravityContent(content any) any {
 		if reasoningContent != "" {
 			msg["reasoning_content"] = reasoningContent
 		}
-		return msg
+		return msg, nil
 	}
 
 	if len(textParts) > 0 || reasoningContent != "" {
@@ -340,8 +349,8 @@ func convertAntigravityContent(content any) any {
 		if reasoningContent != "" {
 			msg["reasoning_content"] = reasoningContent
 		}
-		return msg
+		return msg, nil
 	}
 
-	return nil
+	return nil, nil
 }

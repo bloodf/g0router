@@ -50,12 +50,16 @@ func openaiToGeminiCLIRequest(model string, body map[string]any, stream bool, cr
 
 	// Clean schema for tools
 	if tools, ok := gemini["tools"].([]any); ok && len(tools) > 0 {
-		tool0 := tools[0].(map[string]any)
-		if fdList, ok := tool0["functionDeclarations"].([]any); ok {
-			for _, fd := range fdList {
-				fdm := fd.(map[string]any)
-				if params, ok := fdm["parameters"].(map[string]any); ok {
-					cleanJSONSchemaForGemini(params)
+		if tool0, ok := tools[0].(map[string]any); ok {
+			if fdList, ok := tool0["functionDeclarations"].([]any); ok {
+				for _, fd := range fdList {
+					fdm, ok := fd.(map[string]any)
+					if !ok {
+						continue
+					}
+					if params, ok := fdm["parameters"].(map[string]any); ok {
+						cleanJSONSchemaForGemini(params)
+					}
 				}
 			}
 		}

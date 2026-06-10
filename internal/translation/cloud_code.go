@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,11 +11,6 @@ import (
 
 const (
 	antigravityDefaultSystem = "You are Antigravity, a powerful agentic AI coding assistant designed by the Google Deepmind team working on Advanced Agentic Coding.You are pair programming with a USER to solve their coding task. The task may require creating a new codebase, modifying or debugging an existing codebase, or simply answering a question.**Absolute paths only****Proactiveness**"
-)
-
-var (
-	projectAdjectives = []string{"useful", "bright", "swift", "calm", "bold"}
-	projectNouns      = []string{"fuze", "wave", "spark", "flow", "core"}
 )
 
 func randomUUIDString() (string, error) {
@@ -28,13 +22,17 @@ func randomUUIDString() (string, error) {
 }
 
 func generateProjectId() (string, error) {
-	raw, err := randomUUIDString()
+	adjectives := []string{"useful", "bright", "swift", "calm", "bold"}
+	nouns := []string{"fuze", "wave", "spark", "flow", "core"}
+	u, err := uuid.NewRandom()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("random uuid: %w", err)
 	}
-	adj := projectAdjectives[rand.Intn(len(projectAdjectives))]
-	noun := projectNouns[rand.Intn(len(projectNouns))]
-	return fmt.Sprintf("%s-%s-%s", adj, noun, raw[:5]), nil
+	// uuid v4 bytes 0 and 1 are fully random; reuse them so no extra
+	// randomness source is needed.
+	adj := adjectives[int(u[0])%len(adjectives)]
+	noun := nouns[int(u[1])%len(nouns)]
+	return fmt.Sprintf("%s-%s-%s", adj, noun, u.String()[:5]), nil
 }
 
 func generateRequestId() (string, error) {

@@ -28,13 +28,18 @@ func TestOpenAIVertexReplacesThoughtSignature(t *testing.T) {
 	contents := out["contents"].([]any)
 	turn := contents[0].(map[string]any)
 	parts := turn["parts"].([]any)
+	found := false
 	for _, p := range parts {
 		part := p.(map[string]any)
 		if _, ok := part["thoughtSignature"]; ok {
+			found = true
 			if part["thoughtSignature"] != defaultThinkingVertexSignature {
 				t.Errorf("thoughtSignature not replaced with vertex signature: %v", part["thoughtSignature"])
 			}
 		}
+	}
+	if !found {
+		t.Fatal("expected at least one part with thoughtSignature for assistant reasoning_content")
 	}
 }
 
