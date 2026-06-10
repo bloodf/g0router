@@ -2,6 +2,7 @@ package translation
 
 import (
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -182,11 +183,46 @@ func TestRegistryClaudeRoundTripViaPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TranslateRequest: %v", err)
 	}
-	if _, ok := out["messages"]; !ok {
-		t.Fatalf("expected messages in claude body: %v", out)
+	// Claude body shape: system extracted from the system message, user
+	// message preserved, tools converted to {name, input_schema}, tool_choice
+	// mapped to the Claude object form.
+	sys, ok := out["system"].([]any)
+	if !ok || len(sys) == 0 {
+		t.Fatalf("expected extracted system blocks: %v", out["system"])
 	}
-	if _, ok := out["tools"]; !ok {
-		t.Fatalf("expected tools in claude body: %v", out)
+	sysTexts := ""
+	for _, b := range sys {
+		if bm, ok := b.(map[string]any); ok {
+			if txt, _ := bm["text"].(string); txt != "" {
+				sysTexts += txt + "\n"
+			}
+		}
+	}
+	if !strings.Contains(sysTexts, "You are helpful.") {
+		t.Errorf("system blocks missing extracted system message: %q", sysTexts)
+	}
+	msgs, ok := out["messages"].([]any)
+	if !ok || len(msgs) != 1 {
+		t.Fatalf("expected single user message in claude body: %v", out["messages"])
+	}
+	userMsg := msgs[0].(map[string]any)
+	if userMsg["role"] != "user" {
+		t.Errorf("messages[0].role = %v, want user", userMsg["role"])
+	}
+	tools, ok := out["tools"].([]any)
+	if !ok || len(tools) != 1 {
+		t.Fatalf("expected one converted tool: %v", out["tools"])
+	}
+	tool0 := tools[0].(map[string]any)
+	if tool0["name"] != "Read" {
+		t.Errorf("tools[0].name = %v, want Read", tool0["name"])
+	}
+	if _, ok := tool0["input_schema"]; !ok {
+		t.Errorf("tools[0] missing input_schema: %v", tool0)
+	}
+	tcOut, ok := out["tool_choice"].(map[string]any)
+	if !ok || tcOut["type"] != "auto" {
+		t.Errorf("tool_choice = %v, want {type:auto}", out["tool_choice"])
 	}
 
 	state := NewStreamState()

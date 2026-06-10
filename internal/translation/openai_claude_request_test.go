@@ -2,6 +2,7 @@ package translation
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -174,13 +175,13 @@ func TestOpenAIClaudeResponseFormatJSONSchema(t *testing.T) {
 	sys := out["system"].([]any)
 	last := sys[len(sys)-1].(map[string]any)
 	text := last["text"].(string)
-	if !contains(text, "You must respond with valid JSON that strictly follows this JSON schema:") {
+	if !strings.Contains(text, "You must respond with valid JSON that strictly follows this JSON schema:") {
 		t.Errorf("system text missing schema prompt: %q", text)
 	}
-	if !contains(text, "```json") {
+	if !strings.Contains(text, "```json") {
 		t.Errorf("system text missing code block: %q", text)
 	}
-	if !contains(text, "Respond ONLY with the JSON object, no other text.") {
+	if !strings.Contains(text, "Respond ONLY with the JSON object, no other text.") {
 		t.Errorf("system text missing ending: %q", text)
 	}
 }
@@ -378,6 +379,20 @@ func TestOpenAIClaudeThinkingDropsTemperature(t *testing.T) {
 	if _, ok := out["temperature"]; ok {
 		t.Error("temperature should be dropped when thinking is enabled")
 	}
+
+	// PAR-PR-1264 applies only to enabled thinking: a disabled thinking
+	// config must keep temperature.
+	body2 := map[string]any{
+		"temperature": 0.5,
+		"thinking":    map[string]any{"type": "disabled"},
+	}
+	out2, err := openaiToClaudeRequest("claude-3", body2, false, nil)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if out2["temperature"] != 0.5 {
+		t.Errorf("temperature = %v, want 0.5 kept when thinking is not enabled", out2["temperature"])
+	}
 }
 
 func TestOpenAIClaudeImageBlocks(t *testing.T) {
@@ -473,19 +488,6 @@ func TestOpenAIClaudeToolCallArgumentsParse(t *testing.T) {
 			}
 		})
 	}
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 func TestOpenAIClaudeRequestMissingRoleDoesNotPanic(t *testing.T) {

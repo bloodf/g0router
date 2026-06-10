@@ -178,6 +178,33 @@ func TestClaudeOpenAIToolUseStartAndArgs(t *testing.T) {
 	if fn["arguments"] != `{"a":1` {
 		t.Errorf("arguments = %v", fn["arguments"])
 	}
+
+	// Second tool_use block gets the next sequential tool call index.
+	out, err = claudeToOpenAIResponse(map[string]any{
+		"type":          "content_block_start",
+		"index":         2,
+		"content_block": map[string]any{"type": "tool_use", "id": "tu2", "name": "Write"},
+	}, s)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("len(out) = %d, want 1", len(out))
+	}
+	choices = out[0]["choices"].([]any)
+	delta = choices[0].(map[string]any)["delta"].(map[string]any)
+	toolCalls = delta["tool_calls"].([]any)
+	tc = toolCalls[0].(map[string]any)
+	if tc["index"] != 1 {
+		t.Errorf("second tool_call index = %v, want 1", tc["index"])
+	}
+	if tc["id"] != "tu2" {
+		t.Errorf("second tool_call id = %v", tc["id"])
+	}
+	fn = tc["function"].(map[string]any)
+	if fn["name"] != "Write" {
+		t.Errorf("second function.name = %v", fn["name"])
+	}
 }
 
 func TestClaudeOpenAIServerToolSkipped(t *testing.T) {

@@ -26,6 +26,8 @@ func openaiToGeminiCLIRequest(model string, body map[string]any, stream bool, cr
 				if budget == 0 {
 					budget = 8192
 				}
+				// "include_thoughts" is snake_case in the frozen ref
+				// (openai-to-gemini.js:239,247) — verbatim parity, not a typo.
 				genConfig["thinkingConfig"] = map[string]any{
 					"thinkingBudget":   float64(budget),
 					"include_thoughts": true,
@@ -38,6 +40,7 @@ func openaiToGeminiCLIRequest(model string, body map[string]any, stream bool, cr
 			if thinking, ok := rawThinking.(map[string]any); ok {
 				if t, ok := thinking["type"].(string); ok && t == "enabled" {
 					if budget, ok := thinking["budget_tokens"]; ok && budget != nil {
+						// snake_case per frozen ref openai-to-gemini.js:247.
 						genConfig["thinkingConfig"] = map[string]any{
 							"thinkingBudget":   budget,
 							"include_thoughts": true,

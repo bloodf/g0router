@@ -9,8 +9,6 @@ import (
 
 const claudeSystemPrompt = "You are Claude Code, Anthropic's official CLI for Claude."
 
-var dataURIPattern = regexp.MustCompile(`^data:([^;]+);base64,(.+)$`)
-
 // openaiToClaudeRequest converts an OpenAI-format request body to a Claude-
 // shaped request body.
 func openaiToClaudeRequest(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
@@ -314,9 +312,12 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		}
 	}
 
-	// PAR-PR-1264: drop temperature when thinking is enabled.
-	if _, hasThinking := result["thinking"]; hasThinking {
-		delete(result, "temperature")
+	// PAR-PR-1264: drop temperature only when outgoing thinking is enabled
+	// (Anthropic 400s on temperature + extended thinking).
+	if thinking, ok := result["thinking"].(map[string]any); ok {
+		if t, _ := thinking["type"].(string); t == "enabled" {
+			delete(result, "temperature")
+		}
 	}
 
 	// Attach toolNameMap to result for response translation.
@@ -372,7 +373,7 @@ func getContentBlocksFromMessage(msg map[string]any, toolNameMap map[string]stri
 				case "image_url":
 					if imageURL, ok := partMap["image_url"].(map[string]any); ok {
 						url, _ := imageURL["url"].(string)
-						match := dataURIPattern.FindStringSubmatch(url)
+						match := regexp.MustCompile(`^data:([^;]+);base64,(.+)$`).FindStringSubmatch(url)
 						if len(match) == 3 {
 							blocks = append(blocks, map[string]any{
 								"type": "image",

@@ -89,11 +89,11 @@ func NewRegistry() *Registry {
 	r.Register(FormatOpenAI, FormatGeminiCLI, func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 		gemini, err := openaiToGeminiCLIRequest(model, body, stream, credentials)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("openai->gemini-cli request: %w", err)
 		}
 		env, err := wrapInCloudCodeEnvelope(model, gemini, credentials, false)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("openai->gemini-cli envelope: %w", err)
 		}
 		return env, nil
 	}, nil)

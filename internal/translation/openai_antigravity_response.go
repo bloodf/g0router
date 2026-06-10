@@ -3,6 +3,7 @@ package translation
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -92,12 +93,23 @@ func openaiToAntigravityResponse(chunk map[string]any, state *StreamState) ([]ma
 		}
 	}
 
-	// On finish, emit accumulated tool calls
+	// On finish, emit accumulated tool calls in ascending index order so
+	// multi-tool output is deterministic.
 	if finishReason != "" {
-		for _, accum := range state.AntigravityToolCallAccum {
+		indices := make([]int, 0, len(state.AntigravityToolCallAccum))
+		for idx := range state.AntigravityToolCallAccum {
+			indices = append(indices, idx)
+		}
+		sort.Ints(indices)
+		for _, idx := range indices {
+			accum := state.AntigravityToolCallAccum[idx]
 			args := map[string]any{}
 			if argStr, ok := accum["arguments"].(string); ok && argStr != "" {
-				json.Unmarshal([]byte(argStr), &args)
+				// Malformed accumulated JSON falls back to empty args,
+				// matching the ref's silent catch (openai-to-antigravity.js:61).
+				if err := json.Unmarshal([]byte(argStr), &args); err != nil {
+					args = map[string]any{}
+				}
 			}
 			name := ""
 			if n, ok := accum["name"].(string); ok {
