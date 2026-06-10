@@ -6,8 +6,15 @@ import (
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
+	"github.com/bloodf/g0router/internal/translation"
 	"github.com/valyala/fasthttp"
 )
+
+// modelResolver is the subset of inference.Router used by ChatHandler.
+// It exists so tests can inject behavior without relying on the full router.
+type modelResolver interface {
+	ResolveForModel(*schemas.ChatRequest) (schemas.Provider, schemas.Key, error)
+}
 
 // streamWriter is the subset of fasthttp.RequestCtx used by writeSSEStream.
 // It exists so tests can inject write failures (AUD-008); fasthttp's
@@ -48,7 +55,7 @@ func writeSSEStream(w streamWriter, ch chan *schemas.StreamChunk) {
 
 // ChatHandler handles POST /v1/chat/completions.
 type ChatHandler struct {
-	router *inference.Router
+	router modelResolver
 }
 
 // NewChatHandler creates a chat completion handler.
@@ -63,6 +70,8 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "invalid JSON body", nil)
 		return
 	}
+
+	translation.PreprocessChatRequest(&req)
 
 	provider, key, err := h.router.ResolveForModel(&req)
 	if err != nil {

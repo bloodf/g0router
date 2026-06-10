@@ -146,3 +146,64 @@ func TestChatHandlerMarshalFailureFallsBackTo500(t *testing.T) {
 		t.Errorf("body = %q, want %q", got, "internal error")
 	}
 }
+
+// fakeModelResolver captures the request passed to ResolveForModel and returns
+// a predetermined error, so tests can observe preprocessing behaviorally.
+type fakeModelResolver struct {
+	captured *schemas.ChatRequest
+}
+
+func (f *fakeModelResolver) ResolveForModel(req *schemas.ChatRequest) (schemas.Provider, schemas.Key, error) {
+	f.captured = req
+	return nil, schemas.Key{}, errors.New("simulated resolve error")
+}
+
+// TestChatHandlerPreprocessesRequest verifies that Handle calls
+// translation.PreprocessChatRequest before ResolveForModel: a body with an
+// invalid tool_call ID and no tool response arrives at the resolver with the
+// ID sanitized and a role:tool message inserted.
+func TestChatHandlerPreprocessesRequest(t *testing.T) {
+	fake := &fakeModelResolver{}
+	h := &ChatHandler{router: fake}
+
+	body := `{"model":"gpt-4","messages":[{"role":"user","content":"hi"},{"role":"assistant","tool_calls":[{"id":"bad!id","type":"","function":{"name":"foo","arguments":"{}"}}]},{"role":"user","content":"next"}]}`
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.SetBody([]byte(body))
+
+	// Ensure the handler still returns 400 because the resolver errors.
+	// The behavioral proof is in the captured request.
+	// If PreprocessChatRequest is not called, the captured request will have
+	// the original invalid ID and no inserted tool message.
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", ctx.Response.StatusCode(), fasthttp.StatusBadRequest)
+	}
+
+	if fake.captured == nil {
+		t.Fatal("resolver was never called")
+	}
+
+	msgs := fake.captured.Messages
+	if len(msgs) != 4 {
+		t.Fatalf("len(messages) = %d, want 4 (user, assistant, tool, user)", len(msgs))
+	}
+
+	// Assistant message should have sanitized ID.
+	if msgs[1].ToolCalls[0].ID != "badid" {
+		t.Errorf("assistant tool_call ID = %q, want %q", msgs[1].ToolCalls[0].ID, "badid")
+	}
+
+	// Inserted tool message should carry the sanitized ID.
+	if msgs[2].Role != "tool" || msgs[2].ToolCallID == nil || *msgs[2].ToolCallID != "badid" {
+		t.Errorf("inserted tool msg = %+v, want role:tool tool_call_id:badid", msgs[2])
+	}
+
+	// Verify that the Type was also set by preprocessing.
+	if msgs[1].ToolCalls[0].Type != "function" {
+		t.Errorf("tool_call type = %q, want %q", msgs[1].ToolCalls[0].Type, "function")
+	}
+}
