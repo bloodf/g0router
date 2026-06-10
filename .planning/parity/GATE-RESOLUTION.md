@@ -50,5 +50,12 @@ Run 2 (path-filtered to cmd/ internal/; REJECT, 1 BLOCKER + 2 MAJOR):
 - MAJOR "env read every call": OVERRULED — `AnthropicOAuth()` has exactly one production call site, in server route construction at startup; env is read once at construction as the task requires.
 w0-b APPROVED.
 
+## Addendum — w0-c diff gate disposition (2026-06-09)
+Implementer: Kimi. Reviewer: gpt-5.5. Verdict REJECT (1 BLOCKER, 1 MAJOR, 1 MINOR).
+- BLOCKER (exported `ConvertChatRequest` discarded the error from the new error-returning variant): VALID — real catch. FIXED by Fable: the wrapper is gone; `ConvertChatRequest` itself returns `(*GenerateContentRequest, error)`; all callers (chat.go ×2, tests) updated. Commit 8b8c7f6.
+- MAJOR (tests target unexported variant): FIXED by the same rename — tests now exercise the exported API.
+- MINOR (single-case vs table-driven test style): OVERRULED — style preference; assertions are binary.
+w0-c APPROVED after fix.
+
 ## Addendum — AUD-004 remediation deviation (2026-06-09)
 AUD-004 remediation text says "rotate exposed ID". The ID (`9d1c250a-e61b-44d9-88ed-5944d1962f5e`) is Anthropic's public Claude Code OAuth client identifier — not our credential, not rotatable by us, and not a secret (RFC 8252 §8.4: native-app client IDs are public). 9router hardcodes the same value (`_refs/9router/src/lib/oauth/constants/oauth.js:21`). Authorized remediation: make it configurable via `G0ROUTER_ANTHROPIC_CLIENT_ID` with the public ID as default (preserves out-of-box parity). Plan w0-b implements this. Decision: orchestrator, surfaced to user in the Wave 0 plan summary.
