@@ -19,30 +19,53 @@ var (
 	projectNouns      = []string{"fuze", "wave", "spark", "flow", "core"}
 )
 
-func generateProjectId() string {
+func randomUUIDString() (string, error) {
+	u, err := uuid.NewRandom()
+	if err != nil {
+		return "", fmt.Errorf("random uuid: %w", err)
+	}
+	return u.String(), nil
+}
+
+func generateProjectId() (string, error) {
+	raw, err := randomUUIDString()
+	if err != nil {
+		return "", err
+	}
 	adj := projectAdjectives[rand.Intn(len(projectAdjectives))]
 	noun := projectNouns[rand.Intn(len(projectNouns))]
-	return fmt.Sprintf("%s-%s-%s", adj, noun, uuid.Must(uuid.NewRandom()).String()[:5])
+	return fmt.Sprintf("%s-%s-%s", adj, noun, raw[:5]), nil
 }
 
-func generateRequestId() string {
-	return fmt.Sprintf("agent-%s", uuid.Must(uuid.NewRandom()).String())
+func generateRequestId() (string, error) {
+	raw, err := randomUUIDString()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("agent-%s", raw), nil
 }
 
-func generateSessionId() string {
-	return fmt.Sprintf("%s%d", uuid.Must(uuid.NewRandom()).String(), time.Now().UnixMilli())
+func generateSessionId() (string, error) {
+	raw, err := randomUUIDString()
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s%d", raw, time.Now().UnixMilli()), nil
 }
 
-func deriveSessionId(key string) string {
+func deriveSessionId(key string) (string, error) {
 	if key == "" {
 		return generateSessionId()
 	}
 	h := sha256.Sum256([]byte(key))
-	return "sess-" + hex.EncodeToString(h[:16])
+	return "sess-" + hex.EncodeToString(h[:16]), nil
 }
 
-func wrapInCloudCodeEnvelope(model string, geminiCLI map[string]any, credentials map[string]any, isAntigravity bool) map[string]any {
-	projectId := generateProjectId()
+func wrapInCloudCodeEnvelope(model string, geminiCLI map[string]any, credentials map[string]any, isAntigravity bool) (map[string]any, error) {
+	projectId, err := generateProjectId()
+	if err != nil {
+		return nil, fmt.Errorf("wrapInCloudCodeEnvelope: %w", err)
+	}
 	if credentials != nil {
 		if pid, ok := credentials["projectId"].(string); ok && pid != "" {
 			projectId = pid
@@ -50,13 +73,18 @@ func wrapInCloudCodeEnvelope(model string, geminiCLI map[string]any, credentials
 	}
 
 	userAgent := "gemini-cli"
-	requestId := generateRequestId()
+	requestId, err := generateRequestId()
+	if err != nil {
+		return nil, fmt.Errorf("wrapInCloudCodeEnvelope: %w", err)
+	}
 	if isAntigravity {
 		userAgent = "antigravity"
-		requestId = fmt.Sprintf("agent-%s", uuid.Must(uuid.NewRandom()).String())
 	}
 
-	sessionId := generateSessionId()
+	sessionId, err := generateSessionId()
+	if err != nil {
+		return nil, fmt.Errorf("wrapInCloudCodeEnvelope: %w", err)
+	}
 	if isAntigravity {
 		key := ""
 		if credentials != nil {
@@ -66,7 +94,10 @@ func wrapInCloudCodeEnvelope(model string, geminiCLI map[string]any, credentials
 				key = connId
 			}
 		}
-		sessionId = deriveSessionId(key)
+		sessionId, err = deriveSessionId(key)
+		if err != nil {
+			return nil, fmt.Errorf("wrapInCloudCodeEnvelope: %w", err)
+		}
 	}
 
 	request := map[string]any{
@@ -129,11 +160,14 @@ func wrapInCloudCodeEnvelope(model string, geminiCLI map[string]any, credentials
 		envelope["requestType"] = "agent"
 	}
 
-	return envelope
+	return envelope, nil
 }
 
-func wrapInCloudCodeEnvelopeForClaude(model string, claudeRequest map[string]any, credentials map[string]any) map[string]any {
-	projectId := generateProjectId()
+func wrapInCloudCodeEnvelopeForClaude(model string, claudeRequest map[string]any, credentials map[string]any) (map[string]any, error) {
+	projectId, err := generateProjectId()
+	if err != nil {
+		return nil, fmt.Errorf("wrapInCloudCodeEnvelopeForClaude: %w", err)
+	}
 	if credentials != nil {
 		if pid, ok := credentials["projectId"].(string); ok && pid != "" {
 			projectId = pid
@@ -177,8 +211,17 @@ func wrapInCloudCodeEnvelopeForClaude(model string, claudeRequest map[string]any
 		}
 	}
 
+	sessionId, err := deriveSessionId(key)
+	if err != nil {
+		return nil, fmt.Errorf("wrapInCloudCodeEnvelopeForClaude: %w", err)
+	}
+	requestId, err := generateRequestId()
+	if err != nil {
+		return nil, fmt.Errorf("wrapInCloudCodeEnvelopeForClaude: %w", err)
+	}
+
 	request := map[string]any{
-		"sessionId": deriveSessionId(key),
+		"sessionId": sessionId,
 		"contents":  []any{},
 		"generationConfig": map[string]any{
 			"temperature":     claudeRequest["temperature"],
@@ -359,8 +402,8 @@ func wrapInCloudCodeEnvelopeForClaude(model string, claudeRequest map[string]any
 		"project":     projectId,
 		"model":       model,
 		"userAgent":   "antigravity",
-		"requestId":   fmt.Sprintf("agent-%s", uuid.Must(uuid.NewRandom()).String()),
+		"requestId":   requestId,
 		"requestType": "agent",
 		"request":     request,
-	}
+	}, nil
 }

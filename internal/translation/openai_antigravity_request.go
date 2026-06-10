@@ -15,12 +15,20 @@ func openaiToAntigravityRequest(model string, body map[string]any, stream bool, 
 		if err != nil {
 			return nil, fmt.Errorf("openaiToAntigravityRequest: %w", err)
 		}
-		return wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials), nil
+		env, err := wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials)
+		if err != nil {
+			return nil, fmt.Errorf("openaiToAntigravityRequest: %w", err)
+		}
+		return env, nil
 	}
 
 	geminiCLI, err := openaiToGeminiCLIRequest(model, body, stream, credentials)
 	if err != nil {
 		return nil, fmt.Errorf("openaiToAntigravityRequest: %w", err)
 	}
-	return wrapInCloudCodeEnvelope(model, geminiCLI, credentials, true), nil
+	env, err := wrapInCloudCodeEnvelope(model, geminiCLI, credentials, true)
+	if err != nil {
+		return nil, fmt.Errorf("openaiToAntigravityRequest: %w", err)
+	}
+	return env, nil
 }

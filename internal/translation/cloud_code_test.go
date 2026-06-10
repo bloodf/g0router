@@ -11,7 +11,10 @@ func TestWrapCloudCodeEnvelopeGeminiCLIHasSafetySettings(t *testing.T) {
 		"generationConfig": map[string]any{"temperature": 0.7},
 		"safetySettings":   defaultSafetySettings(),
 	}
-	env := wrapInCloudCodeEnvelope("gemini-pro", gemini, nil, false)
+	env, err := wrapInCloudCodeEnvelope("gemini-pro", gemini, nil, false)
+	if err != nil {
+		t.Fatalf("wrapInCloudCodeEnvelope: %v", err)
+	}
 	req, ok := env["request"].(map[string]any)
 	if !ok {
 		t.Fatal("request missing")
@@ -29,7 +32,10 @@ func TestWrapCloudCodeEnvelopeAntigravityHasValidatedToolConfig(t *testing.T) {
 		"contents": []any{map[string]any{"role": "user", "parts": []any{map[string]any{"text": "hi"}}}},
 		"tools":    []any{map[string]any{"functionDeclarations": []any{map[string]any{"name": "tool"}}}},
 	}
-	env := wrapInCloudCodeEnvelope("gemini-pro", gemini, nil, true)
+	env, err := wrapInCloudCodeEnvelope("gemini-pro", gemini, nil, true)
+	if err != nil {
+		t.Fatalf("wrapInCloudCodeEnvelope: %v", err)
+	}
 	req, ok := env["request"].(map[string]any)
 	if !ok {
 		t.Fatal("request missing")
@@ -61,7 +67,10 @@ func TestWrapCloudCodeEnvelopeUsesCredentialsProjectId(t *testing.T) {
 		"contents": []any{map[string]any{"role": "user", "parts": []any{map[string]any{"text": "hi"}}}},
 	}
 	creds := map[string]any{"projectId": "my-project-123"}
-	env := wrapInCloudCodeEnvelope("gemini-pro", gemini, creds, false)
+	env, err := wrapInCloudCodeEnvelope("gemini-pro", gemini, creds, false)
+	if err != nil {
+		t.Fatalf("wrapInCloudCodeEnvelope: %v", err)
+	}
 	if env["project"] != "my-project-123" {
 		t.Errorf("project = %v, want my-project-123", env["project"])
 	}
@@ -72,7 +81,10 @@ func TestWrapCloudCodeEnvelopeDerivesSessionFromConnectionId(t *testing.T) {
 		"contents": []any{map[string]any{"role": "user", "parts": []any{map[string]any{"text": "hi"}}}},
 	}
 	creds := map[string]any{"connectionId": "conn-456"}
-	env := wrapInCloudCodeEnvelope("gemini-pro", gemini, creds, true)
+	env, err := wrapInCloudCodeEnvelope("gemini-pro", gemini, creds, true)
+	if err != nil {
+		t.Fatalf("wrapInCloudCodeEnvelope: %v", err)
+	}
 	req, ok := env["request"].(map[string]any)
 	if !ok {
 		t.Fatal("request missing")
@@ -82,7 +94,10 @@ func TestWrapCloudCodeEnvelopeDerivesSessionFromConnectionId(t *testing.T) {
 		t.Fatal("sessionId missing or empty")
 	}
 	// With connectionId, deriveSessionId should produce a stable id.
-	env2 := wrapInCloudCodeEnvelope("gemini-pro", gemini, creds, true)
+	env2, err := wrapInCloudCodeEnvelope("gemini-pro", gemini, creds, true)
+	if err != nil {
+		t.Fatalf("wrapInCloudCodeEnvelope: %v", err)
+	}
 	req2 := env2["request"].(map[string]any)
 	if req2["sessionId"] != sessionId {
 		t.Error("sessionId should be stable for same connectionId")
@@ -111,7 +126,10 @@ func TestWrapCloudCodeEnvelopeForClaudeToolBlocks(t *testing.T) {
 			map[string]any{"name": "Read", "description": "read", "input_schema": map[string]any{"type": "object", "properties": map[string]any{}}},
 		},
 	}
-	env := wrapInCloudCodeEnvelopeForClaude("claude-3-5-sonnet", claudeReq, nil)
+	env, err := wrapInCloudCodeEnvelopeForClaude("claude-3-5-sonnet", claudeReq, nil)
+	if err != nil {
+		t.Fatalf("wrapInCloudCodeEnvelopeForClaude: %v", err)
+	}
 	if env["userAgent"] != "antigravity" {
 		t.Errorf("userAgent = %v, want antigravity", env["userAgent"])
 	}

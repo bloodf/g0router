@@ -91,7 +91,11 @@ func NewRegistry() *Registry {
 		if err != nil {
 			return nil, err
 		}
-		return wrapInCloudCodeEnvelope(model, gemini, credentials, false), nil
+		env, err := wrapInCloudCodeEnvelope(model, gemini, credentials, false)
+		if err != nil {
+			return nil, err
+		}
+		return env, nil
 	}, nil)
 	r.Register(FormatOpenAI, FormatAntigravity, openaiToAntigravityRequest, nil)
 	r.Register(FormatAntigravity, FormatOpenAI, antigravityToOpenAIRequest, nil)

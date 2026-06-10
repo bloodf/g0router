@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// claudeAntigravityToolPrefix is verbatim openai-to-claude.js:8 (empty string).
+const claudeAntigravityToolPrefix = ""
+
 func openaiToClaudeRequestForAntigravity(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 	result, err := openaiToClaudeRequest(model, body, stream, credentials)
 	if err != nil {
@@ -44,8 +47,8 @@ func openaiToClaudeRequestForAntigravity(model string, body map[string]any, stre
 				continue
 			}
 			name, _ := tm["name"].(string)
-			if name != "" && strings.HasPrefix(name, "proxy_") {
-				tm["name"] = strings.TrimPrefix(name, "proxy_")
+			if name != "" && strings.HasPrefix(name, claudeAntigravityToolPrefix) {
+				tm["name"] = strings.TrimPrefix(name, claudeAntigravityToolPrefix)
 				tools[i] = tm
 			}
 		}
@@ -69,8 +72,8 @@ func openaiToClaudeRequestForAntigravity(model string, body map[string]any, stre
 				}
 				if b["type"] == "tool_use" {
 					name, _ := b["name"].(string)
-					if name != "" && strings.HasPrefix(name, "proxy_") {
-						b["name"] = strings.TrimPrefix(name, "proxy_")
+					if name != "" && strings.HasPrefix(name, claudeAntigravityToolPrefix) {
+						b["name"] = strings.TrimPrefix(name, claudeAntigravityToolPrefix)
 						content[j] = b
 					}
 				}
