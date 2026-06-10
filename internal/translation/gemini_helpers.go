@@ -303,6 +303,39 @@ func convertEnumValuesToStrings(obj any) {
 	}
 }
 
+func requiredFieldKey(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return fmt.Sprintf("%T", v)
+	}
+	return string(b)
+}
+
+func mergeRequiredFields(existing, add []any) []any {
+	seen := make(map[string]struct{}, len(existing)+len(add))
+	out := make([]any, 0, len(existing)+len(add))
+	for _, r := range existing {
+		k := requiredFieldKey(r)
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		out = append(out, r)
+	}
+	for _, r := range add {
+		k := requiredFieldKey(r)
+		if _, ok := seen[k]; ok {
+			continue
+		}
+		seen[k] = struct{}{}
+		out = append(out, r)
+	}
+	return out
+}
+
 func mergeAllOf(obj any) {
 	m, ok := obj.(map[string]any)
 	if !ok {
@@ -316,6 +349,7 @@ func mergeAllOf(obj any) {
 	if allOf, ok := m["allOf"].([]any); ok && len(allOf) > 0 {
 		mergedProps := make(map[string]any)
 		var mergedReq []any
+		seenReq := make(map[string]struct{})
 		for _, item := range allOf {
 			im, ok := item.(map[string]any)
 			if !ok {
@@ -328,16 +362,12 @@ func mergeAllOf(obj any) {
 			}
 			if req, ok := im["required"].([]any); ok {
 				for _, r := range req {
-					found := false
-					for _, existing := range mergedReq {
-						if existing == r {
-							found = true
-							break
-						}
+					k := requiredFieldKey(r)
+					if _, seen := seenReq[k]; seen {
+						continue
 					}
-					if !found {
-						mergedReq = append(mergedReq, r)
-					}
+					seenReq[k] = struct{}{}
+					mergedReq = append(mergedReq, r)
 				}
 			}
 		}
@@ -353,18 +383,7 @@ func mergeAllOf(obj any) {
 		}
 		if len(mergedReq) > 0 {
 			if existingReq, ok := m["required"].([]any); ok {
-				for _, r := range mergedReq {
-					found := false
-					for _, existing := range existingReq {
-						if existing == r {
-							found = true
-							break
-						}
-					}
-					if !found {
-						existingReq = append(existingReq, r)
-					}
-				}
+				m["required"] = mergeRequiredFields(existingReq, mergedReq)
 			} else {
 				m["required"] = mergedReq
 			}
