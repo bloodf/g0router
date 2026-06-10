@@ -35,6 +35,24 @@ func TestOpenAIAntigravityClaudeModelUsesClaudePath(t *testing.T) {
 	if first["role"] != "user" {
 		t.Errorf("role = %v, want user", first["role"])
 	}
+
+	// Claude-path marker: the claude translator always sets max_tokens (the
+	// Claude API requires it), so the envelope carries
+	// generationConfig.maxOutputTokens even though the OpenAI body had none.
+	// The gemini path only sets maxOutputTokens when the body provides
+	// max_tokens, so its presence here proves the claude path was taken.
+	genConfig, ok := req["generationConfig"].(map[string]any)
+	if !ok {
+		t.Fatal("generationConfig missing")
+	}
+	if genConfig["maxOutputTokens"] == nil {
+		t.Error("generationConfig.maxOutputTokens missing — request did not take the claude path")
+	}
+	// And the gemini envelope's always-present "tools" key must be absent
+	// for a tool-less claude-path request.
+	if _, hasTools := req["tools"]; hasTools {
+		t.Error("request.tools present — gemini envelope path was taken instead of claude path")
+	}
 }
 
 func TestOpenAIAntigravityGeminiModelUsesGeminiCLIEnvelope(t *testing.T) {

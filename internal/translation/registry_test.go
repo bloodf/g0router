@@ -2,6 +2,7 @@ package translation
 
 import (
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -458,5 +459,22 @@ func TestRegistryAntigravityResponseUsesGeminiOpenAI(t *testing.T) {
 	reg := NewRegistry()
 	if reg.ResponseTranslatorFor(FormatAntigravity, FormatOpenAI) == nil {
 		t.Error("NewRegistry must wire antigravity->openai response translator")
+	}
+}
+
+func TestResponseAliasesUseGeminiTranslator(t *testing.T) {
+	// PAR-TRANS-043: gemini-cli, vertex and antigravity responses are aliases
+	// of the gemini→openai translator — identity, not just non-nil wiring.
+	reg := NewRegistry()
+	want := reflect.ValueOf(ResponseTranslator(geminiToOpenAIResponse)).Pointer()
+	for _, from := range []Format{FormatGeminiCLI, FormatVertex} {
+		got := reg.ResponseTranslatorFor(from, FormatOpenAI)
+		if got == nil {
+			t.Errorf("%s->openai response translator not wired", from)
+			continue
+		}
+		if reflect.ValueOf(got).Pointer() != want {
+			t.Errorf("%s->openai response translator is not geminiToOpenAIResponse", from)
+		}
 	}
 }

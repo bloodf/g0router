@@ -131,3 +131,59 @@ func TestOpenAIAntigravityResponseUsageMetadata(t *testing.T) {
 		t.Errorf("thoughtsTokenCount = %v", um["thoughtsTokenCount"])
 	}
 }
+
+func TestOpenAIAntigravityToolCallsOrderedAndBadJSONFallsBack(t *testing.T) {
+	state := NewStreamState()
+	mkChunk := func(idx int, id, name, args string) map[string]any {
+		return map[string]any{
+			"choices": []any{map[string]any{"delta": map[string]any{
+				"tool_calls": []any{map[string]any{
+					"index": float64(idx),
+					"id":    id,
+					"function": map[string]any{
+						"name":      name,
+						"arguments": args,
+					},
+				}},
+			}}},
+		}
+	}
+	// Arrive out of order; index 1 carries malformed JSON arguments.
+	if _, err := openaiToAntigravityResponse(mkChunk(1, "b", "second", `{"x":`), state); err != nil {
+		t.Fatalf("accumulate idx1: %v", err)
+	}
+	if _, err := openaiToAntigravityResponse(mkChunk(0, "a", "first", `{"ok":true}`), state); err != nil {
+		t.Fatalf("accumulate idx0: %v", err)
+	}
+	chunks, err := openaiToAntigravityResponse(map[string]any{
+		"choices": []any{map[string]any{
+			"delta":         map[string]any{},
+			"finish_reason": "tool_calls",
+		}},
+	}, state)
+	if err != nil {
+		t.Fatalf("finish: %v", err)
+	}
+	if len(chunks) != 1 {
+		t.Fatalf("len(chunks) = %d, want 1", len(chunks))
+	}
+	response, ok := chunks[0]["response"].(map[string]any)
+	if !ok {
+		t.Fatalf("response envelope missing: %v", chunks[0])
+	}
+	candidates := response["candidates"].([]any)
+	content := candidates[0].(map[string]any)["content"].(map[string]any)
+	parts := content["parts"].([]any)
+	if len(parts) != 2 {
+		t.Fatalf("len(parts) = %d, want 2 functionCall parts", len(parts))
+	}
+	fc0 := parts[0].(map[string]any)["functionCall"].(map[string]any)
+	fc1 := parts[1].(map[string]any)["functionCall"].(map[string]any)
+	if fc0["name"] != "first" || fc1["name"] != "second" {
+		t.Errorf("tool call order = %v, %v — want first, second (ascending index)", fc0["name"], fc1["name"])
+	}
+	args1, ok := fc1["args"].(map[string]any)
+	if !ok || len(args1) != 0 {
+		t.Errorf("malformed JSON args must fall back to empty object, got %v", fc1["args"])
+	}
+}
