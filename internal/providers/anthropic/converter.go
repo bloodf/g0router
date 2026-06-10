@@ -278,7 +278,12 @@ func ConvertStreamEventToChunk(event *StreamEvent, id, model string) *schemas.St
 			case "text_delta":
 				chunk.Choices[0].Delta.Content = event.Delta.Text
 			case "input_json_delta":
-				chunk.Choices[0].Delta.Content = event.Delta.PartialJSON
+				chunk.Choices[0].Delta.ToolCalls = []schemas.ToolCall{{
+					Type: "function",
+					Function: schemas.FunctionCall{
+						Arguments: event.Delta.PartialJSON,
+					},
+				}}
 			}
 		}
 	case "message_delta":

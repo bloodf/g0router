@@ -229,6 +229,47 @@ func TestConvertStreamEventStopReason(t *testing.T) {
 	}
 }
 
+func TestConvertStreamEventToChunkInputJSONDelta(t *testing.T) {
+	fragments := []string{`{"city":`, `"Paris"}`}
+	var concatenated string
+
+	for i, frag := range fragments {
+		event := &StreamEvent{
+			Type:  "content_block_delta",
+			Index: i,
+			Delta: &StreamDelta{Type: "input_json_delta", PartialJSON: frag},
+		}
+
+		chunk := ConvertStreamEventToChunk(event, "msg_01", "claude-3-5-sonnet")
+
+		if len(chunk.Choices) != 1 {
+			t.Fatalf("choices len = %d, want 1", len(chunk.Choices))
+		}
+
+		if chunk.Choices[0].Delta.Content != "" {
+			t.Errorf("delta content = %q, want empty", chunk.Choices[0].Delta.Content)
+		}
+
+		if len(chunk.Choices[0].Delta.ToolCalls) != 1 {
+			t.Fatalf("tool_calls len = %d, want 1", len(chunk.Choices[0].Delta.ToolCalls))
+		}
+
+		if chunk.Choices[0].Delta.ToolCalls[0].Type != "function" {
+			t.Errorf("tool_call type = %q, want function", chunk.Choices[0].Delta.ToolCalls[0].Type)
+		}
+
+		if chunk.Choices[0].Delta.ToolCalls[0].Function.Arguments != frag {
+			t.Errorf("arguments = %q, want %q", chunk.Choices[0].Delta.ToolCalls[0].Function.Arguments, frag)
+		}
+
+		concatenated += frag
+	}
+
+	if concatenated != `{"city":"Paris"}` {
+		t.Errorf("concatenated = %q, want {\"city\":\"Paris\"}", concatenated)
+	}
+}
+
 func TestErrorConverter(t *testing.T) {
 	ec := NewErrorConverter()
 	body := []byte(`{"type":"error","error":{"type":"invalid_request_error","message":"bad request"}}`)
