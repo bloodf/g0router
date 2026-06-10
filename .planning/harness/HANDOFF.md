@@ -72,7 +72,7 @@ w0-a..e merged.
 | w1-h ollama+commandcode | PASS (v3) | queued behind w1-g | — | rows PAR-TRANS-058..061 added 2026-06-10 |
 | w1-i kiro pair | PASS (v3) | queued | — | rows PAR-TRANS-062/063 added 2026-06-10 |
 | w1-j cursor pair | PASS (v3) | queued (dispatch-order: after h+i) | — | rows PAR-TRANS-064/065; protobuf=Wave-2 |
-| w1-k gemini client req | restructured → row 066 only | — | — | helpers 006/051/052/053 → Wave 4 |
+| w1-k gemini client req | **PASS** (row 066 only) | queued | — | helpers 006/051/052/053 → Wave 4 |
 | w1-l claude pipeline helpers | **PASS** | queued | — | rows PAR-TRANS-022/054/055; _ide suffix |
 | w1-g2/i/j/k remainder | — | — | — | sliced in WAVE-MAP 2026-06-10; plans pending |
 
