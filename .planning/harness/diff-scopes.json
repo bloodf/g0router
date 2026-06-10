@@ -98,6 +98,22 @@
         "internal/translation/sse.go",
         "internal/translation/sse_test.go"
       ]
+    },
+    "w1-h-ollama-commandcode": {
+      "base": "14c971b^",
+      "end": "14c971b",
+      "paths": [
+        "internal/translation/openai_ollama_request.go",
+        "internal/translation/openai_ollama_request_test.go",
+        "internal/translation/ollama_openai_response.go",
+        "internal/translation/ollama_openai_response_test.go",
+        "internal/translation/openai_commandcode_request.go",
+        "internal/translation/openai_commandcode_request_test.go",
+        "internal/translation/commandcode_openai_response.go",
+        "internal/translation/commandcode_openai_response_test.go",
+        "internal/translation/registry.go",
+        "internal/translation/registry_test.go"
+      ]
     }
   }
 }
