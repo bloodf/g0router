@@ -47,9 +47,8 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 		accumulateContent(openaiChunk, &summary)
 
 		// Translate: provider format -> client format.
-		// registry.TranslateResponse signature is (to, from, chunk, state)
-		// where to=provider format and from=client format.
-		// ProcessTranslateStream params are (from=provider, to=client).
+		// Registry.TranslateResponse(to, from, ...) translates from `to` toward `from`.
+		// ProcessTranslateStream passes (from=provider, to=client).
 		results, err := reg.TranslateResponse(from, to, openaiChunk, state)
 		if err != nil {
 			return summary, fmt.Errorf("translate response: %w", err)

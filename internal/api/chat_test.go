@@ -53,9 +53,8 @@ func TestWriteSSEStreamSuccess(t *testing.T) {
 }
 
 // TestWriteSSEStreamAbortsBeforeFirstFrame verifies a write failure before any
-// frame is emitted leaves empty output and returns an error. Chunk marshal
-// failures are covered in internal/translation/stream_test.go because
-// ProcessPassthroughStream marshals via encoding/json, not the api jsonMarshal seam.
+// frame is emitted leaves empty output and returns an error. Marshal failures on
+// the passthrough path are covered by translation/stream_test error-path tests.
 func TestWriteSSEStreamAbortsBeforeFirstFrame(t *testing.T) {
 	ch := make(chan *schemas.StreamChunk, 1)
 	ch <- &schemas.StreamChunk{ID: "c1"}

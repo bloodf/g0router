@@ -74,10 +74,18 @@ func TestProcessTranslateStreamEmitsDone(t *testing.T) {
 
 func TestProcessTranslateStreamFlushesStateOnClose(t *testing.T) {
 	w := &fakeWriter{}
-	ch := make(chan *schemas.StreamChunk, 1)
-	// A chunk that starts a message but doesn't finish it — the translator
-	// may buffer state that gets flushed on channel close.
-	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Role: "assistant"}}}}
+	ch := make(chan *schemas.StreamChunk, 3)
+	for _, raw := range []string{
+		`{"id":"c1","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"tc1","type":"function","function":{"name":"Read","arguments":""}}]}}]}`,
+		`{"id":"c2","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"city\":\"NYC\"}"}}]}}]}`,
+		`{"id":"c3","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+	} {
+		var chunk schemas.StreamChunk
+		if err := json.Unmarshal([]byte(raw), &chunk); err != nil {
+			t.Fatalf("unmarshal chunk: %v", err)
+		}
+		ch <- &chunk
+	}
 	close(ch)
 
 	reg := NewRegistry()
@@ -88,9 +96,9 @@ func TestProcessTranslateStreamFlushesStateOnClose(t *testing.T) {
 	}
 
 	out := w.buf.String()
-	// After close, TranslateResponse is called with nil to flush buffered state.
-	// The Claude translator emits message_start, content_block_start, etc.
-	// We just assert that [DONE] is present and the stream didn't error.
+	if !strings.Contains(out, "input_json_delta") && !strings.Contains(out, "content_block_stop") {
+		t.Errorf("expected flushed tool args in output: %q", out)
+	}
 	if !strings.HasSuffix(out, "data: [DONE]\n\n") {
 		t.Errorf("missing [DONE] terminator: %q", out)
 	}
@@ -246,40 +254,26 @@ func TestProcessPassthroughInjectsRequiredFields(t *testing.T) {
 }
 
 func TestProcessPassthroughStripsAzureFields(t *testing.T) {
-	// Build a chunk with azure fields via raw JSON, then unmarshal into StreamChunk.
-	// Unknown fields are dropped during unmarshal, so the processor never sees them.
-	// The strip logic is still exercised for forward compatibility.
-	raw := map[string]any{
+	payload := map[string]any{
 		"id":      "chatcmpl-12345678",
 		"object":  "chat.completion.chunk",
-		"created": 123,
-		"choices": []any{map[string]any{"index": 0, "delta": map[string]any{"content": "hi"}, "content_filter_results": map[string]any{}}},
+		"created": float64(123),
+		"choices": []any{map[string]any{
+			"index": float64(0),
+			"delta": map[string]any{"content": "hi"},
+			"content_filter_results": map[string]any{"hate": map[string]any{}},
+		}},
 		"prompt_filter_results": []any{map[string]any{}},
 	}
-	b, _ := json.Marshal(raw)
-	var chunk schemas.StreamChunk
-	if err := json.Unmarshal(b, &chunk); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
+	stripAzureFields(payload)
 
-	w := &fakeWriter{}
-	ch := make(chan *schemas.StreamChunk, 1)
-	ch <- &chunk
-	close(ch)
-
-	_, err := ProcessPassthroughStream(w, ch)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if _, ok := payload["prompt_filter_results"]; ok {
+		t.Errorf("prompt_filter_results should be stripped")
 	}
-
-	out := w.buf.String()
-	// Since StreamChunk doesn't have azure fields, they are lost during
-	// marshal/unmarshal. The output therefore never contains them.
-	if strings.Contains(out, "prompt_filter_results") {
-		t.Errorf("prompt_filter_results should be stripped: %q", out)
-	}
-	if strings.Contains(out, "content_filter_results") {
-		t.Errorf("content_filter_results should be stripped: %q", out)
+	choices := payload["choices"].([]any)
+	choice := choices[0].(map[string]any)
+	if _, ok := choice["content_filter_results"]; ok {
+		t.Errorf("content_filter_results should be stripped")
 	}
 }
 

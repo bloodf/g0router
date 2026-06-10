@@ -66,8 +66,9 @@ func TestSSEScannerEventCapture(t *testing.T) {
 
 func TestSSEScannerMalformedLineWarnsAndSkips(t *testing.T) {
 	var buf bytes.Buffer
+	prevLog := log.Writer()
 	log.SetOutput(&buf)
-	defer log.SetOutput(io.Discard)
+	defer log.SetOutput(prevLog)
 
 	input := "data: {invalid json}\n\ndata: ok\n\n"
 	scanner := NewSSEScanner(strings.NewReader(input))

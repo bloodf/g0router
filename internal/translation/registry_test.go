@@ -6,7 +6,10 @@ import (
 )
 
 func TestRegistryRegisterLookup(t *testing.T) {
-	reg := NewRegistry()
+	reg := &Registry{
+		request:  make(map[string]RequestTranslator),
+		response: make(map[string]ResponseTranslator),
+	}
 
 	var called bool
 	rt := func(model string, body map[string]any, stream bool) (map[string]any, error) {

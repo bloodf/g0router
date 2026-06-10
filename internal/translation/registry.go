@@ -28,13 +28,31 @@ type StreamState struct {
 	FinishReasonSent     bool
 	Usage                map[string]any
 	ContentBlockIndex    int
+	// Fields for claude→openai response translation.
+	ToolCallIndex        int
+	ServerToolBlockIndex int
+	InThinkingBlock      bool
+	CurrentBlockIndex    int
+	ClaudeBlockTools     map[int]claudeOpenAIToolCall
+	ToolNameMap          map[string]string
+}
+
+// claudeOpenAIToolCall tracks an in-flight Claude tool_use block during
+// claude→openai response translation.
+type claudeOpenAIToolCall struct {
+	Index     int
+	ID        string
+	Name      string
+	Arguments string
 }
 
 // NewStreamState creates a zero-valued StreamState with initialized maps.
 func NewStreamState() *StreamState {
 	return &StreamState{
-		ToolCalls:      make(map[int]ToolCallInfo),
-		ToolArgBuffers: make(map[int]string),
+		ToolCalls:              make(map[int]ToolCallInfo),
+		ToolArgBuffers:         make(map[int]string),
+		ClaudeBlockTools:       make(map[int]claudeOpenAIToolCall),
+		ServerToolBlockIndex:   -1,
 	}
 }
 
