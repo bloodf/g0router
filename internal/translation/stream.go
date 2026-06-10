@@ -33,7 +33,6 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 			return summary, fmt.Errorf("stream error: %w", chunk.Error)
 		}
 
-		// Marshal chunk to map[string]any for translation.
 		b, err := json.Marshal(chunk)
 		if err != nil {
 			return summary, fmt.Errorf("marshal chunk: %w", err)
@@ -43,12 +42,8 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 			return summary, fmt.Errorf("unmarshal chunk: %w", err)
 		}
 
-		// Accumulate content.
 		accumulateContent(openaiChunk, &summary)
 
-		// Translate: provider format -> client format.
-		// Registry.TranslateResponse(to, from, ...) translates from `to` toward `from`.
-		// ProcessTranslateStream passes (from=provider, to=client).
 		results, err := reg.TranslateResponse(from, to, openaiChunk, state)
 		if err != nil {
 			return summary, fmt.Errorf("translate response: %w", err)
@@ -59,7 +54,6 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 				continue
 			}
 
-			// Attach usage on finish chunk if state has usage.
 			if state.Usage != nil && isFinishChunk(item) {
 				item["usage"] = state.Usage
 				summary.Usage = state.Usage
@@ -71,7 +65,6 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 		}
 	}
 
-	// Flush buffered translator state.
 	flushed, err := reg.TranslateResponse(from, to, nil, state)
 	if err != nil {
 		return summary, fmt.Errorf("flush translator state: %w", err)
@@ -118,7 +111,6 @@ func ProcessPassthroughStream(w io.Writer, ch <-chan *schemas.StreamChunk) (Stre
 			return summary, fmt.Errorf("stream error: %w", chunk.Error)
 		}
 
-		// Normalize.
 		FixInvalidID(payload)
 		injectRequiredFields(payload)
 		stripAzureFields(payload)

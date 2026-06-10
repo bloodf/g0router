@@ -14,16 +14,13 @@ func claudeToOpenAIRequest(model string, body map[string]any, stream bool, crede
 		"stream":   stream,
 	}
 
-	// Max tokens.
 	// PAR-TRANS-011 (w1-c): adjustMaxTokens applies here.
 	result["max_tokens"] = AdjustMaxTokens(body)
 
-	// Temperature.
 	if temp, ok := body["temperature"]; ok && temp != nil {
 		result["temperature"] = temp
 	}
 
-	// System message.
 	if sys, ok := body["system"]; ok && sys != nil {
 		var systemContent string
 		switch v := sys.(type) {
@@ -48,7 +45,6 @@ func claudeToOpenAIRequest(model string, body map[string]any, stream bool, crede
 		}
 	}
 
-	// Convert messages.
 	if msgs, ok := body["messages"].([]any); ok {
 		for _, msg := range msgs {
 			converted, err := convertClaudeMessage(msg)
@@ -66,10 +62,8 @@ func claudeToOpenAIRequest(model string, body map[string]any, stream bool, crede
 		}
 	}
 
-	// Fix missing tool responses.
 	result["messages"] = fixMissingToolResponses(result["messages"].([]any))
 
-	// Tools.
 	if tools, ok := body["tools"].([]any); ok {
 		openaiTools := make([]any, 0, len(tools))
 		for _, tool := range tools {
@@ -98,7 +92,6 @@ func claudeToOpenAIRequest(model string, body map[string]any, stream bool, crede
 		result["tools"] = openaiTools
 	}
 
-	// Tool choice.
 	if tc, ok := body["tool_choice"]; ok && tc != nil {
 		result["tool_choice"] = convertToolChoice(tc)
 	}

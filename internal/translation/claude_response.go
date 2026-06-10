@@ -281,7 +281,6 @@ func openaiToClaudeResponse(chunk map[string]any, state *StreamState) ([]map[str
 		})
 	}
 
-	// Tool calls.
 	if tcsRaw, ok := delta["tool_calls"].([]any); ok {
 		for _, tcRaw := range tcsRaw {
 			tc, ok := tcRaw.(map[string]any)
