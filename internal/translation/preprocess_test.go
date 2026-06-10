@@ -141,3 +141,68 @@ func TestEnsureToolCallIDsSetsType(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// TestFixMissingToolResponsesInserts verifies that when an assistant message
+// has tool_calls and the next message does not contain tool results for those
+// IDs, empty role:tool messages are inserted directly after the assistant.
+func TestFixMissingToolResponsesInserts(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "user", Content: "hello"},
+			{Role: "assistant", ToolCalls: []schemas.ToolCall{
+				{ID: "tc1", Type: "function", Function: schemas.FunctionCall{Name: "f1", Arguments: "{}"}},
+				{ID: "tc2", Type: "function", Function: schemas.FunctionCall{Name: "f2", Arguments: "{}"}},
+			}},
+			{Role: "user", Content: "next"},
+		},
+	}
+
+	FixMissingToolResponses(req)
+
+	if len(req.Messages) != 5 {
+		t.Fatalf("len(messages) = %d, want 5", len(req.Messages))
+	}
+	if req.Messages[2].Role != "tool" || *req.Messages[2].ToolCallID != "tc1" || req.Messages[2].Content != "" {
+		t.Errorf("msg[2] = %+v, want role:tool tool_call_id:tc1 content:\"\"", req.Messages[2])
+	}
+	if req.Messages[3].Role != "tool" || *req.Messages[3].ToolCallID != "tc2" || req.Messages[3].Content != "" {
+		t.Errorf("msg[3] = %+v, want role:tool tool_call_id:tc2 content:\"\"", req.Messages[3])
+	}
+}
+
+// TestFixMissingToolResponsesSkipsAnswered verifies that when the next message
+// already answers the tool calls (via tool_call_id), nothing is inserted.
+func TestFixMissingToolResponsesSkipsAnswered(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "assistant", ToolCalls: []schemas.ToolCall{
+				{ID: "tc1", Type: "function", Function: schemas.FunctionCall{Name: "f1", Arguments: "{}"}},
+			}},
+			{Role: "tool", ToolCallID: strPtr("tc1"), Content: "done"},
+		},
+	}
+
+	FixMissingToolResponses(req)
+
+	if len(req.Messages) != 2 {
+		t.Fatalf("len(messages) = %d, want 2", len(req.Messages))
+	}
+}
+
+// TestFixMissingToolResponsesIgnoresTrailing verifies that when assistant
+// tool_calls are the final message, no empty tool responses are appended.
+func TestFixMissingToolResponsesIgnoresTrailing(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "assistant", ToolCalls: []schemas.ToolCall{
+				{ID: "tc1", Type: "function", Function: schemas.FunctionCall{Name: "f1", Arguments: "{}"}},
+			}},
+		},
+	}
+
+	FixMissingToolResponses(req)
+
+	if len(req.Messages) != 1 {
+		t.Fatalf("len(messages) = %d, want 1", len(req.Messages))
+	}
+}

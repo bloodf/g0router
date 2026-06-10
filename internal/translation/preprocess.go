@@ -32,6 +32,75 @@ func generateToolCallID(msgIndex, tcIndex int, toolName string) string {
 	return fmt.Sprintf("call_msg%d_tc%d%s", msgIndex, tcIndex, name)
 }
 
+// FixMissingToolResponses inserts empty role:tool messages after assistant
+// tool_calls when the next message does not contain results for those IDs.
+// It operates on the OpenAI-shaped request body in place.
+func FixMissingToolResponses(req *schemas.ChatRequest) {
+	if len(req.Messages) == 0 {
+		return
+	}
+
+	var newMessages []schemas.Message
+
+	for i := 0; i < len(req.Messages); i++ {
+		msg := req.Messages[i]
+		newMessages = append(newMessages, msg)
+
+		if msg.Role != "assistant" || len(msg.ToolCalls) == 0 {
+			continue
+		}
+
+		var ids []string
+		for _, tc := range msg.ToolCalls {
+			if tc.ID != "" {
+				ids = append(ids, tc.ID)
+			}
+		}
+		if len(ids) == 0 {
+			continue
+		}
+
+		nextMsg := func() *schemas.Message {
+			if i+1 < len(req.Messages) {
+				return &req.Messages[i+1]
+			}
+			return nil
+		}()
+
+		if nextMsg != nil && hasToolResults(*nextMsg, ids) {
+			continue
+		}
+
+		if nextMsg == nil {
+			continue
+		}
+
+		for _, id := range ids {
+			idCopy := id
+			newMessages = append(newMessages, schemas.Message{
+				Role:       "tool",
+				ToolCallID: &idCopy,
+				Content:    "",
+			})
+		}
+	}
+
+	req.Messages = newMessages
+}
+
+// hasToolResults reports whether msg contains a tool result for any of the
+// given toolCallIds. It checks the OpenAI role:tool format.
+func hasToolResults(msg schemas.Message, toolCallIds []string) bool {
+	if msg.Role == "tool" && msg.ToolCallID != nil {
+		for _, id := range toolCallIds {
+			if id == *msg.ToolCallID {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // EnsureToolCallIDs validates and repairs tool call IDs in a ChatRequest.
 // It operates on the OpenAI-shaped request body in place.
 func EnsureToolCallIDs(req *schemas.ChatRequest) {
