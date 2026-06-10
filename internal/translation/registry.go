@@ -77,6 +77,7 @@ func NewRegistry() *Registry {
 	}
 	r.Register(FormatClaude, FormatOpenAI, claudeToOpenAIRequest, claudeToOpenAIResponse)
 	r.Register(FormatOpenAI, FormatClaude, openaiToClaudeRequest, openaiToClaudeResponse)
+	r.Register(FormatOpenAI, FormatGemini, openaiToGeminiRequest, nil)
 	return r
 }
 
