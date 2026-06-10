@@ -87,6 +87,7 @@ func NewRegistry() *Registry {
 		}
 		return wrapInCloudCodeEnvelope(model, gemini, credentials, false), nil
 	}, nil)
+	r.Register(FormatOpenAI, FormatAntigravity, openaiToAntigravityRequest, nil)
 	return r
 }
 
