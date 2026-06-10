@@ -116,6 +116,34 @@ func TestConvertChatRequestFieldCoverage(t *testing.T) {
 }
 
 func TestConvertChatRequestStreamNotPresent(t *testing.T) {
+	// AUD-036: stream must not leak into the Gemini body on either path —
+	// streaming (Stream=true → :streamGenerateContent) or non-streaming
+	// (Stream=false → :generateContent). The body converter is shared;
+	// assert both values.
+	for _, stream := range []bool{true, false} {
+		req := &schemas.ChatRequest{
+			Model:    "gemini-1.5-pro",
+			Stream:   stream,
+			Messages: []schemas.Message{{Role: "user", Content: "Hello"}},
+		}
+
+		converted, err := ConvertChatRequest(req)
+		if err != nil {
+			t.Fatalf("ConvertChatRequest(stream=%v): %v", stream, err)
+		}
+		data, err := json.Marshal(converted)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		var body map[string]any
+		if err := json.Unmarshal(data, &body); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if _, ok := body["stream"]; ok {
+			t.Errorf("stream=%v: %q key serialized into Gemini body", stream, "stream")
+		}
+	}
+
 	req := &schemas.ChatRequest{
 		Model:    "gemini-1.5-pro",
 		Stream:   true,
