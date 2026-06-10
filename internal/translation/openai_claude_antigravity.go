@@ -18,7 +18,7 @@ func openaiToClaudeRequestForAntigravity(model string, body map[string]any, stre
 			filtered := make([]any, 0, len(v))
 			for _, block := range v {
 				if b, ok := block.(map[string]any); ok {
-					if text, ok := b["text"].(string); ok && strings.Contains(text, "You are Claude Code") {
+					if text, ok := b["text"].(string); ok && strings.Contains(text, claudeSystemPrompt) {
 						continue
 					}
 				}
@@ -30,7 +30,7 @@ func openaiToClaudeRequestForAntigravity(model string, body map[string]any, stre
 				delete(result, "system")
 			}
 		case string:
-			if strings.Contains(v, "You are Claude Code") {
+			if strings.Contains(v, claudeSystemPrompt) {
 				delete(result, "system")
 			}
 		}
