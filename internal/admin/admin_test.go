@@ -510,6 +510,19 @@ func TestOAuthStartCallbackRefresh(t *testing.T) {
 	}
 }
 
+func TestPathIDRejectsNonString(t *testing.T) {
+	env := newTestEnv(t)
+	token := loginToken(t, env)
+	authHeader := map[string]string{"Authorization": "Bearer " + token}
+
+	// Pass an int as the {id} route param.
+	status, _ := call(t, env.handlers.RequireSession(env.handlers.UpdateProvider), "PUT", "/api/providers/123",
+		`{"name":"X","type":"openai"}`, map[string]any{"id": 123}, authHeader)
+	if status != fasthttp.StatusBadRequest {
+		t.Fatalf("non-string pathID status = %d, want 400", status)
+	}
+}
+
 func TestRefreshConnectionRequiresRefreshToken(t *testing.T) {
 	env := newTestEnv(t)
 	env.withOAuth(t)

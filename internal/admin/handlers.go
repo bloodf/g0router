@@ -22,7 +22,7 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 }
 
 // pathID returns the {id} route parameter.
-func pathID(v any) string {
-	s, _ := v.(string)
-	return s
+func pathID(v any) (string, bool) {
+	s, ok := v.(string)
+	return s, ok
 }

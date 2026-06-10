@@ -104,7 +104,11 @@ func (h *Handlers) CreateConnection(ctx *fasthttp.RequestCtx) {
 // in the request preserve the stored values (so the UI never needs to echo
 // secrets back).
 func (h *Handlers) UpdateConnection(ctx *fasthttp.RequestCtx) {
-	id := pathID(ctx.UserValue("id"))
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
 	var req connectionRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON body")
@@ -155,7 +159,11 @@ func (h *Handlers) UpdateConnection(ctx *fasthttp.RequestCtx) {
 
 // DeleteConnection handles DELETE /api/connections/{id}.
 func (h *Handlers) DeleteConnection(ctx *fasthttp.RequestCtx) {
-	id := pathID(ctx.UserValue("id"))
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
 	err := h.store.DeleteConnection(id)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(ctx, fasthttp.StatusNotFound, "connection not found")

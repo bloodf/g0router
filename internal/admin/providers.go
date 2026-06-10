@@ -73,7 +73,11 @@ func (h *Handlers) CreateProvider(ctx *fasthttp.RequestCtx) {
 
 // UpdateProvider handles PUT /api/providers/{id}.
 func (h *Handlers) UpdateProvider(ctx *fasthttp.RequestCtx) {
-	id := pathID(ctx.UserValue("id"))
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
 	var req providerRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON body")
@@ -105,7 +109,11 @@ func (h *Handlers) UpdateProvider(ctx *fasthttp.RequestCtx) {
 
 // DeleteProvider handles DELETE /api/providers/{id}.
 func (h *Handlers) DeleteProvider(ctx *fasthttp.RequestCtx) {
-	id := pathID(ctx.UserValue("id"))
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
 	err := h.store.DeleteProvider(id)
 	if errors.Is(err, store.ErrNotFound) {
 		writeError(ctx, fasthttp.StatusNotFound, "provider not found")

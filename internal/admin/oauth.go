@@ -11,7 +11,11 @@ import (
 
 // OAuthStart handles GET /api/oauth/{provider}/start.
 func (h *Handlers) OAuthStart(ctx *fasthttp.RequestCtx) {
-	providerType := pathID(ctx.UserValue("provider"))
+	providerType, ok := pathID(ctx.UserValue("provider"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
 	flow, ok := h.flows[providerType]
 	if !ok {
 		writeError(ctx, fasthttp.StatusNotFound, fmt.Sprintf("no oauth flow for provider %q", providerType))
@@ -32,7 +36,11 @@ func (h *Handlers) OAuthStart(ctx *fasthttp.RequestCtx) {
 // OAuthCallback handles POST /api/oauth/{provider}/callback. It exchanges
 // the authorization code for tokens and stores them as an oauth connection.
 func (h *Handlers) OAuthCallback(ctx *fasthttp.RequestCtx) {
-	providerType := pathID(ctx.UserValue("provider"))
+	providerType, ok := pathID(ctx.UserValue("provider"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
 	flow, ok := h.flows[providerType]
 	if !ok {
 		writeError(ctx, fasthttp.StatusNotFound, fmt.Sprintf("no oauth flow for provider %q", providerType))
@@ -89,7 +97,11 @@ func (h *Handlers) OAuthCallback(ctx *fasthttp.RequestCtx) {
 // RefreshConnection handles POST /api/connections/{id}/refresh. It uses the
 // stored refresh token to obtain a new access token.
 func (h *Handlers) RefreshConnection(ctx *fasthttp.RequestCtx) {
-	id := pathID(ctx.UserValue("id"))
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
 
 	conn, err := h.store.GetConnection(id)
 	if errors.Is(err, store.ErrNotFound) {
