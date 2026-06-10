@@ -29,14 +29,16 @@ var unsupportedSchemaConstraints = []string{
 	"gap", "padding", "strokeColor", "strokeThickness", "textColor",
 }
 
-// DefaultSafetySettings are the 5 Gemini safety categories with threshold OFF.
-// Ported from geminiHelper.js:26-32.
-var DefaultSafetySettings = []map[string]any{
-	{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"},
-	{"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"},
-	{"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"},
-	{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"},
-	{"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "OFF"},
+// defaultSafetySettings returns the 5 Gemini safety categories with threshold OFF.
+// Ported from geminiHelper.js:26-32. Returns a new slice each call (no shared mutable state).
+func defaultSafetySettings() []map[string]any {
+	return []map[string]any{
+		{"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "OFF"},
+		{"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "OFF"},
+		{"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "OFF"},
+		{"category": "HARM_CATEGORY_HARASSMENT", "threshold": "OFF"},
+		{"category": "HARM_CATEGORY_CIVIC_INTEGRITY", "threshold": "OFF"},
+	}
 }
 
 // sanitizeGeminiFunctionName ensures a name complies with Gemini's function-name

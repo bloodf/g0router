@@ -224,7 +224,6 @@ func TestOpenAIGeminiToolCallPairing(t *testing.T) {
 							"id":   "call-foo-bar-123-456",
 							"type": "function",
 							"function": map[string]any{
-								"name":      "original_name",
 								"arguments": `{}`,
 							},
 						},
@@ -245,8 +244,9 @@ func TestOpenAIGeminiToolCallPairing(t *testing.T) {
 		userContent := contents[1].(map[string]any)
 		userParts := userContent["parts"].([]any)
 		fr := userParts[0].(map[string]any)["functionResponse"].(map[string]any)
-		if fr["name"] != "original_name" {
-			t.Errorf("functionResponse.name = %v, want original_name", fr["name"])
+		// tcID2Name empty (no function.name) → id split drops last two segments (openai-to-gemini.js:154-160).
+		if fr["name"] != "call-foo-bar" {
+			t.Errorf("functionResponse.name = %v, want call-foo-bar", fr["name"])
 		}
 	})
 

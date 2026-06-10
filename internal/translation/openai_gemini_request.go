@@ -20,7 +20,7 @@ func openaiToGeminiBase(model string, body map[string]any, stream bool, signatur
 		"model":            model,
 		"contents":         []any{},
 		"generationConfig": map[string]any{},
-		"safetySettings":   DefaultSafetySettings,
+		"safetySettings":   defaultSafetySettings(),
 	}
 
 	// Generation config (row 023).
