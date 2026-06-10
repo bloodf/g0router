@@ -124,6 +124,47 @@ func TestClaudeResponseToolCallBuffering(t *testing.T) {
 	}
 }
 
+// Multi-tool flush must emit blocks in ascending tool-call index order
+// (JS Map insertion order, openai-to-claude.js:240-258). Go map iteration
+// is randomized, so this pins the sort.
+func TestClaudeResponseMultiToolFlushOrder(t *testing.T) {
+	s := state()
+	openaiToClaudeResponse(map[string]any{
+		"id":      "chatcmpl-x",
+		"model":   "gpt-4",
+		"choices": []any{map[string]any{"delta": map[string]any{}, "index": 0}},
+	}, s)
+	for i, id := range []string{"tc0", "tc1", "tc2", "tc3"} {
+		if _, err := openaiToClaudeResponse(map[string]any{
+			"choices": []any{map[string]any{"delta": map[string]any{"tool_calls": []any{map[string]any{
+				"index": float64(i), "id": id, "function": map[string]any{"name": "Read"},
+			}}}, "index": 0}},
+		}, s); err != nil {
+			t.Fatalf("tool %d: err = %v", i, err)
+		}
+	}
+	out, err := openaiToClaudeResponse(map[string]any{
+		"choices": []any{map[string]any{"delta": map[string]any{}, "finish_reason": "tool_calls", "index": 0}},
+	}, s)
+	if err != nil {
+		t.Fatalf("finish: err = %v", err)
+	}
+	var stopIndices []int
+	for _, ev := range out {
+		if ev["type"] == "content_block_stop" {
+			stopIndices = append(stopIndices, ev["index"].(int))
+		}
+	}
+	if len(stopIndices) != 4 {
+		t.Fatalf("content_block_stop count = %d; want 4", len(stopIndices))
+	}
+	for i := 1; i < len(stopIndices); i++ {
+		if stopIndices[i] < stopIndices[i-1] {
+			t.Fatalf("content_block_stop indices out of order: %v", stopIndices)
+		}
+	}
+}
+
 func TestClaudeResponseStripsProxyPrefix(t *testing.T) {
 	s := state()
 	openaiToClaudeResponse(map[string]any{

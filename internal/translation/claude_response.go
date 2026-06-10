@@ -3,6 +3,7 @@ package translation
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -342,7 +343,15 @@ func openaiToClaudeResponse(chunk map[string]any, state *StreamState) ([]map[str
 		results = stopThinkingBlock(state, results)
 		results = stopTextBlock(state, results)
 
-		for idx, info := range state.ToolCalls {
+		// Iterate in ascending tool-call index order: JS Map preserves
+		// insertion order (openai-to-claude.js:240-258); Go maps do not.
+		indices := make([]int, 0, len(state.ToolCalls))
+		for idx := range state.ToolCalls {
+			indices = append(indices, idx)
+		}
+		sort.Ints(indices)
+		for _, idx := range indices {
+			info := state.ToolCalls[idx]
 			if buf, ok := state.ToolArgBuffers[idx]; ok && buf != "" {
 				sanitized := sanitizeToolArgs(info.Name, buf)
 				results = append(results, map[string]any{

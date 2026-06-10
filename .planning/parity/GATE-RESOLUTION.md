@@ -78,3 +78,11 @@ w1-a APPROVED with orchestrator fix commit.
 
 ## Addendum — matrix correction: PAR-TRANS-011 constants (2026-06-09, w1-c planning)
 Row text said adjustMaxTokens "boosts to min 4096 when tools present". Frozen ref disagrees: `open-sse/config/runtimeConfig.js:41-42` defines `DEFAULT_MAX_TOKENS = 64000` and `DEFAULT_MIN_TOKENS = 32000`; `maxTokensHelper.js:8-26` uses those. The 4096 figure is g0router's own `defaultMaxTokens` (gap column), which the analyzer conflated into the row text. Row corrected with source citation; verified by orchestrator against frozen ref.
+
+## w1-b diff gate (gpt-5.5, 2026-06-09) — dispositions
+- BLOCKER (tasks 1/2/5 "absent from diff"): OVERRULED — stale diff base. Tasks 1-5 commits (e7d7e7fd, 9169ceb1, 01a252c7, 05d2cfd4) were pushed to origin/main mid-implementation, so the `origin/main...HEAD` diff excluded them. Files exist with full test suites (`internal/translation/formats*.go`, `registry*.go`, `claude_request*.go`).
+- BLOCKER (`chunk.Error` "silently swallowed"): OVERRULED — matches the w0-e contract exactly: abort without emitting `[DONE]`, never serialize the error (same as `writeSSEStream`, `internal/api/chat.go:30-44`). `TestMessagesHandlerStreamingAbortsOnErrorChunk` asserts both no-continuation and no-leak.
+- BLOCKER (`[DONE]` emission out of scope): OVERRULED — reference behavior. 9router's flush emits `data: [DONE]\n\n` for claude-source streams unconditionally (`stream.js:407-411`); Anthropic's own API has no `[DONE]`, but parity targets 9router. w1-c's processor inherits this exact behavior.
+- MAJOR (messageIDFromChunk fallback "resembles deferred fixInvalidId"): OVERRULED — in-row behavior. PAR-TRANS-044's source carries this fallback itself: `openai-to-claude.js:109-113` (`if (!state.messageId || state.messageId === "chat" || state.messageId.length < 8) { state.messageId = chunk.extend_fields?.requestId || ... }`). Distinct from streamHelpers' `fixInvalidId` (chunk id rewriting), which remains w1-c scope.
+- MAJOR (nondeterministic multi-tool flush order): ACCEPTED — real defect. JS Map preserves insertion order; Go map iteration is randomized. Fixed by orchestrator: sorted ascending index iteration in the finish flush + `TestClaudeResponseMultiToolFlushOrder` (10-count run green).
+w1-b APPROVED with orchestrator fix commit.
