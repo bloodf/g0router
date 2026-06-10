@@ -89,6 +89,7 @@ func NewRegistry() *Registry {
 	}, nil)
 	r.Register(FormatOpenAI, FormatAntigravity, openaiToAntigravityRequest, nil)
 	r.Register(FormatAntigravity, FormatOpenAI, antigravityToOpenAIRequest, nil)
+	r.Register(FormatOpenAI, FormatVertex, openaiToVertexRequest, nil)
 	return r
 }
 
