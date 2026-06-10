@@ -107,7 +107,7 @@ var randRead = rand.Read
 func newToken() (string, error) {
 	b := make([]byte, 32)
 	if _, err := randRead(b); err != nil {
-		return "", fmt.Errorf("generate token: %w", err)
+		return "", fmt.Errorf("read random bytes: %w", err)
 	}
 	return hex.EncodeToString(b), nil
 }

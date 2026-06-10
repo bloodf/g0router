@@ -36,7 +36,9 @@ func writeSSEStream(w streamWriter, ch chan *schemas.StreamChunk) {
 			return
 		}
 	}
-	w.WriteString("data: [DONE]\n\n")
+	if _, werr := w.WriteString("data: [DONE]\n\n"); werr != nil {
+		return
+	}
 }
 
 // ChatHandler handles POST /v1/chat/completions.
