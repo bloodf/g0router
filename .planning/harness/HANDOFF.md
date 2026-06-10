@@ -68,8 +68,9 @@ w0-a..e merged.
 | w1-d claude pair | PASS | DONE | CLOSED (decision 2026-06-10) | all behavioral findings fixed |
 | w1-e gemini pair | PASS | DONE | CLOSED (decision 2026-06-10) | filter parity + jsString fixed |
 | w1-f cloud envelope | PASS | DONE | CLOSED (decision 2026-06-10) | all behavioral findings fixed |
-| w1-g Responses API | **PASS** | dispatching | — | plan v2 passed gate 2026-06-10 |
-| w1-h..j formats | — | — | — | **NOT PLANNED** |
+| w1-g Responses API | PASS | kimi running | — | plan v2 passed gate 2026-06-10 |
+| w1-h ollama+commandcode | **PASS** (v3) | queued behind w1-g | — | rows PAR-TRANS-058..061 added 2026-06-10 |
+| w1-g2/i/j/k remainder | — | — | — | sliced in WAVE-MAP 2026-06-10; plans pending |
 
 **HEAD:** `5d629345` — w1-f diff-gate fixes (uuid, tool prefix)  
 **Tests:** `go test ./...` green at HEAD.
