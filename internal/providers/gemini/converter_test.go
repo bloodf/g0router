@@ -1,11 +1,145 @@
 package gemini
 
 import (
+	"encoding/json"
 	"regexp"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/schemas"
 )
+
+// unsupportedGeminiChatFields lists OpenAI ChatRequest fields that are
+// intentionally not mapped to the Gemini GenerateContentRequest per Bundle E
+// acceptance (AUD-032, AUD-033, AUD-034, AUD-037).
+var unsupportedGeminiChatFields = []string{
+	"n",
+	"presence_penalty",
+	"frequency_penalty",
+	"logit_bias",
+	"user",
+	"response_format",
+	"seed",
+	"message_name",
+}
+
+func TestConvertChatRequestUnsupportedFieldsNotPresent(t *testing.T) {
+	n := 2
+	temp := 0.7
+	presencePenalty := 0.5
+	frequencyPenalty := 0.3
+	seed := 42
+	name := "test-name"
+	responseFormat := &schemas.ResponseFormat{Type: "json_object"}
+	logitBias := map[string]int{"foo": 1}
+
+	req := &schemas.ChatRequest{
+		Model:            "gemini-1.5-pro",
+		N:                &n,
+		Temperature:      &temp,
+		PresencePenalty:  &presencePenalty,
+		FrequencyPenalty: &frequencyPenalty,
+		LogitBias:        logitBias,
+		User:             "test-user",
+		ResponseFormat:   responseFormat,
+		Seed:             &seed,
+		Messages: []schemas.Message{
+			{Role: "user", Content: "Hello", Name: &name},
+		},
+	}
+
+	converted, err := ConvertChatRequest(req)
+	if err != nil {
+		t.Fatalf("ConvertChatRequest: %v", err)
+	}
+	data, err := json.Marshal(converted)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	for _, field := range []string{"n", "presence_penalty", "frequency_penalty", "logit_bias", "user", "response_format", "seed"} {
+		if _, ok := result[field]; ok {
+			t.Errorf("field %q should not be present in serialized Gemini chat request", field)
+		}
+	}
+
+	if msgs, ok := result["contents"].([]any); ok && len(msgs) > 0 {
+		if msg, ok := msgs[0].(map[string]any); ok {
+			if _, ok := msg["name"]; ok {
+				t.Error("field message.name should not be present in serialized Gemini chat request")
+			}
+		}
+	}
+}
+
+func TestConvertChatRequestFieldCoverage(t *testing.T) {
+	// AUD rows fields that must be covered by either a mapping test or the
+	// unsupported list.
+	audFields := []string{
+		"n",                // AUD-032
+		"presence_penalty", // AUD-033
+		"frequency_penalty", // AUD-033
+		"logit_bias",       // AUD-033
+		"user",             // AUD-034
+		"response_format",  // AUD-034
+		"seed",             // AUD-034
+		"message_name",     // AUD-037
+	}
+
+	fieldSet := make(map[string]bool)
+	for _, f := range unsupportedGeminiChatFields {
+		fieldSet[f] = true
+	}
+
+	// Fields with existing mapping tests in this package.
+	mappedFields := map[string]bool{
+		"model":              true,
+		"messages":           true,
+		"temperature":        true,
+		"max_tokens":         true,
+		"top_p":              true,
+		"stop":               true,
+		"tools":              true,
+		"tool_choice":        true,
+		"stream":             true, // AUD-036 — tested separately
+	}
+
+	for _, f := range audFields {
+		if !fieldSet[f] && !mappedFields[f] {
+			t.Errorf("AUD field %q not covered by mapping test or unsupported list", f)
+		}
+	}
+}
+
+func TestConvertChatRequestStreamNotPresent(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Model:    "gemini-1.5-pro",
+		Stream:   true,
+		Messages: []schemas.Message{{Role: "user", Content: "Hello"}},
+	}
+
+	converted, err := ConvertChatRequest(req)
+	if err != nil {
+		t.Fatalf("ConvertChatRequest: %v", err)
+	}
+	data, err := json.Marshal(converted)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var result map[string]any
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if _, ok := result["stream"]; ok {
+		t.Error("stream field should not be present in Gemini chat request body")
+	}
+}
 
 func TestConvertChatRequestToolMessageWithCallID(t *testing.T) {
 	callID := "call_abc"

@@ -10,6 +10,37 @@ import (
 	"github.com/bloodf/g0router/internal/schemas"
 )
 
+func TestChatCompletionStreamUsesStreamingEndpoint(t *testing.T) {
+	var capturedURI string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedURI = r.URL.Path
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello\"}]}}]}\n\n")
+		io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	p := NewProvider()
+	p.baseURL = srv.URL
+
+	ch, perr := p.ChatCompletionStream(&schemas.GatewayContext{}, nil, schemas.Key{Value: "test-key"}, &schemas.ChatRequest{
+		Model: "gemini-1.5-pro",
+		Messages: []schemas.Message{
+			{Role: "user", Content: "Hi"},
+		},
+	})
+	if perr != nil {
+		t.Fatalf("ChatCompletionStream error: %v", perr.Message)
+	}
+
+	for range ch {
+	}
+
+	if !strings.Contains(capturedURI, ":streamGenerateContent") {
+		t.Errorf("URI = %q, expected to contain ':streamGenerateContent'", capturedURI)
+	}
+}
+
 func TestChatCompletionSanitizesModelInURI(t *testing.T) {
 	var capturedURI string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
