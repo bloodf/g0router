@@ -212,3 +212,29 @@ func TestFilterClaudeToolWithOnlyNamePassesThrough(t *testing.T) {
 		t.Errorf("tool = %v, want original {name:bare}", tool0)
 	}
 }
+
+func TestFilterAllThinkingMessageDropped(t *testing.T) {
+	// Ref behavior (openaiHelper.js:49-51 then 60-74): an all-filtered
+	// content array first receives the {type:text,text:""} placeholder,
+	// and the second pass then drops the message because the placeholder
+	// is empty text. The end state is the message disappearing entirely.
+	body := map[string]any{
+		"messages": []any{
+			map[string]any{
+				"role": "assistant",
+				"content": []any{
+					map[string]any{"type": "thinking", "thinking": "secret"},
+				},
+			},
+			map[string]any{"role": "user", "content": "hi"},
+		},
+	}
+	out := FilterToOpenAIFormat(body)
+	msgs := out["messages"].([]any)
+	if len(msgs) != 1 {
+		t.Fatalf("expected all-thinking assistant message dropped, got %v", msgs)
+	}
+	if msgs[0].(map[string]any)["role"] != "user" {
+		t.Errorf("surviving message = %v, want the user message", msgs[0])
+	}
+}
