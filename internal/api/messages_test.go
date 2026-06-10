@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/inference"
@@ -195,3 +196,70 @@ func TestMessagesHandlerNonStreamingPassthrough(t *testing.T) {
 		t.Errorf("body = %s, want %s", got, wantBytes)
 	}
 }
+
+func TestMessagesHandlerStreamingFraming(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk, 3)
+	ch <- &schemas.StreamChunk{ID: "chatcmpl-x", Model: "gpt-4", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hello"}}}}
+	ch <- &schemas.StreamChunk{ID: "chatcmpl-x", Model: "gpt-4", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}, FinishReason: strPtr("stop")}}}
+	close(ch)
+
+	fake := &fakeMessagesResolver{streamCh: ch}
+	h := &MessagesHandler{router: fake, registry: translation.NewRegistry()}
+
+	body := `{"model":"claude-opus-4","messages":[{"role":"user","content":"hi"}],"stream":true}`
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/messages")
+	ctx.Request.SetBody([]byte(body))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d", ctx.Response.StatusCode())
+	}
+	got := string(ctx.Response.Body())
+	lines := strings.Split(got, "\n")
+	if !strings.HasPrefix(got, "event: message_start") {
+		t.Errorf("missing message_start event framing; output:\n%s", got)
+	}
+	if !strings.Contains(got, "event: content_block_delta") {
+		t.Errorf("missing content_block_delta event framing; output:\n%s", got)
+	}
+	if !strings.Contains(got, "event: message_stop") {
+		t.Errorf("missing message_stop event framing; output:\n%s", got)
+	}
+	for _, line := range lines {
+		if strings.HasPrefix(line, "data: ") && !strings.HasPrefix(line, "data: [DONE]") {
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &map[string]any{}); err != nil {
+				t.Errorf("non-JSON data line: %q", line)
+			}
+		}
+	}
+}
+
+func TestMessagesHandlerStreamingAbortsOnErrorChunk(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk, 3)
+	ch <- &schemas.StreamChunk{ID: "chatcmpl-x", Model: "gpt-4", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hello"}}}}
+	ch <- &schemas.StreamChunk{Error: &schemas.ProviderError{Message: "boom", Type: "stream_error"}}
+	ch <- &schemas.StreamChunk{ID: "chatcmpl-x", Model: "gpt-4", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "ignored"}}}}
+	close(ch)
+
+	fake := &fakeMessagesResolver{streamCh: ch}
+	h := &MessagesHandler{router: fake, registry: translation.NewRegistry()}
+
+	body := `{"model":"claude-opus-4","messages":[{"role":"user","content":"hi"}],"stream":true}`
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/messages")
+	ctx.Request.SetBody([]byte(body))
+	h.Handle(&ctx)
+
+	got := string(ctx.Response.Body())
+	if strings.Contains(got, "ignored") {
+		t.Errorf("error chunk did not abort stream; output:\n%s", got)
+	}
+	if strings.Contains(got, "boom") {
+		t.Errorf("error leaked to client; output:\n%s", got)
+	}
+}
+
+func strPtr(s string) *string { return &s }
