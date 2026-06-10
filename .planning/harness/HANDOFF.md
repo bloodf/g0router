@@ -64,11 +64,11 @@ w0-a..e merged.
 |------|-----------|-------------|-----------|-------|
 | w1-a schema+preprocess | PASS | DONE | PASS (early) | merged |
 | w1-b registry+messages | PASS | DONE | PASS (early) | merged |
-| w1-c stream processor | PASS | DONE | **REJECT** — re-run scoped | `diff-scopes.json` |
-| w1-d claude pair | PASS | DONE | **REJECT** — fix blockers | panic on role assert; pipeline test |
-| w1-e gemini pair | PASS | DONE | **REJECT** — re-run scoped | mergeAllOf fixed; filter placeholder |
-| w1-f cloud envelope | PASS | DONE | **REJECT** — re-run after `5d629345` | uuid.Must fixed |
-| w1-g Responses API | — | — | — | **Fable: draft next** |
+| w1-c stream processor | PASS | DONE | CLOSED (decision 2026-06-10) | real fixes: maxtokens, Azure tests, SSE EOF |
+| w1-d claude pair | PASS | DONE | CLOSED (decision 2026-06-10) | all behavioral findings fixed |
+| w1-e gemini pair | PASS | DONE | CLOSED (decision 2026-06-10) | filter parity + jsString fixed |
+| w1-f cloud envelope | PASS | DONE | CLOSED (decision 2026-06-10) | all behavioral findings fixed |
+| w1-g Responses API | **PASS** | dispatching | — | plan v2 passed gate 2026-06-10 |
 | w1-h..j formats | — | — | — | **NOT PLANNED** |
 
 **HEAD:** `5d629345` — w1-f diff-gate fixes (uuid, tool prefix)  

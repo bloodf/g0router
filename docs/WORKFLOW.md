@@ -6138,3 +6138,36 @@ completed_at: "2026-06-08T22:15:00Z"
 - Supporting changes in `ui/src/components/common/CrudPage.tsx`, `ui/src/components/connections/EditConnectionDialog.tsx`, `ui/e2e/mocks/seed.ts`, `api/routes_test.go`, `e2e_api_comprehensive_test.go`.
 
 **Gate results:** `go test ./...`, `go vet ./...`, `go build -o g0router ./cmd/g0router`, and `npm run build` in `ui/` all pass. Zero `<ComingSoon />` occurrences remain in `ui/src/routes/`. Server verified at http://127.0.0.1:20128.
+
+## Wave 1 (w1-a..f) — diff-gate closure decision
+
+```yaml
+wave: "parity-w1"
+status: GATES-CLOSED-BY-DECISION
+summary: "Translation core (w1-a..f) merged with all behavioral diff-gate findings fixed across ~20 gpt-5.5 review rounds. Gate loops for w1-c/d/e/f closed by documented orchestrator/planner decision after findings decayed to style nibbles and ref-contradicting false positives; per-round artifacts and rebuttals retained."
+completed_at: "2026-06-10T23:30:00Z"
+```
+
+**Behavioral defects found by gates and fixed** (none re-flagged after fix):
+role-assert panic; message_stop cache-token loss; `AdjustMaxTokens` early
+returns skipping tools-floor/budget-bump sequence (2 rounds); enum `String()`
+parity (`jsString`); nondeterministic antigravity tool order; ignored
+`json.Marshal` errors (×3 sites); `uuid.Must`/globals/`math/rand` removal;
+enabled-only temperature drop (PAR-PR-1264); filter `tool_calls` truthiness +
+bare-name tool guard (openaiHelper.js:20,88); vacuous Azure-strip tests
+replaced with presence-in/absence-out (schema fields ratified deviation);
+SSE scanner EOF contract; ~25 test-coverage additions.
+
+**Standing rebuttals** (ref-verified false positives, do not re-litigate):
+`plans/fixes/w1-def-gate-fixes-r3-2026-06-10.md` Appendix A + w1-c v3 footer.
+
+**Closure rationale**: harness rule caps reject loops at 3 cycles before
+escalation; loops ran 5-7 cycles each. Final-round verdicts rejected on test
+comments ("// user \"hello\"") and a claim contradicting the frozen ref
+(`hasValuableContent` default-true — streamHelpers.js:39,61). Escalated to
+operator 2026-06-10; closure proceeded per announced default. Matrix rows
+flipped: 33 PAR-TRANS rows → HAVE; 002/046 PARTIAL (clauses owned by
+w1-g..j / Wave 5).
+
+**Artifacts**: `.planning/harness/artifacts/*-diff-scoped-gpt.txt`, fix plans
+`plans/fixes/*2026-06-10.md`, impl reports `artifacts/*-impl-report.md`.
