@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -16,6 +17,10 @@ import (
 
 // oauthStateTTL bounds how long an in-flight authorization may take.
 const oauthStateTTL = 10 * time.Minute
+
+// defaultAnthropicClientID is the public Claude Code OAuth client identifier.
+// Parity source: _refs/9router/src/lib/oauth/constants/oauth.js:21
+const defaultAnthropicClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 
 // OAuthConfig describes one provider's OAuth endpoints.
 type OAuthConfig struct {
@@ -30,9 +35,13 @@ type OAuthConfig struct {
 // AnthropicOAuth returns the production OAuth configuration for Anthropic
 // (Claude Pro/Max OAuth with PKCE).
 func AnthropicOAuth() OAuthConfig {
+	clientID := os.Getenv("G0ROUTER_ANTHROPIC_CLIENT_ID")
+	if clientID == "" {
+		clientID = defaultAnthropicClientID
+	}
 	return OAuthConfig{
 		Provider:     "anthropic",
-		ClientID:     "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+		ClientID:     clientID,
 		AuthorizeURL: "https://claude.ai/oauth/authorize",
 		TokenURL:     "https://console.anthropic.com/v1/oauth/token",
 		RedirectURI:  "https://console.anthropic.com/oauth/code/callback",

@@ -38,5 +38,8 @@ Kimi verdict: PASS, 1 MAJOR + 4 MINOR.
 - MINOR separate test funcs vs table-driven: OVERRULED — style preference; tests are binary and per-handler failure isolation is clearer.
 - MINOR acceptance grep non-empty: pre-logged above (grep over-broad; remaining sites already check errors).
 
+## Addendum — w0-d diff gate disposition (2026-06-09)
+Kimi verdict: REJECT, single MAJOR: commits use `parity-w0/w0-d:` instead of AGENTS.md `phase-N/task-M:`. OVERRULED — false positive. `prompts/implementer-base.md` (binding for the parity program) mandates `parity-w0/<plan-id>: <task summary>`; the parity-wave prefix supersedes phase numbering for Stage 1 work. The critic was not given implementer-base.md as context. Zero functional findings ("everything looks correct functionally"). w0-d APPROVED. Follow-up: critic-diff prompt amended to include the commit-format rule.
+
 ## Addendum — AUD-004 remediation deviation (2026-06-09)
 AUD-004 remediation text says "rotate exposed ID". The ID (`9d1c250a-e61b-44d9-88ed-5944d1962f5e`) is Anthropic's public Claude Code OAuth client identifier — not our credential, not rotatable by us, and not a secret (RFC 8252 §8.4: native-app client IDs are public). 9router hardcodes the same value (`_refs/9router/src/lib/oauth/constants/oauth.js:21`). Authorized remediation: make it configurable via `G0ROUTER_ANTHROPIC_CLIENT_ID` with the public ID as default (preserves out-of-box parity). Plan w0-b implements this. Decision: orchestrator, surfaced to user in the Wave 0 plan summary.

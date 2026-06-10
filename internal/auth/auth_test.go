@@ -316,3 +316,19 @@ func TestAnthropicOAuthDefaults(t *testing.T) {
 		t.Fatalf("incomplete config: %+v", cfg)
 	}
 }
+
+func TestAnthropicOAuthClientIDFromEnv(t *testing.T) {
+	t.Setenv("G0ROUTER_ANTHROPIC_CLIENT_ID", "custom-client-id")
+	cfg := AnthropicOAuth()
+	if cfg.ClientID != "custom-client-id" {
+		t.Fatalf("env client_id = %q, want %q", cfg.ClientID, "custom-client-id")
+	}
+}
+
+func TestAnthropicOAuthClientIDDefault(t *testing.T) {
+	t.Setenv("G0ROUTER_ANTHROPIC_CLIENT_ID", "")
+	cfg := AnthropicOAuth()
+	if cfg.ClientID != defaultAnthropicClientID {
+		t.Fatalf("default client_id = %q, want %q", cfg.ClientID, defaultAnthropicClientID)
+	}
+}
