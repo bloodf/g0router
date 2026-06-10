@@ -89,3 +89,6 @@ w1-b APPROVED with orchestrator fix commit.
 
 ## Addendum — matrix correction: PAR-TRANS-016 cache_control ttl (2026-06-09, w1-d planning)
 Row said `cache_control {type:ephemeral,ttl:"1h"}` applies to "last system block and last assistant block". Frozen ref: the assistant-message block gets `{ type: "ephemeral" }` with NO ttl (`openai-to-claude.js:100` verbatim `block.cache_control = { type: "ephemeral" };`); ttl `"1h"` appears only on the last system block (`:130`) and last tool (`:165`). Row corrected with line-level citations; verified by orchestrator.
+
+## Addendum — matrix correction: PAR-TRANS-030 tool_choice mapping (2026-06-09, w1-e planning)
+Row claimed plain OpenAI→Gemini maps `tool_choice` to `toolConfig.functionCallingConfig.mode` (auto→AUTO, none→NONE, function/required→ANY). Frozen ref: `openaiToGeminiBase` (openai-to-gemini.js:39-221) never references `tool_choice` and emits no `toolConfig`; grep over openai-to-gemini.js + geminiHelper.js confirms the only `functionCallingConfig` is the Antigravity envelope's hardcoded `{mode:"VALIDATED"}` (:305-308, :416-417). Row corrected; the existing g0router provider-converter mapping is an invention relative to the ref translator and the translation engine must match the ref (drop tool_choice on the plain path). Verified by orchestrator.
