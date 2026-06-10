@@ -75,7 +75,9 @@ func openaiToClaudeRequest(model string, body map[string]any, stream bool, crede
 		}
 
 		for _, msg := range nonSystem {
-			role := msg["role"].(string)
+			// Missing/non-string role maps to assistant, matching 9router
+			// where an undefined role falls into the else branch.
+			role, _ := msg["role"].(string)
 			newRole := role
 			if role == "user" || role == "tool" {
 				newRole = "user"

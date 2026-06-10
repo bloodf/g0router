@@ -487,3 +487,31 @@ func containsHelper(s, substr string) bool {
 	}
 	return false
 }
+
+func TestOpenAIClaudeRequestMissingRoleDoesNotPanic(t *testing.T) {
+	body := map[string]any{
+		"messages": []any{
+			map[string]any{"content": "no role on this message"},
+			map[string]any{"role": 42, "content": "non-string role"},
+			map[string]any{"role": "user", "content": "hi"},
+		},
+	}
+	out, err := openaiToClaudeRequest("claude-3-opus", body, false, nil)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	// Messages with missing/non-string roles contribute no content blocks and
+	// are dropped (9router: undefined role matches no conversion branch);
+	// valid messages survive.
+	msgs, ok := out["messages"].([]any)
+	if !ok || len(msgs) != 1 {
+		t.Fatalf("expected exactly the valid user message, got %v", out["messages"])
+	}
+	first, ok := msgs[0].(map[string]any)
+	if !ok {
+		t.Fatalf("message shape: %v", msgs[0])
+	}
+	if first["role"] != "user" {
+		t.Errorf("role = %v, want user", first["role"])
+	}
+}

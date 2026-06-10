@@ -193,25 +193,52 @@ func TestRegistryClaudeRoundTripViaPipeline(t *testing.T) {
 	events := []map[string]any{
 		{"type": "message_start", "message": map[string]any{"id": "msg_1", "model": "claude-3-opus"}},
 		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": "ok"}},
-		{"type": "message_delta", "delta": map[string]any{"stop_reason": "end_turn"}, "usage": map[string]any{"input_tokens": 1, "output_tokens": 1}},
+		{"type": "content_block_stop", "index": 0},
+		{"type": "content_block_start", "index": 1, "content_block": map[string]any{"type": "tool_use", "id": "toolu_1", "name": "Read"}},
+		{"type": "content_block_delta", "index": 1, "delta": map[string]any{"type": "input_json_delta", "partial_json": `{"file":`}},
+		{"type": "content_block_delta", "index": 1, "delta": map[string]any{"type": "input_json_delta", "partial_json": `"a.txt"}`}},
+		{"type": "content_block_stop", "index": 1},
+		{"type": "message_delta", "delta": map[string]any{"stop_reason": "tool_use"}, "usage": map[string]any{"input_tokens": 1, "output_tokens": 1}},
 		{"type": "message_stop"},
 	}
 	var last map[string]any
+	toolArgs := ""
+	sawToolCallStart := false
 	for _, ev := range events {
 		chunks, err := reg.TranslateResponse(FormatClaude, FormatOpenAI, ev, state)
 		if err != nil {
 			t.Fatalf("TranslateResponse: %v", err)
 		}
+		for _, chunk := range chunks {
+			choices := chunk["choices"].([]any)
+			delta := choices[0].(map[string]any)["delta"].(map[string]any)
+			if tcs, ok := delta["tool_calls"].([]any); ok {
+				tc := tcs[0].(map[string]any)
+				fn := tc["function"].(map[string]any)
+				if name, _ := fn["name"].(string); name == "Read" {
+					sawToolCallStart = true
+				}
+				if args, _ := fn["arguments"].(string); args != "" {
+					toolArgs += args
+				}
+			}
+		}
 		if len(chunks) > 0 {
 			last = chunks[len(chunks)-1]
 		}
+	}
+	if !sawToolCallStart {
+		t.Error("expected a tool_calls chunk announcing tool Read")
+	}
+	if toolArgs != `{"file":"a.txt"}` {
+		t.Errorf("accumulated tool arguments = %q, want %q", toolArgs, `{"file":"a.txt"}`)
 	}
 	if last == nil {
 		t.Fatal("no response chunks")
 	}
 	choices := last["choices"].([]any)
-	if choices[0].(map[string]any)["finish_reason"] == nil {
-		t.Fatalf("expected finish_reason on final chunk: %v", last)
+	if fr := choices[0].(map[string]any)["finish_reason"]; fr != "tool_calls" {
+		t.Fatalf("finish_reason = %v, want tool_calls", fr)
 	}
 }
 

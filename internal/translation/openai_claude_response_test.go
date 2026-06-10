@@ -357,3 +357,57 @@ func TestClaudeOpenAIMessageStopFallback(t *testing.T) {
 		t.Errorf("finish_reason = %v, want stop", choices[0].(map[string]any)["finish_reason"])
 	}
 }
+
+func TestClaudeMessageStopUsageIncludesCacheTokens(t *testing.T) {
+	state := NewStreamState()
+	if _, err := claudeToOpenAIResponse(map[string]any{
+		"type":  "message_start",
+		"message": map[string]any{"id": "msg_cache", "model": "claude-3-opus"},
+	}, state); err != nil {
+		t.Fatalf("message_start: %v", err)
+	}
+	// Usage arrives on a message_delta without stop_reason, so the final
+	// chunk is emitted by message_stop and must keep cache accounting.
+	if _, err := claudeToOpenAIResponse(map[string]any{
+		"type":  "message_delta",
+		"delta": map[string]any{},
+		"usage": map[string]any{
+			"input_tokens":                float64(10),
+			"output_tokens":               float64(5),
+			"cache_read_input_tokens":     float64(7),
+			"cache_creation_input_tokens": float64(3),
+		},
+	}, state); err != nil {
+		t.Fatalf("message_delta: %v", err)
+	}
+	chunks, err := claudeToOpenAIResponse(map[string]any{"type": "message_stop"}, state)
+	if err != nil {
+		t.Fatalf("message_stop: %v", err)
+	}
+	if len(chunks) != 1 {
+		t.Fatalf("len(chunks) = %d, want 1", len(chunks))
+	}
+	usage, ok := chunks[0]["usage"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected usage on final chunk: %v", chunks[0])
+	}
+	if usage["prompt_tokens"] != 20 {
+		t.Errorf("prompt_tokens = %v, want 20 (input + cache_read + cache_creation)", usage["prompt_tokens"])
+	}
+	if usage["completion_tokens"] != 5 {
+		t.Errorf("completion_tokens = %v, want 5", usage["completion_tokens"])
+	}
+	if usage["total_tokens"] != 25 {
+		t.Errorf("total_tokens = %v, want 25", usage["total_tokens"])
+	}
+	details, ok := usage["prompt_tokens_details"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected prompt_tokens_details: %v", usage)
+	}
+	if details["cached_tokens"] != 7 {
+		t.Errorf("cached_tokens = %v, want 7", details["cached_tokens"])
+	}
+	if details["cache_creation_tokens"] != 3 {
+		t.Errorf("cache_creation_tokens = %v, want 3", details["cache_creation_tokens"])
+	}
+}

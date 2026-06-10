@@ -238,19 +238,33 @@ func claudeToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 			}
 			chunk := createOpenAIChunk(state, map[string]any{}, finishReason)
 			if state.Usage != nil {
-				inputTokens := 0
-				if v, ok := state.Usage["input_tokens"].(int); ok {
-					inputTokens = v
+				// Same shape as the message_delta final chunk: prompt_tokens
+				// already includes cache tokens, and cache accounting is
+				// preserved via prompt_tokens_details (diff gate w1-d).
+				usageCopy := map[string]any{
+					"prompt_tokens":     state.Usage["prompt_tokens"],
+					"completion_tokens": state.Usage["completion_tokens"],
+					"total_tokens":      state.Usage["total_tokens"],
 				}
-				outputTokens := 0
-				if v, ok := state.Usage["output_tokens"].(int); ok {
-					outputTokens = v
+				cacheRead := 0
+				if v, ok := state.Usage["cache_read_input_tokens"].(int); ok {
+					cacheRead = v
 				}
-				chunk["usage"] = map[string]any{
-					"prompt_tokens":     inputTokens,
-					"completion_tokens": outputTokens,
-					"total_tokens":      inputTokens + outputTokens,
+				cacheCreate := 0
+				if v, ok := state.Usage["cache_creation_input_tokens"].(int); ok {
+					cacheCreate = v
 				}
+				if cacheRead > 0 || cacheCreate > 0 {
+					details := map[string]any{}
+					if cacheRead > 0 {
+						details["cached_tokens"] = cacheRead
+					}
+					if cacheCreate > 0 {
+						details["cache_creation_tokens"] = cacheCreate
+					}
+					usageCopy["prompt_tokens_details"] = details
+				}
+				chunk["usage"] = usageCopy
 			}
 			results = append(results, chunk)
 			state.FinishReasonSent = true
