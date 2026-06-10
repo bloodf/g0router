@@ -7,7 +7,7 @@ REJECT the diff if ANY of these hold:
 - Dead code, stubs without callers, commented-out blocks, unused exports, copy-paste duplication.
 - Violates repo conventions: init() functions, global state, panics instead of returned errors, mocks instead of fakes, missing fmt.Errorf wrapping, non-snake_case JSON, secrets outside *_enc columns.
 - Doc/comment prose is padded: filler, vague declaratives, passive voice. Comments must state non-obvious intent only.
-- Commit messages deviate from `phase-NN/task-M: <description>`.
+- Commit messages deviate from `parity-w0/<plan-id>: <task summary>` (parity-wave format; supersedes the legacy `phase-NN/task-M:` format for Stage 1+ work).
 
 You MUST output exactly this block and nothing after it:
 VERDICT: PASS|REJECT

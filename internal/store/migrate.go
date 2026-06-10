@@ -3,7 +3,10 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 )
+
+var identifierRe = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
 
 // migrate runs all schema migrations. Migrations are additive-only:
 // tables are created if missing and columns are appended via ensureColumn.
@@ -77,6 +80,13 @@ func migrate(db *sql.DB) error {
 // ensureColumn appends column to table if it does not exist yet.
 // It never alters or drops existing columns (additive-only policy).
 func ensureColumn(db *sql.DB, table, column, decl string) error {
+	if !identifierRe.MatchString(table) {
+		return fmt.Errorf("invalid table name %q", table)
+	}
+	if !identifierRe.MatchString(column) {
+		return fmt.Errorf("invalid column name %q", column)
+	}
+
 	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
 	if err != nil {
 		return fmt.Errorf("table_info %s: %w", table, err)
