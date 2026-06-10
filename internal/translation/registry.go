@@ -29,6 +29,7 @@ type StreamState struct {
 	Usage                map[string]any
 	ContentBlockIndex    int
 	// Fields for claude→openai response translation.
+	FunctionIndex        int
 	ToolCallIndex        int
 	ServerToolBlockIndex int
 	InThinkingBlock      bool
@@ -78,6 +79,7 @@ func NewRegistry() *Registry {
 	r.Register(FormatClaude, FormatOpenAI, claudeToOpenAIRequest, claudeToOpenAIResponse)
 	r.Register(FormatOpenAI, FormatClaude, openaiToClaudeRequest, openaiToClaudeResponse)
 	r.Register(FormatOpenAI, FormatGemini, openaiToGeminiRequest, nil)
+	r.Register(FormatGemini, FormatOpenAI, nil, geminiToOpenAIResponse)
 	return r
 }
 
