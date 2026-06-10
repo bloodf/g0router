@@ -5,6 +5,32 @@ import (
 	"testing"
 )
 
+// TestDefaultSafetySettings asserts the five categories from the reference
+// (open-sse/translator/helpers/geminiHelper.js:26-32) all have threshold OFF.
+func TestDefaultSafetySettings(t *testing.T) {
+	settings := defaultSafetySettings()
+	if len(settings) != 5 {
+		t.Fatalf("expected 5 safety settings, got %d", len(settings))
+	}
+	wantCategories := []string{
+		"HARM_CATEGORY_HATE_SPEECH",
+		"HARM_CATEGORY_DANGEROUS_CONTENT",
+		"HARM_CATEGORY_SEXUALLY_EXPLICIT",
+		"HARM_CATEGORY_HARASSMENT",
+		"HARM_CATEGORY_CIVIC_INTEGRITY",
+	}
+	for i, wantCat := range wantCategories {
+		cat, _ := settings[i]["category"].(string)
+		if cat != wantCat {
+			t.Errorf("settings[%d].category = %q, want %q", i, cat, wantCat)
+		}
+		thr, _ := settings[i]["threshold"].(string)
+		if thr != "OFF" {
+			t.Errorf("settings[%d].threshold = %q, want OFF", i, thr)
+		}
+	}
+}
+
 func TestSanitizeGeminiFunctionName(t *testing.T) {
 	cases := []struct {
 		in   string

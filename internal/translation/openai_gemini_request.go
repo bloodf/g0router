@@ -37,7 +37,6 @@ func openaiToGeminiBase(model string, body map[string]any, stream bool, signatur
 		result["generationConfig"].(map[string]any)["maxOutputTokens"] = maxTokens
 	}
 
-	// Build tool_call_id -> name map from assistant tool_calls.
 	tcID2Name := make(map[string]string)
 	if rawMsgs, ok := body["messages"].([]any); ok {
 		for _, msg := range rawMsgs {
@@ -76,7 +75,6 @@ func openaiToGeminiBase(model string, body map[string]any, stream bool, signatur
 		}
 	}
 
-	// Build tool responses cache from role:tool messages.
 	toolResponses := make(map[string]any)
 	if rawMsgs, ok := body["messages"].([]any); ok {
 		for _, msg := range rawMsgs {
@@ -241,7 +239,6 @@ func openaiToGeminiBase(model string, body map[string]any, stream bool, signatur
 		}
 	}
 
-	// Convert tools.
 	if rawTools, ok := body["tools"].([]any); ok && len(rawTools) > 0 {
 		functionDeclarations := []map[string]any{}
 		for _, tool := range rawTools {

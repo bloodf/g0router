@@ -233,25 +233,19 @@ func cleanJSONSchemaForGemini(schema map[string]any) map[string]any {
 	if schema == nil {
 		return nil
 	}
-	// Phase 1: Convert and prepare
 	convertConstToEnum(schema)
 	convertEnumValuesToStrings(schema)
 
-	// Phase 2: Flatten complex structures
 	mergeAllOf(schema)
 	flattenAnyOfOneOf(schema)
 	flattenTypeArrays(schema)
 
-	// Phase 2.5: Infer missing type=object when properties exist
 	ensureObjectType(schema)
 
-	// Phase 3: Remove all unsupported keywords
 	removeUnsupportedKeywords(schema, unsupportedSchemaConstraints)
 
-	// Phase 4: Cleanup required fields
 	cleanupRequired(schema)
 
-	// Phase 5: Add placeholders for empty object schemas
 	addPlaceholders(schema)
 
 	return schema

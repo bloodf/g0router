@@ -33,7 +33,6 @@ func geminiToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 	results := []map[string]any{}
 	now := time.Now().Unix()
 
-	// First chunk: state init + role chunk.
 	if state.MessageID == "" {
 		state.MessageID = fmt.Sprintf("msg_%d", time.Now().UnixMilli())
 		if id, ok := response["responseId"].(string); ok && id != "" {
@@ -57,7 +56,6 @@ func geminiToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 		})
 	}
 
-	// Process parts.
 	if content, ok := candidate["content"].(map[string]any); ok {
 		if partsRaw, ok := content["parts"].([]any); ok {
 			for _, partRaw := range partsRaw {
@@ -104,12 +102,15 @@ func geminiToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 					}
 
 					if hasFunctionCall {
-						results = append(results, geminiFunctionCallToToolCall(part, state, now)...)
+						chunks, err := geminiFunctionCallToToolCall(part, state, now)
+						if err != nil {
+							return nil, err
+						}
+						results = append(results, chunks...)
 					}
 					continue
 				}
 
-				// Plain text parts.
 				if text, ok := part["text"].(string); ok && text != "" {
 					results = append(results, map[string]any{
 						"id":      "chatcmpl-" + state.MessageID,
@@ -124,12 +125,14 @@ func geminiToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 					})
 				}
 
-				// Function call parts.
 				if fc, ok := part["functionCall"].(map[string]any); ok && fc != nil {
-					results = append(results, geminiFunctionCallToToolCall(part, state, now)...)
+					chunks, err := geminiFunctionCallToToolCall(part, state, now)
+					if err != nil {
+						return nil, err
+					}
+					results = append(results, chunks...)
 				}
 
-				// Inline data (images).
 				inlineData := part["inlineData"]
 				if inlineData == nil {
 					inlineData = part["inline_data"]
@@ -166,7 +169,6 @@ func geminiToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 		}
 	}
 
-	// Usage metadata.
 	usageMetaRaw := response["usageMetadata"]
 	if usageMetaRaw == nil {
 		usageMetaRaw = chunk["usageMetadata"]
@@ -223,7 +225,6 @@ func geminiToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 		state.Usage = usage
 	}
 
-	// Finish reason.
 	if finishReasonRaw, ok := candidate["finishReason"].(string); ok && finishReasonRaw != "" {
 		finishReason := strings.ToLower(finishReasonRaw)
 		if finishReason == "stop" && len(state.ToolCalls) > 0 {
@@ -256,10 +257,10 @@ func geminiToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 	return results, nil
 }
 
-func geminiFunctionCallToToolCall(part map[string]any, state *StreamState, now int64) []map[string]any {
+func geminiFunctionCallToToolCall(part map[string]any, state *StreamState, now int64) ([]map[string]any, error) {
 	fc, ok := part["functionCall"].(map[string]any)
 	if !ok || fc == nil {
-		return nil
+		return nil, nil
 	}
 	rawName := ""
 	if s, ok := fc["name"].(string); ok {
@@ -278,7 +279,10 @@ func geminiFunctionCallToToolCall(part map[string]any, state *StreamState, now i
 	toolCallIndex := state.FunctionIndex
 	state.FunctionIndex++
 
-	argsJSON, _ := json.Marshal(fcArgs)
+	argsJSON, err := json.Marshal(fcArgs)
+	if err != nil {
+		return nil, fmt.Errorf("marshal functionCall args: %w", err)
+	}
 
 	toolCall := map[string]any{
 		"id":    fmt.Sprintf("%s-%d-%d", fcName, time.Now().UnixMilli(), toolCallIndex),
@@ -305,5 +309,5 @@ func geminiFunctionCallToToolCall(part map[string]any, state *StreamState, now i
 			"delta":         map[string]any{"tool_calls": []any{toolCall}},
 			"finish_reason": nil,
 		}},
-	}}
+	}}, nil
 }
