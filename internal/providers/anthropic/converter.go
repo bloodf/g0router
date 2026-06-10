@@ -87,6 +87,17 @@ type StreamDelta struct {
 
 const defaultMaxTokens = 4096
 
+func joinSystemMessages(parts []string) string {
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += "\n\n"
+		}
+		result += p
+	}
+	return result
+}
+
 // ConvertRequest transforms an OpenAI ChatRequest into an Anthropic MessagesRequest.
 func ConvertRequest(req *schemas.ChatRequest) *MessagesRequest {
 	anthReq := &MessagesRequest{
@@ -110,12 +121,16 @@ func ConvertRequest(req *schemas.ChatRequest) *MessagesRequest {
 
 	// Extract system messages and convert remaining messages.
 	var messages []schemas.Message
+	var systemParts []string
 	for _, m := range req.Messages {
 		if m.Role == "system" {
-			anthReq.System = m.Content
+			systemParts = append(systemParts, m.Content)
 			continue
 		}
 		messages = append(messages, m)
+	}
+	if len(systemParts) > 0 {
+		anthReq.System = joinSystemMessages(systemParts)
 	}
 
 	anthReq.Messages = convertMessages(messages)
