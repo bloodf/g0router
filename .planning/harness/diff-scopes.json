@@ -2,9 +2,9 @@
   "description": "Commit-bounded diff gate scopes. Use with run-diff-scoped.sh. Paths are relative to repo root.",
   "plans": {
     "w1-c-stream-processor": {
-      "base": "32108f04",
+      "base": "14a23db",
       "end": "6317eb4b",
-      "note": "BASE is post w1-b /v1/messages; END includes test hardening",
+      "note": "BASE corrected 2026-06-10: 14a23db is w1-b part 2 (/v1/messages streaming + framing tests); the old 32108f04 base wrongly pulled w1-b work into the w1-c diff",
       "paths": [
         "internal/translation/stream.go",
         "internal/translation/stream_test.go",
