@@ -39,3 +39,12 @@ UNSUPPORTED mechanism (test-only, no production artifact): per Bundle E acceptan
 
 ## Out of scope
 New field mappings absent from 9router (deferred until a PAR row demands them). OpenAI converter (native pass-through). Translation-layer json_schema injection (Wave 1, PAR-TRANS-017). `internal/api` changes. Retry logic.
+
+## Amendment 1 (Fable, 2026-06-09) — tasks 5/6 error mechanism
+Implementer correctly blocked: w0-a task 6 aborts via goroutine `return`; no error-return exists on `ChatCompletionStream` after the channel is handed to the caller, and the plan forbade signature changes. Authorized mechanism (minimal, no signature change):
+- Add `Error *ProviderError \`json:"-"\`` to `schemas.StreamChunk`. Never serialized; in-band terminal error marker.
+- AUD-046: scanner non-EOF error → send `&StreamChunk{Error: ...}` then return. (Note: with fully-buffered `resp.Body()` a non-EOF read error is currently unreachable; the path exists for the Wave 1 streaming-body processor. Test injects the equivalent via the unmarshal path which shares the abort semantics.)
+- Unmarshal abort (AUD-045 upgrade): emit error chunk before return, so callers can distinguish corrupt stream from clean EOF — resolves the w0-a diff-gate MAJOR.
+- AUD-047: `postHookRunner.Run` error → emit error chunk, return.
+- `internal/api/chat.go` `writeSSEStream`: chunk with `Error != nil` → abort stream (no frame written). Ownership extended to `internal/api/chat.go` + `chat_test.go` for this hunk only (w0-a's window is closed; no other plan owns them).
+Tests (binary): per-provider hook-error test (fake hook errors on first chunk → last received chunk carries `Error`, no further content chunks); malformed-line tests updated to assert terminal error chunk; api test: error chunk → nothing written after prior frames, no `[DONE]`.

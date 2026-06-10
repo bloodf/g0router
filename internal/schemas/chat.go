@@ -142,6 +142,11 @@ type StreamChunk struct {
 	Model   string         `json:"model"`
 	Choices []StreamChoice `json:"choices"`
 	Usage   *Usage         `json:"usage,omitempty"`
+	// Error is an in-band terminal error marker (AUD-046/047): the producing
+	// goroutine cannot return an error after the channel is handed to the
+	// caller, so a chunk carrying Error is sent last before close. Never
+	// serialized to clients.
+	Error *ProviderError `json:"-"`
 }
 
 // StreamChoice is a choice inside a streaming chunk.

@@ -22,6 +22,11 @@ type streamWriter interface {
 // corrupt frames or blocking the producing goroutine on a dead client.
 func writeSSEStream(w streamWriter, ch chan *schemas.StreamChunk) {
 	for chunk := range ch {
+		if chunk.Error != nil {
+			// AUD-046/047: in-band terminal error from the provider
+			// goroutine — abort instead of framing it as content.
+			return
+		}
 		b, err := jsonMarshal(chunk)
 		if err != nil {
 			return

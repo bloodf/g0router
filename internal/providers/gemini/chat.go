@@ -12,6 +12,11 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// streamError builds the in-band terminal error chunk (AUD-045/046/047).
+func streamError(msg string) *schemas.StreamChunk {
+	return &schemas.StreamChunk{Error: &schemas.ProviderError{Message: msg, Type: "stream_error"}}
+}
+
 // ChatCompletion sends a non-streaming chat completion request via Gemini.
 func (p *Provider) ChatCompletion(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
 	req := p.client.AcquireRequest()
@@ -170,7 +175,9 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 				if err == io.EOF {
 					return
 				}
-				break
+				// AUD-046: surface read errors in-band before closing.
+				ch <- streamError(fmt.Sprintf("read stream: %v", err))
+				return
 			}
 			if line == "[DONE]" {
 				return
@@ -179,7 +186,8 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 			var gemResp GenerateContentResponse
 			if err := json.Unmarshal([]byte(line), &gemResp); err != nil {
 				// AUD-045: a malformed chunk means the stream is corrupt;
-				// abort instead of silently dropping data.
+				// abort with an in-band error instead of silently dropping data.
+				ch <- streamError(fmt.Sprintf("decode stream chunk: %v", err))
 				return
 			}
 
@@ -187,7 +195,11 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 			if chunk != nil && len(chunk.Choices) > 0 {
 				ch <- chunk
 				if postHookRunner != nil {
-					_ = postHookRunner.Run(ctx, chunk)
+					if err := postHookRunner.Run(ctx, chunk); err != nil {
+						// AUD-047: hook failures abort the stream.
+						ch <- streamError(fmt.Sprintf("post hook: %v", err))
+						return
+					}
 				}
 			}
 		}

@@ -92,6 +92,30 @@ func TestWriteSSEStreamAbortsOnWriteError(t *testing.T) {
 	}
 }
 
+// TestWriteSSEStreamAbortsOnErrorChunk verifies AUD-046/047: an in-band
+// terminal error chunk aborts the stream — no frame for it, no [DONE].
+func TestWriteSSEStreamAbortsOnErrorChunk(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk, 3)
+	ch <- &schemas.StreamChunk{ID: "c1"}
+	ch <- &schemas.StreamChunk{Error: &schemas.ProviderError{Message: "boom", Type: "stream_error"}}
+	ch <- &schemas.StreamChunk{ID: "c2"}
+	close(ch)
+
+	w := &failingWriter{writesLeft: 100}
+	writeSSEStream(w, ch)
+
+	out := w.sb.String()
+	if got := strings.Count(out, "data: "); got != 1 {
+		t.Errorf("frame count = %d, want 1 (only the chunk before the error)", got)
+	}
+	if strings.Contains(out, "[DONE]") {
+		t.Errorf("output contains [DONE] after error chunk: %q", out)
+	}
+	if strings.Contains(out, "boom") {
+		t.Errorf("error chunk leaked to client: %q", out)
+	}
+}
+
 // TestChatHandlerMarshalFailureFallsBackTo500 verifies that when the
 // response marshal seam fails, the chat handler eventually writes a 500
 // status (AUD-009). The provider will fail with a network error in this
