@@ -12,7 +12,7 @@ func TestRegistryRegisterLookup(t *testing.T) {
 	}
 
 	var called bool
-	rt := func(model string, body map[string]any, stream bool) (map[string]any, error) {
+	rt := func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 		called = true
 		return body, nil
 	}
@@ -22,7 +22,7 @@ func TestRegistryRegisterLookup(t *testing.T) {
 	if fn == nil {
 		t.Fatal("expected registered request translator")
 	}
-	if _, err := fn("", nil, false); err != nil {
+	if _, err := fn("", nil, false, nil); err != nil {
 		t.Fatalf("translator error: %v", err)
 	}
 	if !called {
@@ -87,20 +87,20 @@ func TestTranslateRequestPipeline(t *testing.T) {
 
 	var order []string
 	reg.Register(FormatClaude, FormatOpenAI,
-		func(model string, body map[string]any, stream bool) (map[string]any, error) {
+		func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 			order = append(order, "claude->openai")
 			body["via1"] = true
 			return body, nil
 		}, nil)
 	reg.Register(FormatOpenAI, FormatGemini,
-		func(model string, body map[string]any, stream bool) (map[string]any, error) {
+		func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 			order = append(order, "openai->gemini")
 			body["via2"] = true
 			return body, nil
 		}, nil)
 
 	body := map[string]any{"x": 1}
-	out, err := reg.TranslateRequest(FormatClaude, FormatGemini, "m", body, false)
+	out, err := reg.TranslateRequest(FormatClaude, FormatGemini, "m", body, false, nil)
 	if err != nil {
 		t.Fatalf("translate: %v", err)
 	}
@@ -117,13 +117,13 @@ func TestTranslateRequestSameFormatSkips(t *testing.T) {
 
 	called := false
 	reg.Register(FormatOpenAI, FormatClaude,
-		func(model string, body map[string]any, stream bool) (map[string]any, error) {
+		func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 			called = true
 			return body, nil
 		}, nil)
 
 	body := map[string]any{"x": 1}
-	out, err := reg.TranslateRequest(FormatOpenAI, FormatOpenAI, "m", body, false)
+	out, err := reg.TranslateRequest(FormatOpenAI, FormatOpenAI, "m", body, false, nil)
 	if err != nil {
 		t.Fatalf("translate: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestRegistryClaudeRoundTripViaPipeline(t *testing.T) {
 		},
 		"tool_choice": "auto",
 	}
-	out, err := reg.TranslateRequest(FormatOpenAI, FormatClaude, "claude-3-opus", body, false)
+	out, err := reg.TranslateRequest(FormatOpenAI, FormatClaude, "claude-3-opus", body, false, nil)
 	if err != nil {
 		t.Fatalf("TranslateRequest: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestRegistryGeminiRoundTripViaPipeline(t *testing.T) {
 		},
 		"tool_choice": "auto",
 	}
-	reqOut, err := reg.TranslateRequest(FormatOpenAI, FormatGemini, "gemini-pro", body, false)
+	reqOut, err := reg.TranslateRequest(FormatOpenAI, FormatGemini, "gemini-pro", body, false, nil)
 	if err != nil {
 		t.Fatalf("TranslateRequest: %v", err)
 	}
@@ -348,5 +348,31 @@ func TestRegistryGeminiRoundTripViaPipeline(t *testing.T) {
 	}
 	if last["usage"] == nil {
 		t.Fatal("expected usage on final chunk")
+	}
+}
+
+func TestTranslateRequestForwardsCredentials(t *testing.T) {
+	reg := &Registry{
+		request:  make(map[string]RequestTranslator),
+		response: make(map[string]ResponseTranslator),
+	}
+
+	var received map[string]any
+	reg.Register(FormatClaude, FormatOpenAI, func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
+		received = credentials
+		return body, nil
+	}, nil)
+
+	creds := map[string]any{"connectionId": "conn-123"}
+	body := map[string]any{"x": 1}
+	_, err := reg.TranslateRequest(FormatClaude, FormatOpenAI, "m", body, false, creds)
+	if err != nil {
+		t.Fatalf("translate: %v", err)
+	}
+	if received == nil {
+		t.Fatal("translator did not receive credentials")
+	}
+	if received["connectionId"] != "conn-123" {
+		t.Errorf("connectionId = %v, want conn-123", received["connectionId"])
 	}
 }

@@ -13,7 +13,7 @@ var dataURIPattern = regexp.MustCompile(`^data:([^;]+);base64,(.+)$`)
 
 // openaiToClaudeRequest converts an OpenAI-format request body to a Claude-
 // shaped request body.
-func openaiToClaudeRequest(model string, body map[string]any, stream bool) (map[string]any, error) {
+func openaiToClaudeRequest(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 	toolNameMap := make(map[string]string)
 	result := map[string]any{
 		"model":      model,

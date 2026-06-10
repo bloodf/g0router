@@ -4,7 +4,7 @@ import "fmt"
 
 // RequestTranslator converts a source-format request body into an OpenAI-
 // shaped request body (or the target format in a two-step pipeline).
-type RequestTranslator func(model string, body map[string]any, stream bool) (map[string]any, error)
+type RequestTranslator func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error)
 
 // ResponseTranslator converts an OpenAI-shaped stream chunk into the target
 // format. It may return zero, one, or many chunks per input chunk.
@@ -113,7 +113,7 @@ func (r *Registry) NeedsTranslation(from, to Format) bool {
 }
 
 // TranslateRequest runs the source -> openai -> target pipeline.
-func (r *Registry) TranslateRequest(from, to Format, model string, body map[string]any, stream bool) (map[string]any, error) {
+func (r *Registry) TranslateRequest(from, to Format, model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 	result := body
 	if !r.NeedsTranslation(from, to) {
 		return result, nil
@@ -124,7 +124,7 @@ func (r *Registry) TranslateRequest(from, to Format, model string, body map[stri
 		fn := r.RequestTranslatorFor(from, FormatOpenAI)
 		if fn != nil {
 			var err error
-			result, err = fn(model, result, stream)
+			result, err = fn(model, result, stream, credentials)
 			if err != nil {
 				return nil, fmt.Errorf("translate %s->openai: %w", from, err)
 			}
@@ -136,7 +136,7 @@ func (r *Registry) TranslateRequest(from, to Format, model string, body map[stri
 		fn := r.RequestTranslatorFor(FormatOpenAI, to)
 		if fn != nil {
 			var err error
-			result, err = fn(model, result, stream)
+			result, err = fn(model, result, stream, credentials)
 			if err != nil {
 				return nil, fmt.Errorf("translate openai->%s: %w", to, err)
 			}

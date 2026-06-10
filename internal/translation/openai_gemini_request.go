@@ -11,11 +11,11 @@ const defaultThinkingAGSignature = "EuwGCukGAXLI2nxwZIq54WWSoL/YN0P3TsDZ7zRnLi8g
 
 // openaiToGeminiRequest converts an OpenAI-format request body to a Gemini-
 // shaped request body.
-func openaiToGeminiRequest(model string, body map[string]any, stream bool) (map[string]any, error) {
-	return openaiToGeminiBase(model, body, stream, defaultThinkingAGSignature)
+func openaiToGeminiRequest(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
+	return openaiToGeminiBase(model, body, stream, defaultThinkingAGSignature, credentials)
 }
 
-func openaiToGeminiBase(model string, body map[string]any, stream bool, signature string) (map[string]any, error) {
+func openaiToGeminiBase(model string, body map[string]any, stream bool, signature string, credentials map[string]any) (map[string]any, error) {
 	result := map[string]any{
 		"model":            model,
 		"contents":         []any{},

@@ -7,7 +7,7 @@ import (
 
 // claudeToOpenAIRequest converts a Claude-format request body to an OpenAI-
 // shaped request body.
-func claudeToOpenAIRequest(model string, body map[string]any, stream bool) (map[string]any, error) {
+func claudeToOpenAIRequest(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 	result := map[string]any{
 		"model":    model,
 		"messages": []any{},

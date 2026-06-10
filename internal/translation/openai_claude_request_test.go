@@ -19,7 +19,7 @@ func TestOpenAIClaudeSystemExtraction(t *testing.T) {
 			map[string]any{"role": "user", "content": "hi"},
 		},
 	}
-	out, err := openaiToClaudeRequest("claude-3", body, false)
+	out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -58,7 +58,7 @@ func TestOpenAIClaudeMessageMergeAndToolResultSplit(t *testing.T) {
 			},
 		},
 	}
-	out, err := openaiToClaudeRequest("claude-3", body, false)
+	out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -102,7 +102,7 @@ func TestOpenAIClaudeCacheControlPlacement(t *testing.T) {
 			},
 		},
 	}
-	out, err := openaiToClaudeRequest("claude-3", body, false)
+	out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -142,7 +142,7 @@ func TestOpenAIClaudeCacheControlPlacement(t *testing.T) {
 			},
 		},
 	}
-	out2, err := openaiToClaudeRequest("claude-3", body2, false)
+	out2, err := openaiToClaudeRequest("claude-3", body2, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -167,7 +167,7 @@ func TestOpenAIClaudeResponseFormatJSONSchema(t *testing.T) {
 			"json_schema": map[string]any{"schema": map[string]any{"type": "object"}},
 		},
 	}
-	out, err := openaiToClaudeRequest("claude-3", body, false)
+	out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -189,7 +189,7 @@ func TestOpenAIClaudeResponseFormatJSONObject(t *testing.T) {
 	body := map[string]any{
 		"response_format": map[string]any{"type": "json_object"},
 	}
-	out, err := openaiToClaudeRequest("claude-3", body, false)
+	out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -223,7 +223,7 @@ func TestOpenAIClaudeToolsConversion(t *testing.T) {
 			},
 		},
 	}
-	out, err := openaiToClaudeRequest("claude-3", body, false)
+	out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -288,7 +288,7 @@ func TestOpenAIClaudeToolChoice(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			body := map[string]any{"tool_choice": tc.in}
-			out, err := openaiToClaudeRequest("claude-3", body, false)
+			out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 			if err != nil {
 				t.Fatalf("err = %v", err)
 			}
@@ -316,7 +316,7 @@ func TestOpenAIClaudeReasoningEffort(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.effort, func(t *testing.T) {
 			body := map[string]any{"reasoning_effort": tc.effort}
-			out, err := openaiToClaudeRequest("claude-3", body, false)
+			out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 			if err != nil {
 				t.Fatalf("err = %v", err)
 			}
@@ -347,7 +347,7 @@ func TestOpenAIClaudeThinkingPassthrough(t *testing.T) {
 			"max_tokens":    2048,
 		},
 	}
-	out, err := openaiToClaudeRequest("claude-3", body, false)
+	out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -371,7 +371,7 @@ func TestOpenAIClaudeThinkingDropsTemperature(t *testing.T) {
 			"budget_tokens": 1024,
 		},
 	}
-	out, err := openaiToClaudeRequest("claude-3", body, false)
+	out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -409,7 +409,7 @@ func TestOpenAIClaudeImageBlocks(t *testing.T) {
 					},
 				},
 			}
-			out, err := openaiToClaudeRequest("claude-3", body, false)
+			out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 			if err != nil {
 				t.Fatalf("err = %v", err)
 			}
@@ -455,7 +455,7 @@ func TestOpenAIClaudeToolCallArgumentsParse(t *testing.T) {
 					},
 				},
 			}
-			out, err := openaiToClaudeRequest("claude-3", body, false)
+			out, err := openaiToClaudeRequest("claude-3", body, false, nil)
 			if err != nil {
 				t.Fatalf("err = %v", err)
 			}

@@ -42,7 +42,7 @@ func TestOpenAIGeminiGenerationConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			body := tc.body
 			body["messages"] = []any{map[string]any{"role": "user", "content": "hi"}}
-			out, err := openaiToGeminiRequest("gemini-pro", body, false)
+			out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 			if err != nil {
 				t.Fatalf("err = %v", err)
 			}
@@ -72,7 +72,7 @@ func TestOpenAIGeminiSystemInstruction(t *testing.T) {
 				map[string]any{"role": "user", "content": "hi"},
 			},
 		}
-		out, err := openaiToGeminiRequest("gemini-pro", body, false)
+		out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 		if err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -94,7 +94,7 @@ func TestOpenAIGeminiSystemInstruction(t *testing.T) {
 				map[string]any{"role": "system", "content": "You are helpful."},
 			},
 		}
-		out, err := openaiToGeminiRequest("gemini-pro", body, false)
+		out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 		if err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -122,7 +122,7 @@ func TestOpenAIGeminiReasoningContentThoughtParts(t *testing.T) {
 			},
 		},
 	}
-	out, err := openaiToGeminiRequest("gemini-pro", body, false)
+	out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -170,7 +170,7 @@ func TestOpenAIGeminiToolCallPairing(t *testing.T) {
 				},
 			},
 		}
-		out, err := openaiToGeminiRequest("gemini-pro", body, false)
+		out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 		if err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -236,7 +236,7 @@ func TestOpenAIGeminiToolCallPairing(t *testing.T) {
 				},
 			},
 		}
-		out, err := openaiToGeminiRequest("gemini-pro", body, false)
+		out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 		if err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -274,7 +274,7 @@ func TestOpenAIGeminiToolCallPairing(t *testing.T) {
 				},
 			},
 		}
-		out, err := openaiToGeminiRequest("gemini-pro", body, false)
+		out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 		if err != nil {
 			t.Fatalf("err = %v", err)
 		}
@@ -318,7 +318,7 @@ func TestOpenAIGeminiToolsCleaned(t *testing.T) {
 			},
 		},
 	}
-	out, err := openaiToGeminiRequest("gemini-pro", body, false)
+	out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -351,7 +351,7 @@ func TestOpenAIGeminiNoToolConfig(t *testing.T) {
 		},
 		"tool_choice": "auto",
 	}
-	out, err := openaiToGeminiRequest("gemini-pro", body, false)
+	out, err := openaiToGeminiRequest("gemini-pro", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -360,7 +360,7 @@ func TestOpenAIGeminiNoToolConfig(t *testing.T) {
 	}
 
 	body["tool_choice"] = map[string]any{"type": "function", "function": map[string]any{"name": "foo"}}
-	out, err = openaiToGeminiRequest("gemini-pro", body, false)
+	out, err = openaiToGeminiRequest("gemini-pro", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}

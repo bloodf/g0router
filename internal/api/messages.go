@@ -39,7 +39,7 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 		stream = s
 	}
 
-	translated, err := h.registry.TranslateRequest(translation.FormatClaude, translation.FormatOpenAI, model, body, stream)
+	translated, err := h.registry.TranslateRequest(translation.FormatClaude, translation.FormatOpenAI, model, body, stream, nil)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
 		return

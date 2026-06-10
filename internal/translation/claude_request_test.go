@@ -12,7 +12,7 @@ func TestClaudeRequestSystemString(t *testing.T) {
 		"system":      "you are helpful",
 		"temperature": 0.5,
 	}
-	out, err := claudeToOpenAIRequest("claude-3-5-sonnet", body, false)
+	out, err := claudeToOpenAIRequest("claude-3-5-sonnet", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -39,7 +39,7 @@ func TestClaudeRequestSystemArray(t *testing.T) {
 			map[string]any{"type": "text", "text": "line2"},
 		},
 	}
-	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -71,7 +71,7 @@ func TestClaudeRequestImageBlock(t *testing.T) {
 			},
 		},
 	}
-	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -109,7 +109,7 @@ func TestClaudeRequestToolUse(t *testing.T) {
 			},
 		},
 	}
-	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -155,7 +155,7 @@ func TestClaudeRequestToolResult(t *testing.T) {
 			},
 		},
 	}
-	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -187,7 +187,7 @@ func TestClaudeRequestToolResultTextBlocks(t *testing.T) {
 			},
 		},
 	}
-	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -214,7 +214,7 @@ func TestClaudeRequestMissingToolResponses(t *testing.T) {
 			map[string]any{"role": "user", "content": "next"},
 		},
 	}
-	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -243,7 +243,7 @@ func TestClaudeRequestTools(t *testing.T) {
 			},
 		},
 	}
-	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -281,7 +281,7 @@ func TestClaudeRequestMaxTokensAdjusted(t *testing.T) {
 		},
 		"max_tokens": 1000,
 	}
-	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -305,7 +305,7 @@ func TestClaudeRequestToolChoice(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			body := map[string]any{"tool_choice": tc.in}
-			out, err := claudeToOpenAIRequest("claude-3", body, false)
+			out, err := claudeToOpenAIRequest("claude-3", body, false, nil)
 			if err != nil {
 				t.Fatalf("err = %v", err)
 			}
