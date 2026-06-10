@@ -129,14 +129,18 @@ func ConvertChatRequest(req *schemas.ChatRequest) *GenerateContentRequest {
 	}
 
 	var contents []schemas.Message
+	var systemParts []string
 	for _, m := range req.Messages {
 		if m.Role == "system" {
-			gemReq.SystemInstruction = &Content{
-				Parts: []Part{{Text: m.Content}},
-			}
+			systemParts = append(systemParts, m.Content)
 			continue
 		}
 		contents = append(contents, m)
+	}
+	if len(systemParts) > 0 {
+		gemReq.SystemInstruction = &Content{
+			Parts: []Part{{Text: joinSystemMessages(systemParts)}},
+		}
 	}
 
 	gemReq.Contents = convertMessages(contents)
@@ -149,6 +153,17 @@ func ConvertChatRequest(req *schemas.ChatRequest) *GenerateContentRequest {
 	}
 
 	return gemReq
+}
+
+func joinSystemMessages(parts []string) string {
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += "\n\n"
+		}
+		result += p
+	}
+	return result
 }
 
 func convertMessages(msgs []schemas.Message) []Content {
