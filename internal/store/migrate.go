@@ -74,7 +74,77 @@ func migrate(db *sql.DB) error {
 	// Future additive column migrations go here, e.g.:
 	//   ensureColumn(db, "providers", "priority", "INTEGER NOT NULL DEFAULT 0")
 
+	if err := migrateForeignKeys(db); err != nil {
+		return fmt.Errorf("migrate foreign keys: %w", err)
+	}
+
 	return nil
+}
+
+func migrateForeignKeys(db *sql.DB) error {
+	if err := ensureForeignKey(db, "sessions", `CREATE TABLE sessions (
+		token TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		expires_at INTEGER NOT NULL,
+		created_at INTEGER NOT NULL,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+	)`); err != nil {
+		return fmt.Errorf("sessions fk: %w", err)
+	}
+
+	if err := ensureForeignKey(db, "connections", `CREATE TABLE connections (
+		id TEXT PRIMARY KEY,
+		provider_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		secret_enc TEXT NOT NULL DEFAULT '',
+		access_token_enc TEXT NOT NULL DEFAULT '',
+		refresh_token_enc TEXT NOT NULL DEFAULT '',
+		expires_at INTEGER NOT NULL DEFAULT 0,
+		metadata TEXT NOT NULL DEFAULT '',
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL,
+		FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
+	)`); err != nil {
+		return fmt.Errorf("connections fk: %w", err)
+	}
+
+	return nil
+}
+
+func ensureForeignKey(db *sql.DB, table, newSchema string) error {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA foreign_key_list(%s)", table))
+	if err != nil {
+		return fmt.Errorf("check fk list %s: %w", table, err)
+	}
+	defer rows.Close()
+	if rows.Next() {
+		return nil
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate fk list %s: %w", table, err)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin tx for %s: %w", table, err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE %s RENAME TO _%s_old", table, table)); err != nil {
+		return fmt.Errorf("rename %s: %w", table, err)
+	}
+	if _, err := tx.Exec(newSchema); err != nil {
+		return fmt.Errorf("create new %s: %w", table, err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf("INSERT INTO %s SELECT * FROM _%s_old", table, table)); err != nil {
+		return fmt.Errorf("copy %s data: %w", table, err)
+	}
+	if _, err := tx.Exec(fmt.Sprintf("DROP TABLE _%s_old", table)); err != nil {
+		return fmt.Errorf("drop old %s: %w", table, err)
+	}
+
+	return tx.Commit()
 }
 
 // ensureColumn appends column to table if it does not exist yet.
