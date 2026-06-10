@@ -192,7 +192,11 @@ func TestChatStreamPassthroughNormalization(t *testing.T) {
 // filtered, and the stream terminates with [DONE].
 func TestChatHandlerPassthroughNormalization(t *testing.T) {
 	ch := make(chan *schemas.StreamChunk, 3)
-	ch <- &schemas.StreamChunk{ID: "chat", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
+	ch <- &schemas.StreamChunk{
+		ID:                  "chat",
+		Choices:             []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}, ContentFilterResults: map[string]any{"hate": map[string]any{}}}},
+		PromptFilterResults: []any{map[string]any{}},
+	}
 	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}}}} // empty → filtered
 	close(ch)
 
@@ -224,7 +228,10 @@ func TestChatHandlerPassthroughNormalization(t *testing.T) {
 	if !strings.Contains(out, `"created":`) {
 		t.Errorf("missing created field: %q", out)
 	}
-	// Azure fields stripped (output must not contain them).
+	// Azure fields stripped: chunk carried them, output must not contain them.
+	if !strings.Contains(out, "hi") {
+		t.Errorf("expected chunk content in output: %q", out)
+	}
 	if strings.Contains(out, "prompt_filter_results") {
 		t.Errorf("prompt_filter_results should not appear: %q", out)
 	}

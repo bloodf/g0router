@@ -89,3 +89,49 @@ func TestSSEScannerMalformedLineWarnsAndSkips(t *testing.T) {
 		t.Errorf("expected 'failed to parse SSE line' in log output, got: %q", output)
 	}
 }
+
+func TestSSEScannerEOFBadFinalLineReturnsEOF(t *testing.T) {
+	var buf bytes.Buffer
+	prevLog := log.Writer()
+	log.SetOutput(&buf)
+	defer log.SetOutput(prevLog)
+
+	// No trailing newline; final line is malformed JSON.
+	input := "data: ok\n\ndata: {bad json"
+	scanner := NewSSEScanner(strings.NewReader(input))
+
+	line, err := scanner.Scan()
+	if err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	if line != "ok" {
+		t.Errorf("first line = %q, want ok", line)
+	}
+
+	line, err = scanner.Scan()
+	if err != io.EOF {
+		t.Errorf("second scan err = %v, want EOF", err)
+	}
+	if line != "" {
+		t.Errorf("second line = %q, want empty string", line)
+	}
+}
+
+func TestSSEScannerEOFValidUnterminatedLineReturnsPayload(t *testing.T) {
+	// No trailing newline; final line is a valid payload.
+	input := "data: valid-unterminated"
+	scanner := NewSSEScanner(strings.NewReader(input))
+
+	line, err := scanner.Scan()
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if line != "valid-unterminated" {
+		t.Errorf("line = %q, want valid-unterminated", line)
+	}
+
+	_, err = scanner.Scan()
+	if err != io.EOF {
+		t.Errorf("final scan err = %v, want EOF", err)
+	}
+}

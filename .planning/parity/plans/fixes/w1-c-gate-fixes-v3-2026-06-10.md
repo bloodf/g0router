@@ -64,3 +64,15 @@ still yields that final payload with `nil` error (existing behavior, keep).
 ## Out of scope
 
 Wave-5 usage helpers. Handler production code (chat.go). Any other file.
+
+---
+
+## Deviation ratified (Fable 5, 2026-06-10)
+
+Task 3's seam investigation concluded the typed `schemas.StreamChunk`/`StreamChoice`
+drop Azure fields at JSON decode, making PAR-TRANS-049's strip behavior
+unreachable and untestable. The implementer added two optional tagged fields
+(`StreamChunk.PromptFilterResults`, `StreamChoice.ContentFilterResults`) in
+`internal/schemas/chat.go` — a w1-a-owned file. RATIFIED: this is the minimal
+change that makes the row's strip semantics real instead of
+accidental-by-omission; documented in the impl report's Deviations section.

@@ -47,8 +47,9 @@ func (s *SSEScanner) Scan() (string, error) {
 				if ok {
 					s.lastEvent = s.pendingEvent
 					s.pendingEvent = ""
+					return data, nil
 				}
-				return data, nil
+				return "", io.EOF
 			}
 			return "", err
 		}

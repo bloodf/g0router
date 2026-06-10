@@ -146,12 +146,13 @@ type TokensDetails struct {
 
 // StreamChunk is a single SSE chunk in a streaming chat completion.
 type StreamChunk struct {
-	ID      string         `json:"id"`
-	Object  string         `json:"object"`
-	Created int64          `json:"created"`
-	Model   string         `json:"model"`
-	Choices []StreamChoice `json:"choices"`
-	Usage   *Usage         `json:"usage,omitempty"`
+	ID                   string         `json:"id"`
+	Object               string         `json:"object"`
+	Created              int64          `json:"created"`
+	Model                string         `json:"model"`
+	Choices              []StreamChoice `json:"choices"`
+	Usage                *Usage         `json:"usage,omitempty"`
+	PromptFilterResults  []any          `json:"prompt_filter_results,omitempty"`
 	// Error is an in-band terminal error marker (AUD-046/047): the producing
 	// goroutine cannot return an error after the channel is handed to the
 	// caller, so a chunk carrying Error is sent last before close. Never
@@ -161,8 +162,9 @@ type StreamChunk struct {
 
 // StreamChoice is a choice inside a streaming chunk.
 type StreamChoice struct {
-	Index        int       `json:"index"`
-	Delta        Message   `json:"delta"`
-	FinishReason *string   `json:"finish_reason,omitempty"`
-	Logprobs     *Logprobs `json:"logprobs,omitempty"`
+	Index                int            `json:"index"`
+	Delta                Message        `json:"delta"`
+	FinishReason         *string        `json:"finish_reason,omitempty"`
+	Logprobs             *Logprobs      `json:"logprobs,omitempty"`
+	ContentFilterResults map[string]any `json:"content_filter_results,omitempty"`
 }

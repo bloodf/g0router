@@ -11,13 +11,9 @@ const defaultMinTokens = 32000
 // AdjustMaxTokens adjusts the max_tokens value based on request context.
 func AdjustMaxTokens(body map[string]any) int {
 	raw, ok := body["max_tokens"]
-	if !ok || raw == nil {
-		return defaultMaxTokens
-	}
-
 	value := toInt(raw)
-	if value <= 0 {
-		return defaultMaxTokens
+	if !ok || raw == nil || value <= 0 {
+		value = defaultMaxTokens
 	}
 
 	if hasTools(body) && value < defaultMinTokens {

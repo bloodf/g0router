@@ -90,6 +90,31 @@ func TestAdjustMaxTokensToolsThenThinkingBudget(t *testing.T) {
 	if got := AdjustMaxTokens(body3); got != 71024 {
 		t.Errorf("budget bump inclusive = %d, want 71024", got)
 	}
+
+	// Missing max_tokens with high thinking budget: default 64000 <= 70000,
+	// so bump to 70000 + 1024 = 71024.
+	body4 := map[string]any{
+		"thinking": map[string]any{"budget_tokens": 70000},
+	}
+	if got := AdjustMaxTokens(body4); got != 71024 {
+		t.Errorf("missing max_tokens with budget = %d, want 71024", got)
+	}
+
+	// Zero max_tokens with high thinking budget: default 64000 <= 70000,
+	// so bump to 70000 + 1024 = 71024.
+	body5 := map[string]any{
+		"max_tokens": 0,
+		"thinking":   map[string]any{"budget_tokens": 70000},
+	}
+	if got := AdjustMaxTokens(body5); got != 71024 {
+		t.Errorf("zero max_tokens with budget = %d, want 71024", got)
+	}
+
+	// Missing max_tokens, no tools, no thinking: default 64000 unchanged.
+	body6 := map[string]any{}
+	if got := AdjustMaxTokens(body6); got != 64000 {
+		t.Errorf("missing max_tokens no tools no thinking = %d, want 64000", got)
+	}
 }
 
 func TestAdjustMaxTokensExplicitValueKept(t *testing.T) {
