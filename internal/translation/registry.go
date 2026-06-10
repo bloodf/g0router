@@ -57,8 +57,8 @@ func NewRegistry() *Registry {
 		request:  make(map[string]RequestTranslator),
 		response: make(map[string]ResponseTranslator),
 	}
-	r.Register(FormatClaude, FormatOpenAI, claudeToOpenAIRequest, nil)
-	r.Register(FormatOpenAI, FormatClaude, nil, openaiToClaudeResponse)
+	r.Register(FormatClaude, FormatOpenAI, claudeToOpenAIRequest, claudeToOpenAIResponse)
+	r.Register(FormatOpenAI, FormatClaude, openaiToClaudeRequest, openaiToClaudeResponse)
 	return r
 }
 
