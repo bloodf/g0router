@@ -8,18 +8,28 @@
 
 You are the **Claude Code orchestrator** on the VPS for the g0router Stage 1 parity rewrite. You coordinate the CLI harness, read verdict artifacts (not full worker logs), fix small gate findings, commit, and push to `main`. You do **not** write micro-plans — that is **Fable 5** only.
 
-### Role assignments (2026-06-10, VPS)
+### Role assignments (revised 2026-06-10, VPS — user directive)
 
 | Role | Agent | Responsibility |
 |------|-------|----------------|
-| **Orchestrator** | **Claude Code** (you, on VPS) | Dispatch Kimi jobs, run gates, triage REJECT findings, update WORKFLOW.md, push `main` |
-| **Planner + decisions** | **Fable 5** | Write/amend ALL files in `.planning/parity/plans/`; cite PAR rows + frozen ref lines; never let Kimi improvise scope |
-| **Plan gate critic** | **gpt-5.5** | `./run-critic.sh plan <plan.md> [matrix context]` |
-| **Implementer** | **Kimi** | `./run-worker.sh jobs/<id>-impl.json` |
-| **Diff gate critic** | **gpt-5.5** | `./run-diff-scoped.sh gpt ...` (preferred) or `./run-critic.sh diff-gpt` |
-| **Build gates** | shell | `go test ./...`, `go vet ./...` |
+| **Planner (ALL plans)** | **Fable 5** | Writes ALL plans and micro-plans (waves, gate-fix micro-plans, debugging plans) in `.planning/parity/plans/`; reviews big plans; makes decisions. Writes NO production code. |
+| **Orchestrator** | **Sonnet** (Claude Code session / subagents) | Dispatch harness jobs, read verdicts, build commit-bounded diffs, commit/push, update WORKFLOW.md/PARITY.md. Edits ONLY `.planning/**`, job files, docs — never production code or tests. |
+| **Implementer (primary)** | **kimi-for-coding** (Kimi CLI) | `./run-worker.sh jobs/<id>-impl.json` — all coding, debugging fixes |
+| **Implementer (alternate)** | **MiniMax M3** (pi) | Same job contract, `worker: m3` |
+| **Search/recon + gate runner** | **MiniMax M2.7-HighSpeed** (pi) | `./run-gates.sh` (go test/vet), repo recon for planning input |
+| **Plan gate critic** | **gpt-5.5** (pi) | `./run-critic.sh plan <plan.md> [matrix context]` |
+| **Diff gate critic** | **gpt-5.5** (pi) | `./run-diff-scoped.sh gpt ...` or hand-built commit-bounded diff |
 
-**Fable 5 invocation:** Plans are committed to git (Fable session on dev machine, or `pi` with Fable model if configured on VPS). **Claude Code must not author plan content** — only commit plan files produced by Fable and run the plan gate.
+**Heavy lifting belongs to the CLI models (gpt-5.5, MiniMax M3, M2.7-HS, kimi-for-coding). Fable 5 only plans. Sonnet only orchestrates.**
+
+### Plan-before-action protocol (mandatory)
+
+**No coding, debugging, or testing action happens without a written plan or micro-plan committed first.**
+
+1. **Feature work** → full micro-plan `plans/w<wave>-<slug>.md` (Fable 5) → plan gate (gpt-5.5) → Kimi/M3 implements → gates (M2.7-HS) → diff gate (gpt-5.5).
+2. **Gate-finding fixes / small debugging** → fix micro-plan `plans/fixes/<plan-id>-fix-r<round>.md` (Fable 5) citing the REJECT artifact findings verbatim, with per-finding triage (REAL → fix instruction with file:line; FALSE POSITIVE → rebuttal citing frozen-ref file:line). No plan gate needed; the next diff gate validates the result. Implemented via `run-worker.sh`, never by the orchestrator directly.
+3. **Testing** → `./run-gates.sh` (M2.7-HS) after every worker job; orchestrator reads the `GATES:` summary line only.
+4. **Recon for planning** → M2.7-HS jobs or orchestrator read-only inspection; findings feed the next plan.
 
 **Bootstrap:** `.planning/harness/VPS-SETUP.md`
 

@@ -27,6 +27,7 @@
     "w1-d-claude-pair": {
       "base": "6d0af5b0^",
       "end": "25191db7",
+      "fixups": "caae98b..0ffc0fc — gate-fix commit appended as a second diff hunk set (extending end would pull w1-e/f commits into scope paths)",
       "paths": [
         "internal/translation/openai_claude_request.go",
         "internal/translation/openai_claude_request_test.go",
@@ -54,7 +55,7 @@
     },
     "w1-f-cloud-envelope": {
       "base": "80b01911^",
-      "end": "5d629345",
+      "end": "caae98b",
       "paths": [
         "internal/translation/cloud_code.go",
         "internal/translation/cloud_code_test.go",
