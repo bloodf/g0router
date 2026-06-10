@@ -39,7 +39,9 @@ func TestWriteSSEStreamSuccess(t *testing.T) {
 	close(ch)
 
 	w := &failingWriter{writesLeft: 100}
-	writeSSEStream(w, ch)
+	if err := writeSSEStream(w, ch); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	out := w.sb.String()
 	if got := strings.Count(out, "data: "); got != 3 {
@@ -114,6 +116,37 @@ func TestWriteSSEStreamAbortsOnErrorChunk(t *testing.T) {
 	}
 	if strings.Contains(out, "boom") {
 		t.Errorf("error chunk leaked to client: %q", out)
+	}
+}
+
+// TestChatStreamPassthroughNormalization verifies PAR-TRANS-049 passthrough
+// normalization: invalid IDs are fixed (stream.js:106), required fields are
+// injected (stream.js:109-112), empty chunks are filtered (stream.js:129-131),
+// and the stream terminates with [DONE] (stream.js:339-345).
+func TestChatStreamPassthroughNormalization(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk, 2)
+	ch <- &schemas.StreamChunk{ID: "chat", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
+	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}}}} // empty → filtered
+	close(ch)
+
+	w := &failingWriter{writesLeft: 100}
+	if err := writeSSEStream(w, ch); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := w.sb.String()
+	if strings.Contains(out, `"id":"chat"`) {
+		t.Errorf("invalid id not fixed: %q", out)
+	}
+	if !strings.Contains(out, "chatcmpl-") {
+		t.Errorf("expected fixed id with chatcmpl- prefix: %q", out)
+	}
+	if !strings.HasSuffix(out, "data: [DONE]\n\n") {
+		t.Errorf("missing [DONE] terminator: %q", out)
+	}
+	// Empty chunk filtered → only 2 data frames (1 chunk + DONE)
+	if got := strings.Count(out, "data: "); got != 2 {
+		t.Errorf("frame count = %d, want 2 (1 chunk + [DONE])", got)
 	}
 }
 
