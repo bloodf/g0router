@@ -3,6 +3,7 @@ package translation
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -194,6 +195,37 @@ func tryParseJSONValue(input any) any {
 	return input
 }
 
+// jsString approximates JavaScript's String(v) for values found in JSON schema
+// enums. Ported from geminiHelper.js:168.
+func jsString(v any) string {
+	if v == nil {
+		return "null"
+	}
+	if s, ok := v.(string); ok {
+		return s
+	}
+	if b, ok := v.(bool); ok {
+		if b {
+			return "true"
+		}
+		return "false"
+	}
+	if f, ok := v.(float64); ok {
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+	if arr, ok := v.([]any); ok {
+		parts := make([]string, len(arr))
+		for i, item := range arr {
+			parts[i] = jsString(item)
+		}
+		return strings.Join(parts, ",")
+	}
+	if _, ok := v.(map[string]any); ok {
+		return "[object Object]"
+	}
+	return fmt.Sprintf("%v", v)
+}
+
 // cleanJSONSchemaForGemini removes unsupported keywords and normalizes a JSON
 // schema for Gemini compatibility. It mutates the input map in-place.
 // Ported from cleanJSONSchemaForAntigravity (geminiHelper.js:298-371).
@@ -291,7 +323,7 @@ func convertEnumValuesToStrings(obj any) {
 	if enum, ok := m["enum"].([]any); ok {
 		strEnum := make([]any, len(enum))
 		for i, v := range enum {
-			strEnum[i] = fmt.Sprintf("%v", v)
+			strEnum[i] = jsString(v)
 		}
 		m["enum"] = strEnum
 		if _, hasType := m["type"]; !hasType {

@@ -61,14 +61,27 @@ func TestCleanSchemaConstToEnum(t *testing.T) {
 }
 
 func TestCleanSchemaEnumToStrings(t *testing.T) {
-	schema := map[string]any{"enum": []any{float64(1), float64(2)}}
+	schema := map[string]any{
+		"enum": []any{
+			nil,
+			map[string]any{"a": float64(1)},
+			[]any{float64(1), float64(2)},
+			true,
+			float64(2),
+			float64(2.5),
+			float64(1),
+		},
+	}
 	cleanJSONSchemaForGemini(schema)
 	enum, ok := schema["enum"].([]any)
-	if !ok || len(enum) != 2 {
+	if !ok || len(enum) != 7 {
 		t.Fatalf("enum = %v", schema["enum"])
 	}
-	if enum[0] != "1" || enum[1] != "2" {
-		t.Errorf("enum = %v, want [1 2]", enum)
+	want := []string{"null", "[object Object]", "1,2", "true", "2", "2.5", "1"}
+	for i, w := range want {
+		if got := enum[i]; got != w {
+			t.Errorf("enum[%d] = %q, want %q", i, got, w)
+		}
 	}
 	if schema["type"] != "string" {
 		t.Errorf("type = %v, want string", schema["type"])
