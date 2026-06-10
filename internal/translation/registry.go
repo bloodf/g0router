@@ -62,9 +62,25 @@ type StreamState struct {
 	ResponsesFuncArgsDone    map[int]bool
 	ResponsesCompletedSent   bool
 	// Fields for responses→openai response translation.
-	ResponsesChatID          string
-	ResponsesToolCallIndex   int
+	ResponsesChatID            string
+	ResponsesToolCallIndex     int
 	ResponsesCurrentToolCallID string
+	// Fields for ollama→openai response translation.
+	OllamaID        string
+	OllamaCreated   int64
+	OllamaModel     string
+	OllamaHadToolCalls bool
+	OllamaContent   string
+	OllamaThinking  string
+	// Fields for commandcode→openai response translation.
+	CommandCodeID           string
+	CommandCodeCreated      int64
+	CommandCodeModel        string
+	CommandCodeChunkIndex   int
+	CommandCodeToolIndex    int
+	CommandCodeToolIndexByID map[string]int
+	CommandCodeFinishReason string
+	CommandCodeUsage        map[string]any
 }
 
 // claudeOpenAIToolCall tracks an in-flight Claude tool_use block during
@@ -93,6 +109,8 @@ func NewStreamState() *StreamState {
 		ResponsesFuncArgsBuf:     make(map[int]string),
 		ResponsesFuncItemDone:    make(map[int]bool),
 		ResponsesFuncArgsDone:    make(map[int]bool),
+		CommandCodeToolIndexByID: make(map[string]int),
+		CommandCodeUsage:         make(map[string]any),
 	}
 }
 
@@ -139,6 +157,10 @@ func NewRegistry() *Registry {
 	r.Register(FormatAntigravity, FormatOpenAI, nil, geminiToOpenAIResponse)
 	r.Register(FormatOpenAIResponses, FormatOpenAI, responsesToOpenAIRequest, responsesToOpenAIResponse)
 	r.Register(FormatOpenAI, FormatOpenAIResponses, openaiToResponsesRequest, openaiToResponsesResponse)
+	r.Register(FormatOpenAI, FormatOllama, openaiToOllamaRequest, nil)
+	r.Register(FormatOllama, FormatOpenAI, nil, ollamaToOpenAIResponse)
+	r.Register(FormatOpenAI, FormatCommandCode, openaiToCommandCodeRequest, nil)
+	r.Register(FormatCommandCode, FormatOpenAI, nil, commandcodeToOpenAIResponse)
 	return r
 }
 

@@ -547,3 +547,49 @@ func TestNewRegistryWiresResponsesPair(t *testing.T) {
 		t.Error("openai->responses response translator is not openaiToResponsesResponse")
 	}
 }
+
+func TestNewRegistryWiresOllamaPair(t *testing.T) {
+	reg := NewRegistry()
+
+	if reg.RequestTranslatorFor(FormatOpenAI, FormatOllama) == nil {
+		t.Error("NewRegistry must wire openai->ollama request translator")
+	}
+	if reg.ResponseTranslatorFor(FormatOllama, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire ollama->openai response translator")
+	}
+
+	wantReq := reflect.ValueOf(RequestTranslator(openaiToOllamaRequest)).Pointer()
+	gotReq := reflect.ValueOf(reg.RequestTranslatorFor(FormatOpenAI, FormatOllama)).Pointer()
+	if gotReq != wantReq {
+		t.Error("openai->ollama request translator is not openaiToOllamaRequest")
+	}
+
+	wantResp := reflect.ValueOf(ResponseTranslator(ollamaToOpenAIResponse)).Pointer()
+	gotResp := reflect.ValueOf(reg.ResponseTranslatorFor(FormatOllama, FormatOpenAI)).Pointer()
+	if gotResp != wantResp {
+		t.Error("ollama->openai response translator is not ollamaToOpenAIResponse")
+	}
+}
+
+func TestNewRegistryWiresCommandCodePair(t *testing.T) {
+	reg := NewRegistry()
+
+	if reg.RequestTranslatorFor(FormatOpenAI, FormatCommandCode) == nil {
+		t.Error("NewRegistry must wire openai->commandcode request translator")
+	}
+	if reg.ResponseTranslatorFor(FormatCommandCode, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire commandcode->openai response translator")
+	}
+
+	wantReq := reflect.ValueOf(RequestTranslator(openaiToCommandCodeRequest)).Pointer()
+	gotReq := reflect.ValueOf(reg.RequestTranslatorFor(FormatOpenAI, FormatCommandCode)).Pointer()
+	if gotReq != wantReq {
+		t.Error("openai->commandcode request translator is not openaiToCommandCodeRequest")
+	}
+
+	wantResp := reflect.ValueOf(ResponseTranslator(commandcodeToOpenAIResponse)).Pointer()
+	gotResp := reflect.ValueOf(reg.ResponseTranslatorFor(FormatCommandCode, FormatOpenAI)).Pointer()
+	if gotResp != wantResp {
+		t.Error("commandcode->openai response translator is not commandcodeToOpenAIResponse")
+	}
+}
