@@ -112,12 +112,7 @@ type Embedding struct {
 }
 
 // ConvertChatRequest transforms an OpenAI ChatRequest into a Gemini GenerateContentRequest.
-func ConvertChatRequest(req *schemas.ChatRequest) *GenerateContentRequest {
-	gemReq, _ := convertChatRequest(req)
-	return gemReq
-}
-
-func convertChatRequest(req *schemas.ChatRequest) (*GenerateContentRequest, error) {
+func ConvertChatRequest(req *schemas.ChatRequest) (*GenerateContentRequest, error) {
 	gemReq := &GenerateContentRequest{
 		Model: req.Model,
 	}

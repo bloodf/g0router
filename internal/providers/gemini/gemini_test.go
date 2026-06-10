@@ -29,7 +29,10 @@ func TestConvertRequestSimple(t *testing.T) {
 		Model:    "gemini-1.5-pro",
 		Messages: []schemas.Message{{Role: "user", Content: "Hello"}},
 	}
-	converted := ConvertChatRequest(req)
+	converted, err := ConvertChatRequest(req)
+	if err != nil {
+		t.Fatalf("ConvertChatRequest: %v", err)
+	}
 
 	if converted.Model != "gemini-1.5-pro" {
 		t.Errorf("model = %q, want gemini-1.5-pro", converted.Model)
@@ -56,7 +59,10 @@ func TestConvertRequestWithSystem(t *testing.T) {
 			{Role: "user", Content: "Hi"},
 		},
 	}
-	converted := ConvertChatRequest(req)
+	converted, err := ConvertChatRequest(req)
+	if err != nil {
+		t.Fatalf("ConvertChatRequest: %v", err)
+	}
 
 	if converted.SystemInstruction == nil {
 		t.Fatal("system_instruction should not be nil")
@@ -82,7 +88,10 @@ func TestConvertRequestAssistantRole(t *testing.T) {
 			{Role: "assistant", Content: "Hi there"},
 		},
 	}
-	converted := ConvertChatRequest(req)
+	converted, err := ConvertChatRequest(req)
+	if err != nil {
+		t.Fatalf("ConvertChatRequest: %v", err)
+	}
 
 	if len(converted.Contents) != 2 {
 		t.Fatalf("contents len = %d, want 2", len(converted.Contents))
@@ -115,7 +124,10 @@ func TestConvertRequestWithTools(t *testing.T) {
 			},
 		},
 	}
-	converted := ConvertChatRequest(req)
+	converted, err := ConvertChatRequest(req)
+	if err != nil {
+		t.Fatalf("ConvertChatRequest: %v", err)
+	}
 
 	if len(converted.Tools) != 1 {
 		t.Fatalf("tools len = %d, want 1", len(converted.Tools))

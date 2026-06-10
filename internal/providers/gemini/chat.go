@@ -19,7 +19,7 @@ func (p *Provider) ChatCompletion(ctx *schemas.GatewayContext, key schemas.Key, 
 	resp := p.client.AcquireResponse()
 	defer p.client.ReleaseResponse(resp)
 
-	gemReq, convErr := convertChatRequest(request)
+	gemReq, convErr := ConvertChatRequest(request)
 	if convErr != nil {
 		return nil, &schemas.ProviderError{
 			Message:    fmt.Sprintf("convert request: %v", convErr),
@@ -92,7 +92,7 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 	req := p.client.AcquireRequest()
 	resp := p.client.AcquireResponse()
 
-	gemReq, convErr := convertChatRequest(request)
+	gemReq, convErr := ConvertChatRequest(request)
 	if convErr != nil {
 		p.client.ReleaseRequest(req)
 		p.client.ReleaseResponse(resp)

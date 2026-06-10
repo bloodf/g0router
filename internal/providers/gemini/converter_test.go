@@ -23,7 +23,10 @@ func TestConvertChatRequestToolMessageWithCallID(t *testing.T) {
 		},
 	}
 
-	converted := ConvertChatRequest(req)
+	converted, err := ConvertChatRequest(req)
+	if err != nil {
+		t.Fatalf("ConvertChatRequest: %v", err)
+	}
 
 	if len(converted.Contents) != 2 {
 		t.Fatalf("contents len = %d, want 2", len(converted.Contents))
@@ -156,7 +159,7 @@ func TestConvertChatRequestMalformedToolArgs(t *testing.T) {
 		},
 	}
 
-	_, err := convertChatRequest(req)
+	_, err := ConvertChatRequest(req)
 	if err == nil {
 		t.Fatal("expected error for malformed tool arguments, got nil")
 	}
@@ -172,7 +175,10 @@ func TestConvertChatRequestMultipleSystemMessages(t *testing.T) {
 		},
 	}
 
-	converted := ConvertChatRequest(req)
+	converted, err := ConvertChatRequest(req)
+	if err != nil {
+		t.Fatalf("ConvertChatRequest: %v", err)
+	}
 
 	if converted.SystemInstruction == nil {
 		t.Fatal("system_instruction should not be nil")
