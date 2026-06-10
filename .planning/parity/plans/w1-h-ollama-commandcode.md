@@ -39,8 +39,13 @@ TOUCH-ONLY: `registry.go` (registrations + StreamState fields below), `registry_
    StreamState additions: `CommandCodeID string`, `CommandCodeCreated int64`, `CommandCodeModel string`, `CommandCodeChunkIndex int`, `CommandCodeToolIndex int`, `CommandCodeToolIndexByID map[string]int`, `CommandCodeFinishReason string`, `CommandCodeUsage map[string]any` (init in NewStreamState).
    Tests: `TestCommandCodeOpenAIPassthroughChunk`, `TestCommandCodeOpenAITextAndRoleInjection`, `TestCommandCodeOpenAIReasoningDelta`, `TestCommandCodeOpenAIToolInputLifecycle` (start/delta/unknown-id skip), `TestCommandCodeOpenAIConsolidatedToolCallDedup`, `TestCommandCodeOpenAIFinishUsage` (finish-step then finish; totalUsage precedence), `TestCommandCodeOpenAIErrorTwoChunks`, `TestCommandCodeOpenAIFinishReasonMapping`.
 
-5. **Registration (PAR-TRANS-002 clauses)**: `Register(FormatOpenAI, FormatOllama, openaiToOllamaRequest, openaiToOllamaLinesResponse?)` — NO: ref registers `(OPENAI, OLLAMA, request, null)` and `(OLLAMA, OPENAI, null, ollamaToOpenAI)`; the lines-transform is a util, not a registered translator (consumed by the ollama endpoint later). CommandCode: `(OPENAI, COMMANDCODE, request, null)` (:170) and `(COMMANDCODE, OPENAI, null, response)` (:197). Four `Register` calls total.
-   Tests: `TestNewRegistryWiresOllamaPair`, `TestNewRegistryWiresCommandCodePair` (presence + reflect identity, registry_test.go pattern).
+5. **Registration** — parity basis PAR-TRANS-001 (registry maps `from:to` pairs for requests and responses separately); the PAR-TRANS-002 ollama/commandcode format clauses close as a consequence of these registrations existing. Four `Register` calls in `NewRegistry`, mirroring the ref exactly:
+   - `Register(FormatOpenAI, FormatOllama, openaiToOllamaRequest, nil)` — ref `open-sse/translator/request/openai-to-ollama.js:192`
+   - `Register(FormatOllama, FormatOpenAI, nil, ollamaToOpenAIResponse)` — ref `open-sse/translator/response/ollama-to-openai.js:152`
+   - `Register(FormatOpenAI, FormatCommandCode, openaiToCommandCodeRequest, nil)` — ref `open-sse/translator/request/openai-to-commandcode.js:170`
+   - `Register(FormatCommandCode, FormatOpenAI, nil, commandcodeToOpenAIResponse)` — ref `open-sse/translator/response/commandcode-to-openai.js:197`
+   No other registry semantics change.
+   Tests: `TestNewRegistryWiresOllamaPair`, `TestNewRegistryWiresCommandCodePair` (presence + reflect identity against the four named functions, registry_test.go pattern).
 
 ## Binary acceptance criteria
 
