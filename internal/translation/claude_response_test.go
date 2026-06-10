@@ -7,10 +7,7 @@ import (
 )
 
 func state() *StreamState {
-	return &StreamState{
-		ToolCalls:      make(map[int]toolCallInfo),
-		ToolArgBuffers: make(map[int]string),
-	}
+	return NewStreamState()
 }
 
 func TestClaudeResponseMessageStart(t *testing.T) {

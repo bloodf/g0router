@@ -13,24 +13,33 @@ type ResponseTranslator func(chunk map[string]any, state *StreamState) ([]map[st
 // StreamState holds mutable state for a streaming response translator across
 // chunks (message IDs, block indices, tool-call buffers, etc.).
 type StreamState struct {
-	MessageStartSent      bool
-	MessageID             string
-	Model                 string
-	NextBlockIndex        int
-	TextBlockStarted      bool
-	TextBlockIndex        int
-	TextBlockClosed       bool
-	ThinkingBlockStarted  bool
-	ThinkingBlockIndex    int
-	ToolCalls             map[int]toolCallInfo
-	ToolArgBuffers        map[int]string
-	FinishReason          string
-	FinishReasonSent      bool
-	Usage                 map[string]any
-	ContentBlockIndex     int
+	MessageStartSent     bool
+	MessageID            string
+	Model                string
+	NextBlockIndex       int
+	TextBlockStarted     bool
+	TextBlockIndex       int
+	TextBlockClosed      bool
+	ThinkingBlockStarted bool
+	ThinkingBlockIndex   int
+	ToolCalls            map[int]ToolCallInfo
+	ToolArgBuffers       map[int]string
+	FinishReason         string
+	FinishReasonSent     bool
+	Usage                map[string]any
+	ContentBlockIndex    int
 }
 
-type toolCallInfo struct {
+// NewStreamState creates a zero-valued StreamState with initialized maps.
+func NewStreamState() *StreamState {
+	return &StreamState{
+		ToolCalls:      make(map[int]ToolCallInfo),
+		ToolArgBuffers: make(map[int]string),
+	}
+}
+
+// ToolCallInfo tracks a tool call in flight during response translation.
+type ToolCallInfo struct {
 	ID         string
 	Name       string
 	BlockIndex int

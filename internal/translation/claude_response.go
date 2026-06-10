@@ -304,7 +304,7 @@ func openaiToClaudeResponse(chunk map[string]any, state *StreamState) ([]map[str
 						toolName = name
 					}
 				}
-				state.ToolCalls[idx] = toolCallInfo{
+				state.ToolCalls[idx] = ToolCallInfo{
 					ID:         id,
 					Name:       toolName,
 					BlockIndex: blockIndex,

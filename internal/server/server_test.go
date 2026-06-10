@@ -56,6 +56,19 @@ func testUIFS() fstest.MapFS {
 	}
 }
 
+func TestMessagesRouteRegistered(t *testing.T) {
+	client := startServer(t, New(testUIFS(), nil, nil))
+	resp, err := client.Post("http://server/v1/messages", "application/json", strings.NewReader(`{"model":"claude-opus-4"}`))
+	if err != nil {
+		t.Fatalf("post /v1/messages: %v", err)
+	}
+	body := readBody(t, resp)
+	// With no store the request may fail upstream, but the route must exist (not 404).
+	if resp.StatusCode == http.StatusNotFound {
+		t.Fatalf("/v1/messages returned 404: %s", body)
+	}
+}
+
 func TestAdminRoutesRegistered(t *testing.T) {
 	st := newTestStore(t)
 	sessions := auth.NewSessions(st, time.Hour)
