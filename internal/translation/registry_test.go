@@ -467,7 +467,7 @@ func TestResponseAliasesUseGeminiTranslator(t *testing.T) {
 	// of the gemini→openai translator — identity, not just non-nil wiring.
 	reg := NewRegistry()
 	want := reflect.ValueOf(ResponseTranslator(geminiToOpenAIResponse)).Pointer()
-	for _, from := range []Format{FormatGeminiCLI, FormatVertex} {
+	for _, from := range []Format{FormatGeminiCLI, FormatVertex, FormatAntigravity} {
 		got := reg.ResponseTranslatorFor(from, FormatOpenAI)
 		if got == nil {
 			t.Errorf("%s->openai response translator not wired", from)

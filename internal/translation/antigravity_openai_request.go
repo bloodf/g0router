@@ -18,7 +18,6 @@ func antigravityToOpenAIRequest(model string, body map[string]any, stream bool, 
 		"stream":   stream,
 	}
 
-	// Generation config
 	if genConfig, ok := req["generationConfig"].(map[string]any); ok && genConfig != nil {
 		if maxOutputTokens, ok := genConfig["maxOutputTokens"]; ok && maxOutputTokens != nil {
 			tempBody := map[string]any{

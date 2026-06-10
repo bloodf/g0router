@@ -120,6 +120,8 @@ func openaiToAntigravityResponse(chunk map[string]any, state *StreamState) ([]ma
 					name = mapped
 				}
 			}
+			// The frozen ref emits only name+args here — no id field
+			// (openai-to-antigravity.js:64-69); correlation happens upstream.
 			parts = append(parts, map[string]any{
 				"functionCall": map[string]any{
 					"name": name,
