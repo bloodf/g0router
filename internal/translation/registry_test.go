@@ -214,3 +214,139 @@ func TestRegistryClaudeRoundTripViaPipeline(t *testing.T) {
 		t.Fatalf("expected finish_reason on final chunk: %v", last)
 	}
 }
+
+func TestRegistryGeminiRoundTripViaPipeline(t *testing.T) {
+	reg := NewRegistry()
+
+	// Request direction: openai → gemini.
+	body := map[string]any{
+		"model": "gemini-pro",
+		"messages": []any{
+			map[string]any{"role": "system", "content": "You are helpful."},
+			map[string]any{
+				"role": "assistant",
+				"content": "",
+				"reasoning_content": "thinking...",
+				"tool_calls": []any{
+					map[string]any{
+						"id":   "call-abc-123",
+						"type": "function",
+						"function": map[string]any{
+							"name":      "get_weather",
+							"arguments": `{"location":"NYC"}`,
+						},
+					},
+				},
+			},
+			map[string]any{
+				"role":         "tool",
+				"tool_call_id": "call-abc-123",
+				"content":      `{"temp":72}`,
+			},
+		},
+		"tools": []any{
+			map[string]any{
+				"type": "function",
+				"function": map[string]any{
+					"name":        "get_weather",
+					"description": "get weather",
+					"parameters":  map[string]any{"type": "object", "properties": map[string]any{}},
+				},
+			},
+		},
+		"tool_choice": "auto",
+	}
+	reqOut, err := reg.TranslateRequest(FormatOpenAI, FormatGemini, "gemini-pro", body, false)
+	if err != nil {
+		t.Fatalf("TranslateRequest: %v", err)
+	}
+
+	// Assert gemini body shape.
+	if _, ok := reqOut["systemInstruction"]; !ok {
+		t.Fatal("expected systemInstruction in gemini body")
+	}
+	contents, ok := reqOut["contents"].([]any)
+	if !ok || len(contents) == 0 {
+		t.Fatalf("expected contents in gemini body: %v", reqOut["contents"])
+	}
+	tools, ok := reqOut["tools"].([]any)
+	if !ok || len(tools) == 0 {
+		t.Fatalf("expected tools in gemini body: %v", reqOut["tools"])
+	}
+	if _, ok := reqOut["toolConfig"]; ok {
+		t.Error("expected no toolConfig in gemini body")
+	}
+
+	// Response direction: gemini → openai.
+	state := NewStreamState()
+	events := []map[string]any{
+		{
+			"responseId":   "resp_1",
+			"modelVersion": "gemini-1.5-pro",
+			"candidates": []any{
+				map[string]any{
+					"content": map[string]any{
+						"parts": []any{
+							map[string]any{"thought": true, "thoughtSignature": "sig", "text": "thinking..."},
+						},
+					},
+				},
+			},
+		},
+		{
+			"candidates": []any{
+				map[string]any{
+					"content": map[string]any{
+						"parts": []any{map[string]any{"text": "ok"}},
+					},
+				},
+			},
+		},
+		{
+			"candidates": []any{
+				map[string]any{
+					"content": map[string]any{
+						"parts": []any{
+							map[string]any{"functionCall": map[string]any{"name": "get_weather", "args": map[string]any{"location": "NYC"}}},
+						},
+					},
+				},
+			},
+		},
+		{
+			"candidates": []any{
+				map[string]any{
+					"content":      map[string]any{"parts": []any{}},
+					"finishReason": "STOP",
+				},
+			},
+			"usageMetadata": map[string]any{
+				"promptTokenCount":     float64(10),
+				"candidatesTokenCount": float64(5),
+				"totalTokenCount":      float64(15),
+			},
+		},
+	}
+
+	var last map[string]any
+	for _, ev := range events {
+		chunks, err := reg.TranslateResponse(FormatGemini, FormatOpenAI, ev, state)
+		if err != nil {
+			t.Fatalf("TranslateResponse: %v", err)
+		}
+		if len(chunks) > 0 {
+			last = chunks[len(chunks)-1]
+		}
+	}
+	if last == nil {
+		t.Fatal("no response chunks")
+	}
+	choices := last["choices"].([]any)
+	finishReason := choices[0].(map[string]any)["finish_reason"]
+	if finishReason != "tool_calls" {
+		t.Fatalf("expected finish_reason=tool_calls, got %v", finishReason)
+	}
+	if last["usage"] == nil {
+		t.Fatal("expected usage on final chunk")
+	}
+}
