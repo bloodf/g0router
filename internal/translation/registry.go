@@ -36,6 +36,11 @@ type StreamState struct {
 	CurrentBlockIndex    int
 	ClaudeBlockTools     map[int]claudeOpenAIToolCall
 	ToolNameMap          map[string]string
+	// Fields for openai→antigravity response translation.
+	AntigravityToolCallAccum map[int]map[string]any
+	AntigravityResponseID    string
+	AntigravityModelVersion  string
+	AntigravityUsage         map[string]any
 }
 
 // claudeOpenAIToolCall tracks an in-flight Claude tool_use block during
@@ -50,10 +55,11 @@ type claudeOpenAIToolCall struct {
 // NewStreamState creates a zero-valued StreamState with initialized maps.
 func NewStreamState() *StreamState {
 	return &StreamState{
-		ToolCalls:              make(map[int]ToolCallInfo),
-		ToolArgBuffers:         make(map[int]string),
-		ClaudeBlockTools:       make(map[int]claudeOpenAIToolCall),
-		ServerToolBlockIndex:   -1,
+		ToolCalls:                make(map[int]ToolCallInfo),
+		ToolArgBuffers:           make(map[int]string),
+		ClaudeBlockTools:         make(map[int]claudeOpenAIToolCall),
+		ServerToolBlockIndex:     -1,
+		AntigravityToolCallAccum: make(map[int]map[string]any),
 	}
 }
 
@@ -90,6 +96,7 @@ func NewRegistry() *Registry {
 	r.Register(FormatOpenAI, FormatAntigravity, openaiToAntigravityRequest, nil)
 	r.Register(FormatAntigravity, FormatOpenAI, antigravityToOpenAIRequest, nil)
 	r.Register(FormatOpenAI, FormatVertex, openaiToVertexRequest, nil)
+	r.Register(FormatOpenAI, FormatAntigravity, nil, openaiToAntigravityResponse)
 	return r
 }
 
