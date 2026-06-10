@@ -111,6 +111,30 @@ func TestConvertRequestFieldCoverage(t *testing.T) {
 	}
 }
 
+func TestConvertRequestMaxTokensAdjusted(t *testing.T) {
+	maxTokens := 1000
+	req := &schemas.ChatRequest{
+		Model: "claude-3-5-sonnet",
+		Tools: []schemas.Tool{
+			{Type: "function", Function: schemas.FunctionDefinition{Name: "Read"}},
+		},
+		MaxTokens: &maxTokens,
+	}
+	converted := ConvertRequest(req)
+	if converted.MaxTokens != 32000 {
+		t.Errorf("tools with low max_tokens = %d, want 32000", converted.MaxTokens)
+	}
+
+	// Zero MaxTokens → 64000
+	req2 := &schemas.ChatRequest{
+		Model: "claude-3-5-sonnet",
+	}
+	converted2 := ConvertRequest(req2)
+	if converted2.MaxTokens != 64000 {
+		t.Errorf("missing max_tokens = %d, want 64000", converted2.MaxTokens)
+	}
+}
+
 func TestConvertRequestMultipleSystemMessages(t *testing.T) {
 	req := &schemas.ChatRequest{
 		Model: "claude-3-5-sonnet",

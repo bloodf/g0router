@@ -265,6 +265,31 @@ func TestClaudeRequestTools(t *testing.T) {
 	}
 }
 
+func TestClaudeRequestMaxTokensAdjusted(t *testing.T) {
+	body := map[string]any{
+		"tools": []any{
+			map[string]any{
+				"name":        "Read",
+				"description": "reads files",
+				"input_schema": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"file_path": map[string]any{"type": "string"},
+					},
+				},
+			},
+		},
+		"max_tokens": 1000,
+	}
+	out, err := claudeToOpenAIRequest("claude-3", body, false)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if out["max_tokens"] != 32000 {
+		t.Errorf("max_tokens = %v, want 32000", out["max_tokens"])
+	}
+}
+
 func TestClaudeRequestToolChoice(t *testing.T) {
 	cases := []struct {
 		name string

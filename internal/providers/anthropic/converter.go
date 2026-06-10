@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/bloodf/g0router/internal/schemas"
+	"github.com/bloodf/g0router/internal/translation"
 )
 
 // MessagesRequest is the Anthropic Messages API request body.
@@ -85,8 +86,6 @@ type StreamDelta struct {
 	PartialJSON string `json:"partial_json,omitempty"`
 }
 
-const defaultMaxTokens = 4096
-
 func joinSystemMessages(parts []string) string {
 	result := ""
 	for i, p := range parts {
@@ -101,14 +100,23 @@ func joinSystemMessages(parts []string) string {
 // ConvertRequest transforms an OpenAI ChatRequest into an Anthropic MessagesRequest.
 func ConvertRequest(req *schemas.ChatRequest) *MessagesRequest {
 	anthReq := &MessagesRequest{
-		Model:     req.Model,
-		MaxTokens: defaultMaxTokens,
-		Stream:    req.Stream,
+		Model:  req.Model,
+		Stream: req.Stream,
 	}
 
+	body := map[string]any{}
 	if req.MaxTokens != nil && *req.MaxTokens > 0 {
-		anthReq.MaxTokens = *req.MaxTokens
+		body["max_tokens"] = *req.MaxTokens
 	}
+	if len(req.Tools) > 0 {
+		body["tools"] = req.Tools
+	}
+	if req.Thinking != nil {
+		body["thinking"] = map[string]any{
+			"budget_tokens": req.Thinking.BudgetTokens,
+		}
+	}
+	anthReq.MaxTokens = translation.AdjustMaxTokens(body)
 	if req.Temperature != nil {
 		anthReq.Temperature = req.Temperature
 	}

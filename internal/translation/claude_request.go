@@ -15,10 +15,8 @@ func claudeToOpenAIRequest(model string, body map[string]any, stream bool) (map[
 	}
 
 	// Max tokens.
-	if maxTokens, ok := body["max_tokens"]; ok && maxTokens != nil {
-		// PAR-TRANS-011 (w1-c): adjustMaxTokens applies here.
-		result["max_tokens"] = maxTokens
-	}
+	// PAR-TRANS-011 (w1-c): adjustMaxTokens applies here.
+	result["max_tokens"] = AdjustMaxTokens(body)
 
 	// Temperature.
 	if temp, ok := body["temperature"]; ok && temp != nil {
