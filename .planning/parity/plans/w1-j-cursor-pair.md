@@ -8,12 +8,16 @@ Frozen ref (@ 827e5c3), read whole: `open-sse/translator/request/openai-to-curso
 
 - `grep -n 'FormatCursor' internal/translation/formats.go` → present (verified 2026-06-10: `formats.go:20` `FormatCursor Format = "cursor"`)
 - `grep -rn 'buildCursorRequest\|cursorToOpenAIResponse' internal/translation/` → 0 hits (verified 2026-06-10 at planning time; re-run before implementing — a hit means IMPL-BLOCKED)
+- **Dispatch-order gate**: `grep -c 'FormatOllama\|FormatCommandCode' internal/translation/registry.go` ≥ 2 AND `grep -c 'FormatKiro' internal/translation/registry.go` ≥ 2 — proves w1-h and w1-i registry hunks are already merged; 0/1 hits → IMPL-BLOCKED (do not touch registry.go)
 
 ## Exclusive file ownership
 
 NEW: `internal/translation/openai_cursor_request.go` + `_test.go`, `cursor_openai_response.go` + `_test.go`.
 TOUCH-ONLY: `registry.go` (2 Register calls), `registry_test.go` (wiring test).
-Ownership coordination: no other approved/in-flight Wave-1 plan claims these NEW files — w1-g owns `responses_*`/`openai_responses_*` (w1-g-responses-api.md §Exclusive file ownership), w1-h owns `*ollama*`/`*commandcode*` (w1-h-ollama-commandcode.md §Exclusive file ownership), w1-i owns `kiro_*`/`openai_kiro_*` (w1-i-kiro-pair.md §Exclusive file ownership). `registry.go`/`registry_test.go` are shared TOUCH-ONLY across all four; the harness serializes worker jobs (one kimi job at a time), so concurrent edits cannot occur.
+Ownership coordination (checkable, not asserted):
+- NEW-file non-overlap is auditable by filename: w1-g §Exclusive file ownership lists only `responses_*`/`openai_responses_*` paths (w1-g-responses-api.md lines under "## Exclusive file ownership"); w1-h lists only `*ollama*`/`*commandcode*` paths (w1-h-ollama-commandcode.md, same section); w1-i lists only `kiro_*`/`openai_kiro_*` paths (w1-i-kiro-pair.md, same section). None matches `*cursor*`.
+- `registry.go`/`registry_test.go` shared-TOUCH-ONLY is the registry pattern this gate approved in w1-h (artifact `artifacts/w1-h-ollama-commandcode-plan-review.txt`, VERDICT: PASS) and w1-i (`artifacts/w1-i-kiro-pair-plan-review.txt`, VERDICT: PASS).
+- **Hard dispatch-order constraint replacing any serialization assumption**: the w1-j implementation job MUST NOT be dispatched until the w1-h and w1-i implementation commits are merged at HEAD. Enforced as a worker precondition below — if it fails, IMPL-BLOCKED, no edits.
 
 ## Tasks
 
