@@ -75,3 +75,6 @@ The gated 9router-translation.md matrix omitted two items required for `/v1/mess
 - MAJOR (hasToolResults skips remaining IDs when one is answered): OVERRULED — matches reference. `toolCallHelper.js:128-143`: insertion is all-or-nothing per assistant message gated on `!hasToolResults(nextMsg, toolCallIds)`, and `hasToolResults` returns true if ANY one id matches (`:100`). Go reproduces the same skip-all semantics.
 - MINOR (package-level toolIDPattern is global state): OVERRULED as written — immutable compiled regex at package level is idiomatic Go, not mutable global state. Related real smell fixed by orchestrator: `sanitizeToolID` recompiled its regex per call; hoisted to package level (`toolIDInvalidRun`).
 w1-a APPROVED with orchestrator fix commit.
+
+## Addendum — matrix correction: PAR-TRANS-011 constants (2026-06-09, w1-c planning)
+Row text said adjustMaxTokens "boosts to min 4096 when tools present". Frozen ref disagrees: `open-sse/config/runtimeConfig.js:41-42` defines `DEFAULT_MAX_TOKENS = 64000` and `DEFAULT_MIN_TOKENS = 32000`; `maxTokensHelper.js:8-26` uses those. The 4096 figure is g0router's own `defaultMaxTokens` (gap column), which the analyzer conflated into the row text. Row corrected with source citation; verified by orchestrator against frozen ref.
