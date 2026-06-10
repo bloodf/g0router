@@ -321,3 +321,17 @@ func TestGeminiOpenAIResponseKeyUnwrap(t *testing.T) {
 		t.Errorf("content = %v", content)
 	}
 }
+
+func TestGeminiFunctionCallMarshalHappyPath(t *testing.T) {
+	state := NewStreamState()
+	part := map[string]any{
+		"functionCall": map[string]any{"name": "test", "args": map[string]any{"key": "value"}},
+	}
+	// The error branch (json.Marshal failure) is defensive: fcArgs is a
+	// map[string]any decoded from JSON, which can only contain marshalable
+	// values, so the marshal cannot fail in practice.
+	_, err := geminiFunctionCallToToolCall(part, state, 0)
+	if err != nil {
+		t.Errorf("geminiFunctionCallToToolCall returned unexpected error: %v", err)
+	}
+}

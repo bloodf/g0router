@@ -148,12 +148,10 @@ func FilterToOpenAIFormat(body map[string]any) map[string]any {
 		body["messages"] = pruned
 	}
 
-	// Remove empty tools array.
 	if tools, ok := body["tools"].([]any); ok && len(tools) == 0 {
 		delete(body, "tools")
 	}
 
-	// Normalize tools.
 	if tools, ok := body["tools"].([]any); ok && len(tools) > 0 {
 		normalized := make([]any, 0)
 		for _, toolRaw := range tools {
@@ -223,7 +221,6 @@ func FilterToOpenAIFormat(body map[string]any) map[string]any {
 		body["tools"] = normalized
 	}
 
-	// Normalize tool_choice.
 	if tc, ok := body["tool_choice"].(map[string]any); ok && tc != nil {
 		tcType, _ := tc["type"].(string)
 		switch tcType {

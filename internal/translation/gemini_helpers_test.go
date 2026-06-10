@@ -328,3 +328,49 @@ func TestCleanSchemaNestedEmptyObjectPlaceholder(t *testing.T) {
 		t.Errorf("nested required = %v, want [reason]", nested["required"])
 	}
 }
+
+func TestExtractTextContentGemini(t *testing.T) {
+	t.Run("string", func(t *testing.T) {
+		got := extractTextContentGemini("hello")
+		if got != "hello" {
+			t.Errorf("got %q, want hello", got)
+		}
+	})
+	t.Run("text block array", func(t *testing.T) {
+		got := extractTextContentGemini([]any{
+			map[string]any{"type": "text", "text": "hello "},
+			map[string]any{"type": "text", "text": "world"},
+		})
+		if got != "hello world" {
+			t.Errorf("got %q, want 'hello world'", got)
+		}
+	})
+	t.Run("empty", func(t *testing.T) {
+		got := extractTextContentGemini(nil)
+		if got != "" {
+			t.Errorf("got %q, want empty", got)
+		}
+	})
+}
+
+func TestTryParseJSONValue(t *testing.T) {
+	t.Run("valid object", func(t *testing.T) {
+		got := tryParseJSONValue(`{"a":1}`)
+		m, ok := got.(map[string]any)
+		if !ok || m["a"] != float64(1) {
+			t.Errorf("got %v, want map[a:1]", got)
+		}
+	})
+	t.Run("invalid string returns nil", func(t *testing.T) {
+		got := tryParseJSONValue(`not json`)
+		if got != nil {
+			t.Errorf("got %v, want nil", got)
+		}
+	})
+	t.Run("non-string passthrough", func(t *testing.T) {
+		got := tryParseJSONValue(float64(42))
+		if got != float64(42) {
+			t.Errorf("got %v, want 42", got)
+		}
+	})
+}
