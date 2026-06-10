@@ -32,6 +32,20 @@ func generateToolCallID(msgIndex, tcIndex int, toolName string) string {
 	return fmt.Sprintf("call_msg%d_tc%d%s", msgIndex, tcIndex, name)
 }
 
+// NormalizeThinkingConfig removes Thinking and ReasoningEffort when the
+// last message in the request is not from the user.
+func NormalizeThinkingConfig(req *schemas.ChatRequest) {
+	if len(req.Messages) == 0 {
+		return
+	}
+	last := req.Messages[len(req.Messages)-1]
+	if last.Role == "user" {
+		return
+	}
+	req.Thinking = nil
+	req.ReasoningEffort = ""
+}
+
 // FixMissingToolResponses inserts empty role:tool messages after assistant
 // tool_calls when the next message does not contain results for those IDs.
 // It operates on the OpenAI-shaped request body in place.

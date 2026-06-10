@@ -206,3 +206,48 @@ func TestFixMissingToolResponsesIgnoresTrailing(t *testing.T) {
 		t.Fatalf("len(messages) = %d, want 1", len(req.Messages))
 	}
 }
+
+// TestNormalizeThinkingConfigClears verifies that when the last message is not
+// from the user, Thinking and ReasoningEffort are cleared.
+func TestNormalizeThinkingConfigClears(t *testing.T) {
+	thinking := schemas.ThinkingConfig{Type: "enabled", BudgetTokens: 1024}
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "user", Content: "hi"},
+			{Role: "assistant", Content: "hello"},
+		},
+		ReasoningEffort: "medium",
+		Thinking:        &thinking,
+	}
+
+	NormalizeThinkingConfig(req)
+
+	if req.Thinking != nil {
+		t.Errorf("thinking = %+v, want nil", req.Thinking)
+	}
+	if req.ReasoningEffort != "" {
+		t.Errorf("reasoning_effort = %q, want empty", req.ReasoningEffort)
+	}
+}
+
+// TestNormalizeThinkingConfigKeepsForUser verifies that when the last message
+// is from the user, Thinking and ReasoningEffort are left untouched.
+func TestNormalizeThinkingConfigKeepsForUser(t *testing.T) {
+	thinking := schemas.ThinkingConfig{Type: "enabled", BudgetTokens: 1024}
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "user", Content: "hi"},
+		},
+		ReasoningEffort: "medium",
+		Thinking:        &thinking,
+	}
+
+	NormalizeThinkingConfig(req)
+
+	if req.Thinking == nil || req.Thinking.Type != "enabled" {
+		t.Errorf("thinking = %+v, want kept", req.Thinking)
+	}
+	if req.ReasoningEffort != "medium" {
+		t.Errorf("reasoning_effort = %q, want %q", req.ReasoningEffort, "medium")
+	}
+}
