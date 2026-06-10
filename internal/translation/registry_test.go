@@ -157,3 +157,60 @@ func TestTranslateResponseFanOut(t *testing.T) {
 		t.Errorf("chunks = %v", chunks)
 	}
 }
+
+func TestRegistryClaudeRoundTripViaPipeline(t *testing.T) {
+	reg := NewRegistry()
+	body := map[string]any{
+		"model": "claude-3-opus",
+		"messages": []any{
+			map[string]any{"role": "system", "content": "You are helpful."},
+			map[string]any{"role": "user", "content": "hi"},
+		},
+		"tools": []any{
+			map[string]any{
+				"type": "function",
+				"function": map[string]any{
+					"name":        "Read",
+					"description": "read file",
+					"parameters":  map[string]any{"type": "object", "properties": map[string]any{}},
+				},
+			},
+		},
+		"tool_choice": "auto",
+	}
+	out, err := reg.TranslateRequest(FormatOpenAI, FormatClaude, "claude-3-opus", body, false)
+	if err != nil {
+		t.Fatalf("TranslateRequest: %v", err)
+	}
+	if _, ok := out["messages"]; !ok {
+		t.Fatalf("expected messages in claude body: %v", out)
+	}
+	if _, ok := out["tools"]; !ok {
+		t.Fatalf("expected tools in claude body: %v", out)
+	}
+
+	state := NewStreamState()
+	events := []map[string]any{
+		{"type": "message_start", "message": map[string]any{"id": "msg_1", "model": "claude-3-opus"}},
+		{"type": "content_block_delta", "index": 0, "delta": map[string]any{"type": "text_delta", "text": "ok"}},
+		{"type": "message_delta", "delta": map[string]any{"stop_reason": "end_turn"}, "usage": map[string]any{"input_tokens": 1, "output_tokens": 1}},
+		{"type": "message_stop"},
+	}
+	var last map[string]any
+	for _, ev := range events {
+		chunks, err := reg.TranslateResponse(FormatClaude, FormatOpenAI, ev, state)
+		if err != nil {
+			t.Fatalf("TranslateResponse: %v", err)
+		}
+		if len(chunks) > 0 {
+			last = chunks[len(chunks)-1]
+		}
+	}
+	if last == nil {
+		t.Fatal("no response chunks")
+	}
+	choices := last["choices"].([]any)
+	if choices[0].(map[string]any)["finish_reason"] == nil {
+		t.Fatalf("expected finish_reason on final chunk: %v", last)
+	}
+}
