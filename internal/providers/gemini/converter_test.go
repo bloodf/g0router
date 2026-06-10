@@ -135,6 +135,33 @@ func TestConvertChatResponseDistinctToolCallIDs(t *testing.T) {
 	}
 }
 
+func TestConvertChatRequestMalformedToolArgs(t *testing.T) {
+	badArgs := "not-valid-json"
+	req := &schemas.ChatRequest{
+		Model: "gemini-1.5-pro",
+		Messages: []schemas.Message{
+			{
+				Role: "assistant",
+				ToolCalls: []schemas.ToolCall{
+					{
+						ID:   "call_1",
+						Type: "function",
+						Function: schemas.FunctionCall{
+							Name:      "get_weather",
+							Arguments: badArgs,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := convertChatRequest(req)
+	if err == nil {
+		t.Fatal("expected error for malformed tool arguments, got nil")
+	}
+}
+
 func TestConvertChatRequestMultipleSystemMessages(t *testing.T) {
 	req := &schemas.ChatRequest{
 		Model: "gemini-1.5-pro",

@@ -19,8 +19,22 @@ func (p *Provider) ChatCompletion(ctx *schemas.GatewayContext, key schemas.Key, 
 	resp := p.client.AcquireResponse()
 	defer p.client.ReleaseResponse(resp)
 
-	gemReq := ConvertChatRequest(request)
-	uri := fmt.Sprintf("%s/models/%s:generateContent?key=%s", p.baseURL, gemReq.Model, key.Value)
+	gemReq, convErr := convertChatRequest(request)
+	if convErr != nil {
+		return nil, &schemas.ProviderError{
+			Message:    fmt.Sprintf("convert request: %v", convErr),
+			Type:       "invalid_request_error",
+			StatusCode: 0,
+			Meta: schemas.ErrorMeta{
+				Provider:       string(p.provider),
+				ModelRequested: request.Model,
+				RequestType:    "chat",
+				StatusCode:     0,
+			},
+		}
+	}
+	model := sanitizeModelName(gemReq.Model)
+	uri := fmt.Sprintf("%s/models/%s:generateContent?key=%s", p.baseURL, model, key.Value)
 	req.SetRequestURI(uri)
 	req.Header.SetMethod(fasthttp.MethodPost)
 	req.Header.SetContentType("application/json")
@@ -78,8 +92,24 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 	req := p.client.AcquireRequest()
 	resp := p.client.AcquireResponse()
 
-	gemReq := ConvertChatRequest(request)
-	uri := fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", p.baseURL, gemReq.Model, key.Value)
+	gemReq, convErr := convertChatRequest(request)
+	if convErr != nil {
+		p.client.ReleaseRequest(req)
+		p.client.ReleaseResponse(resp)
+		return nil, &schemas.ProviderError{
+			Message:    fmt.Sprintf("convert request: %v", convErr),
+			Type:       "invalid_request_error",
+			StatusCode: 0,
+			Meta: schemas.ErrorMeta{
+				Provider:       string(p.provider),
+				ModelRequested: request.Model,
+				RequestType:    "chat_stream",
+				StatusCode:     0,
+			},
+		}
+	}
+	model := sanitizeModelName(gemReq.Model)
+	uri := fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", p.baseURL, model, key.Value)
 	req.SetRequestURI(uri)
 	req.Header.SetMethod(fasthttp.MethodPost)
 	req.Header.SetContentType("application/json")

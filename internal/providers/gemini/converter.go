@@ -113,6 +113,11 @@ type Embedding struct {
 
 // ConvertChatRequest transforms an OpenAI ChatRequest into a Gemini GenerateContentRequest.
 func ConvertChatRequest(req *schemas.ChatRequest) *GenerateContentRequest {
+	gemReq, _ := convertChatRequest(req)
+	return gemReq
+}
+
+func convertChatRequest(req *schemas.ChatRequest) (*GenerateContentRequest, error) {
 	gemReq := &GenerateContentRequest{
 		Model: req.Model,
 	}
@@ -154,7 +159,11 @@ func ConvertChatRequest(req *schemas.ChatRequest) *GenerateContentRequest {
 		}
 	}
 
-	gemReq.Contents = convertMessages(contents)
+	converted, err := convertMessages(contents)
+	if err != nil {
+		return nil, err
+	}
+	gemReq.Contents = converted
 
 	if len(req.Tools) > 0 {
 		gemReq.Tools = convertTools(req.Tools)
@@ -163,7 +172,7 @@ func ConvertChatRequest(req *schemas.ChatRequest) *GenerateContentRequest {
 		gemReq.ToolConfig = convertToolChoice(req.ToolChoice)
 	}
 
-	return gemReq
+	return gemReq, nil
 }
 
 func generateChatID() string {
@@ -185,7 +194,7 @@ func joinSystemMessages(parts []string) string {
 	return result
 }
 
-func convertMessages(msgs []schemas.Message) []Content {
+func convertMessages(msgs []schemas.Message) ([]Content, error) {
 	var result []Content
 	for _, m := range msgs {
 		role := m.Role
@@ -216,7 +225,9 @@ func convertMessages(msgs []schemas.Message) []Content {
 		} else if len(m.ToolCalls) > 0 {
 			for _, tc := range m.ToolCalls {
 				var args map[string]any
-				_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+					return nil, fmt.Errorf("malformed tool arguments for %s: %w", tc.Function.Name, err)
+				}
 				content.Parts = append(content.Parts, Part{
 					FunctionCall: &FunctionCall{
 						Name: tc.Function.Name,
@@ -232,7 +243,7 @@ func convertMessages(msgs []schemas.Message) []Content {
 		}
 		result = append(result, content)
 	}
-	return result
+	return result, nil
 }
 
 func convertTools(tools []schemas.Tool) []Tool {
