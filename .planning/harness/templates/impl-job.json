@@ -1,0 +1,7 @@
+{
+  "id": "PLAN_ID-impl",
+  "worker": "kimi",
+  "timeout": 5400,
+  "prompt_file": ".planning/harness/jobs/PLAN_ID-impl.prompt.md",
+  "expected_outputs": [".planning/harness/artifacts/PLAN_ID-impl-report.md"]
+}

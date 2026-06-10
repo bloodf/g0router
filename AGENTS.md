@@ -69,14 +69,15 @@ agentic-engineering-profile: strict
 
 ## Session start
 - On the first interaction of a new session, silently check that `/init-project` scaffolding exists. Check each item only if its precondition holds:
-  - Root `AGENTS.md` has required sections (`## Tools`, `## Docs`, `## Conventions`, `## Session start`) - always check.
-  - `.claude/settings.json` - always check.
-  - `docs/{planning,research,technical,overview}/` - always check.
-  - `docs/overview/vision.md` and `docs/overview/requirements.md` - always check.
-  - Seeded `MEMORY.md` at `<cwd>/.agentic/memory/MEMORY.md` - always check.
-  - `.agentic/qa.md` (or legacy `.claude/qa.md`) - only if this project has a web UI.
-  - `.agentic/deploy.md` (or legacy `.claude/deploy.md`) - only if release signals apply to this project.
-  - `.agentic/learnings.md` - always check.
+ - Root `AGENTS.md` has required sections (`## Tools`, `## Docs`, `## Conventions`, `## Session start`) - always check.
+ - `.claude/settings.json` - always check.
+ - `docs/{planning,research,technical,overview}/` - always check.
+ - `docs/overview/vision.md` and `docs/overview/requirements.md` - always check.
+ - Seeded `MEMORY.md` at `<cwd>/.agentic/memory/MEMORY.md` - always check.
+ - `.agentic/qa.md` (or legacy `.claude/qa.md`) - only if this project has a web UI.
+ - `.agentic/deploy.md` (or legacy `.claude/deploy.md`) - only if release signals apply to this project.
+ - `.agentic/learnings.md` - always check.
+- **Parity harness (Stage 1):** if `.planning/harness/HANDOFF.md` exists, read it before parity work; VPS orchestrator is Claude Code, planner is Fable 5.
 - Filesystem existence only - no LLM reasoning pass. Per-track scaffolds are out of scope for this check - do not flag them.
 - Do NOT include `.agentic/preferences.json` or `.claude/settings.local.json` in the "missing" list - both are gitignored per-developer files.
 - If `.agentic/preferences.json` exists and contains `"skipScaffoldingCheck": true`, skip the check entirely.

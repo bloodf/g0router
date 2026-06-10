@@ -1,0 +1,82 @@
+{
+  "description": "Commit-bounded diff gate scopes. Use with run-diff-scoped.sh. Paths are relative to repo root.",
+  "plans": {
+    "w1-c-stream-processor": {
+      "base": "32108f04",
+      "end": "6317eb4b",
+      "note": "BASE is post w1-b /v1/messages; END includes test hardening",
+      "paths": [
+        "internal/translation/stream.go",
+        "internal/translation/stream_test.go",
+        "internal/translation/sse.go",
+        "internal/translation/sse_test.go",
+        "internal/translation/maxtokens.go",
+        "internal/translation/maxtokens_test.go",
+        "internal/providers/anthropic/converter.go",
+        "internal/providers/anthropic/converter_test.go",
+        "internal/translation/claude_request.go",
+        "internal/translation/claude_request_test.go",
+        "internal/providers/utils/sse.go",
+        "internal/providers/utils/sse_test.go",
+        "internal/api/chat.go",
+        "internal/api/chat_test.go",
+        "internal/api/messages.go",
+        "internal/api/messages_test.go"
+      ]
+    },
+    "w1-d-claude-pair": {
+      "base": "6d0af5b0^",
+      "end": "25191db7",
+      "paths": [
+        "internal/translation/openai_claude_request.go",
+        "internal/translation/openai_claude_request_test.go",
+        "internal/translation/openai_claude_response.go",
+        "internal/translation/openai_claude_response_test.go",
+        "internal/translation/registry.go",
+        "internal/translation/registry_test.go"
+      ]
+    },
+    "w1-e-gemini-pair": {
+      "base": "1b8d706d^",
+      "end": "77791a2",
+      "paths": [
+        "internal/translation/gemini_helpers.go",
+        "internal/translation/gemini_helpers_test.go",
+        "internal/translation/openai_gemini_request.go",
+        "internal/translation/openai_gemini_request_test.go",
+        "internal/translation/gemini_openai_response.go",
+        "internal/translation/gemini_openai_response_test.go",
+        "internal/translation/openai_filter.go",
+        "internal/translation/openai_filter_test.go",
+        "internal/translation/registry.go",
+        "internal/translation/registry_test.go"
+      ]
+    },
+    "w1-f-cloud-envelope": {
+      "base": "80b01911^",
+      "end": "5d629345",
+      "paths": [
+        "internal/translation/cloud_code.go",
+        "internal/translation/cloud_code_test.go",
+        "internal/translation/openai_gemini_cli_request.go",
+        "internal/translation/openai_gemini_cli_request_test.go",
+        "internal/translation/openai_antigravity_request.go",
+        "internal/translation/openai_antigravity_request_test.go",
+        "internal/translation/openai_claude_antigravity.go",
+        "internal/translation/openai_claude_antigravity_test.go",
+        "internal/translation/antigravity_openai_request.go",
+        "internal/translation/antigravity_openai_request_test.go",
+        "internal/translation/openai_vertex_request.go",
+        "internal/translation/openai_vertex_request_test.go",
+        "internal/translation/openai_antigravity_response.go",
+        "internal/translation/openai_antigravity_response_test.go",
+        "internal/translation/registry.go",
+        "internal/translation/registry_test.go",
+        "internal/translation/openai_gemini_request.go",
+        "internal/translation/openai_claude_request.go",
+        "internal/translation/claude_request.go",
+        "internal/api/messages.go"
+      ]
+    }
+  }
+}

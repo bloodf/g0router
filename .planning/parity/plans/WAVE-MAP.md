@@ -1,7 +1,7 @@
 # Stage 1 Wave Map — micro-plan factory index
 
-Author: Fable (Cursor). Source: PARITY.md (approved 2026-06-09) + 10 checkpoint decisions.
-Every micro-plan in `.planning/parity/plans/` cites PARITY row IDs, passes the gpt-5.5 critic gate before dispatch, and is executed by M3 (pi) with a Kimi diff gate before merge.
+Author: Fable 5 (plans). Orchestrator: Claude Code (VPS). Source: PARITY.md (approved 2026-06-09) + 10 checkpoint decisions.
+Every micro-plan in `.planning/parity/plans/` cites PARITY row IDs, passes the gpt-5.5 critic gate before dispatch, and is executed by Kimi with a gpt-5.5 scoped diff gate before merge.
 
 ## Wave structure
 
@@ -23,11 +23,11 @@ Excluded (user-approved, decision 4): 9router Cowork/MCP-bridge rows serving the
 
 ## Plan factory protocol (per micro-plan)
 
-1. Fable writes `plans/w<wave>-<slug>.md`: cited PAR/AUD rows, TDD-ordered tasks (failing test first), exact file ownership, binary acceptance criteria, out-of-scope list.
+1. Fable 5 writes `plans/w<wave>-<slug>.md`: cited PAR/AUD rows, TDD-ordered tasks (failing test first), exact file ownership, binary acceptance criteria, out-of-scope list.
 2. gpt-5.5 critic gate (`run-critic.sh plan`); max 3 reject cycles then user escalation.
-3. M3 (pi) implements verbatim; deviations require plan amendment, not improvisation.
-4. M2.7-HS runs gates (`go test ./...`, `go vet ./...`, ui build when touched).
-5. Kimi diff gate vs plan; REJECT loops back to M3 with findings.
+3. Kimi implements verbatim; deviations require plan amendment, not improvisation.
+4. Run gates (`go test ./...`, `go vet ./...`, ui build when touched).
+5. gpt-5.5 scoped diff gate (`run-diff-scoped.sh gpt` + `diff-scopes.json`); REJECT loops back to Kimi or orchestrator fix.
 6. Merge to main, mark rows HAVE in PARITY.md, update docs/WORKFLOW.md.
 
 ## Sizing

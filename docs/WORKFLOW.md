@@ -29,25 +29,19 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: 21
-current_wave: "Parity Program — Stage 1 Wave 1: translation engine core (w1-b implemented, awaiting diff gate)"
-last_completed_wave: "Parity Stage 1 Wave 1 plan w1-b COMPLETE: format registry + /v1/messages endpoint (Claude format end-to-end). Rows PAR-TRANS-001/002/003/004/005/044/048-partial/056/057. Files: internal/translation/* (formats, registry, claude_request, claude_response, sse), internal/api/messages.go, internal/server/routes_openai.go + tests. go test ./... and go vet ./... green. Report at .planning/harness/artifacts/w1-b-impl-report.md. Implementer: Kimi. Diff gate: gpt-5.5."
-last_updated: "2026-06-10T03:27:00Z"
-last_agent: "Kimi"
+current_stage: "Parity Stage 1 Wave 1"
+current_wave: "Translation engine — w1-a..f implemented; diff gates pending; w1-g+ not planned"
+last_completed_plan: "w1-f cloud envelope (Kimi, tasks 0-7, commit 5d629345)"
+last_updated: "2026-06-10T14:45:00Z"
+orchestrator: "Claude Code (VPS) — see .planning/harness/HANDOFF.md"
+planner: "Fable 5"
+implementer: "Kimi"
 notes: |
-  Direction change: the 19-phase roadmap is superseded by the three-stage
-  parity program (master plan in Cursor). Stage 1 targets 1-1 behavioral +
-  UI parity with decolua/9router; Stage 2 adds Bifrost OpenAI surface + MCP
-  gateway; Stage 3 plans the Bifrost remainder. Stage 0 (now active)
-  produces a source-evidence parity matrix at .planning/parity/ before any
-  feature code. Execution runs on a CLI harness (.planning/harness/):
-  pi+MiniMax-M3 implements, Kimi analyzes/reviews diffs, pi+gpt-5.5 is the
-  plan critic, pi+M2.7-highspeed runs search and gates. Plans are authored
-  only by Fable in Cursor. Phases 1-6 deliverables remain the code base;
-  A4 audit may rewrite them.
-
-  NOTE: this Current State block is the active view. The prior Stage 1-20 /
-  Wave 8.* history below refers to the removed v1 architecture.
+  Harness handoff ready for VPS: HANDOFF.md, VPS-SETUP.md, diff-scopes.json,
+  run-diff-scoped.sh, templates/ for job dispatch.
+  w1-c/d/e/f need scoped diff gate re-run + blocker fixes (see HANDOFF open work).
+  Next: Fable drafts w1-g (Responses API), then w1-h..j.
+  go test ./... green at HEAD.
 ```
 
 ---
