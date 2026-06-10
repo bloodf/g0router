@@ -97,6 +97,9 @@ func NewRegistry() *Registry {
 	r.Register(FormatAntigravity, FormatOpenAI, antigravityToOpenAIRequest, nil)
 	r.Register(FormatOpenAI, FormatVertex, openaiToVertexRequest, nil)
 	r.Register(FormatOpenAI, FormatAntigravity, nil, openaiToAntigravityResponse)
+	r.Register(FormatGeminiCLI, FormatOpenAI, nil, geminiToOpenAIResponse)
+	r.Register(FormatVertex, FormatOpenAI, nil, geminiToOpenAIResponse)
+	r.Register(FormatAntigravity, FormatOpenAI, nil, geminiToOpenAIResponse)
 	return r
 }
 

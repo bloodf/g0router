@@ -376,3 +376,24 @@ func TestTranslateRequestForwardsCredentials(t *testing.T) {
 		t.Errorf("connectionId = %v, want conn-123", received["connectionId"])
 	}
 }
+
+func TestRegistryGeminiCLIResponseUsesGeminiOpenAI(t *testing.T) {
+	reg := NewRegistry()
+	if reg.ResponseTranslatorFor(FormatGeminiCLI, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire gemini-cli->openai response translator")
+	}
+}
+
+func TestRegistryVertexResponseUsesGeminiOpenAI(t *testing.T) {
+	reg := NewRegistry()
+	if reg.ResponseTranslatorFor(FormatVertex, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire vertex->openai response translator")
+	}
+}
+
+func TestRegistryAntigravityResponseUsesGeminiOpenAI(t *testing.T) {
+	reg := NewRegistry()
+	if reg.ResponseTranslatorFor(FormatAntigravity, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire antigravity->openai response translator")
+	}
+}
