@@ -9,6 +9,36 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// streamWriter is the subset of fasthttp.RequestCtx used by writeSSEStream.
+// It exists so tests can inject write failures (AUD-008); fasthttp's
+// in-memory response buffer never returns errors.
+type streamWriter interface {
+	Write(p []byte) (int, error)
+	WriteString(s string) (int, error)
+}
+
+// writeSSEStream drains ch onto w as SSE frames. It aborts on the first
+// marshal failure (AUD-007) or write failure (AUD-008) instead of emitting
+// corrupt frames or blocking the producing goroutine on a dead client.
+func writeSSEStream(w streamWriter, ch chan *schemas.StreamChunk) {
+	for chunk := range ch {
+		b, err := jsonMarshal(chunk)
+		if err != nil {
+			return
+		}
+		if _, werr := w.WriteString("data: "); werr != nil {
+			return
+		}
+		if _, werr := w.Write(b); werr != nil {
+			return
+		}
+		if _, werr := w.WriteString("\n\n"); werr != nil {
+			return
+		}
+	}
+	w.WriteString("data: [DONE]\n\n")
+}
+
 // ChatHandler handles POST /v1/chat/completions.
 type ChatHandler struct {
 	router *inference.Router
@@ -49,13 +79,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 			return
 		}
 
-		for chunk := range ch {
-			b, _ := json.Marshal(chunk)
-			ctx.WriteString("data: ")
-			ctx.Write(b)
-			ctx.WriteString("\n\n")
-		}
-		ctx.WriteString("data: [DONE]\n\n")
+		writeSSEStream(ctx, ch)
 		return
 	}
 
