@@ -57,5 +57,12 @@ Implementer: Kimi. Reviewer: gpt-5.5. Verdict REJECT (1 BLOCKER, 1 MAJOR, 1 MINO
 - MINOR (single-case vs table-driven test style): OVERRULED — style preference; assertions are binary.
 w0-c APPROVED after fix.
 
+## Addendum — w0-e disposition (2026-06-09)
+Implementer: Kimi (tasks 1-4) + Fable (tasks 5-6 under plan Amendment 1 after Kimi correctly blocked on the missing error-return mechanism). Reviewer: gpt-5.5. Verdict REJECT (1 BLOCKER, 2 MAJOR):
+- BLOCKER (read-error branch untested): OVERRULED — Amendment 1 pre-documented that a non-EOF read error is unreachable while `resp.Body()` is fully buffered (`bytes.Reader` only EOFs); the branch is structurally identical (`ch <- streamError(...); return`) to the tested unmarshal path; Wave 1 PAR-TRANS-046 replaces all three per-provider loops with a central stream processor where the branch becomes reachable and tested. Extracting loops now is throwaway refactoring.
+- MAJOR (AUD-036 missing non-stream assertion): FIXED — test now asserts `stream` is omitted from the Gemini body for both `Stream=true` and `Stream=false` (commit 54a32e09).
+- MAJOR (consistency tests "hard-code field loops"): OVERRULED — misread. The hard-coded list is the AUD-row spec; coverage is checked against the `unsupported*Fields` variables, so list drift fails the test exactly as the critic demands.
+w0-e APPROVED. Wave 0 complete: w0-a through w0-e all merged.
+
 ## Addendum — AUD-004 remediation deviation (2026-06-09)
 AUD-004 remediation text says "rotate exposed ID". The ID (`9d1c250a-e61b-44d9-88ed-5944d1962f5e`) is Anthropic's public Claude Code OAuth client identifier — not our credential, not rotatable by us, and not a secret (RFC 8252 §8.4: native-app client IDs are public). 9router hardcodes the same value (`_refs/9router/src/lib/oauth/constants/oauth.js:21`). Authorized remediation: make it configurable via `G0ROUTER_ANTHROPIC_CLIENT_ID` with the public ID as default (preserves out-of-box parity). Plan w0-b implements this. Decision: orchestrator, surfaced to user in the Wave 0 plan summary.

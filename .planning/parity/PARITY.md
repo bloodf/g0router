@@ -38,6 +38,8 @@ Stage 1 exit covers matrix rows AND PAR-PR rows; both gate at 100% HAVE.
 
 ## 2. Wave 0 — remediation
 
+**STATUS: COMPLETE (2026-06-09).** All five bundles (A-E → plans w0-a..w0-e) merged to main with diff gates closed; dispositions in `GATE-RESOLUTION.md`. All 22 BROKEN + 10 co-located DEBT rows are fixed.
+
 These bundles group audit findings for plan factory consumption. Each bundle becomes one micro-plan in `.planning/parity/plans/` with TDD task ordering and binary acceptance criteria; no implementation happens from this document.
 
 All **BROKEN** findings from `g0router-audit.md`, grouped into fix bundles. DEBT findings included only when they share a file with a BROKEN fix.
