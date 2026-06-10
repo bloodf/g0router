@@ -251,3 +251,31 @@ func TestNormalizeThinkingConfigKeepsForUser(t *testing.T) {
 		t.Errorf("reasoning_effort = %q, want %q", req.ReasoningEffort, "medium")
 	}
 }
+
+// TestPreprocessChatRequestOrder verifies that EnsureToolCallIDs runs before
+// FixMissingToolResponses: an assistant tool_call with an invalid ID and no
+// following tool response produces an inserted role:tool message carrying the
+// sanitized ID, not the original invalid one.
+func TestPreprocessChatRequestOrder(t *testing.T) {
+	req := &schemas.ChatRequest{
+		Messages: []schemas.Message{
+			{Role: "user", Content: "hi"},
+			{Role: "assistant", ToolCalls: []schemas.ToolCall{
+				{ID: "bad!id", Type: "", Function: schemas.FunctionCall{Name: "foo", Arguments: "{}"}},
+			}},
+			{Role: "user", Content: "next"},
+		},
+	}
+
+	PreprocessChatRequest(req)
+
+	if len(req.Messages) != 4 {
+		t.Fatalf("len(messages) = %d, want 4", len(req.Messages))
+	}
+	if req.Messages[1].ToolCalls[0].ID != "badid" {
+		t.Errorf("sanitized assistant ID = %q, want %q", req.Messages[1].ToolCalls[0].ID, "badid")
+	}
+	if req.Messages[2].Role != "tool" || *req.Messages[2].ToolCallID != "badid" {
+		t.Errorf("inserted tool msg = %+v, want role:tool tool_call_id:badid", req.Messages[2])
+	}
+}

@@ -32,6 +32,14 @@ func generateToolCallID(msgIndex, tcIndex int, toolName string) string {
 	return fmt.Sprintf("call_msg%d_tc%d%s", msgIndex, tcIndex, name)
 }
 
+// PreprocessChatRequest runs the full preprocessing pipeline on an OpenAI-
+// shaped chat request in the order used by 9router.
+func PreprocessChatRequest(req *schemas.ChatRequest) {
+	NormalizeThinkingConfig(req)
+	EnsureToolCallIDs(req)
+	FixMissingToolResponses(req)
+}
+
 // NormalizeThinkingConfig removes Thinking and ReasoningEffort when the
 // last message in the request is not from the user.
 func NormalizeThinkingConfig(req *schemas.ChatRequest) {
