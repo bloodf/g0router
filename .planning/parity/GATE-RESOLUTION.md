@@ -86,3 +86,6 @@ Row text said adjustMaxTokens "boosts to min 4096 when tools present". Frozen re
 - MAJOR (messageIDFromChunk fallback "resembles deferred fixInvalidId"): OVERRULED — in-row behavior. PAR-TRANS-044's source carries this fallback itself: `openai-to-claude.js:109-113` (`if (!state.messageId || state.messageId === "chat" || state.messageId.length < 8) { state.messageId = chunk.extend_fields?.requestId || ... }`). Distinct from streamHelpers' `fixInvalidId` (chunk id rewriting), which remains w1-c scope.
 - MAJOR (nondeterministic multi-tool flush order): ACCEPTED — real defect. JS Map preserves insertion order; Go map iteration is randomized. Fixed by orchestrator: sorted ascending index iteration in the finish flush + `TestClaudeResponseMultiToolFlushOrder` (10-count run green).
 w1-b APPROVED with orchestrator fix commit.
+
+## Addendum — matrix correction: PAR-TRANS-016 cache_control ttl (2026-06-09, w1-d planning)
+Row said `cache_control {type:ephemeral,ttl:"1h"}` applies to "last system block and last assistant block". Frozen ref: the assistant-message block gets `{ type: "ephemeral" }` with NO ttl (`openai-to-claude.js:100` verbatim `block.cache_control = { type: "ephemeral" };`); ttl `"1h"` appears only on the last system block (`:130`) and last tool (`:165`). Row corrected with line-level citations; verified by orchestrator.
