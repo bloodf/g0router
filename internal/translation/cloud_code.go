@@ -181,7 +181,6 @@ func wrapInCloudCodeEnvelopeForClaude(model string, claudeRequest map[string]any
 		}
 	}
 
-	// Build tool_use id -> name map
 	toolUseIdToName := make(map[string]string)
 	if msgs, ok := claudeRequest["messages"].([]any); ok {
 		for _, msg := range msgs {
@@ -227,7 +226,6 @@ func wrapInCloudCodeEnvelopeForClaude(model string, claudeRequest map[string]any
 		},
 	}
 
-	// Convert Claude messages to Gemini contents
 	if msgs, ok := claudeRequest["messages"].([]any); ok {
 		for _, msg := range msgs {
 			m, ok := msg.(map[string]any)
@@ -318,7 +316,6 @@ func wrapInCloudCodeEnvelopeForClaude(model string, claudeRequest map[string]any
 		}
 	}
 
-	// Convert Claude tools to Gemini functionDeclarations
 	if tools, ok := claudeRequest["tools"].([]any); ok && len(tools) > 0 {
 		functionDeclarations := []map[string]any{}
 		for _, tool := range tools {
@@ -352,7 +349,6 @@ func wrapInCloudCodeEnvelopeForClaude(model string, claudeRequest map[string]any
 		}
 	}
 
-	// System instruction
 	systemParts := []map[string]any{
 		{"text": antigravityDefaultSystem},
 		{"text": fmt.Sprintf("Please ignore the following [ignore]%s[/ignore]", antigravityDefaultSystem)},
