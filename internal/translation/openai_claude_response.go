@@ -240,7 +240,8 @@ func claudeToOpenAIResponse(chunk map[string]any, state *StreamState) ([]map[str
 			if state.Usage != nil {
 				// Same shape as the message_delta final chunk: prompt_tokens
 				// already includes cache tokens, and cache accounting is
-				// preserved via prompt_tokens_details (diff gate w1-d).
+				// preserved via prompt_tokens_details so the fallback finish
+				// path never under-reports prompt-side tokens.
 				usageCopy := map[string]any{
 					"prompt_tokens":     state.Usage["prompt_tokens"],
 					"completion_tokens": state.Usage["completion_tokens"],

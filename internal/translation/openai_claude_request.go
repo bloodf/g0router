@@ -373,7 +373,10 @@ func getContentBlocksFromMessage(msg map[string]any, toolNameMap map[string]stri
 				case "image_url":
 					if imageURL, ok := partMap["image_url"].(map[string]any); ok {
 						url, _ := imageURL["url"].(string)
-						match := regexp.MustCompile(`^data:([^;]+);base64,(.+)$`).FindStringSubmatch(url)
+						var match []string
+						if dataURI, err := regexp.Compile(`^data:([^;]+);base64,(.+)$`); err == nil {
+							match = dataURI.FindStringSubmatch(url)
+						}
 						if len(match) == 3 {
 							blocks = append(blocks, map[string]any{
 								"type": "image",
