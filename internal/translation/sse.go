@@ -136,9 +136,22 @@ func cleanUsagePayload(payload map[string]any) map[string]any {
 
 // FormatSSE formats an event map for Server-Sent Events. For Claude-format
 // events carrying a "type" key, it prefixes the frame with "event: <type>".
+// For OpenAI Responses-format events carrying "event" and "data" keys, it
+// prefixes the frame with "event: <name>" and emits the JSON of data.
 // All other formats emit the standard "data: <json>" frame.
 func FormatSSE(format Format, event map[string]any) []byte {
 	cleanUsagePayload(event)
+	if format == FormatOpenAIResponses && event != nil {
+		if eventName, ok := event["event"].(string); ok && eventName != "" {
+			if data, ok := event["data"]; ok {
+				b, err := json.Marshal(data)
+				if err != nil {
+					return []byte(fmt.Sprintf("event: %s\ndata: null\n\n", eventName))
+				}
+				return []byte(fmt.Sprintf("event: %s\ndata: %s\n\n", eventName, b))
+			}
+		}
+	}
 	b, err := json.Marshal(event)
 	if err != nil {
 		return []byte("data: null\n\n")

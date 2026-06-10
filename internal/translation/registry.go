@@ -41,6 +41,30 @@ type StreamState struct {
 	AntigravityResponseID    string
 	AntigravityModelVersion  string
 	AntigravityUsage         map[string]any
+	// Fields for openai→responses response translation.
+	ResponsesSeq             int
+	ResponsesStarted         bool
+	ResponsesID              string
+	ResponsesCreated         int64
+	ResponsesReasoningID     string
+	ResponsesReasoningIndex  int
+	ResponsesReasoningBuf    string
+	ResponsesReasoningDone   bool
+	ResponsesInThinking      bool
+	ResponsesMsgItemAdded    map[int]bool
+	ResponsesContentAdded    map[int]bool
+	ResponsesItemDone        map[int]bool
+	ResponsesMsgTextBuf      map[int]string
+	ResponsesFuncCallIDs     map[int]string
+	ResponsesFuncNames       map[int]string
+	ResponsesFuncArgsBuf     map[int]string
+	ResponsesFuncItemDone    map[int]bool
+	ResponsesFuncArgsDone    map[int]bool
+	ResponsesCompletedSent   bool
+	// Fields for responses→openai response translation.
+	ResponsesChatID          string
+	ResponsesToolCallIndex   int
+	ResponsesCurrentToolCallID string
 }
 
 // claudeOpenAIToolCall tracks an in-flight Claude tool_use block during
@@ -60,6 +84,15 @@ func NewStreamState() *StreamState {
 		ClaudeBlockTools:         make(map[int]claudeOpenAIToolCall),
 		ServerToolBlockIndex:     -1,
 		AntigravityToolCallAccum: make(map[int]map[string]any),
+		ResponsesMsgItemAdded:    make(map[int]bool),
+		ResponsesContentAdded:    make(map[int]bool),
+		ResponsesItemDone:        make(map[int]bool),
+		ResponsesMsgTextBuf:      make(map[int]string),
+		ResponsesFuncCallIDs:     make(map[int]string),
+		ResponsesFuncNames:       make(map[int]string),
+		ResponsesFuncArgsBuf:     make(map[int]string),
+		ResponsesFuncItemDone:    make(map[int]bool),
+		ResponsesFuncArgsDone:    make(map[int]bool),
 	}
 }
 
@@ -104,6 +137,8 @@ func NewRegistry() *Registry {
 	r.Register(FormatGeminiCLI, FormatOpenAI, nil, geminiToOpenAIResponse)
 	r.Register(FormatVertex, FormatOpenAI, nil, geminiToOpenAIResponse)
 	r.Register(FormatAntigravity, FormatOpenAI, nil, geminiToOpenAIResponse)
+	r.Register(FormatOpenAIResponses, FormatOpenAI, responsesToOpenAIRequest, responsesToOpenAIResponse)
+	r.Register(FormatOpenAI, FormatOpenAIResponses, openaiToResponsesRequest, openaiToResponsesResponse)
 	return r
 }
 

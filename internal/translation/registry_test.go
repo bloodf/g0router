@@ -504,3 +504,46 @@ func TestResponseAliasesUseGeminiTranslator(t *testing.T) {
 		}
 	}
 }
+
+func TestNewRegistryWiresResponsesPair(t *testing.T) {
+	reg := NewRegistry()
+
+	// All four lookups must be non-nil
+	if reg.RequestTranslatorFor(FormatOpenAIResponses, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire responses->openai request translator")
+	}
+	if reg.ResponseTranslatorFor(FormatOpenAIResponses, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire responses->openai response translator")
+	}
+	if reg.RequestTranslatorFor(FormatOpenAI, FormatOpenAIResponses) == nil {
+		t.Error("NewRegistry must wire openai->responses request translator")
+	}
+	if reg.ResponseTranslatorFor(FormatOpenAI, FormatOpenAIResponses) == nil {
+		t.Error("NewRegistry must wire openai->responses response translator")
+	}
+
+	// Identity checks (same technique as TestResponseAliasesUseGeminiTranslator)
+	wantReq1 := reflect.ValueOf(RequestTranslator(responsesToOpenAIRequest)).Pointer()
+	gotReq1 := reflect.ValueOf(reg.RequestTranslatorFor(FormatOpenAIResponses, FormatOpenAI)).Pointer()
+	if gotReq1 != wantReq1 {
+		t.Error("responses->openai request translator is not responsesToOpenAIRequest")
+	}
+
+	wantResp1 := reflect.ValueOf(ResponseTranslator(responsesToOpenAIResponse)).Pointer()
+	gotResp1 := reflect.ValueOf(reg.ResponseTranslatorFor(FormatOpenAIResponses, FormatOpenAI)).Pointer()
+	if gotResp1 != wantResp1 {
+		t.Error("responses->openai response translator is not responsesToOpenAIResponse")
+	}
+
+	wantReq2 := reflect.ValueOf(RequestTranslator(openaiToResponsesRequest)).Pointer()
+	gotReq2 := reflect.ValueOf(reg.RequestTranslatorFor(FormatOpenAI, FormatOpenAIResponses)).Pointer()
+	if gotReq2 != wantReq2 {
+		t.Error("openai->responses request translator is not openaiToResponsesRequest")
+	}
+
+	wantResp2 := reflect.ValueOf(ResponseTranslator(openaiToResponsesResponse)).Pointer()
+	gotResp2 := reflect.ValueOf(reg.ResponseTranslatorFor(FormatOpenAI, FormatOpenAIResponses)).Pointer()
+	if gotResp2 != wantResp2 {
+		t.Error("openai->responses response translator is not openaiToResponsesResponse")
+	}
+}
