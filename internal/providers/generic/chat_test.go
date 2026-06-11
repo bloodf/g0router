@@ -1,13 +1,23 @@
 package generic
 
 import (
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/schemas"
 )
+
+type fakePostHookRunner struct {
+	err error
+}
+
+func (f *fakePostHookRunner) Run(ctx *schemas.GatewayContext, response any) error {
+	return f.err
+}
 
 func TestGenericChatURL(t *testing.T) {
 	p, err := New("deepseek")
@@ -146,5 +156,44 @@ func TestGenericStreamMalformedChunkInBandError(t *testing.T) {
 	}
 	if errChunks != 1 {
 		t.Errorf("error chunks = %d, want 1 (abort must be distinguishable from clean EOF)", errChunks)
+	}
+}
+
+func TestGenericStreamPostHookError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		io.WriteString(w, "data: {\"id\":\"c1\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hello\"}}]}\n\n")
+		io.WriteString(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	p, _ := New("groq")
+	p.config.BaseURL = srv.URL
+
+	hook := &fakePostHookRunner{err: errors.New("policy denied")}
+	ch, perr := p.ChatCompletionStream(&schemas.GatewayContext{}, hook, schemas.Key{Value: "test-key"}, &schemas.ChatRequest{Model: "llama"})
+	if perr != nil {
+		t.Fatalf("ChatCompletionStream error: %v", perr.Message)
+	}
+
+	var content, errChunks int
+	for chunk := range ch {
+		if chunk.Error != nil {
+			errChunks++
+			if chunk.Error.Type != "stream_error" {
+				t.Errorf("error type = %q, want \"stream_error\"", chunk.Error.Type)
+			}
+			if !strings.Contains(chunk.Error.Message, "post hook") {
+				t.Errorf("error message = %q, want it to contain \"post hook\"", chunk.Error.Message)
+			}
+			continue
+		}
+		content++
+	}
+	if content != 1 {
+		t.Errorf("content chunks = %d, want 1", content)
+	}
+	if errChunks != 1 {
+		t.Errorf("error chunks = %d, want 1", errChunks)
 	}
 }
