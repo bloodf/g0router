@@ -97,7 +97,11 @@ func fixToolUseOrdering(messages []any) []any {
 			merged = append(merged, cloneMessage(msg))
 			continue
 		}
-		last := merged[len(merged)-1].(map[string]any)
+		last, ok := merged[len(merged)-1].(map[string]any)
+		if !ok {
+			merged = append(merged, cloneMessage(msg))
+			continue
+		}
 		if last["role"] != msg["role"] {
 			merged = append(merged, cloneMessage(msg))
 			continue
@@ -208,8 +212,10 @@ func PrepareClaudeRequest(body map[string]any, provider string, apiKey string, c
 		var lastMessageIsUser bool
 		var thinkingEnabled bool
 		if len(filtered) > 0 {
-			lastMsg := filtered[len(filtered)-1].(map[string]any)
-			lastMessageIsUser = lastMsg["role"] == "user"
+			lastMsg, ok := filtered[len(filtered)-1].(map[string]any)
+			if ok {
+				lastMessageIsUser = lastMsg["role"] == "user"
+			}
 		}
 		if thinking, ok := body["thinking"].(map[string]any); ok {
 			if t, _ := thinking["type"].(string); t == "enabled" && lastMessageIsUser {
@@ -220,8 +226,8 @@ func PrepareClaudeRequest(body map[string]any, provider string, apiKey string, c
 		// Pass 2 (reverse): add cache_control to last assistant + handle thinking
 		lastAssistantProcessed := false
 		for i := len(filtered) - 1; i >= 0; i-- {
-			msg := filtered[i].(map[string]any)
-			if msg["role"] != "assistant" {
+			msg, ok := filtered[i].(map[string]any)
+			if !ok || msg["role"] != "assistant" {
 				continue
 			}
 			content, ok := msg["content"].([]any)
@@ -231,7 +237,10 @@ func PrepareClaudeRequest(body map[string]any, provider string, apiKey string, c
 
 			if !lastAssistantProcessed {
 				for j := len(content) - 1; j >= 0; j-- {
-					block := content[j].(map[string]any)
+					block, ok := content[j].(map[string]any)
+					if !ok {
+						continue
+					}
 					bt, _ := block["type"].(string)
 					if bt != "thinking" && bt != "redacted_thinking" {
 						block["cache_control"] = map[string]any{"type": "ephemeral"}

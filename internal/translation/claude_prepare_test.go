@@ -468,6 +468,26 @@ func TestPrepareEmptyMessagesFiltered(t *testing.T) {
 	}
 }
 
+func TestPrepareNonMapContentElementNoPanic(t *testing.T) {
+	body := map[string]any{
+		"messages": []any{
+			map[string]any{
+				"role": "assistant",
+				"content": []any{
+					map[string]any{"type": "text", "text": "hello"},
+					42, // non-map element should be skipped, not panic
+				},
+			},
+		},
+	}
+	// Must not panic on non-map content element.
+	result := PrepareClaudeRequest(body, "claude", "", "")
+	msgs := result["messages"].([]any)
+	if len(msgs) != 1 {
+		t.Fatalf("messages len = %d, want 1", len(msgs))
+	}
+}
+
 func TestPrepareMergeToolResultsFirst(t *testing.T) {
 	body := map[string]any{
 		"messages": []any{

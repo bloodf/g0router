@@ -1,6 +1,7 @@
 package translation
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -125,14 +126,14 @@ func getTextContent(content any) string {
 // HandleBypassRequest checks for bypass patterns and returns a fake response
 // without calling the provider. Only works for Claude CLI requests.
 // The response is shaped in the detected source format (OpenAI, Claude, etc.).
-func HandleBypassRequest(body map[string]any, model string, userAgent string, ccFilterNaming bool, reg *Registry) ([]map[string]any, bool) {
+func HandleBypassRequest(body map[string]any, model string, userAgent string, ccFilterNaming bool, reg *Registry) ([]map[string]any, bool, error) {
 	if !strings.Contains(userAgent, "claude-cli") {
-		return nil, false
+		return nil, false, nil
 	}
 
 	messages, ok := body["messages"].([]any)
 	if !ok || len(messages) == 0 {
-		return nil, false
+		return nil, false, nil
 	}
 
 	shouldBypass := false
@@ -228,7 +229,7 @@ func HandleBypassRequest(body map[string]any, model string, userAgent string, cc
 	}
 
 	if !shouldBypass {
-		return nil, false
+		return nil, false, nil
 	}
 
 	stream := true
@@ -249,7 +250,13 @@ func HandleBypassRequest(body map[string]any, model string, userAgent string, cc
 				words = words[:3]
 			}
 			title := strings.Join(words, " ")
-			text = fmt.Sprintf(`{"isNewTopic":true,"title":"%s"}`, title)
+			payload := map[string]any{"isNewTopic": true, "title": title}
+			b, err := json.Marshal(payload)
+			if err != nil {
+				text = defaultBypassText
+			} else {
+				text = string(b)
+			}
 			break
 		}
 	}
@@ -263,12 +270,20 @@ func HandleBypassRequest(body map[string]any, model string, userAgent string, cc
 	}
 
 	if stream {
-		return createStreamingBypassResponse(reg, sourceFormat, model, text), true
+		resp, err := createStreamingBypassResponse(reg, sourceFormat, model, text)
+		if err != nil {
+			return nil, true, fmt.Errorf("bypass streaming response: %w", err)
+		}
+		return resp, true, nil
 	}
-	return createNonStreamingBypassResponse(reg, sourceFormat, model, text), true
+	resp, err := createNonStreamingBypassResponse(reg, sourceFormat, model, text)
+	if err != nil {
+		return nil, true, fmt.Errorf("bypass non-streaming response: %w", err)
+	}
+	return resp, true, nil
 }
 
-func createNonStreamingBypassResponse(reg *Registry, sourceFormat Format, model string, text string) []map[string]any {
+func createNonStreamingBypassResponse(reg *Registry, sourceFormat Format, model string, text string) ([]map[string]any, error) {
 	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixMilli())
 	created := time.Now().Unix()
 	openaiChunk := map[string]any{
@@ -293,17 +308,17 @@ func createNonStreamingBypassResponse(reg *Registry, sourceFormat Format, model 
 		},
 	}
 	if reg == nil || sourceFormat == FormatOpenAI {
-		return []map[string]any{openaiChunk}
+		return []map[string]any{openaiChunk}, nil
 	}
 	state := NewStreamState()
 	translated, err := reg.TranslateResponse(FormatOpenAI, sourceFormat, openaiChunk, state)
 	if err != nil {
-		return []map[string]any{openaiChunk}
+		return nil, fmt.Errorf("translate bypass response: %w", err)
 	}
-	return translated
+	return translated, nil
 }
 
-func createStreamingBypassResponse(reg *Registry, sourceFormat Format, model string, text string) []map[string]any {
+func createStreamingBypassResponse(reg *Registry, sourceFormat Format, model string, text string) ([]map[string]any, error) {
 	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixMilli())
 	created := time.Now().Unix()
 	usage := map[string]any{
@@ -344,17 +359,16 @@ func createStreamingBypassResponse(reg *Registry, sourceFormat Format, model str
 		},
 	}
 	if reg == nil || sourceFormat == FormatOpenAI {
-		return openaiChunks
+		return openaiChunks, nil
 	}
 	state := NewStreamState()
 	var results []map[string]any
 	for _, chunk := range openaiChunks {
 		translated, err := reg.TranslateResponse(FormatOpenAI, sourceFormat, chunk, state)
 		if err != nil {
-			results = append(results, chunk)
-			continue
+			return nil, fmt.Errorf("translate bypass response: %w", err)
 		}
 		results = append(results, translated...)
 	}
-	return results
+	return results, nil
 }

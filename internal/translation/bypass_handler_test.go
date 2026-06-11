@@ -2,6 +2,7 @@ package translation
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -11,7 +12,7 @@ func TestBypassNonClaudeCliNil(t *testing.T) {
 	body := map[string]any{
 		"messages": []any{map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "{"}}}},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3", "some-other-agent", false, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3", "some-other-agent", false, reg)
 	if bypassed {
 		t.Error("expected no bypass for non-claude-cli userAgent")
 	}
@@ -26,7 +27,7 @@ func TestBypassTitleExtraction(t *testing.T) {
 		"messages": []any{
 			map[string]any{"role": "assistant", "content": []any{map[string]any{"type": "text", "text": "{"}}}},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
 	if !bypassed {
 		t.Fatal("expected bypass")
 	}
@@ -46,7 +47,7 @@ func TestBypassWarmup(t *testing.T) {
 			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "Warmup"}}},
 		},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
 	if !bypassed {
 		t.Fatal("expected bypass")
 	}
@@ -63,7 +64,7 @@ func TestBypassCount(t *testing.T) {
 			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "count"}}},
 		},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
 	if !bypassed {
 		t.Fatal("expected bypass")
 	}
@@ -80,7 +81,7 @@ func TestBypassSkipPatterns(t *testing.T) {
 			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "Please write a 5-10 word title for the following conversation:"}}},
 		},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
 	if !bypassed {
 		t.Fatal("expected bypass")
 	}
@@ -98,7 +99,7 @@ func TestBypassNamingIsNewTopic(t *testing.T) {
 		},
 		"system": []any{map[string]any{"type": "text", "text": "isNewTopic"}},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", true, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", true, reg)
 	if !bypassed {
 		t.Fatal("expected bypass")
 	}
@@ -120,6 +121,58 @@ func TestBypassNamingIsNewTopic(t *testing.T) {
 	}
 }
 
+func TestBypassNamingJSONEscapesTitle(t *testing.T) {
+	reg := NewRegistry()
+	body := map[string]any{
+		"messages": []any{
+			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": `Hello "world" \ test`}}},
+		},
+		"system": []any{map[string]any{"type": "text", "text": "isNewTopic"}},
+	}
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", true, reg)
+	if !bypassed {
+		t.Fatal("expected bypass")
+	}
+	content := extractClaudeBypassContent(resp)
+	if content == "" {
+		content = extractBypassContent(resp)
+	}
+	var parsed map[string]any
+	if err := json.Unmarshal([]byte(content), &parsed); err != nil {
+		t.Fatalf("content not valid JSON: %v\ncontent=%q", err, content)
+	}
+	if parsed["isNewTopic"] != true {
+		t.Errorf("isNewTopic = %v, want true", parsed["isNewTopic"])
+	}
+	wantTitle := `Hello "world" \`
+	if parsed["title"] != wantTitle {
+		t.Errorf("title = %q, want %q", parsed["title"], wantTitle)
+	}
+}
+
+func TestBypassTranslationErrorPropagated(t *testing.T) {
+	errReg := NewRegistry()
+	errReg.Register(FormatOpenAI, FormatClaude, nil, func(chunk map[string]any, state *StreamState) ([]map[string]any, error) {
+		return nil, fmt.Errorf("stub translation error")
+	})
+	body := map[string]any{
+		"model":  "claude-3-opus-20240229",
+		"stream": true,
+		"system": []any{map[string]any{"type": "text", "text": "You are helpful"}},
+		"messages": []any{map[string]any{"role": "user", "content": "Warmup"}},
+	}
+	_, bypassed, err := HandleBypassRequest(body, "claude-3-opus-20240229", "claude-cli/1.0", false, errReg)
+	if !bypassed {
+		t.Fatal("expected bypass")
+	}
+	if err == nil {
+		t.Fatal("expected translation error to be propagated")
+	}
+	if !strings.Contains(err.Error(), "stub translation error") {
+		t.Errorf("error = %q, want to contain 'stub translation error'", err.Error())
+	}
+}
+
 func TestBypassNoMatchNil(t *testing.T) {
 	reg := NewRegistry()
 	body := map[string]any{
@@ -127,7 +180,7 @@ func TestBypassNoMatchNil(t *testing.T) {
 			map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "regular message"}}},
 		},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3", "claude-cli/1.0", false, reg)
 	if bypassed {
 		t.Error("expected no bypass")
 	}
@@ -145,7 +198,7 @@ func TestBypassClaudeSourceFormatResponse(t *testing.T) {
 		"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "Warmup"}}},
 		},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3-opus-20240229", "claude-cli/1.0", false, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3-opus-20240229", "claude-cli/1.0", false, reg)
 	if !bypassed {
 		t.Fatal("expected bypass")
 	}
@@ -182,7 +235,7 @@ func TestBypassOpenAISourceFormatResponse(t *testing.T) {
 		"stream":   true,
 		"messages": []any{map[string]any{"role": "user", "content": "Warmup"}},
 	}
-	resp, bypassed := HandleBypassRequest(body, "gpt-4", "claude-cli/1.0", false, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "gpt-4", "claude-cli/1.0", false, reg)
 	if !bypassed {
 		t.Fatal("expected bypass")
 	}
@@ -222,7 +275,7 @@ func TestBypassNamingSourceFormat(t *testing.T) {
 		"messages": []any{map[string]any{"role": "user", "content": []any{map[string]any{"type": "text", "text": "Hello world from test"}}},
 		},
 	}
-	resp, bypassed := HandleBypassRequest(body, "claude-3-opus-20240229", "claude-cli/1.0", true, reg)
+	resp, bypassed, _ := HandleBypassRequest(body, "claude-3-opus-20240229", "claude-cli/1.0", true, reg)
 	if !bypassed {
 		t.Fatal("expected bypass")
 	}
