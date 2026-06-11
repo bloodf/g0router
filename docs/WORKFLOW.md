@@ -6264,3 +6264,32 @@ rebutted with ref citations:
 - applyCloaking string-system branch has no skip-check per claudeCloaking.js:142-143 (a string is never a prior injection, which is always an array).
 - bypass title pattern is array-indexed content[0].text=="{" per bypassHandler.js:29 (a string "{" does not match — by design).
 Closed by decision (4 rounds; substance sound; round-4 contradicts the ref).
+
+## Wave 1 — Translation engine COMPLETE (2026-06-11)
+
+```yaml
+wave: "parity-w1"
+status: COMPLETE
+summary: "Full 9router translation engine ported to Go: 12 wire formats, openai-intermediate pipeline, SSE stream processor (translate+passthrough), cloud-code envelopes, claude pipeline helpers, /v1/responses endpoint. All translator/format/endpoint PAR-TRANS rows HAVE; remaining 6 rows deferred to later waves by design."
+plans_done: [w1-a,w1-b,w1-c,w1-d,w1-e,w1-f,w1-g,w1-g2,w1-h,w1-i,w1-j,w1-k,w1-l]
+rows_have: 61
+gates: "go test ./... + go vet ./... green; build OK"
+```
+
+**Per-plan close**: w1-a/b PASS-early; w1-c/d/e/f gates closed by decision after all
+behavioral findings fixed; w1-g(031-038), w1-h(058-061), w1-i(062-063),
+w1-j(064-065), w1-k(066), w1-g2(050,031-route) diff-gate PASS; w1-l(022/054/055)
+closed by decision (round-4 false positives rebutted ref-cited).
+
+**Deferred (not Wave-1 scope)**:
+- PAR-TRANS-006 / 051 / 052 / 053 → Wave 4 (`w4-pre`): stripContentTypes,
+  injectReasoningContent, deepseek-v4-pro alias, dedupeTools — request-pipeline
+  preprocessing; ship WITH their routing integration.
+- PAR-TRANS-050b → Wave 2: passthrough-mode response.failed (needs the Responses
+  passthrough provider path).
+- PAR-TRANS-046 usage-estimation clause → Wave 5 (PAR-USAGE accounting stack).
+
+**Process notes**: ~3 matrix-vs-ref corrections caught (PAR-TRANS-033 clamp
+direction, `_cc`→`_ide` suffix, CC_DEFAULT_TOOLS 26→20) + 1 critic-prompt bug
+fixed (parity-w0 hallucination). Granular rows PAR-TRANS-058..066 added for
+per-translator tracking. Helpers 006/051/052/053 reassigned to Wave 4.

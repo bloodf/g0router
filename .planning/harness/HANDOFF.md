@@ -58,7 +58,7 @@ Stage 1 = **100% 9router behavioral parity** (Go), then Stage 2 Bifrost, Stage 3
 ### Wave 0 — DONE
 w0-a..e merged.
 
-### Wave 1 — IN PROGRESS
+### Wave 1 — COMPLETE (2026-06-11): translation engine done; 61 PAR-TRANS rows HAVE. Next: Wave 2 (provider adapters). Deferred: 006/051/052/053→Wave4, 050b→Wave2, 046 usage→Wave5.
 
 | Plan | Plan gate | Implemented | Diff gate | Notes |
 |------|-----------|-------------|-----------|-------|
@@ -74,7 +74,7 @@ w0-a..e merged.
 | w1-j cursor pair | PASS | MERGED 82e88bd+fixes | PASS (064-065 HAVE) | protobuf=Wave-2 |
 | w1-k gemini client req | PASS | MERGED f94a58a+fixes | PASS (066 HAVE) | helpers 006/051/052/053 → Wave 4 |
 | w1-l claude pipeline helpers | PASS | MERGED c11a2fd+fixes | CLOSED-BY-DECISION (022/054/055 HAVE) | round-4 false positives rebutted |
-| w1-g2 responses endpoint | APPROVED-BY-DECISION (5cyc) | queued after w1-j | — | rows 031(route)/050; 050b→Wave2 |
+| w1-g2 responses endpoint | PASS | MERGED 5a21164+69afd94 | PASS (050,031-route HAVE) | 050b→Wave2 |
 | w1-g2/i/j/k remainder | — | — | — | sliced in WAVE-MAP 2026-06-10; plans pending |
 
 **HEAD:** `5d629345` — w1-f diff-gate fixes (uuid, tool prefix)  

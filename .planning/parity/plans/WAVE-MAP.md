@@ -50,3 +50,6 @@ After w1-a..f gate closure and w1-g (Responses API translators, in flight):
 
 Order: g2 after w1-g lands; h → i → j → k by ascending integration risk; plans
 written one at a time so each absorbs prior gate learnings.
+
+## Wave 1 STATUS: COMPLETE (2026-06-11)
+All Wave-1 translation plans (w1-a..l + w1-g2) merged; 61 PAR-TRANS rows HAVE. Remaining 6 rows deferred: 006/051/052/053→Wave 4 (w4-pre), 050b→Wave 2, 046 usage clause→Wave 5. Next: Wave 2 (provider adapters).
