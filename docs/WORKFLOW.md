@@ -6231,3 +6231,17 @@ Diff gate: BLOCKER #2 (tool-role precedence test coverage) closed across two
 test-only fixes; BLOCKER #1 (inline normalize) and the passthrough-branch MINOR
 rebutted ref-faithful (dual-key meta map; ref-verbatim passthrough branches).
 PASS. (Protobuf/checksum = Wave-2 executor scope.)
+
+## w1-k gemini client request — diff gate PASS (2026-06-11)
+
+```yaml
+wave: "parity-w1"
+plan: "w1-k-gemini-client"
+status: MERGED
+rows: "PAR-TRANS-066 → HAVE"
+commits: "f94a58a (impl), c108609+4228da2+a41cdc5+640c505 (gate fixes)"
+```
+Diff gate: 4 rounds on functionResponse truthiness — tool-call id format, registry
+wiring assertions, then the full result||response||{} chain with jsTruthy matching
+JS Boolean (empty {} and [] truthy). One round corrected a planner error (fix3
+wrongly made empty collections falsey). PASS. (strip/dedupe/inject helpers → Wave 4.)

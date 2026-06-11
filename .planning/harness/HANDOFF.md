@@ -72,7 +72,7 @@ w0-a..e merged.
 | w1-h ollama+commandcode | PASS | MERGED 14c971b+bc6358d | CLEAN (058-061 HAVE) | — |
 | w1-i kiro pair | PASS | MERGED 0347b41+956b09c | CLEAN (062-063 HAVE) | — |
 | w1-j cursor pair | PASS | MERGED 82e88bd+fixes | PASS (064-065 HAVE) | protobuf=Wave-2 |
-| w1-k gemini client req | **PASS** (row 066 only) | queued | — | helpers 006/051/052/053 → Wave 4 |
+| w1-k gemini client req | PASS | MERGED f94a58a+fixes | PASS (066 HAVE) | helpers 006/051/052/053 → Wave 4 |
 | w1-l claude pipeline helpers | PASS | queued | — | rows PAR-TRANS-022/054/055; _ide suffix |
 | w1-g2 responses endpoint | APPROVED-BY-DECISION (5cyc) | queued after w1-j | — | rows 031(route)/050; 050b→Wave2 |
 | w1-g2/i/j/k remainder | — | — | — | sliced in WAVE-MAP 2026-06-10; plans pending |
