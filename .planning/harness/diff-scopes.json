@@ -190,6 +190,30 @@
         "internal/providers/catalog/models.go",
         "internal/providers/catalog/models_test.go"
       ]
+    },
+    "w2-b-generic-openai-adapter": {
+      "base": "4660540^",
+      "end": "4660540",
+      "paths": [
+        "internal/providers/generic/provider.go",
+        "internal/providers/generic/chat.go",
+        "internal/providers/generic/stubs.go",
+        "internal/providers/generic/provider_test.go",
+        "internal/providers/generic/chat_test.go",
+        "internal/providers/generic/stubs_test.go"
+      ]
+    },
+    "w2-c-ollama-adapter": {
+      "base": "5725e46^",
+      "end": "5725e46",
+      "paths": [
+        "internal/providers/ollama/provider.go",
+        "internal/providers/ollama/chat.go",
+        "internal/providers/ollama/stubs.go",
+        "internal/providers/ollama/provider_test.go",
+        "internal/providers/ollama/chat_test.go",
+        "internal/providers/ollama/stubs_test.go"
+      ]
     }
   }
 }
