@@ -227,6 +227,40 @@
         "internal/api/models_test.go",
         "internal/server/server.go"
       ]
+    },
+    "w3-a-login-hardening": {
+      "base": "2d92a43^",
+      "end": "2d92a43",
+      "paths": [
+        "internal/auth/limiter.go",
+        "internal/auth/limiter_test.go",
+        "internal/auth/session.go",
+        "internal/auth/auth_test.go",
+        "internal/store/users.go",
+        "internal/store/users_test.go",
+        "internal/admin/auth.go",
+        "internal/admin/handlers.go",
+        "internal/admin/admin_test.go",
+        "cmd/g0router/main.go",
+        "cmd/g0router/main_test.go"
+      ]
+    },
+    "w3-f-provider-oauth": {
+      "base": "9078525^",
+      "end": "9078525",
+      "paths": [
+        "internal/auth/oauth.go",
+        "internal/auth/oauth_test.go",
+        "internal/auth/credentials.go",
+        "internal/auth/credentials_test.go",
+        "internal/admin/oauth.go",
+        "internal/admin/admin_test.go",
+        "internal/inference/router.go",
+        "internal/inference/router_test.go",
+        "internal/providers/ollama/chat.go",
+        "internal/providers/ollama/chat_test.go",
+        "internal/schemas/provider.go"
+      ]
     }
   }
 }
