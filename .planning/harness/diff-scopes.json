@@ -283,6 +283,19 @@
         "internal/admin/auth.go",
         "internal/admin/auth_test.go"
       ]
+    },
+    "w3-c-oidc-login": {
+      "base": "1241c0d^",
+      "end": "1241c0d",
+      "paths": [
+        "internal/auth/oidc.go",
+        "internal/auth/oidc_test.go",
+        "internal/admin/oidc.go",
+        "internal/admin/oidc_test.go",
+        "internal/admin/auth.go",
+        "internal/admin/auth_test.go",
+        "internal/server/routes_admin.go"
+      ]
     }
   }
 }
