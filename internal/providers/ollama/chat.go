@@ -19,11 +19,11 @@ func streamError(msg string) *schemas.StreamChunk {
 }
 
 // chatURL returns the target URL for chat requests.
-// For ollama-local it uses the default host; for cloud ollama it uses config.BaseURL.
-func (p *Provider) chatURL() string {
+// For ollama-local it uses the default host or the given override;
+// for cloud ollama it uses config.BaseURL.
+func (p *Provider) chatURL(override string) string {
 	if p.id == schemas.ModelProvider("ollama-local") {
-		// providerSpecificData baseUrl override deferred to Wave-3 (credential plumbing).
-		return catalog.ResolveOllamaHost("") + "/api/chat"
+		return catalog.ResolveOllamaHost(override) + "/api/chat"
 	}
 	return p.config.BaseURL
 }
@@ -35,7 +35,7 @@ func (p *Provider) ChatCompletion(ctx *schemas.GatewayContext, key schemas.Key, 
 	resp := p.client.AcquireResponse()
 	defer p.client.ReleaseResponse(resp)
 
-	req.SetRequestURI(p.chatURL())
+	req.SetRequestURI(p.chatURL(key.ProviderSpecificData["baseUrl"]))
 	req.Header.SetMethod(fasthttp.MethodPost)
 	// No auth header for ollama (NoAuth == true).
 
@@ -169,7 +169,7 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 	req := p.client.AcquireRequest()
 	resp := p.client.AcquireResponse()
 
-	req.SetRequestURI(p.chatURL())
+	req.SetRequestURI(p.chatURL(key.ProviderSpecificData["baseUrl"]))
 	req.Header.SetMethod(fasthttp.MethodPost)
 	// No auth header for ollama (NoAuth == true).
 

@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
+	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
@@ -22,7 +24,14 @@ func (h *Handlers) OAuthStart(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	authURL, state, err := flow.Start()
+	redirectURI := h.resolveRedirectURI(ctx, providerType)
+	var authURL, state string
+	var err error
+	if redirectURI != "" {
+		authURL, state, err = flow.StartWithRedirect(redirectURI)
+	} else {
+		authURL, state, err = flow.Start()
+	}
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, "start oauth flow")
 		return
@@ -69,7 +78,14 @@ func (h *Handlers) OAuthCallback(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	token, err := flow.Exchange(req.State, req.Code)
+	redirectURI := h.resolveRedirectURI(ctx, providerType)
+	var token *auth.OAuthToken
+	var err error
+	if redirectURI != "" {
+		token, err = flow.ExchangeWithRedirect(req.State, req.Code, redirectURI)
+	} else {
+		token, err = flow.Exchange(req.State, req.Code)
+	}
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, fmt.Sprintf("oauth exchange failed: %v", err))
 		return
@@ -146,4 +162,35 @@ func (h *Handlers) RefreshConnection(ctx *fasthttp.RequestCtx) {
 		return
 	}
 	writeData(ctx, fasthttp.StatusOK, toConnectionDTO(conn))
+}
+
+// resolveRedirectURI returns the redirect URI for OAuth flows.
+// Priority: explicit settings override, then request Origin header,
+// then derived from request scheme+host. Empty means "use flow default".
+func (h *Handlers) resolveRedirectURI(ctx *fasthttp.RequestCtx, providerType string) string {
+	settings, err := h.store.GetSettings()
+	if err == nil {
+		if override, ok := settings["oauth_redirect_uri"]; ok && override != "" {
+			return override
+		}
+	}
+
+	origin := string(ctx.Request.Header.Peek("Origin"))
+	if origin == "" {
+		scheme := string(ctx.Request.URI().Scheme())
+		if scheme == "" {
+			scheme = "http"
+		}
+		host := string(ctx.Request.Host())
+		if host == "" {
+			host = string(ctx.Request.URI().Host())
+		}
+		if host != "" {
+			origin = scheme + "://" + host
+		}
+	}
+	if origin != "" {
+		return strings.TrimRight(origin, "/") + "/api/oauth/" + providerType + "/callback"
+	}
+	return ""
 }

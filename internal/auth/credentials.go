@@ -1,0 +1,188 @@
+package auth
+
+import (
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/bloodf/g0router/internal/schemas"
+	"github.com/bloodf/g0router/internal/store"
+)
+
+// CredentialResolver finds a provider's OAuth connection, refreshes it when
+// near expiry, and returns the resolved key plus provider-specific data.
+type CredentialResolver struct {
+	store *store.Store
+	flows map[string]*OAuthFlow
+	mu    sync.Mutex
+	calls map[string]*refreshCall
+}
+
+type refreshCall struct {
+	wg  sync.WaitGroup
+	val *store.Connection
+	err error
+}
+
+// NewCredentialResolver creates a resolver backed by the given store and flows.
+func NewCredentialResolver(st *store.Store, flows map[string]*OAuthFlow) *CredentialResolver {
+	if flows == nil {
+		flows = map[string]*OAuthFlow{}
+	}
+	return &CredentialResolver{store: st, flows: flows, calls: map[string]*refreshCall{}}
+}
+
+// ResolveKey finds the connection for the given provider ID, decrypts it,
+// refreshes if needed (with single-flight dedup), persists the result, and
+// returns the key plus provider-specific data.
+func (r *CredentialResolver) ResolveKey(providerID string) (schemas.Key, map[string]string, error) {
+	providers, err := r.store.ListProviders()
+	if err != nil {
+		return schemas.Key{}, nil, fmt.Errorf("list providers: %w", err)
+	}
+	var provider *store.ProviderRecord
+	for _, p := range providers {
+		if p.ID == providerID {
+			provider = p
+			break
+		}
+	}
+	if provider == nil {
+		return schemas.Key{}, nil, fmt.Errorf("no provider record for id %s", providerID)
+	}
+
+	conns, err := r.store.ListConnections()
+	if err != nil {
+		return schemas.Key{}, nil, fmt.Errorf("list connections: %w", err)
+	}
+	var conn *store.Connection
+	for _, c := range conns {
+		if c.ProviderID == providerID {
+			conn = c
+			break
+		}
+	}
+	if conn == nil {
+		return schemas.Key{}, nil, fmt.Errorf("no connection for provider %s", providerID)
+	}
+
+	// Parse provider-specific data from metadata.
+	psd := map[string]string{}
+	if conn.Metadata != "" {
+		_ = json.Unmarshal([]byte(conn.Metadata), &psd)
+	}
+
+	// Refresh if needed.
+	if shouldRefresh(provider.Type, conn) {
+		refreshed, err := r.doRefresh(provider.Type, conn)
+		if err != nil {
+			return schemas.Key{}, nil, fmt.Errorf("refresh credentials: %w", err)
+		}
+		conn = refreshed
+		// Re-parse psd after refresh.
+		psd = map[string]string{}
+		if conn.Metadata != "" {
+			_ = json.Unmarshal([]byte(conn.Metadata), &psd)
+		}
+	}
+
+	key := schemas.Key{
+		ID:       conn.ID,
+		Provider: providerID,
+		Value:    conn.AccessToken,
+	}
+	if key.Value == "" {
+		key.Value = conn.Secret
+	}
+	return key, psd, nil
+}
+
+// shouldRefresh returns true when the connection's expiry is within the
+// provider-specific lead window.
+func shouldRefresh(providerType string, conn *store.Connection) bool {
+	if conn.ExpiresAt == 0 {
+		return false
+	}
+	lead := refreshLead(providerType)
+	return time.Until(time.Unix(conn.ExpiresAt, 0)) < lead
+}
+
+// doRefresh performs an in-flight-deduplicated refresh for the connection.
+func (r *CredentialResolver) doRefresh(providerType string, conn *store.Connection) (*store.Connection, error) {
+	r.mu.Lock()
+	if c, ok := r.calls[conn.ID]; ok {
+		r.mu.Unlock()
+		c.wg.Wait()
+		return c.val, c.err
+	}
+	c := &refreshCall{}
+	c.wg.Add(1)
+	r.calls[conn.ID] = c
+	r.mu.Unlock()
+
+	c.val, c.err = r.refreshAndPersist(providerType, conn)
+
+	r.mu.Lock()
+	delete(r.calls, conn.ID)
+	r.mu.Unlock()
+	c.wg.Done()
+	return c.val, c.err
+}
+
+func (r *CredentialResolver) refreshAndPersist(providerType string, conn *store.Connection) (*store.Connection, error) {
+	flow, ok := r.flows[providerType]
+	if !ok {
+		return nil, fmt.Errorf("no oauth flow for provider %s", providerType)
+	}
+
+	token, err := flow.Refresh(conn.RefreshToken)
+	if err != nil {
+		return nil, fmt.Errorf("refresh token: %w", err)
+	}
+
+	refreshed := &store.Connection{
+		AccessToken:  token.AccessToken,
+		RefreshToken: token.RefreshToken,
+		ExpiresAt:    token.ExpiresAt,
+	}
+	merged := mergeRefreshedCredentials(conn, refreshed)
+
+	if err := r.store.UpdateConnection(merged); err != nil {
+		return nil, fmt.Errorf("persist refreshed connection: %w", err)
+	}
+	return merged, nil
+}
+
+// mergeRefreshedCredentials overlays refreshed token fields onto current.
+// Rules: access_token overwritten; empty new refresh_token preserves old;
+// expires_at overwritten when non-zero; providerSpecificData shallow-merged.
+func mergeRefreshedCredentials(current, refreshed *store.Connection) *store.Connection {
+	out := *current
+	out.AccessToken = refreshed.AccessToken
+	if refreshed.RefreshToken != "" {
+		out.RefreshToken = refreshed.RefreshToken
+	}
+	if refreshed.ExpiresAt != 0 {
+		out.ExpiresAt = refreshed.ExpiresAt
+	}
+
+	// Shallow-merge provider-specific data from metadata.
+	psd := map[string]string{}
+	if current.Metadata != "" {
+		_ = json.Unmarshal([]byte(current.Metadata), &psd)
+	}
+	newPSD := map[string]string{}
+	if refreshed.Metadata != "" {
+		_ = json.Unmarshal([]byte(refreshed.Metadata), &newPSD)
+	}
+	for k, v := range newPSD {
+		psd[k] = v
+	}
+	if len(psd) > 0 {
+		b, _ := json.Marshal(psd)
+		out.Metadata = string(b)
+	}
+
+	return &out
+}

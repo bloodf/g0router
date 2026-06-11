@@ -28,9 +28,10 @@ type GatewayContext struct {
 
 // Key represents a provider API key.
 type Key struct {
-	ID       string
-	Provider string
-	Value    string
+	ID                   string
+	Provider             string
+	Value                string
+	ProviderSpecificData map[string]string
 }
 
 // NetworkConfig holds HTTP/network tuning for a provider.

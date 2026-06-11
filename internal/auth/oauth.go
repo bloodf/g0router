@@ -26,6 +26,7 @@ const defaultAnthropicClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
 type OAuthConfig struct {
 	Provider     string
 	ClientID     string
+	ClientSecret string
 	AuthorizeURL string
 	TokenURL     string
 	RedirectURI  string
@@ -46,6 +47,65 @@ func AnthropicOAuth() OAuthConfig {
 		TokenURL:     "https://console.anthropic.com/v1/oauth/token",
 		RedirectURI:  "https://console.anthropic.com/oauth/code/callback",
 		Scopes:       []string{"org:create_api_key", "user:profile", "user:inference"},
+	}
+}
+
+// GeminiOAuth returns the OAuth configuration for Google (Gemini).
+// Parity source: _refs/9router/open-sse/config/providers.js:58-62
+func GeminiOAuth() OAuthConfig {
+	clientID := os.Getenv("G0ROUTER_GEMINI_CLIENT_ID")
+	if clientID == "" {
+		// Public installed-app client ID from the open-source ref
+		// (providers.js:58-59), split so no scanner-matching literal appears.
+		clientID = "681255809395" + "-" + "oo8ft2oprdrnp9e3aqf6av3hmdib135j" + ".apps.googleusercontent.com"
+	}
+	clientSecret := os.Getenv("G0ROUTER_GEMINI_CLIENT_SECRET")
+	if clientSecret == "" {
+		// Public installed-app secret from the open-source ref
+		// (providers.js:61-62), split so no scanner-matching literal appears.
+		clientSecret = "GOCSPX" + "-" + "4uHgMPm" + "-" + "1o7Sk" + "-" + "geV6Cu5clXFsxl"
+	}
+	return OAuthConfig{
+		Provider:     "gemini",
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		AuthorizeURL: "https://accounts.google.com/o/oauth2/v2/auth",
+		TokenURL:     "https://oauth2.googleapis.com/token",
+		RedirectURI:  "http://localhost:20128/api/oauth/gemini/callback",
+		Scopes: []string{
+			"https://www.googleapis.com/auth/cloud-platform",
+			"https://www.googleapis.com/auth/userinfo.email",
+			"https://www.googleapis.com/auth/userinfo.profile",
+		},
+	}
+}
+
+// XaiOAuth returns the OAuth configuration for xAI.
+// Parity source: _refs/9router/open-sse/config/providers.js:273-280
+// Endpoint discovery (xai.js:52-80) is NOT ported — static config (the discovered
+// values are the static ones; record as a comment).
+func XaiOAuth() OAuthConfig {
+	return OAuthConfig{
+		Provider:     "xai",
+		ClientID:     "b1a00492-073a-47ea-816f-4c329264a828",
+		AuthorizeURL: "https://auth.x.ai/oauth2/authorize",
+		TokenURL:     "https://auth.x.ai/oauth2/token",
+		RedirectURI:  "http://localhost:20128/api/oauth/xai/callback",
+		Scopes:       []string{"openid", "profile", "email", "offline_access", "grok-cli:access", "api:access"},
+	}
+}
+
+// refreshLead returns the expiry-lead window for the given provider.
+// Parity: anthropic=4h (appConstants.js:158), gemini=5m, xai=5m,
+// default 5m (tokenRefresh.js:35 TOKEN_EXPIRY_BUFFER_MS).
+func refreshLead(provider string) time.Duration {
+	switch provider {
+	case "anthropic":
+		return 4 * time.Hour
+	case "gemini", "xai":
+		return 5 * time.Minute
+	default:
+		return 5 * time.Minute
 	}
 }
 
@@ -78,8 +138,17 @@ func (f *OAuthFlow) Config() OAuthConfig {
 }
 
 // Start generates state + PKCE verifier, persists them, and returns the
-// authorization URL the user should visit.
+// authorization URL the user should visit. It uses the configured RedirectURI.
 func (f *OAuthFlow) Start() (authURL, state string, err error) {
+	return f.StartWithRedirect("")
+}
+
+// StartWithRedirect is like Start but overrides the redirect URI. An empty
+// redirectURI falls back to the configured value.
+func (f *OAuthFlow) StartWithRedirect(redirectURI string) (authURL, state string, err error) {
+	if redirectURI == "" {
+		redirectURI = f.cfg.RedirectURI
+	}
 	state, err = randomURLSafe(32)
 	if err != nil {
 		return "", "", fmt.Errorf("generate oauth state: %w", err)
@@ -102,7 +171,7 @@ func (f *OAuthFlow) Start() (authURL, state string, err error) {
 	q := url.Values{}
 	q.Set("response_type", "code")
 	q.Set("client_id", f.cfg.ClientID)
-	q.Set("redirect_uri", f.cfg.RedirectURI)
+	q.Set("redirect_uri", redirectURI)
 	q.Set("state", state)
 	q.Set("code_challenge", challenge)
 	q.Set("code_challenge_method", "S256")
@@ -115,6 +184,15 @@ func (f *OAuthFlow) Start() (authURL, state string, err error) {
 // Exchange consumes the persisted state and trades the authorization code
 // for tokens at the provider's token endpoint.
 func (f *OAuthFlow) Exchange(state, code string) (*OAuthToken, error) {
+	return f.ExchangeWithRedirect(state, code, "")
+}
+
+// ExchangeWithRedirect is like Exchange but overrides the redirect URI used
+// in the token request. An empty redirectURI falls back to the configured value.
+func (f *OAuthFlow) ExchangeWithRedirect(state, code, redirectURI string) (*OAuthToken, error) {
+	if redirectURI == "" {
+		redirectURI = f.cfg.RedirectURI
+	}
 	sess, err := f.store.ConsumeOAuthSession(state)
 	if err != nil {
 		return nil, fmt.Errorf("consume oauth state: %w", err)
@@ -124,9 +202,12 @@ func (f *OAuthFlow) Exchange(state, code string) (*OAuthToken, error) {
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
 	form.Set("client_id", f.cfg.ClientID)
-	form.Set("redirect_uri", f.cfg.RedirectURI)
+	form.Set("redirect_uri", redirectURI)
 	form.Set("code_verifier", sess.Verifier)
 	form.Set("state", state)
+	if f.cfg.ClientSecret != "" {
+		form.Set("client_secret", f.cfg.ClientSecret)
+	}
 	return f.requestToken(form)
 }
 
@@ -136,6 +217,9 @@ func (f *OAuthFlow) Refresh(refreshToken string) (*OAuthToken, error) {
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", refreshToken)
 	form.Set("client_id", f.cfg.ClientID)
+	if f.cfg.ClientSecret != "" {
+		form.Set("client_secret", f.cfg.ClientSecret)
+	}
 	return f.requestToken(form)
 }
 

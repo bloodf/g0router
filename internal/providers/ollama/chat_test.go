@@ -18,7 +18,7 @@ func TestOllamaChatURLLocalVsCloud(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := local.chatURL(); got != "http://localhost:11434/api/chat" {
+	if got := local.chatURL(""); got != "http://localhost:11434/api/chat" {
 		t.Errorf("ollama-local chatURL = %q, want %q", got, "http://localhost:11434/api/chat")
 	}
 
@@ -26,8 +26,24 @@ func TestOllamaChatURLLocalVsCloud(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := cloud.chatURL(); got != cloud.config.BaseURL {
+	if got := cloud.chatURL(""); got != cloud.config.BaseURL {
 		t.Errorf("ollama chatURL = %q, want config.BaseURL %q", got, cloud.config.BaseURL)
+	}
+}
+
+// TestOllamaHostOverrideFromCredentials verifies chatURL consumes the
+// providerSpecificData baseUrl override.
+func TestOllamaHostOverrideFromCredentials(t *testing.T) {
+	reg := translation.NewRegistry()
+	p, err := New("ollama-local", reg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.chatURL("http://custom:8080"); got != "http://custom:8080/api/chat" {
+		t.Errorf("ollama-local chatURL with override = %q, want %q", got, "http://custom:8080/api/chat")
+	}
+	if got := p.chatURL(""); got != "http://localhost:11434/api/chat" {
+		t.Errorf("ollama-local chatURL without override = %q, want %q", got, "http://localhost:11434/api/chat")
 	}
 }
 

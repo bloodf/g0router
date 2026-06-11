@@ -8,13 +8,19 @@ import (
 	"github.com/bloodf/g0router/internal/translation"
 )
 
+// KeyResolver resolves a provider key and any provider-specific data.
+type KeyResolver interface {
+	ResolveKey(providerID string) (schemas.Key, map[string]string, error)
+}
+
 // Router resolves a model name to a provider and API key.
 // This is a minimal Phase 5 implementation; full virtual-key routing
 // arrives in Phase 8.
 type Router struct {
-	registry  *translation.Registry
-	providers map[string]schemas.Provider
-	mu        sync.RWMutex
+	registry    *translation.Registry
+	providers   map[string]schemas.Provider
+	mu          sync.RWMutex
+	keyResolver KeyResolver
 }
 
 // NewRouter creates a router with all providers wired in.
@@ -23,6 +29,12 @@ func NewRouter(reg *translation.Registry) *Router {
 		registry:  reg,
 		providers: make(map[string]schemas.Provider),
 	}
+}
+
+// SetKeyResolver sets an optional key resolver. When non-nil, Resolve consults
+// it instead of returning the default empty key. nil leaves behavior unchanged.
+func (r *Router) SetKeyResolver(resolver KeyResolver) {
+	r.keyResolver = resolver
 }
 
 // Resolve returns the provider and key for a given model request.
@@ -37,6 +49,16 @@ func (r *Router) Resolve(model string) (schemas.Provider, schemas.Key, error) {
 	p, err := r.providerForID(providerID)
 	if err != nil {
 		return nil, schemas.Key{}, fmt.Errorf("resolve %q: %w", model, err)
+	}
+
+	if r.keyResolver != nil {
+		key, psd, err := r.keyResolver.ResolveKey(providerID)
+		if err != nil {
+			return nil, schemas.Key{}, fmt.Errorf("resolve key for %q: %w", model, err)
+		}
+		key.Provider = providerID
+		key.ProviderSpecificData = psd
+		return p, key, nil
 	}
 
 	return p, schemas.Key{

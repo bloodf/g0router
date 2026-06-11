@@ -142,6 +142,60 @@ func TestResolveUnknownDefaultsOpenAI(t *testing.T) {
 	}
 }
 
+func TestRouterUsesKeyResolver(t *testing.T) {
+	r := NewRouter(translation.NewRegistry())
+	r.SetKeyResolver(&fakeResolver{
+		key: schemas.Key{ID: "k1", Provider: "openai", Value: "resolved-key"},
+		psd: map[string]string{"baseUrl": "http://custom"},
+	})
+	p, key, err := r.Resolve("gpt-4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if key.Value != "resolved-key" {
+		t.Errorf("key.Value = %q, want resolved-key", key.Value)
+	}
+	if key.Provider != "openai" {
+		t.Errorf("key.Provider = %q, want openai", key.Provider)
+	}
+	if key.ProviderSpecificData["baseUrl"] != "http://custom" {
+		t.Errorf("psd baseUrl = %q, want http://custom", key.ProviderSpecificData["baseUrl"])
+	}
+	if p.GetProvider() != schemas.ProviderOpenAI {
+		t.Errorf("provider = %q, want openai", p.GetProvider())
+	}
+}
+
+func TestRouterNilResolverUnchanged(t *testing.T) {
+	r := NewRouter(translation.NewRegistry())
+	r.SetKeyResolver(nil)
+	p, key, err := r.Resolve("gpt-4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if p.GetProvider() != schemas.ProviderOpenAI {
+		t.Errorf("provider = %q, want openai", p.GetProvider())
+	}
+	if key.Provider != "openai" {
+		t.Errorf("key.Provider = %q, want openai", key.Provider)
+	}
+	if key.Value != "" {
+		t.Errorf("key.Value = %q, want empty", key.Value)
+	}
+}
+
+type fakeResolver struct {
+	key schemas.Key
+	psd map[string]string
+	err error
+}
+
+func (f *fakeResolver) ResolveKey(providerID string) (schemas.Key, map[string]string, error) {
+	k := f.key
+	k.Provider = providerID
+	return k, f.psd, f.err
+}
+
 func TestRouterConcurrentResolve(t *testing.T) {
 	r := NewRouter(translation.NewRegistry())
 	models := []string{"deepseek-chat", "gpt-4", "anthropic/claude-3-5-sonnet", "gemini/gemini-1.5-pro"}
