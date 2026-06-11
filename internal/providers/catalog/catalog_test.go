@@ -5,6 +5,19 @@ import (
 )
 
 func TestLookupKnownProviders(t *testing.T) {
+	wantBaseURL := map[string]string{
+		"groq":         "https://api.groq.com/openai/v1/chat/completions",
+		"deepseek":     "https://api.deepseek.com/chat/completions",
+		"mistral":      "https://api.mistral.ai/v1/chat/completions",
+		"cohere":       "https://api.cohere.ai/v1/chat/completions",
+		"together":     "https://api.together.xyz/v1/chat/completions",
+		"fireworks":    "https://api.fireworks.ai/inference/v1/chat/completions",
+		"openrouter":   "https://openrouter.ai/api/v1/chat/completions",
+		"xai":          "https://api.x.ai/v1/chat/completions",
+		"perplexity":   "https://api.perplexity.ai/chat/completions",
+		"ollama":       "https://ollama.com/api/chat",
+		"ollama-local": "http://localhost:11434/api/chat",
+	}
 	known := []string{
 		"groq", "deepseek", "mistral", "cohere",
 		"together", "fireworks", "openrouter", "xai",
@@ -18,8 +31,8 @@ func TestLookupKnownProviders(t *testing.T) {
 		if cfg.Name != name {
 			t.Errorf("Lookup(%q).Name = %q, want %q", name, cfg.Name, name)
 		}
-		if cfg.BaseURL == "" {
-			t.Errorf("Lookup(%q).BaseURL is empty", name)
+		if got, want := cfg.BaseURL, wantBaseURL[name]; got != want {
+			t.Errorf("Lookup(%q).BaseURL = %q, want %q", name, got, want)
 		}
 		if cfg.Format == "" {
 			t.Errorf("Lookup(%q).Format is empty", name)
