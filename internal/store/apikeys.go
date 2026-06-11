@@ -1,10 +1,14 @@
 package store
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -16,6 +20,70 @@ type APIKey struct {
 	MachineID string
 	IsActive  bool
 	CreatedAt int64
+}
+
+// apiKeyGenerator creates a new formatted API key and its machine identifier.
+type apiKeyGenerator func(dataDir string) (key, machineID string, err error)
+
+// defaultAPIKeySecret matches the secret used by internal/auth for CRCs.
+const defaultAPIKeySecret = "endpoint-proxy-api-key-secret"
+
+// SetAPIKeyGenerator replaces the key generator used by CreateAPIKey.
+// Production code wires in auth.GenerateAPIKey + auth.MachineID to keep the
+// store package free of the auth→store import cycle.
+func (s *Store) SetAPIKeyGenerator(fn apiKeyGenerator) {
+	s.apiKeyGenerator = fn
+}
+
+// defaultAPIKeyGenerator produces a valid key when no external generator is set.
+// It is used by tests that do not need the exact auth.MachineID derivation.
+func defaultAPIKeyGenerator(dataDir string) (string, string, error) {
+	machineID := deriveMachineID(dataDir)
+	keyID, err := generateAPIKeyID()
+	if err != nil {
+		return "", "", err
+	}
+	crc := computeAPIKeyCRC(machineID, keyID, defaultAPIKeySecret)
+	return fmt.Sprintf("sk-%s-%s-%s", machineID, keyID, crc), machineID, nil
+}
+
+// deriveMachineID returns a stable 16-character hex identifier for the data dir.
+func deriveMachineID(dataDir string) string {
+	h := sha256.New()
+	h.Write([]byte(dataDir))
+	return hex.EncodeToString(h.Sum(nil))[:16]
+}
+
+// generateAPIKeyID returns a 6-character random identifier using lowercase
+// letters and digits.
+func generateAPIKeyID() (string, error) {
+	const chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+	b := make([]byte, 12)
+	if _, err := randRead(b); err != nil {
+		return "", fmt.Errorf("generate key id: %w", err)
+	}
+	var sb strings.Builder
+	for _, x := range b {
+		if int(x) >= 252 {
+			continue
+		}
+		sb.WriteByte(chars[int(x)%len(chars)])
+		if sb.Len() == 6 {
+			break
+		}
+	}
+	if sb.Len() < 6 {
+		return generateAPIKeyID()
+	}
+	return sb.String(), nil
+}
+
+// computeAPIKeyCRC returns the first 8 hex characters of an HMAC-SHA256 over
+// machineID+keyID using the supplied secret.
+func computeAPIKeyCRC(machineID, keyID, secret string) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(machineID + keyID))
+	return hex.EncodeToString(mac.Sum(nil))[:8]
 }
 
 // DataDir returns the directory containing the SQLite database, derived from
@@ -30,9 +98,15 @@ func (s *Store) DataDir() string {
 	return ""
 }
 
-// CreateAPIKey inserts a new API key record. The caller must supply a
-// formatted key value and the machine identifier used to derive it.
-func (s *Store) CreateAPIKey(name, key, machineID string) (*APIKey, error) {
+// CreateAPIKey inserts a new API key record. It generates the formatted key
+// and the machine identifier internally; callers cannot supply raw keys.
+func (s *Store) CreateAPIKey(name string) (*APIKey, error) {
+	dataDir := s.DataDir()
+	key, machineID, err := s.apiKeyGenerator(dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("generate api key: %w", err)
+	}
+
 	now := time.Now().Unix()
 	id, err := newID()
 	if err != nil {

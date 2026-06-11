@@ -100,13 +100,9 @@ func (g *Guard) Wrap(next fasthttp.RequestHandler) fasthttp.RequestHandler {
 			}
 		}
 
-		// 3. Public LLM API - loopback is keyless; remote needs CLI token or API key.
+		// 3. Public LLM API - loopback is keyless; remote needs an API key.
 		if isPublicLlmApi(path) {
 			if isLocalRequest(ctx) {
-				next(ctx)
-				return
-			}
-			if g.cliTokenOK(ctx) {
 				next(ctx)
 				return
 			}

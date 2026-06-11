@@ -8,9 +8,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/valyala/fasthttp"
+)
+
+var (
+	newKeyRe    = regexp.MustCompile(`^sk-[0-9a-f]{16}-[a-z0-9]{6}-[0-9a-f]{8}$`)
+	legacyKeyRe = regexp.MustCompile(`^sk-[a-z0-9]{8}$`)
 )
 
 const (
@@ -87,10 +93,10 @@ func ParseAPIKey(apiKey string) (*ParsedKey, error) {
 	if !strings.HasPrefix(apiKey, "sk-") {
 		return nil, nil
 	}
-	parts := strings.Split(apiKey, "-")
 
-	// New format: sk-{machineId}-{keyId}-{crc8} = 4 parts.
-	if len(parts) == 4 {
+	// New format: sk-{16hex}-{6 [a-z0-9]}-{8hex}.
+	if newKeyRe.MatchString(apiKey) {
+		parts := strings.Split(apiKey, "-")
 		machineID := parts[1]
 		keyID := parts[2]
 		crc := parts[3]
@@ -101,8 +107,9 @@ func ParseAPIKey(apiKey string) (*ParsedKey, error) {
 		return &ParsedKey{MachineID: machineID, KeyID: keyID, IsNewFormat: true}, nil
 	}
 
-	// Legacy format: sk-{random8} = 2 parts.
-	if len(parts) == 2 && parts[1] != "" {
+	// Legacy format: sk-{8 [a-z0-9]} exactly.
+	if legacyKeyRe.MatchString(apiKey) {
+		parts := strings.Split(apiKey, "-")
 		return &ParsedKey{KeyID: parts[1], IsNewFormat: false}, nil
 	}
 

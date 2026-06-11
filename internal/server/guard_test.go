@@ -232,19 +232,11 @@ func TestGuardV1RemoteRequiresKey(t *testing.T) {
 
 func TestGuardV1RemoteValidKey(t *testing.T) {
 	g, _, st := newTestGuard(t)
-	dataDir := st.DataDir()
-	machineID, err := auth.MachineID(dataDir, "")
-	if err != nil {
-		t.Fatalf("MachineID: %v", err)
-	}
-	key, _, err := auth.GenerateAPIKey(machineID)
-	if err != nil {
-		t.Fatalf("GenerateAPIKey: %v", err)
-	}
-	created, err := st.CreateAPIKey("remote", key, machineID)
+	created, err := st.CreateAPIKey("remote")
 	if err != nil {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
+	key := created.Key
 
 	g.APIKeyValidator = auth.NewAPIKeyValidator(func(k string) (string, bool, error) {
 		rec, err := st.GetAPIKeyByKey(k)
@@ -314,18 +306,39 @@ func TestGuardCLIToken(t *testing.T) {
 		t.Fatalf("always-protected+cli status = %d, want 200", ctx.Response.StatusCode())
 	}
 
-	// Correct CLI token also bypasses remote /v1 gating.
-	ctx = callGuard(t, g, "POST", "/v1/chat/completions",
-		map[string]string{"Host": "remote.example.com", "x-9r-cli-token": cliToken}, nil)
-	if ctx.Response.StatusCode() != fasthttp.StatusOK {
-		t.Fatalf("/v1+cli status = %d, want 200", ctx.Response.StatusCode())
-	}
-
 	// Wrong CLI token -> 401 for always-protected.
 	ctx = callGuard(t, g, "POST", "/api/shutdown",
 		map[string]string{"Host": "remote.example.com", "x-9r-cli-token": "wrong"}, nil)
 	if ctx.Response.StatusCode() != fasthttp.StatusUnauthorized {
 		t.Fatalf("wrong cli always-protected status = %d, want 401", ctx.Response.StatusCode())
+	}
+}
+
+func TestGuardV1CLITokenRejectedRemote(t *testing.T) {
+	g, _, st := newTestGuard(t)
+	dataDir := st.DataDir()
+	cliToken, err := auth.MachineID(dataDir, "9r-cli-auth")
+	if err != nil {
+		t.Fatalf("MachineID cli: %v", err)
+	}
+	g.CLITokenValidator = auth.NewCLITokenValidator(dataDir)
+
+	cases := []string{
+		"/v1/chat/completions",
+		"/v1beta/models",
+		"/api/v1/embeddings",
+		"/api/v1beta/messages",
+	}
+	for _, path := range cases {
+		ctx := callGuard(t, g, "POST", path,
+			map[string]string{"Host": "remote.example.com", "x-9r-cli-token": cliToken}, nil)
+		if ctx.Response.StatusCode() != fasthttp.StatusUnauthorized {
+			t.Fatalf("%s status = %d, want 401", path, ctx.Response.StatusCode())
+		}
+		msg := envelopeMessage(t, ctx.Response.Body())
+		if msg != "API key required for remote API access" {
+			t.Fatalf("%s error = %q, want %q", path, msg, "API key required for remote API access")
+		}
 	}
 }
 

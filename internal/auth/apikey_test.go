@@ -99,6 +99,44 @@ func TestParseAPIKeyNewAndLegacy(t *testing.T) {
 	}
 }
 
+func TestParseAPIKeyMalformed(t *testing.T) {
+	machineID := "deadbeefdeadbeef"
+	validKey, _, err := GenerateAPIKey(machineID)
+	if err != nil {
+		t.Fatalf("GenerateAPIKey: %v", err)
+	}
+	if p, _ := ParseAPIKey(validKey); p == nil {
+		t.Fatalf("valid key %q should parse", validKey)
+	}
+
+	cases := []string{
+		// New-format segment-length and character violations.
+		"sk-deadbeefdeadbeef-abc12-12345678",   // keyID too short
+		"sk-deadbeefdeadbeef-abc1234-12345678", // keyID too long
+		"sk-deadbeefdeadbeef-abc123-1234567",   // CRC too short
+		"sk-deadbeefdeadbeef-abc123-123456789", // CRC too long
+		"sk-DEADBEEFDEADBEEF-abc123-12345678",  // machineID uppercase
+		"sk-deadbeefdeadbeef-ABC123-12345678",  // keyID uppercase
+		"sk-deadbeefdeadbeef-abc123-1234567G",  // CRC non-hex
+		"sk-deadbeefdeadbeef--12345678",        // empty keyID
+		"sk--abc123-12345678",                  // empty machineID
+		"sk-deadbeefdeadbeef-abc123-",          // empty CRC
+		// Legacy segment-length and character violations.
+		"sk-abc1234",   // too short
+		"sk-abc123456", // too long
+		"sk-ABCDEF12",  // uppercase
+		"sk-abc@123",   // invalid character
+		// Extra/missing parts.
+		"sk-deadbeefdeadbeef-abc123-12345678-extra",
+		"sk-deadbeefdeadbeef-abc123",
+	}
+	for _, bad := range cases {
+		if p, err := ParseAPIKey(bad); p != nil {
+			t.Fatalf("%q should be invalid, got %+v (err=%v)", bad, p, err)
+		}
+	}
+}
+
 func TestMachineIDDerivation(t *testing.T) {
 	dir := t.TempDir()
 
