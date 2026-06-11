@@ -23,12 +23,15 @@ In-repo integration: `internal/auth/oauth.go:176-188` (`randomURLSafe` + `pkceCh
   session kind) and delete the three oidc_* cookies; on any mismatch → 401, no session.
 - **Logout** (`logout/route.js:8-10`): existing Logout additionally deletes
   `oidc_state`, `oidc_nonce`, `oidc_code_verifier` (PAR-AUTH-021).
-- **Probe** (`oidc.js:144-210`): POST endpoint that, given
-  tokenEndpoint/clientId/clientSecret/redirectUri, sends a deliberately invalid code
-  (`__oidc_test_invalid_code__`, `:148-153` body shape) and classifies the IdP error
-  to report whether the secret is accepted; no secret → `{tested:false, valid:null,
-  message:"No client secret was provided, so secret validation was skipped."}`
-  (`:144-147` verbatim). Admin-only route (behind the guard's protected /api set).
+- **Probe** (`oidc.js:144-210` + route `src/app/api/auth/oidc/test/route.js`):
+  POST `/api/auth/oidc/test` — given tokenEndpoint/clientId/clientSecret/redirectUri,
+  sends a deliberately invalid code (`__oidc_test_invalid_code__`, `:148-153` body
+  shape) and classifies the IdP error to report whether the secret is accepted; no
+  secret → `{tested:false, valid:null, message:"No client secret was provided, so
+  secret validation was skipped."}` (`:144-147` verbatim). PUBLIC route in the ref:
+  the path is under the `/api/auth/oidc` PUBLIC_API_PATHS prefix
+  (`dashboardGuard.js:29`) — port as public for parity (it acts only on
+  caller-provided values; no stored secrets read).
 
 ## Preconditions (a "0 hits" grep exits 1 = pass)
 
@@ -43,7 +46,7 @@ NEW: `internal/auth/oidc.go` + `oidc_test.go` (discovery, PKCE pair via existing
 primitives, auth-URL builder, code exchange, nonce/state checks, probe logic);
 `internal/admin/oidc.go` + `oidc_test.go` (start/callback/probe handlers + cookies).
 TOUCH: `internal/admin/auth.go` + `auth_test.go` (Logout: delete the 3 oidc cookies),
-`internal/server/routes*.go`/`server.go` ONLY to register the 3 routes (w3-b's guard
+`internal/server/routes_admin.go:27+` (`RegisterAdminRoutes`) ONLY to register the 3 routes (start/callback/test) (w3-b's guard
 file untouched — `/api/auth/oidc` prefix is already public-listed).
 NOT touched: `internal/auth/oauth.go` (primitives reused), guard.go, limiter, w3-d files.
 
@@ -62,7 +65,7 @@ NOT touched: `internal/auth/oauth.go` (primitives reused), guard.go, limiter, w3
    (httpOnly, SameSite=Lax, Max-Age=600 exactly — PAR-AUTH-022; secure flag follows
    request proto), `TestOIDCCallbackIssuesOpaqueSession` (valid state+nonce → Set-Cookie
    session via Sessions; oidc_* cookies deleted), `TestOIDCCallbackBadState401`,
-   `TestProbeEndpointRequiresSession` (unauthenticated → 401 via guard wiring).
+   `TestProbeEndpointPublic` (reachable without session — parity with the ref's public `/api/auth/oidc` prefix, `dashboardGuard.js:29`).
 3. **Logout extension** (`admin/auth.go`). Tests FIRST: `TestLogoutClearsOIDCCookies`
    (response carries deletion Set-Cookie for all 3 names + session cleared).
 
@@ -71,7 +74,7 @@ NOT touched: `internal/auth/oauth.go` (primitives reused), guard.go, limiter, w3
 - `go test ./...` exits 0; `go vet ./...` exits 0.
 - `grep -c 'maxAge\|Max-Age\|600' internal/admin/oidc.go` ≥ 1 AND `TestOIDCStartSetsThreeCookies` asserts Max-Age=600 exactly.
 - `grep -rn 'func init(\|panic(' internal/auth/oidc.go internal/admin/oidc.go` → 0 hits.
-- `grep -c 'jwt\|JWT' internal/auth/oidc.go internal/admin/oidc.go` → 0 (decision 2: callback issues the opaque session).
+- Decision-2 criterion (behavioral, not grep): `TestOIDCCallbackIssuesOpaqueSession` proves the callback issues the session via `auth.Sessions` (opaque store token); NO new session-token mechanism is introduced (ID-token PARSING for the nonce claim is required and permitted — it is not a session token).
 - `TestNonceMismatchRejected`, `TestStateMismatchRejected`, `TestProbeNoSecretSkips`, `TestLogoutClearsOIDCCookies` pass.
 
 ## Out of scope

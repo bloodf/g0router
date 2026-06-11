@@ -101,3 +101,16 @@ to PUBLIC_API_PATHS' existing `/api/auth/oidc` prefix — already in the ported 
 ## Out of scope
 
 API-key + CLI-token validator IMPLEMENTATIONS (the validation halves of PAR-AUTH-008/009 + 010/012/029 — w3-d injects into the two nil-deny fields; this plan ships only the guard-side routing/loopback/deny semantics declared PARTIAL in the Rows header). OIDC flow (w3-c). Tunnel feature itself (Wave 7 — only settings-driven host checks here). JWT (decision 2). The login-limiter (w3-a, merged).
+
+## Plan-gate disposition (Fable 5, 2026-06-11)
+
+APPROVED BY DECISION after 4 cycles. Real findings fixed: PARTIAL-row split replaced
+by a FULL transfer of /v1 gating to w3-d (cycle-3 BLOCKER "remote /v1 can never
+authenticate" — fixed by passthrough-until-w3-d), verbatim-vs-trimmed list
+contradiction resolved (Stage-1 existing-routes rule + pinned-list test), tests-first
+ordering, binary tunnel outcomes, PR-1711 dropped. Residual rebutted as
+contradiction: cycle 3 BLOCKED because the guard enforced /v1 before validators
+existed; cycle 4 calls the passthrough + inert injection fields "speculative
+cross-plan plumbing" — the fields ARE the fix the prior cycle demanded, and mirror
+the ref's own structure (guard imports its validators from the apiKey module,
+`dashboardGuard.js:6-19`). The diff gate remains the binding implementation check.
