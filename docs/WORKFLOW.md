@@ -6217,3 +6217,17 @@ ROOT CAUSE FIXED: critic-diff.md:10 hardcoded `parity-w0/` as the required
 commit format; corrected to make commit-message format out-of-scope for the
 diff gate (the orchestrator owns it; project format is `parity-w1/...`).
 Accepted by decision.
+
+## w1-j cursor pair — diff gate PASS (2026-06-11)
+
+```yaml
+wave: "parity-w1"
+plan: "w1-j-cursor-pair"
+status: MERGED
+rows: "PAR-TRANS-064,065 → HAVE"
+commits: "82e88bd (impl), d51064d + 7d04e10 (gate-fix tests)"
+```
+Diff gate: BLOCKER #2 (tool-role precedence test coverage) closed across two
+test-only fixes; BLOCKER #1 (inline normalize) and the passthrough-branch MINOR
+rebutted ref-faithful (dual-key meta map; ref-verbatim passthrough branches).
+PASS. (Protobuf/checksum = Wave-2 executor scope.)
