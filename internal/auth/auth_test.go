@@ -174,6 +174,57 @@ func TestSessionExpiry(t *testing.T) {
 	}
 }
 
+func TestLoginDefaultPasswordWhenNoHash(t *testing.T) {
+	st := newTestStore(t)
+	sessions := NewSessions(st, time.Hour)
+	if _, err := sessions.SeedAdmin("admin", "123456"); err != nil {
+		t.Fatalf("SeedAdmin: %v", err)
+	}
+
+	// Clear the password hash so the default-password path is taken.
+	if err := st.SetUserPasswordHash("admin", ""); err != nil {
+		t.Fatalf("SetUserPasswordHash: %v", err)
+	}
+
+	// Default password "123456" works.
+	token, err := sessions.Login("admin", "123456")
+	if err != nil {
+		t.Fatalf("login with default password: %v", err)
+	}
+	if token == "" {
+		t.Fatal("empty token")
+	}
+
+	// Wrong default password fails.
+	if _, err := sessions.Login("admin", "wrong"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("wrong default password err = %v, want ErrInvalidCredentials", err)
+	}
+}
+
+func TestLoginDefaultPasswordEnvOverride(t *testing.T) {
+	t.Setenv("INITIAL_PASSWORD", "custompw")
+	st := newTestStore(t)
+	sessions := NewSessions(st, time.Hour)
+	if _, err := sessions.SeedAdmin("admin", "123456"); err != nil {
+		t.Fatalf("SeedAdmin: %v", err)
+	}
+	if err := st.SetUserPasswordHash("admin", ""); err != nil {
+		t.Fatalf("SetUserPasswordHash: %v", err)
+	}
+
+	token, err := sessions.Login("admin", "custompw")
+	if err != nil {
+		t.Fatalf("login with env override: %v", err)
+	}
+	if token == "" {
+		t.Fatal("empty token")
+	}
+
+	if _, err := sessions.Login("admin", "123456"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("old default password err = %v, want ErrInvalidCredentials", err)
+	}
+}
+
 // fakeTokenServer emulates an OAuth token endpoint with real HTTP behavior.
 func fakeTokenServer(t *testing.T) (*httptest.Server, *url.Values) {
 	t.Helper()

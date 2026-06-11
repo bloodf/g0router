@@ -2,9 +2,11 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/bloodf/g0router/internal/store"
@@ -56,8 +58,18 @@ func (s *Sessions) Login(username, password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("lookup user: %w", err)
 	}
-	if !VerifyPassword(user.PasswordHash, password) {
-		return "", ErrInvalidCredentials
+	if user.PasswordHash == "" {
+		initialPassword := os.Getenv("INITIAL_PASSWORD")
+		if initialPassword == "" {
+			initialPassword = "123456"
+		}
+		if subtle.ConstantTimeCompare([]byte(password), []byte(initialPassword)) != 1 {
+			return "", ErrInvalidCredentials
+		}
+	} else {
+		if !VerifyPassword(user.PasswordHash, password) {
+			return "", ErrInvalidCredentials
+		}
 	}
 
 	token, err := newToken()

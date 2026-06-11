@@ -3,6 +3,8 @@ package admin
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -25,6 +27,14 @@ func toUserDTO(u *store.User) userDTO {
 	return userDTO{ID: u.ID, Username: u.Username}
 }
 
+const resetHint = "Forgot password? Reset to default via g0router CLI: g0router reset-password"
+
+func (h *Handlers) oidcConfigured(settings map[string]string) bool {
+	return strings.TrimSpace(settings["oidc_issuer_url"]) != "" &&
+		strings.TrimSpace(settings["oidc_client_id"]) != "" &&
+		strings.TrimSpace(settings["oidc_client_secret"]) != ""
+}
+
 // Login handles POST /api/auth/login.
 func (h *Handlers) Login(ctx *fasthttp.RequestCtx) {
 	var req struct {
@@ -40,8 +50,39 @@ func (h *Handlers) Login(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	ip := auth.ClientIP(
+		string(ctx.Request.Header.Peek("X-Forwarded-For")),
+		string(ctx.Request.Header.Peek("X-Real-Ip")),
+	)
+
+	locked, retryAfter := h.limiter.CheckLock(ip)
+	if locked {
+		h.writeLockout(ctx, retryAfter)
+		return
+	}
+
+	settings, err := h.store.GetSettings()
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "load settings")
+		return
+	}
+	authMode := settings["auth_mode"]
+	if authMode == "" {
+		authMode = "password"
+	}
+	if authMode == "oidc" && h.oidcConfigured(settings) {
+		writeError(ctx, fasthttp.StatusForbidden, "Password login is disabled. Use OIDC sign in.")
+		return
+	}
+
 	token, err := h.sessions.Login(req.Username, req.Password)
 	if errors.Is(err, auth.ErrInvalidCredentials) {
+		h.limiter.RecordFail(ip)
+		postLocked, postRetryAfter := h.limiter.CheckLock(ip)
+		if postLocked {
+			h.writeLockout(ctx, postRetryAfter)
+			return
+		}
 		writeError(ctx, fasthttp.StatusUnauthorized, "invalid username or password")
 		return
 	}
@@ -49,6 +90,8 @@ func (h *Handlers) Login(ctx *fasthttp.RequestCtx) {
 		writeError(ctx, fasthttp.StatusInternalServerError, "login failed")
 		return
 	}
+
+	h.limiter.RecordSuccess(ip)
 
 	user, err := h.sessions.Validate(token)
 	if err != nil {
@@ -72,6 +115,22 @@ func (h *Handlers) Login(ctx *fasthttp.RequestCtx) {
 	})
 }
 
+func (h *Handlers) writeLockout(ctx *fasthttp.RequestCtx, retryAfter int) {
+	msg := fmt.Sprintf("Too many failed attempts. Try again in %ds. %s", retryAfter, resetHint)
+	b, _ := json.Marshal(map[string]any{
+		"data": nil,
+		"error": map[string]any{
+			"message":      msg,
+			"retry_after":  retryAfter,
+			"reset_hint":   resetHint,
+		},
+	})
+	ctx.SetStatusCode(fasthttp.StatusTooManyRequests)
+	ctx.SetContentType("application/json")
+	ctx.SetBody(b)
+	ctx.Response.Header.Set("Retry-After", strconv.Itoa(retryAfter))
+}
+
 // Logout handles POST /api/auth/logout.
 func (h *Handlers) Logout(ctx *fasthttp.RequestCtx) {
 	token := requestToken(ctx)
@@ -93,6 +152,22 @@ func (h *Handlers) Me(ctx *fasthttp.RequestCtx) {
 		return
 	}
 	writeData(ctx, fasthttp.StatusOK, toUserDTO(user))
+}
+
+// Status handles GET /api/auth/status.
+func (h *Handlers) Status(ctx *fasthttp.RequestCtx) {
+	settings, err := h.store.GetSettings()
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "load settings")
+		return
+	}
+	authMode := settings["auth_mode"]
+	if authMode == "" {
+		authMode = "password"
+	}
+	writeData(ctx, fasthttp.StatusOK, map[string]any{
+		"auth_mode": authMode,
+	})
 }
 
 // RequireSession is middleware that rejects requests without a valid

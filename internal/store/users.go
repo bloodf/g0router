@@ -73,6 +73,12 @@ func (s *Store) CountUsers() (int, error) {
 	return n, nil
 }
 
+// FirstUser returns the first user in the table, ordered by creation time.
+func (s *Store) FirstUser() (*User, error) {
+	return s.scanUser(s.db.QueryRow(
+		"SELECT id, username, password_hash, created_at, updated_at FROM users ORDER BY created_at ASC LIMIT 1"))
+}
+
 // UpdateUserPassword replaces the password hash for the given user ID.
 func (s *Store) UpdateUserPassword(id, passwordHash string) error {
 	res, err := s.db.Exec(
@@ -81,6 +87,25 @@ func (s *Store) UpdateUserPassword(id, passwordHash string) error {
 	)
 	if err != nil {
 		return fmt.Errorf("update user password %s: %w", id, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// SetUserPasswordHash updates the password hash for the given username.
+func (s *Store) SetUserPasswordHash(username, passwordHash string) error {
+	res, err := s.db.Exec(
+		"UPDATE users SET password_hash = ?, updated_at = ? WHERE username = ?",
+		passwordHash, time.Now().Unix(), username,
+	)
+	if err != nil {
+		return fmt.Errorf("update user password hash %s: %w", username, err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {

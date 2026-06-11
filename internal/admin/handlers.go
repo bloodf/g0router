@@ -10,6 +10,7 @@ type Handlers struct {
 	store    *store.Store
 	sessions *auth.Sessions
 	flows    map[string]*auth.OAuthFlow
+	limiter  *auth.LoginLimiter
 }
 
 // New creates the admin handler set. flows maps provider type → OAuth flow
@@ -18,7 +19,7 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 	if flows == nil {
 		flows = map[string]*auth.OAuthFlow{}
 	}
-	return &Handlers{store: st, sessions: sessions, flows: flows}
+	return &Handlers{store: st, sessions: sessions, flows: flows, limiter: auth.NewLoginLimiter()}
 }
 
 // pathID returns the {id} route parameter.

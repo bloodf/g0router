@@ -43,12 +43,7 @@ func parseAllowedOrigins() []string {
 	return out
 }
 
-func main() {
-	listenAddr := os.Getenv("G0ROUTER_LISTEN")
-	if listenAddr == "" {
-		listenAddr = defaultListen
-	}
-
+func resolveDataDir() string {
 	dataDir := os.Getenv("G0ROUTER_DATA")
 	if dataDir == "" {
 		home, err := os.UserHomeDir()
@@ -57,12 +52,55 @@ func main() {
 		}
 		dataDir = filepath.Join(home, ".g0router")
 	}
+	return dataDir
+}
 
+func openStore(dataDir string) (*store.Store, error) {
 	secret, err := store.LoadOrCreateSecret(dataDir)
 	if err != nil {
-		log.Fatalf("load encryption secret: %v", err)
+		return nil, fmt.Errorf("load encryption secret: %w", err)
 	}
 	st, err := store.Open(filepath.Join(dataDir, "g0router.db"), secret)
+	if err != nil {
+		return nil, fmt.Errorf("open store: %w", err)
+	}
+	return st, nil
+}
+
+func resetPassword(dataDir string) error {
+	st, err := openStore(dataDir)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+
+	user, err := st.FirstUser()
+	if err != nil {
+		return fmt.Errorf("find user: %w", err)
+	}
+	if err := st.SetUserPasswordHash(user.Username, ""); err != nil {
+		return fmt.Errorf("reset password: %w", err)
+	}
+	fmt.Println("Password reset to default.")
+	return nil
+}
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "reset-password" {
+		dataDir := resolveDataDir()
+		if err := resetPassword(dataDir); err != nil {
+			log.Fatalf("reset-password: %v", err)
+		}
+		return
+	}
+
+	listenAddr := os.Getenv("G0ROUTER_LISTEN")
+	if listenAddr == "" {
+		listenAddr = defaultListen
+	}
+
+	dataDir := resolveDataDir()
+	st, err := openStore(dataDir)
 	if err != nil {
 		log.Fatalf("open store: %v", err)
 	}

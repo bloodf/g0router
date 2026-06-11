@@ -577,3 +577,238 @@ func TestRefreshConnectionRequiresRefreshToken(t *testing.T) {
 		t.Fatalf("refresh without refresh token status = %d", status)
 	}
 }
+
+func TestOAuthStartGemini(t *testing.T) {
+	env := newTestEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.PostForm.Get("client_secret") != auth.GeminiOAuth().ClientSecret {
+			t.Errorf("missing client_secret")
+		}
+		json.NewEncoder(w).Encode(map[string]any{"access_token": "at-gem", "refresh_token": "rt-gem", "expires_in": 3600})
+	}))
+	t.Cleanup(srv.Close)
+
+	flow := auth.NewOAuthFlow(auth.GeminiOAuth(), env.store, srv.Client())
+	env.handlers = New(env.store, env.sessions, map[string]*auth.OAuthFlow{"gemini": flow})
+
+	status, envl := call(t, env.handlers.OAuthStart, "GET", "/api/oauth/gemini/start", "",
+		map[string]any{"provider": "gemini"}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("start status = %d err = %q", status, errMessage(t, envl))
+	}
+	startData := dataField[map[string]any](t, envl)
+	authURL := startData["auth_url"].(string)
+	if !strings.Contains(authURL, "client_id="+auth.GeminiOAuth().ClientID) {
+		t.Fatalf("auth_url missing gemini client_id: %s", authURL)
+	}
+}
+
+func TestOAuthStartXai(t *testing.T) {
+	env := newTestEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"access_token": "at-xai", "refresh_token": "rt-xai", "expires_in": 3600})
+	}))
+	t.Cleanup(srv.Close)
+
+	flow := auth.NewOAuthFlow(auth.XaiOAuth(), env.store, srv.Client())
+	env.handlers = New(env.store, env.sessions, map[string]*auth.OAuthFlow{"xai": flow})
+
+	status, envl := call(t, env.handlers.OAuthStart, "GET", "/api/oauth/xai/start", "",
+		map[string]any{"provider": "xai"}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("start status = %d err = %q", status, errMessage(t, envl))
+	}
+	startData := dataField[map[string]any](t, envl)
+	authURL := startData["auth_url"].(string)
+	if !strings.Contains(authURL, "client_id=b1a00492-073a-47ea-816f-4c329264a828") {
+		t.Fatalf("auth_url missing xai client_id: %s", authURL)
+	}
+	if strings.Contains(authURL, "client_secret") {
+		t.Error("xai auth_url should not contain client_secret")
+	}
+}
+
+func TestRedirectURIFromRequestOrigin(t *testing.T) {
+	env := newTestEnv(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"access_token": "at", "refresh_token": "rt", "expires_in": 3600})
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg := auth.AnthropicOAuth()
+	cfg.RedirectURI = ""
+	flow := auth.NewOAuthFlow(cfg, env.store, srv.Client())
+	env.handlers = New(env.store, env.sessions, map[string]*auth.OAuthFlow{"anthropic": flow})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod("GET")
+	ctx.Request.SetRequestURI("/api/oauth/anthropic/start")
+	ctx.SetUserValue("provider", "anthropic")
+	ctx.Request.Header.Set("Origin", "https://remote.example.com")
+
+	env.handlers.OAuthStart(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d body = %s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	envelope := map[string]json.RawMessage{}
+	if err := json.Unmarshal(ctx.Response.Body(), &envelope); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	data := dataField[map[string]any](t, envelope)
+	authURL := data["auth_url"].(string)
+	if !strings.Contains(authURL, "redirect_uri=https%3A%2F%2Fremote.example.com%2Fapi%2Foauth%2Fanthropic%2Fcallback") {
+		t.Fatalf("auth_url missing origin redirect_uri: %s", authURL)
+	}
+}
+
+func TestRedirectURISettingsOverride(t *testing.T) {
+	env := newTestEnv(t)
+	if err := env.store.SetSettings(map[string]string{"oauth_redirect_uri": "https://dashboard.example.com/callback"}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"access_token": "at", "refresh_token": "rt", "expires_in": 3600})
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg := auth.AnthropicOAuth()
+	cfg.RedirectURI = ""
+	flow := auth.NewOAuthFlow(cfg, env.store, srv.Client())
+	env.handlers = New(env.store, env.sessions, map[string]*auth.OAuthFlow{"anthropic": flow})
+
+	status, envl := call(t, env.handlers.OAuthStart, "GET", "/api/oauth/anthropic/start", "",
+		map[string]any{"provider": "anthropic"}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("start status = %d", status)
+	}
+	data := dataField[map[string]any](t, envl)
+	authURL := data["auth_url"].(string)
+	if !strings.Contains(authURL, "redirect_uri=https%3A%2F%2Fdashboard.example.com%2Fcallback") {
+		t.Fatalf("auth_url missing override redirect_uri: %s", authURL)
+	}
+}
+
+func TestLoginLockout429AndRetryAfter(t *testing.T) {
+	env := newTestEnv(t)
+	ip := "1.2.3.4"
+	headers := map[string]string{"X-Forwarded-For": ip}
+
+	// 4 failed attempts return 401.
+	for i := 0; i < 4; i++ {
+		status, _ := call(t, env.handlers.Login, "POST", "/api/auth/login",
+			`{"username":"admin","password":"wrong"}`, nil, headers)
+		if status != fasthttp.StatusUnauthorized {
+			t.Fatalf("attempt %d status = %d, want 401", i+1, status)
+		}
+	}
+
+	// 5th attempt triggers lock and returns 429.
+	status, envl := call(t, env.handlers.Login, "POST", "/api/auth/login",
+		`{"username":"admin","password":"wrong"}`, nil, headers)
+	if status != fasthttp.StatusTooManyRequests {
+		t.Fatalf("locked status = %d, want 429", status)
+	}
+
+	msg := errMessage(t, envl)
+	if msg == "" {
+		t.Fatal("expected error message")
+	}
+	if !strings.Contains(msg, "Too many failed attempts") {
+		t.Fatalf("error message = %q", msg)
+	}
+
+	// Body should contain retry_after and reset_hint.
+	var bodyMap map[string]json.RawMessage
+	var lastBody []byte
+	// Re-run the call to capture the raw body since call decodes envelope.
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod("POST")
+	ctx.Request.SetRequestURI("/api/auth/login")
+	ctx.Request.SetBody([]byte(`{"username":"admin","password":"wrong"}`))
+	ctx.Request.Header.Set("X-Forwarded-For", ip)
+	env.handlers.Login(&ctx)
+	lastBody = ctx.Response.Body()
+	if err := json.Unmarshal(lastBody, &bodyMap); err != nil {
+		t.Fatalf("unmarshal body: %v", err)
+	}
+	errObj := map[string]json.RawMessage{}
+	if err := json.Unmarshal(bodyMap["error"], &errObj); err != nil {
+		t.Fatalf("unmarshal error object: %v", err)
+	}
+	if _, ok := errObj["retry_after"]; !ok {
+		t.Fatalf("missing retry_after in error: %s", bodyMap["error"])
+	}
+	if _, ok := errObj["reset_hint"]; !ok {
+		t.Fatalf("missing reset_hint in error: %s", bodyMap["error"])
+	}
+
+	ra := string(ctx.Response.Header.Peek("Retry-After"))
+	if ra == "" {
+		t.Fatal("missing Retry-After header")
+	}
+}
+
+func TestLoginDefaultPasswordWhenNoHash(t *testing.T) {
+	env := newTestEnv(t)
+	if err := env.store.SetUserPasswordHash("admin", ""); err != nil {
+		t.Fatalf("SetUserPasswordHash: %v", err)
+	}
+
+	status, envl := call(t, env.handlers.Login, "POST", "/api/auth/login",
+		`{"username":"admin","password":"123456"}`, nil, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("login status = %d, err = %q", status, errMessage(t, envl))
+	}
+}
+
+func TestLoginOidcModeBlocksPassword(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Without OIDC configured, mode "oidc" does NOT block (safety guard).
+	if err := env.store.SetSettings(map[string]string{"auth_mode": "oidc"}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+	status, envl := call(t, env.handlers.Login, "POST", "/api/auth/login",
+		`{"username":"admin","password":"123456"}`, nil, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("oidc without config: status = %d, err = %q", status, errMessage(t, envl))
+	}
+
+	// With OIDC configured, mode "oidc" blocks password login.
+	if err := env.store.SetSettings(map[string]string{
+		"auth_mode":          "oidc",
+		"oidc_issuer_url":    "https://example.com",
+		"oidc_client_id":     "client",
+		"oidc_client_secret": "secret",
+	}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+	status, envl = call(t, env.handlers.Login, "POST", "/api/auth/login",
+		`{"username":"admin","password":"123456"}`, nil, nil)
+	if status != fasthttp.StatusForbidden {
+		t.Fatalf("oidc with config: status = %d, want 403", status)
+	}
+	msg := errMessage(t, envl)
+	if !strings.Contains(msg, "Password login is disabled") {
+		t.Fatalf("error = %q, want 'Password login is disabled'", msg)
+	}
+}
+
+func TestStatusReportsAuthMode(t *testing.T) {
+	env := newTestEnv(t)
+	if err := env.store.SetSettings(map[string]string{"auth_mode": "oidc"}); err != nil {
+		t.Fatalf("SetSettings: %v", err)
+	}
+
+	status, envl := call(t, env.handlers.Status, "GET", "/api/auth/status", "", nil, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("status = %d", status)
+	}
+	data := dataField[map[string]any](t, envl)
+	if data["auth_mode"] != "oidc" {
+		t.Fatalf("auth_mode = %v, want oidc", data["auth_mode"])
+	}
+}
