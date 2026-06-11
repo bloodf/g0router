@@ -34,4 +34,11 @@ func TestNewOllamaRejectsNonOllama(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for deepseek id, got nil")
 	}
+
+	// A hypothetical catalog entry with Format "ollama" but a non-ollama id
+	// must still be rejected by New's explicit id check.
+	_, err = New("groq", reg)
+	if err == nil {
+		t.Fatal("expected error for groq id, got nil")
+	}
 }

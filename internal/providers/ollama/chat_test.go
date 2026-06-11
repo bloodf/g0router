@@ -1,6 +1,7 @@
 package ollama
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -148,6 +149,59 @@ func TestOllamaStreamNDJSON(t *testing.T) {
 	}
 	if doneCount != 1 {
 		t.Errorf("done chunks = %d, want 1", doneCount)
+	}
+}
+
+// failingPostHookRunner returns an error on every invocation.
+type failingPostHookRunner struct{}
+
+func (f *failingPostHookRunner) Run(ctx *schemas.GatewayContext, response any) error {
+	return fmt.Errorf("hook refused")
+}
+
+// TestOllamaStreamPostHookError verifies that a post-hook error after a valid
+// chunk emits the chunk, then an in-band streamError, then closes the channel.
+func TestOllamaStreamPostHookError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Write([]byte(`{"model":"llama3","message":{"role":"assistant","content":"hello"},"done":false}` + "\n"))
+		w.Write([]byte(`{"done":true}` + "\n"))
+	}))
+	defer srv.Close()
+
+	p, _ := New("ollama", translation.NewRegistry())
+	p.config.BaseURL = srv.URL
+
+	ch, perr := p.ChatCompletionStream(&schemas.GatewayContext{}, &failingPostHookRunner{}, schemas.Key{Value: ""}, &schemas.ChatRequest{Model: "llama3"})
+	if perr != nil {
+		t.Fatalf("ChatCompletionStream error: %v", perr.Message)
+	}
+
+	var contentCount, errCount int
+	for chunk := range ch {
+		if chunk.Error != nil {
+			errCount++
+			if chunk.Error.Type != "stream_error" {
+				t.Errorf("error type = %q, want stream_error", chunk.Error.Type)
+			}
+			if chunk.Error.Message == "" {
+				t.Error("expected non-empty error message")
+			}
+			continue
+		}
+		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
+			contentCount++
+			if chunk.Choices[0].Delta.Content != "hello" {
+				t.Errorf("content = %q, want hello", chunk.Choices[0].Delta.Content)
+			}
+		}
+	}
+
+	if contentCount != 1 {
+		t.Errorf("content chunks = %d, want 1", contentCount)
+	}
+	if errCount != 1 {
+		t.Errorf("error chunks = %d, want 1", errCount)
 	}
 }
 

@@ -281,8 +281,8 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 
 			var lineMap map[string]any
 			if err := json.Unmarshal([]byte(line), &lineMap); err != nil {
-				// AUD-045: a malformed chunk means the stream is corrupt;
-				// abort with an in-band error instead of silently dropping data.
+				// Malformed NDJSON is already skipped by the scanner (sse.go:71-78);
+				// this path covers post-hook/read failures only.
 				ch <- streamError(fmt.Sprintf("decode stream chunk: %v", err))
 				return
 			}

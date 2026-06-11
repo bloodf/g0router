@@ -21,6 +21,9 @@ type Provider struct {
 // New creates a new Ollama provider. providerID must be "ollama" or "ollama-local"
 // and the catalog entry must have Format == "ollama".
 func New(providerID string, reg *translation.Registry) (*Provider, error) {
+	if providerID != "ollama" && providerID != "ollama-local" {
+		return nil, fmt.Errorf("provider id %q is not an ollama provider", providerID)
+	}
 	cfg, ok := catalog.Lookup(providerID)
 	if !ok {
 		return nil, fmt.Errorf("unknown provider: %s", providerID)
