@@ -149,3 +149,20 @@ removed; authorizing artifacts quoted verbatim. Residual rebutted:
 - "Gemini/xai subset uncited": WAVE-3-MAP §Stage-1 scope decision (committed) is the
   authorizing scope artifact, exactly as WAVE-2-MAP was for Wave 2.
 The diff gate remains the binding implementation check.
+
+## Diff-gate disposition (2026-06-11)
+CLOSED BY DECISION after 3 diff-gate cycles. Every actionable finding FIXED & verified
+in-tree: single-flight Done-before-delete-under-lock race (round 2), xai scope `%20`
+not `+` (round 1), Router.keyResolver guarded by r.mu (round 2), credentials.go
+metadata-parse errors wrapped+returned (round 1), TestResolveKeyNoConnection targets
+the no-connection path (round 2), byte-exact Gemini/Xai config tests, and a
+real-CredentialResolver + store-backed Router integration test (round 3). Suite +
+-race green. Residual rebutted:
+- **admin OAuth tests "missing/unrelated"**: TestOAuthStartGemini/Xai/RedirectURIFrom
+  RequestOrigin/SettingsOverride EXIST in internal/admin/admin_test.go and PASS
+  (verified once the admin package stabilized after w3-c). They were committed under
+  the w3-a commit (shared co-located test file), predating w3-f's diff base — a pure
+  commit-attribution artifact no diff slice can reconcile, not absent coverage.
+- **Gemini env override**: existing AnthropicOAuth pattern (oauth.go:37-42) + REQUIRED
+  by GitHub push protection (raw GOCSPX literal blocked); no-env default is byte-exact.
+Provider OAuth merged across 9078525 + fix rounds. PAR-AUTH-019 satisfied.
