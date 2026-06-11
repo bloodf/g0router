@@ -104,6 +104,36 @@ func parseCookies(t *testing.T, ctx *fasthttp.RequestCtx) map[string]map[string]
 	return out
 }
 
+// cookieHasAttribute reports whether a Set-Cookie header for the named cookie
+// contains attr as a valueless flag, compared case-insensitively.
+func cookieHasAttribute(ctx *fasthttp.RequestCtx, name, attr string) bool {
+	attrLower := strings.ToLower(attr)
+	prefix := name + "="
+	found := false
+	ctx.Response.Header.VisitAll(func(key, value []byte) {
+		if found {
+			return
+		}
+		if strings.ToLower(string(key)) != "set-cookie" {
+			return
+		}
+		parts := strings.Split(string(value), ";")
+		if len(parts) == 0 {
+			return
+		}
+		if !strings.HasPrefix(strings.TrimSpace(parts[0]), prefix) {
+			return
+		}
+		for _, part := range parts[1:] {
+			if strings.ToLower(strings.TrimSpace(part)) == attrLower {
+				found = true
+				return
+			}
+		}
+	})
+	return found
+}
+
 func TestOIDCStartSetsThreeCookies(t *testing.T) {
 	env := newOIDCTestEnv(t)
 
@@ -126,7 +156,7 @@ func TestOIDCStartSetsThreeCookies(t *testing.T) {
 		if _, ok := c["value"]; !ok || c["value"] == "" {
 			t.Fatalf("cookie %q has no value", name)
 		}
-		if strings.ToLower(c["httponly"]) != "" {
+		if !cookieHasAttribute(&ctx, name, "HttpOnly") {
 			t.Errorf("cookie %q missing HttpOnly", name)
 		}
 		if strings.ToLower(c["samesite"]) != "lax" {
