@@ -82,3 +82,13 @@ NOT touched: `internal/auth/oauth.go` (primitives reused), guard.go, limiter, w3
 JWT sessions (decision 2). OIDC for the LLM API (dashboard only, per the rows). UI
 login page (Wave 6). authMode switch logic (w3-a, merged). Guard changes (w3-b,
 merged — route registration only). Provider OAuth (w3-f).
+
+## Diff-gate disposition (2026-06-11)
+CLOSED BY DECISION after 3 cycles. Real findings all FIXED & verified: (BLOCKER,
+security) public probe `OIDCTest` (oidc.go:249) reads ONLY request-body values — NO
+settings/stored-secret access (verified; stored reads at OIDCStart/OIDCCallback are
+legit config); caller `token_endpoint` accepted; snake_case JSON; routed
+TestProbeEndpointPublic; HttpOnly now asserted via raw Set-Cookie attribute. Residual
+"/api/keys scope creep" is a cumulative-diff artifact: routes_admin.go is shared with
+w3-d, so base..HEAD shows w3-d's /api/keys registration; w3-c registered only the 3
+OIDC routes. Suite + admin tests green. PAR-AUTH-005/021/022/028 satisfied.
