@@ -1,5 +1,26 @@
 # w3-f — Provider OAuth: anthropic complete + gemini + xai, credential refresh, key resolution
 
+## Authorizing artifacts (verbatim quotes — verifiable in-repo)
+
+- PAR-AUTH-019 (`matrix/9router-auth.md`): "OAuth credential manager for provider
+  connections … g0router implements Anthropic OAuth with PKCE and refresh
+  (`internal/auth/oauth.go:34-42`, `internal/admin/oauth.go:34-87`). 9router supports
+  ~15 provider OAuth flows." — the row's gap IS manager+flows; key resolution into
+  adapters is what "for provider connections" means operationally.
+- PAR-PR-1249 (`PARITY.md:232`): "| #1249 | PAR-PR-1249 | Fix OAuth redirect URI
+  handling for remote deployments |".
+- w2-c deferral (`plans/w2-c-ollama-adapter.md` §Scope decisions, committed): "The
+  ref's `providerSpecificData.baseUrl` override is NOT threaded in Stage-1 … the
+  override is deferred to Wave 3 (credential plumbing)."
+- w2-b deferral (`plans/w2-b-generic-openai-adapter.md` §Out of scope, committed):
+  "OAuth/token refresh (Wave 3 — adapter uses `key.Value` as given)."
+- Stage-1 handler set (`plans/WAVE-3-MAP.md` §Stage-1 scope decision, committed):
+  anthropic + gemini + xai only.
+- Ownership non-overlap: w3-f is the ONLY Wave-3 plan touching
+  `internal/inference/*` or `internal/providers/*` (WAVE-3-MAP §Tracks: dashboard
+  track owns admin/auth/server files; w3-e owns logging/proxy files). No in-flight
+  plan shares these files.
+
 Rows: PAR-AUTH-019 (OAuth credential manager for provider connections, PARTIAL — `open-sse/services/oauthCredentialManager.js`, `src/lib/oauth/services/*.js`; in-repo `internal/auth/oauth.go:34-42`, `internal/admin/oauth.go:34-87`) + PAR-PR-1249 (OAuth redirect URI handling for remote deployments) + the two recorded Wave-2 deferrals: ollama `providerSpecificData.baseUrl` override (w2-c plan §Host resolution) and the generic-adapter token-refresh hook (w2-b plan §refresh* = Wave-3). Scope per `WAVE-3-MAP.md` provider track. Frozen ref @ 827e5c3.
 
 **Stage-1 provider set for handlers** (WAVE-3-MAP scope decision): anthropic (adapter
@@ -47,7 +68,7 @@ which the ref itself centralizes in `oauthCredentialManager.js` (so a Go
   `internal/inference/router.go` (`SetKeyResolver`; nil → today's empty-Key behavior,
   preserving all w2-d tests). Ollama: `chatURL()` consumes the resolved
   `providerSpecificData["baseUrl"]` override via `catalog.ResolveOllamaHost(override)`
-  (the w2-c deferral — chatURL gains the already-planned override parameter).
+  (the w2-c deferral quoted above — chatURL gains the override parameter).
 
 ## Preconditions (a "0 hits" grep exits 1 = pass)
 
