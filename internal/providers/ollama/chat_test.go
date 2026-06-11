@@ -1,7 +1,6 @@
 package ollama
 
 import (
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -152,22 +151,13 @@ func TestOllamaStreamNDJSON(t *testing.T) {
 	}
 }
 
-// errorHook is a PostHookRunner that fails on every chunk.
-type errorHook struct{}
-
-func (errorHook) Run(ctx *schemas.GatewayContext, response any) error {
-	return errors.New("simulated hook failure")
-}
-
-// TestOllamaStreamMalformedInBandError verifies that a failing post-hook
-// aborts the stream with an in-band error chunk (AUD-047).
-// The NDJSON scanner skips malformed lines at the wire level, so the
-// reachable in-band error path exercised here is the post-hook failure.
-func TestOllamaStreamMalformedInBandError(t *testing.T) {
+// TestOllamaStreamSkipsMalformedNDJSON verifies that the NDJSON scanner skips
+// malformed lines (json.Valid failure) without surfacing an in-band error chunk.
+func TestOllamaStreamSkipsMalformedNDJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/x-ndjson")
 		w.Write([]byte(`{"model":"llama3","message":{"role":"assistant","content":"hello"},"done":false}` + "\n"))
-		w.Write([]byte(`{"model":"llama3","message":{"role":"assistant","content":"world"},"done":false}` + "\n"))
+		w.Write([]byte(`{not json` + "\n"))
 		w.Write([]byte(`{"done":true}` + "\n"))
 	}))
 	defer srv.Close()
@@ -175,7 +165,7 @@ func TestOllamaStreamMalformedInBandError(t *testing.T) {
 	p, _ := New("ollama", translation.NewRegistry())
 	p.config.BaseURL = srv.URL
 
-	ch, perr := p.ChatCompletionStream(&schemas.GatewayContext{}, errorHook{}, schemas.Key{Value: ""}, &schemas.ChatRequest{Model: "llama3"})
+	ch, perr := p.ChatCompletionStream(&schemas.GatewayContext{}, nil, schemas.Key{Value: ""}, &schemas.ChatRequest{Model: "llama3"})
 	if perr != nil {
 		t.Fatalf("ChatCompletionStream error: %v", perr.Message)
 	}
@@ -191,9 +181,9 @@ func TestOllamaStreamMalformedInBandError(t *testing.T) {
 		}
 	}
 	if contentCount != 1 {
-		t.Errorf("content chunks = %d, want 1 (stream must stop after failed hook)", contentCount)
+		t.Errorf("content chunks = %d, want 1 (valid chunk before malformed line)", contentCount)
 	}
-	if errCount != 1 {
-		t.Errorf("error chunks = %d, want 1 (hook error must be surfaced)", errCount)
+	if errCount != 0 {
+		t.Errorf("error chunks = %d, want 0 (malformed NDJSON must be silently skipped)", errCount)
 	}
 }
