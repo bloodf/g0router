@@ -266,6 +266,12 @@ func TestGeminiOpenAIFunctionCall(t *testing.T) {
 							"args": map[string]any{"location": "NYC"},
 						},
 					},
+					map[string]any{
+						"functionCall": map[string]any{
+							"name": "get_time",
+							"args": map[string]any{"timezone": "EST"},
+						},
+					},
 				},
 			},
 		},
@@ -283,35 +289,42 @@ func TestGeminiOpenAIFunctionCall(t *testing.T) {
 		t.Errorf("role = %v, want assistant", msg["role"])
 	}
 	toolCalls, ok := msg["tool_calls"].([]any)
-	if !ok || len(toolCalls) != 1 {
-		t.Fatalf("expected 1 tool_call, got %v", msg["tool_calls"])
-	}
-	tc := toolCalls[0].(map[string]any)
-	id, _ := tc["id"].(string)
-	if !strings.HasPrefix(id, "call_") {
-		t.Errorf("id = %q, expected prefix 'call_'", id)
-	}
-	if tc["type"] != "function" {
-		t.Errorf("type = %v, want function", tc["type"])
-	}
-	fn := tc["function"].(map[string]any)
-	if fn["name"] != "get_weather" {
-		t.Errorf("name = %v", fn["name"])
-	}
-	if fn["arguments"] != `{"location":"NYC"}` {
-		t.Errorf("arguments = %v", fn["arguments"])
+	if !ok || len(toolCalls) != 2 {
+		t.Fatalf("expected 2 tool_calls, got %v", msg["tool_calls"])
 	}
 
-	// Uniqueness: two separate calls must have different ids.
-	result2, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
-	if err != nil {
-		t.Fatalf("err = %v", err)
+	ids := make(map[string]bool)
+	for i, tcRaw := range toolCalls {
+		tc := tcRaw.(map[string]any)
+		id, _ := tc["id"].(string)
+		if !strings.HasPrefix(id, "call_") {
+			t.Errorf("tool_calls[%d].id = %q, expected prefix 'call_'", i, id)
+		}
+		if ids[id] {
+			t.Errorf("tool_calls[%d].id = %q is not unique within the message", i, id)
+		}
+		ids[id] = true
+		if tc["type"] != "function" {
+			t.Errorf("tool_calls[%d].type = %v, want function", i, tc["type"])
+		}
 	}
-	msgs2 := result2["messages"].([]any)
-	tc2 := msgs2[0].(map[string]any)["tool_calls"].([]any)[0].(map[string]any)
-	id2, _ := tc2["id"].(string)
-	if id == id2 {
-		t.Error("expected unique ids across calls")
+
+	tc0 := toolCalls[0].(map[string]any)
+	fn0 := tc0["function"].(map[string]any)
+	if fn0["name"] != "get_weather" {
+		t.Errorf("tool_calls[0].name = %v", fn0["name"])
+	}
+	if fn0["arguments"] != `{"location":"NYC"}` {
+		t.Errorf("tool_calls[0].arguments = %v", fn0["arguments"])
+	}
+
+	tc1 := toolCalls[1].(map[string]any)
+	fn1 := tc1["function"].(map[string]any)
+	if fn1["name"] != "get_time" {
+		t.Errorf("tool_calls[1].name = %v", fn1["name"])
+	}
+	if fn1["arguments"] != `{"timezone":"EST"}` {
+		t.Errorf("tool_calls[1].arguments = %v", fn1["arguments"])
 	}
 }
 

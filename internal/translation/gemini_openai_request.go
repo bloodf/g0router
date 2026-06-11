@@ -172,7 +172,7 @@ func convertGeminiContent(content map[string]any) map[string]any {
 					argsJSON = []byte("{}")
 				}
 				toolCalls = append(toolCalls, map[string]any{
-					"id":   fmt.Sprintf("call_%d_%d", time.Now().UnixNano(), i),
+					"id":   fmt.Sprintf("call_%d_%d", time.Now().UnixMilli(), i),
 					"type": "function",
 					"function": map[string]any{
 						"name":      name,

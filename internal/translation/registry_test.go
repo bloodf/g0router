@@ -647,9 +647,9 @@ func TestRegistryWiresGeminiClientRequest(t *testing.T) {
 	if req1 == nil {
 		t.Fatal("expected gemini->openai request translator")
 	}
-	want1 := reflect.ValueOf(RequestTranslator(geminiToOpenAIRequest)).Pointer()
-	got1 := reflect.ValueOf(req1).Pointer()
-	if got1 != want1 {
+	wantReq1 := reflect.ValueOf(RequestTranslator(geminiToOpenAIRequest)).Pointer()
+	gotReq1 := reflect.ValueOf(req1).Pointer()
+	if gotReq1 != wantReq1 {
 		t.Error("gemini->openai request translator is not geminiToOpenAIRequest")
 	}
 
@@ -657,17 +657,29 @@ func TestRegistryWiresGeminiClientRequest(t *testing.T) {
 	if req2 == nil {
 		t.Fatal("expected gemini-cli->openai request translator")
 	}
-	want2 := reflect.ValueOf(RequestTranslator(geminiToOpenAIRequest)).Pointer()
-	got2 := reflect.ValueOf(req2).Pointer()
-	if got2 != want2 {
+	wantReq2 := reflect.ValueOf(RequestTranslator(geminiToOpenAIRequest)).Pointer()
+	gotReq2 := reflect.ValueOf(req2).Pointer()
+	if gotReq2 != wantReq2 {
 		t.Error("gemini-cli->openai request translator is not geminiToOpenAIRequest")
 	}
 
-	// Response translators on those pairs must remain unchanged.
-	if reg.ResponseTranslatorFor(FormatGemini, FormatOpenAI) == nil {
-		t.Error("gemini->openai response translator should still be wired")
+	resp1 := reg.ResponseTranslatorFor(FormatGemini, FormatOpenAI)
+	if resp1 == nil {
+		t.Fatal("expected gemini->openai response translator")
 	}
-	if reg.ResponseTranslatorFor(FormatGeminiCLI, FormatOpenAI) == nil {
-		t.Error("gemini-cli->openai response translator should still be wired")
+	wantResp1 := reflect.ValueOf(ResponseTranslator(geminiToOpenAIResponse)).Pointer()
+	gotResp1 := reflect.ValueOf(resp1).Pointer()
+	if gotResp1 != wantResp1 {
+		t.Error("gemini->openai response translator is not geminiToOpenAIResponse")
+	}
+
+	resp2 := reg.ResponseTranslatorFor(FormatGeminiCLI, FormatOpenAI)
+	if resp2 == nil {
+		t.Fatal("expected gemini-cli->openai response translator")
+	}
+	wantResp2 := reflect.ValueOf(ResponseTranslator(geminiToOpenAIResponse)).Pointer()
+	gotResp2 := reflect.ValueOf(resp2).Pointer()
+	if gotResp2 != wantResp2 {
+		t.Error("gemini-cli->openai response translator is not geminiToOpenAIResponse")
 	}
 }
