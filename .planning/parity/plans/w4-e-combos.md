@@ -1,22 +1,24 @@
 # w4-e — Combo chains
 
-Rows: PAR-ROUTE-001 (ordered-model fallback strategy, `open-sse/services/combo.js:108-198,151-170`), PAR-ROUTE-002 (round-robin + sticky limit, `combo.js:36-65`), PAR-ROUTE-003 (per-combo strategy override), PAR-ROUTE-004 (name validation alphanum/hyphen/underscore), PAR-ROUTE-011 (recursive resolution protection), PAR-ROUTE-024 (transient 502/503/504 cooldown wait ≤5s, `combo.js:161-165`), PAR-ROUTE-046 (earliest retry-after across combo models), PAR-ROUTE-047 (combo names first in /v1/models) + PAR-PR-648 (reset combo rotation state on combo definition change). Frozen ref @ 827e5c3. Depends: w4-a (alias resolution), w4-b (classifier), w4-c (locks), w4-d (selection) ALL MERGED. Sticky normalization note (matrix): `normalizeStickyLimit` defaults to 1 if invalid (`combo.js:14-17`).
+Rows: PAR-ROUTE-001 (ordered-model fallback strategy, `open-sse/services/combo.js:108-198,151-170`), PAR-ROUTE-002 (round-robin + sticky, `combo.js:36-65`; rotation state is an in-memory Map reset on restart — NOT TTL), PAR-ROUTE-003 (per-combo strategy override), PAR-ROUTE-004 (combo name validation, API-route behavior), PAR-ROUTE-011 (recursive resolution protection), PAR-ROUTE-024 (transient 502/503/504 cooldown ≤5s, `combo.js:161-165`), PAR-ROUTE-046 (earliest retry-after across combo models), PAR-ROUTE-047 (combo names first in /v1/models) + PAR-PR-648 (`PARITY.md` "Reset models state on combo prop change"). Frozen ref @ 827e5c3. Depends: w4-a,b,c,d MERGED.
 
-## Tasks (tests FIRST each)
-1. Store (`internal/store/combos.go` NEW + migrate): combos table (name UNIQUE w/ validation PAR-ROUTE-004 regex from ref, ordered model list JSON, strategy, sticky_limit). CRUD + name-validation. Tests: `TestComboCRUD`, `TestComboNameValidation` (valid/invalid sets from ref), `TestMigrationAdditiveRerun2`.
-2. Combo engine (`internal/inference/combo.go` NEW): `ResolveCombo(name)` returns ordered targets; RECURSION protection (combo→combo refs resolved with visited-set, PAR-ROUTE-011); fallback strategy = try models in order, on failure-class advance (uses w4-d account-fallback per model); round-robin strategy w/ sticky counter (in-memory TTL state; `normalizeStickyLimit` default 1); transient-error cooldown wait ≤5s before next (024); earliest retry-after aggregation across models (046); rotation state RESET when combo definition changes (PR-648 — keyed by a definition hash). Injected clock. Tests: `TestComboFallbackOrder`, `TestComboRoundRobinSticky` (limit + normalization default 1), `TestComboRecursionGuard`, `TestComboTransientCooldownCap5s`, `TestComboEarliestRetryAfter`, `TestComboStateResetOnChange` (PR-648), `-race` on concurrent combo selection.
-3. /v1/models promotion (047): combo names listed FIRST in the models list (`internal/api/models.go` TOUCH — after w4-c's filter; coordinate serial). Test: `TestModelsListCombosFirst`.
+Storage model (per ref): combos themselves = data `{name, models[]}` (`combo.js:87-89`). Strategy/sticky live in SETTINGS, NOT on the combo row: `settings["comboStrategy"]` (default "fallback"|"round-robin"), `settings["comboStrategies"]` (per-combo override map), `settings["comboStickyRoundRobinLimit"]` (default 1 via `normalizeStickyLimit`, `combo.js:14-17`).
+
+## Tasks (STEP (a) failing tests FIRST; STEP (b) implement)
+1. **Store** (`internal/store/combos.go` NEW + migrate). (a) `TestComboCRUD` ({name, models[]} only — NO strategy column), `TestMigrationAdditiveRerun2`. (b) combos table {name UNIQUE, models JSON}; CRUD repository-only (validation is task 3's API layer).
+2. **Combo engine** (`internal/inference/combo.go` NEW). (a) `TestComboFallbackOrder`, `TestComboRoundRobinSticky` (sticky from settings; `normalizeStickyLimit` default 1 for invalid), `TestComboRecursionGuard` (011, visited-set), `TestComboTransientCooldownCap5s` (024), `TestComboEarliestRetryAfter` (046), `TestComboStateResetOnChange` (PR-648, keyed by definition hash), `-race`. (b) `ResolveCombo(name)` ordered targets w/ recursion guard; strategies read from settings keys above; fallback uses w4-d `WithAccountFallback` per model; round-robin rotation = in-memory `map[string]int` reset on restart (matches ref Map, NO TTL); transient cooldown wait ≤5s; earliest retry-after aggregation; rotation state reset when the combo's models/definition hash changes (PR-648).
+3. **Name validation + /v1/models promotion** (`internal/admin/combos.go` handler + `internal/api/models.go` TOUCH). (a) `TestComboNameValidation` (valid/invalid sets — alphanumeric/hyphen/underscore, the API-route rule PAR-ROUTE-004), `TestModelsListCombosFirst` (047). (b) combo CRUD API validates names; /v1/models lists combo names first.
 
 ## Preconditions
 - `grep -c 'func SelectConnection\|func WithAccountFallback' internal/inference/selection.go` ≥ 1 (w4-d merged).
-- `grep -rn 'combo' internal/ --include='*.go'` (non-test) → 0 hits (new).
+- `grep -rn 'combo' internal/ --include='*.go'` (non-test) → 0 hits.
 
 ## Exclusive file ownership
-NEW: `internal/store/combos.go`+test, `internal/inference/combo.go`+test. TOUCH: `internal/store/migrate.go`, `internal/api/models.go`+test (promotion only). NOT: selection/accounts internals, handler dispatch (w4-f wires combos into the chat path).
+NEW: `internal/store/combos.go`+test, `internal/inference/combo.go`+test, `internal/admin/combos.go`+test. TOUCH: `internal/store/migrate.go`, `internal/store/settings.go` (combo* keys — AFTER w4-d merges, serial on settings.go), `internal/api/models.go`+test (promotion only), `internal/server/routes_admin.go` (combo routes).
 
 ## Binary acceptance
 - `go test ./... && go vet ./... && go test -race ./internal/inference/` green.
-- `TestComboRecursionGuard`, `TestComboStateResetOnChange`, `TestComboTransientCooldownCap5s`, `TestModelsListCombosFirst` pass; sticky default-1 pinned.
+- TestComboRecursionGuard, TestComboStateResetOnChange, TestComboTransientCooldownCap5s, TestModelsListCombosFirst pass; sticky default-1 + settings-based strategy storage asserted; combos table has NO strategy column.
 
 ## Out of scope
-Combo UI + PAR-PR-339 (Wave 6). Per-key quotas (W5). Handler wiring (w4-f).
+Combo UI + PAR-PR-339 (Wave 6). Per-key quotas (W5). Handler dispatch of combos into the chat path (w4-f).
