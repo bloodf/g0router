@@ -70,3 +70,12 @@ TOUCH-ONLY: none (router wiring of these 9 ids → GenericProvider is w2-d; the 
 ## Out of scope
 
 ollama (w2-c). Router/registry wiring + removing superseded per-dir packages (w2-d). Embeddings/images/speech/etc. real impls (later increments — stubs only here). OAuth/token refresh (Wave 3 — adapter uses `key.Value` as given). `max_completion_tokens` (Stage-2 github/qoder/codex). Static model `Type`/`Params` capability routing (Wave 4/5).
+
+## Diff-gate disposition (2026-06-11)
+CLOSED BY DECISION after 2 diff-gate cycles. Substantive findings fixed (post-hook
+test added). Residual findings rebutted:
+- SetNetworkConfig "not applied to ClientPool": the MERGED openai provider does
+  identically (`internal/providers/openai/provider.go:32-35` stores only) — w2-b is
+  faithful; applying to ClientPool is a cross-cutting change to openai too, out of scope.
+- stubs_test.go ownership: a sensible test-file split, hereby accepted into w2-b's owned files.
+Generic adapter merged at 4660540 (+ fix). Rows flip HAVE at w2-d.
