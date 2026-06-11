@@ -25,7 +25,7 @@ In-repo integration points: `internal/admin/auth.go:29` (`Login` handler — ext
   PBKDF2 path unchanged. (`SeedAdmin` `session.go:32-48` is unchanged — it seeds a
   hashed password; the empty-hash state arises from the reset CLI below.)
 - **Auth mode** (`login/route.js:40-41`, `status/route.js:13`): settings key
-  `authMode` ∈ {"password","oidc","both"} (default "password"). If `authMode=="oidc"`
+  `auth_mode` (g0router snake_case settings convention — existing keys default_model/log_level/oidc_client_id; the ref's camelCase `settings.authMode` maps to this) ∈ {"password","oidc","both"} (default "password"). If `authMode=="oidc"`
   AND OIDC is configured → password login returns 403 "Password login is disabled.
   Use OIDC sign in." (PAR-AUTH-015). Stage-1 note: OIDC config lands in w3-c — until then
   `oidcConfigured()` is a helper returning whether the OIDC settings keys are
