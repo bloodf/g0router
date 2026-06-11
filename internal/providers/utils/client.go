@@ -1,12 +1,21 @@
 package utils
 
 import (
+	"fmt"
+	"net/url"
+	"sync"
+
 	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpproxy"
+	"golang.org/x/net/http/httpproxy"
 )
 
 // ClientPool wraps a fasthttp.Client with common configuration.
 type ClientPool struct {
-	client *fasthttp.Client
+	client    *fasthttp.Client
+	proxyFunc func(*url.URL) (*url.URL, error)
+	mu        sync.Mutex
+	proxies   map[string]*fasthttp.Client
 }
 
 // NewClientPool creates a shared fasthttp client with sensible defaults.
@@ -20,12 +29,54 @@ func NewClientPool() *ClientPool {
 			DisablePathNormalizing:        true,
 			DisableHeaderNamesNormalizing: true,
 		},
+		proxyFunc: httpproxy.FromEnvironment().ProxyFunc(),
+		proxies:   make(map[string]*fasthttp.Client),
 	}
 }
 
 // Do executes an HTTP request and populates the response.
 func (p *ClientPool) Do(req *fasthttp.Request, resp *fasthttp.Response) error {
-	return p.client.Do(req, resp)
+	uri := req.URI()
+	scheme := string(uri.Scheme())
+	if scheme == "" {
+		scheme = "http"
+	}
+	target := &url.URL{Scheme: scheme, Host: string(uri.Host())}
+
+	proxyURL, err := p.proxyFunc(target)
+	if err != nil {
+		return fmt.Errorf("resolve proxy for %s: %w", target, err)
+	}
+	if proxyURL == nil {
+		return p.client.Do(req, resp)
+	}
+
+	client := p.clientForProxy(proxyURL.String())
+	if err := client.Do(req, resp); err != nil {
+		return fmt.Errorf("do via proxy %s: %w", proxyURL, err)
+	}
+	return nil
+}
+
+func (p *ClientPool) clientForProxy(proxyURL string) *fasthttp.Client {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if c, ok := p.proxies[proxyURL]; ok {
+		return c
+	}
+
+	c := &fasthttp.Client{
+		MaxConnsPerHost:               100,
+		ReadTimeout:                   120000000000, // 120s
+		WriteTimeout:                  30000000000,  // 30s
+		MaxIdleConnDuration:           60000000000,  // 60s
+		DisablePathNormalizing:        true,
+		DisableHeaderNamesNormalizing: true,
+		Dial:                          fasthttpproxy.FasthttpHTTPDialer(proxyURL),
+	}
+	p.proxies[proxyURL] = c
+	return c
 }
 
 // AcquireRequest returns a pooled fasthttp.Request.

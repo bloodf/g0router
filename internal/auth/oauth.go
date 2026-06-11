@@ -127,7 +127,10 @@ type OAuthFlow struct {
 // NewOAuthFlow creates a flow. client may be nil to use a default HTTP client.
 func NewOAuthFlow(cfg OAuthConfig, st *store.Store, client *http.Client) *OAuthFlow {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: &http.Transport{Proxy: http.ProxyFromEnvironment},
+		}
 	}
 	return &OAuthFlow{cfg: cfg, store: st, client: client}
 }
