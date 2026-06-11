@@ -128,6 +128,18 @@
         "internal/translation/registry.go",
         "internal/translation/registry_test.go"
       ]
+    },
+    "w1-j-cursor-pair": {
+      "base": "82e88bd^",
+      "end": "82e88bd",
+      "paths": [
+        "internal/translation/openai_cursor_request.go",
+        "internal/translation/openai_cursor_request_test.go",
+        "internal/translation/cursor_openai_response.go",
+        "internal/translation/cursor_openai_response_test.go",
+        "internal/translation/registry.go",
+        "internal/translation/registry_test.go"
+      ]
     }
   }
 }
