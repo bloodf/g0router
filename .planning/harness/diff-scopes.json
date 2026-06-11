@@ -214,6 +214,19 @@
         "internal/providers/ollama/chat_test.go",
         "internal/providers/ollama/stubs_test.go"
       ]
+    },
+    "w2-d-catalog-router": {
+      "base": "e6d091c^",
+      "end": "e6d091c",
+      "paths": [
+        "internal/inference/factory.go",
+        "internal/inference/factory_test.go",
+        "internal/inference/router.go",
+        "internal/inference/router_test.go",
+        "internal/api/models.go",
+        "internal/api/models_test.go",
+        "internal/server/server.go"
+      ]
     }
   }
 }
