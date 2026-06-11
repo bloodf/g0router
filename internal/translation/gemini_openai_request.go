@@ -143,6 +143,10 @@ func jsTruthy(v any) bool {
 		return val != 0
 	case float64:
 		return val != 0
+	case map[string]any:
+		return len(val) > 0
+	case []any:
+		return len(val) > 0
 	default:
 		return true
 	}
@@ -236,11 +240,15 @@ func convertGeminiContent(content map[string]any) map[string]any {
 					if respMap, ok := resp.(map[string]any); ok {
 						if result, ok := respMap["result"]; ok && jsTruthy(result) {
 							contentVal = result
-						} else {
+						} else if jsTruthy(respMap) {
 							contentVal = respMap
+						} else {
+							contentVal = map[string]any{}
 						}
-					} else {
+					} else if jsTruthy(resp) {
 						contentVal = resp
+					} else {
+						contentVal = map[string]any{}
 					}
 				} else {
 					contentVal = map[string]any{}

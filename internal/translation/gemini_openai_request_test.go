@@ -624,6 +624,145 @@ func TestGeminiOpenAIFunctionResponse(t *testing.T) {
 			t.Errorf("content raw = %v, want value", parsed["raw"])
 		}
 	})
+
+	t.Run("response 0 falls back to {}", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_9",
+								"response": 0,
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		if msg["content"] != "{}" {
+			t.Errorf("content = %v, want '{}'", msg["content"])
+		}
+	})
+
+	t.Run("response false falls back to {}", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_10",
+								"response": false,
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		if msg["content"] != "{}" {
+			t.Errorf("content = %v, want '{}'", msg["content"])
+		}
+	})
+
+	t.Run("response empty string falls back to {}", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_11",
+								"response": "",
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		if msg["content"] != "{}" {
+			t.Errorf("content = %v, want '{}'", msg["content"])
+		}
+	})
+
+	t.Run("response empty map falls back to {}", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_12",
+								"response": map[string]any{},
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		if msg["content"] != "{}" {
+			t.Errorf("content = %v, want '{}'", msg["content"])
+		}
+	})
+
+	t.Run("response truthy map no result passes through", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_13",
+								"response": map[string]any{"x": 1},
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(msg["content"].(string)), &parsed); err != nil {
+			t.Fatalf("content not valid JSON: %v", err)
+		}
+		if parsed["x"] != float64(1) {
+			t.Errorf("content x = %v, want 1", parsed["x"])
+		}
+	})
 }
 
 func TestGeminiOpenAITools(t *testing.T) {
