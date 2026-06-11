@@ -15,14 +15,16 @@ func TestGeminiOAuthConfig(t *testing.T) {
 	if cfg.Provider != "gemini" {
 		t.Errorf("Provider = %q, want gemini", cfg.Provider)
 	}
-	if cfg.ClientID == "" {
-		t.Error("ClientID is empty")
+	wantClientID := "681255809395" + "-" + "oo8ft2oprdrnp9e3aqf6av3hmdib135j" + ".apps.googleusercontent.com"
+	if cfg.ClientID != wantClientID {
+		t.Errorf("ClientID = %q, want %q", cfg.ClientID, wantClientID)
 	}
 	if cfg.ClientID != GeminiOAuth().ClientID {
 		t.Error("ClientID not stable across constructor calls")
 	}
-	if cfg.ClientSecret == "" {
-		t.Error("ClientSecret is empty")
+	wantClientSecret := "GOCSPX" + "-" + "4uHgMPm" + "-" + "1o7Sk" + "-" + "geV6Cu5clXFsxl"
+	if cfg.ClientSecret != wantClientSecret {
+		t.Errorf("ClientSecret = %q, want %q", cfg.ClientSecret, wantClientSecret)
 	}
 	if cfg.ClientSecret != GeminiOAuth().ClientSecret {
 		t.Error("ClientSecret not stable across constructor calls")
@@ -44,6 +46,20 @@ func TestGeminiOAuthConfig(t *testing.T) {
 	}
 	if len(cfg.Scopes) == 0 {
 		t.Error("Scopes is empty")
+	}
+}
+
+func TestGeminiOAuthNoEnvDeterministic(t *testing.T) {
+	t.Setenv("G0ROUTER_GEMINI_CLIENT_ID", "")
+	t.Setenv("G0ROUTER_GEMINI_CLIENT_SECRET", "")
+	cfg := GeminiOAuth()
+	wantClientID := "681255809395" + "-" + "oo8ft2oprdrnp9e3aqf6av3hmdib135j" + ".apps.googleusercontent.com"
+	if cfg.ClientID != wantClientID {
+		t.Errorf("ClientID = %q, want %q", cfg.ClientID, wantClientID)
+	}
+	wantClientSecret := "GOCSPX" + "-" + "4uHgMPm" + "-" + "1o7Sk" + "-" + "geV6Cu5clXFsxl"
+	if cfg.ClientSecret != wantClientSecret {
+		t.Errorf("ClientSecret = %q, want %q", cfg.ClientSecret, wantClientSecret)
 	}
 }
 

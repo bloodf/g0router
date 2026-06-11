@@ -15,12 +15,6 @@ func newTestLimiter(t *testing.T) (*LoginLimiter, func() time.Time) {
 	return l, func() time.Time { return now }
 }
 
-func advance(t *testing.T, getNow func() time.Time, d time.Duration) {
-	t.Helper()
-	// We can't modify the closure's captured variable from outside easily,
-	// so we'll use a pointer-based approach in the actual limiter tests.
-}
-
 func TestLimiterLocksAfterFiveFails(t *testing.T) {
 	now := time.Now()
 	l := NewLoginLimiter()

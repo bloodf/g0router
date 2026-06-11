@@ -70,7 +70,9 @@ func (r *CredentialResolver) ResolveKey(providerID string) (schemas.Key, map[str
 	// Parse provider-specific data from metadata.
 	psd := map[string]string{}
 	if conn.Metadata != "" {
-		_ = json.Unmarshal([]byte(conn.Metadata), &psd)
+		if err := json.Unmarshal([]byte(conn.Metadata), &psd); err != nil {
+			return schemas.Key{}, nil, fmt.Errorf("parse provider metadata: %w", err)
+		}
 	}
 
 	// Refresh if needed.
@@ -83,7 +85,9 @@ func (r *CredentialResolver) ResolveKey(providerID string) (schemas.Key, map[str
 		// Re-parse psd after refresh.
 		psd = map[string]string{}
 		if conn.Metadata != "" {
-			_ = json.Unmarshal([]byte(conn.Metadata), &psd)
+			if err := json.Unmarshal([]byte(conn.Metadata), &psd); err != nil {
+				return schemas.Key{}, nil, fmt.Errorf("parse provider metadata: %w", err)
+			}
 		}
 	}
 
@@ -146,7 +150,10 @@ func (r *CredentialResolver) refreshAndPersist(providerType string, conn *store.
 		RefreshToken: token.RefreshToken,
 		ExpiresAt:    token.ExpiresAt,
 	}
-	merged := mergeRefreshedCredentials(conn, refreshed)
+	merged, err := mergeRefreshedCredentials(conn, refreshed)
+	if err != nil {
+		return nil, fmt.Errorf("merge refreshed credentials: %w", err)
+	}
 
 	if err := r.store.UpdateConnection(merged); err != nil {
 		return nil, fmt.Errorf("persist refreshed connection: %w", err)
@@ -157,7 +164,7 @@ func (r *CredentialResolver) refreshAndPersist(providerType string, conn *store.
 // mergeRefreshedCredentials overlays refreshed token fields onto current.
 // Rules: access_token overwritten; empty new refresh_token preserves old;
 // expires_at overwritten when non-zero; providerSpecificData shallow-merged.
-func mergeRefreshedCredentials(current, refreshed *store.Connection) *store.Connection {
+func mergeRefreshedCredentials(current, refreshed *store.Connection) (*store.Connection, error) {
 	out := *current
 	out.AccessToken = refreshed.AccessToken
 	if refreshed.RefreshToken != "" {
@@ -170,19 +177,26 @@ func mergeRefreshedCredentials(current, refreshed *store.Connection) *store.Conn
 	// Shallow-merge provider-specific data from metadata.
 	psd := map[string]string{}
 	if current.Metadata != "" {
-		_ = json.Unmarshal([]byte(current.Metadata), &psd)
+		if err := json.Unmarshal([]byte(current.Metadata), &psd); err != nil {
+			return nil, fmt.Errorf("parse provider metadata: %w", err)
+		}
 	}
 	newPSD := map[string]string{}
 	if refreshed.Metadata != "" {
-		_ = json.Unmarshal([]byte(refreshed.Metadata), &newPSD)
+		if err := json.Unmarshal([]byte(refreshed.Metadata), &newPSD); err != nil {
+			return nil, fmt.Errorf("parse provider metadata: %w", err)
+		}
 	}
 	for k, v := range newPSD {
 		psd[k] = v
 	}
 	if len(psd) > 0 {
-		b, _ := json.Marshal(psd)
+		b, err := json.Marshal(psd)
+		if err != nil {
+			return nil, fmt.Errorf("marshal provider metadata: %w", err)
+		}
 		out.Metadata = string(b)
 	}
 
-	return &out
+	return &out, nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -103,7 +104,10 @@ func TestRefreshSingleFlight(t *testing.T) {
 func TestMergePreservesRefreshTokenWhenEmpty(t *testing.T) {
 	current := &store.Connection{AccessToken: "at-old", RefreshToken: "rt-old", ExpiresAt: 100}
 	refreshed := &store.Connection{AccessToken: "at-new", RefreshToken: "", ExpiresAt: 200}
-	merged := mergeRefreshedCredentials(current, refreshed)
+	merged, err := mergeRefreshedCredentials(current, refreshed)
+	if err != nil {
+		t.Fatalf("mergeRefreshedCredentials: %v", err)
+	}
 	if merged.AccessToken != "at-new" {
 		t.Errorf("AccessToken = %q, want at-new", merged.AccessToken)
 	}
@@ -124,7 +128,10 @@ func TestMergeProviderSpecificData(t *testing.T) {
 		AccessToken: "at-new",
 		Metadata:    `{"baseUrl":"http://new"}`,
 	}
-	merged := mergeRefreshedCredentials(current, refreshed)
+	merged, err := mergeRefreshedCredentials(current, refreshed)
+	if err != nil {
+		t.Fatalf("mergeRefreshedCredentials: %v", err)
+	}
 	var psd map[string]string
 	if err := json.Unmarshal([]byte(merged.Metadata), &psd); err != nil {
 		t.Fatalf("unmarshal metadata: %v", err)
@@ -188,5 +195,60 @@ func TestResolveKeyPersistsRefreshed(t *testing.T) {
 	}
 	if psd == nil {
 		t.Errorf("psd is nil")
+	}
+}
+
+func TestResolveKeyInvalidMetadataErrors(t *testing.T) {
+	st := newTestStore(t)
+	resolver := NewCredentialResolver(st, nil)
+
+	st.CreateProvider(&store.ProviderRecord{Name: "Test", Type: "test", Enabled: true})
+	providers, _ := st.ListProviders()
+	provider := providers[0]
+
+	conn := &store.Connection{
+		ProviderID:  provider.ID,
+		Name:        "test",
+		Kind:        "oauth",
+		AccessToken: "at",
+		Metadata:    `{"invalid`,
+	}
+	st.CreateConnection(conn)
+
+	_, _, err := resolver.ResolveKey(provider.ID)
+	if err == nil {
+		t.Fatal("expected error for invalid metadata")
+	}
+	if !strings.Contains(err.Error(), "parse provider metadata") {
+		t.Fatalf("error = %q, want to contain 'parse provider metadata'", err.Error())
+	}
+}
+
+func TestResolveKeyEmptyMetadataOK(t *testing.T) {
+	st := newTestStore(t)
+	resolver := NewCredentialResolver(st, nil)
+
+	st.CreateProvider(&store.ProviderRecord{Name: "Test", Type: "test", Enabled: true})
+	providers, _ := st.ListProviders()
+	provider := providers[0]
+
+	conn := &store.Connection{
+		ProviderID:  provider.ID,
+		Name:        "test",
+		Kind:        "oauth",
+		AccessToken: "at",
+		Metadata:    "",
+	}
+	st.CreateConnection(conn)
+
+	key, psd, err := resolver.ResolveKey(provider.ID)
+	if err != nil {
+		t.Fatalf("ResolveKey: %v", err)
+	}
+	if key.Value != "at" {
+		t.Errorf("key.Value = %q, want at", key.Value)
+	}
+	if len(psd) != 0 {
+		t.Errorf("psd = %v, want empty", psd)
 	}
 }

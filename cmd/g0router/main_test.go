@@ -1,7 +1,10 @@
 package main
 
 import (
+	"io"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,9 +36,21 @@ func TestResetPasswordCLI(t *testing.T) {
 
 	st.Close()
 
-	// Run reset-password logic.
-	if err := resetPassword(dir); err != nil {
+	// Capture stdout during reset.
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err = resetPassword(dir)
+
+	w.Close()
+	os.Stdout = oldStdout
+	if err != nil {
 		t.Fatalf("resetPassword: %v", err)
+	}
+	out, _ := io.ReadAll(r)
+	if !strings.Contains(string(out), "Password reset to default.") {
+		t.Fatalf("reset output = %q, want to contain 'Password reset to default.'", string(out))
 	}
 
 	// Re-open store to verify reset.
