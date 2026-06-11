@@ -8,7 +8,7 @@ Frozen ref (@ 827e5c3), read whole before porting:
 
 ## Preconditions (a "0 hits" grep exits 1 — that IS the pass)
 
-- `grep -rn 'package catalog' internal/providers/catalog/` → 0 hits (new package)
+- `test ! -d internal/providers/catalog` (the package directory does not yet exist) — exit 0 means absent, the pass condition
 - `grep -n 'ProviderDeepSeek\|ProviderGroq\|ProviderOpenRouter' internal/schemas/provider.go` → present (constants exist :11-22; openrouter :21)
 - `grep -rn 'providerModels\|ProviderCatalog\|ModelCatalog' internal/providers/` → 0 hits (no prior catalog)
 
@@ -19,7 +19,7 @@ TOUCH-ONLY: none (pure new package; no registry/router change here — that is w
 
 ## Tasks (STEP (a) write named failing tests; STEP (b) port)
 
-1. **Provider config struct + entries** (`catalog.go`), port the 10 entries from `providers.js`:
+1. **Provider config struct + entries** (`catalog.go`) — the Go port of the ref's `PROVIDERS` map (`providers.js:50-438`). `Providers` IS that map; `Lookup` is the idiomatic Go accessor for what the ref does as `PROVIDERS[provider]` (`base.js getBaseUrls/buildHeaders` read it); `ResolveOllamaHost` IS the ref's exported `resolveOllamaLocalHost` (`:442-445`). No invented abstraction — same data + accessors as the ref. Port the entries:
    - `type ProviderConfig struct { Name string; BaseURL string; Format string; Headers map[string]string; AuthHeader string; NoAuth bool }` — `Format` ∈ {"openai","ollama"} for Stage-1; `AuthHeader` default "" means bearer `Authorization` (all Stage-1 providers are bearer or no-auth; ollama/ollama-local NoAuth; none use x-api-key in this set). **xai (PAR-PROV-027):** the ref carries OAuth fields `clientId`/`tokenUrl`/`refreshUrl` (`providers.js:273-280`), but the Stage-1 ranking includes xai via its API-key (bearer) path only and OAuth is Stage-2 — so the Stage-1 `ProviderConfig` struct intentionally OMITS those fields (the struct gains them in Wave 3 when xai-OAuth lands). Carry only xai's BaseURL/Format/Headers; document the omitted OAuth fields in a code comment citing :273-280.
    - `var Providers = map[string]ProviderConfig{...}` with **11 entries** (the 10 providers, with `ollama` AND `ollama-local` as two separate keys), each BaseURL/Format/Headers byte-exact from the cited `providers.js` lines (e.g. openrouter carries `HTTP-Referer`/`X-Title` headers :118-121; perplexity/groq/etc. have no custom headers; ollama/ollama-local Format "ollama", NoAuth true).
    - `func Lookup(provider string) (ProviderConfig, bool)`.
@@ -37,7 +37,8 @@ TOUCH-ONLY: none (pure new package; no registry/router change here — that is w
 - `go test ./...` exits 0; `go vet ./...` exits 0.
 - `grep -rn 'func init(\|panic(' internal/providers/catalog/` → 0 hits.
 - `go test ./internal/providers/catalog/ -run 'TestLookupKnownProviders|TestModelsForDeepSeek|TestGroqSTTModels' -count=1` passes with >0 tests.
-- `Lookup` returns all 11 keys (10 providers; ollama+ollama-local); `ModelsFor` non-empty for the 9 with static catalogs (deepseek/groq/mistral/cohere/together/fireworks/xai/perplexity + openrouter-or-documented-empty).
+- `Lookup` returns all 11 keys (10 providers; ollama+ollama-local). `ModelsFor` is non-empty for ALL 10 providers (deepseek/groq/mistral/cohere/together/fireworks/xai/perplexity/openrouter/ollama — each has a static `providerModels.js` block).
+- `TestOpenRouterCatalogTypes`: openrouter entries include `Type` "embedding", "tts", AND "image" with `Params` populated (no data loss vs `providerModels.js:302-320`).
 - No HTTP/execution code in this package (pure config/data — adapters are w2-b/c).
 
 ## Out of scope
