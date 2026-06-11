@@ -16,9 +16,14 @@ In-repo integration points: `internal/admin/auth.go:29` (`Login` handler — ext
   plus a reset hint mentioning the CLI reset path (g0router wording).
 - **Client IP** (`loginLimiter.js:48-51`): first entry of `x-forwarded-for`
   (split on ",", trim), else `x-real-ip`, else `"unknown"` (026).
-- **Default password** (`login/route.js:49-50`): when NO password hash is stored in
-  settings, compare against `INITIAL_PASSWORD` env var, default `"123456"` (002).
-  When a hash IS stored, verify via the existing PBKDF2 `VerifyPassword`.
+- **Default password** (`login/route.js:49-50`): the ref keys this on "no stored
+  hash". g0router stores hashes on the `users` table (`internal/store/users.go:14`
+  `PasswordHash`; `internal/auth/session.go:51-61` `Login` → `GetUserByUsername` →
+  `VerifyPassword`). Port the rule into `Sessions.Login`: when
+  `user.PasswordHash == ""`, compare (constant-time, `crypto/subtle`) against
+  `INITIAL_PASSWORD` env var, default `"123456"` (002). Non-empty hash → existing
+  PBKDF2 path unchanged. (`SeedAdmin` `session.go:32-48` is unchanged — it seeds a
+  hashed password; the empty-hash state arises from the reset CLI below.)
 - **Auth mode** (`login/route.js:40-41`, `status/route.js:13`): settings key
   `authMode` ∈ {"password","oidc","both"} (default "password"). If `authMode=="oidc"`
   AND OIDC is configured → password login returns 403 "Password login is disabled.
@@ -27,14 +32,20 @@ In-repo integration points: `internal/admin/auth.go:29` (`Login` handler — ext
   non-empty (keys defined here, populated by w3-c); with no OIDC config, mode "oidc"
   does NOT lock the operator out (the ref's `isOidcConfigured` guard, same line).
   `/api/auth/status` response gains `auth_mode` (snake_case envelope per AGENTS.md).
-- **Reset CLI** (`settings.js:177-204`): a `g0router` CLI action that clears the
-  stored password hash in settings (next login uses the default-password path) and
-  prints confirmation. Go: a subcommand `reset-password` in `cmd/main.go` operating
-  on the data-dir DB directly (no server needed), mirroring the ref's menu action.
+- **Reset CLI** (`settings.js:177-204`): a `g0router reset-password` subcommand in
+  `cmd/main.go` operating on the data-dir DB directly (no server needed): set the
+  admin user's `PasswordHash` to `""` via a NEW store method
+  `SetUserPasswordHash(username, hash string) error` (`internal/store/users.go` —
+  follows CreateUser/GetUserByUsername patterns :20-50), so the next login takes the
+  default-password path (002). Prints "Password reset to default." (014).
 
 ## Conventions (constraints on the worker)
 
-No `init()`, no globals: the limiter is `type LoginLimiter struct { mu sync.Mutex; attempts map[string]*entry; now func() time.Time }` with `NewLoginLimiter()` (injected clock for tests; `now` defaults to `time.Now`). Owned by `internal/admin.Handlers` (constructed where Handlers is built). In-memory per ref ("Resets on process restart" — `loginLimiter.js:1`); do NOT persist. Concurrency-safe (mutex) — fasthttp handlers are concurrent; must pass `-race`.
+Engineering constraints are AGENTS.md conventions (citable project law): "No global
+state — pass dependencies via struct fields", "No mocks — use interfaces and fakes"
+(hence the injected clock as a fake), "TDD always". fasthttp serves requests
+concurrently (as established by the w2-d concurrency finding + fix `f499391`), so
+the shared attempts map requires a mutex and `-race` coverage. The limiter is `type LoginLimiter struct { mu sync.Mutex; attempts map[string]*entry; now func() time.Time }` with `NewLoginLimiter()` (injected clock for tests; `now` defaults to `time.Now`). Owned by `internal/admin.Handlers` (constructed where Handlers is built). In-memory per ref ("Resets on process restart" — `loginLimiter.js:1`); do NOT persist. Concurrency-safe (mutex) — fasthttp handlers are concurrent; must pass `-race`.
 
 ## Preconditions (a "0 hits" grep exits 1 = pass)
 
@@ -46,13 +57,14 @@ No `init()`, no globals: the limiter is `type LoginLimiter struct { mu sync.Mute
 ## Exclusive file ownership
 
 NEW: `internal/auth/limiter.go`, `internal/auth/limiter_test.go`.
-TOUCH: `internal/admin/auth.go` (Login handler: lock check → tunnel-block hook
-point left for w3-b → mode check → default-pw/hash verify → record fail/success;
-Status handler: add auth_mode), `internal/admin/auth_test.go`, `cmd/main.go`
-(+`cmd/main_test.go`) for `reset-password`.
-NOT touched: `internal/auth/session.go`, `password.go`, `oauth.go` (reused as-is);
-the dashboard guard (w3-b); OIDC implementation (w3-c — only the settings-key helper
-`oidcConfigured` is defined here, in `internal/admin/auth.go`).
+TOUCH: `internal/auth/session.go` (default-password fallback inside `Login`),
+`internal/auth/auth_test.go`, `internal/store/users.go` + its tests (NEW
+`SetUserPasswordHash`), `internal/admin/auth.go` (Login handler: ClientIP → lock
+check → mode check → Sessions.Login → record fail/success; Status: add auth_mode),
+`internal/admin/auth_test.go`, `cmd/main.go` + `cmd/main_test.go` (`reset-password`).
+NOT touched: `internal/auth/password.go`, `oauth.go`; the dashboard guard (w3-b —
+row 027 tunnel login block lands there, where that file is owned); OIDC flow (w3-c —
+only the `oidcConfigured` settings-key helper is defined here in admin/auth.go).
 
 ## Tasks (each: STEP (a) write the named failing tests, run, show fail; STEP (b) implement)
 
@@ -78,18 +90,18 @@ the dashboard guard (w3-b); OIDC implementation (w3-c — only the settings-key 
    `TestLoginOidcModeBlocksPassword` (mode oidc + configured keys → 403; mode oidc +
    NOT configured → password still works), `TestStatusReportsAuthMode`.
 
-3. **reset-password CLI** (`cmd/main.go`): subcommand `reset-password` (flag-compatible
-   with existing arg parsing in main.go) — opens the store, clears the password-hash
-   settings key, prints "Password reset to default." Test (`cmd/main_test.go` or a
-   store-level test): `TestResetPasswordClearsHash` (hash set → run → key empty →
-   login takes default-pw path).
+3. **reset-password CLI** (`cmd/main.go`): subcommand `reset-password` — opens the
+   store, `SetUserPasswordHash(adminUsername, "")`, prints "Password reset to
+   default." Tests: store-level `TestSetUserPasswordHash` (users.go) and
+   `TestResetPasswordThenDefaultLogin` (hash cleared → `Sessions.Login` succeeds with
+   "123456").
 
 ## Binary acceptance criteria
 
 - `go test ./...` exits 0; `go vet ./...` exits 0; `go test -race ./internal/auth/ -run 'TestLimiter' -count=1` exits 0.
 - `grep -c 'bcrypt' internal/ -r` → 0 (PBKDF2 kept).
 - `grep -rn 'func init(\|panic(' internal/auth/limiter.go internal/admin/auth.go` → 0 hits.
-- `grep -c '30000\|30_000\|30 \* time.Second' internal/auth/limiter.go` ≥ 1 AND the four steps 30s/2m/10m/30m present (verbatim constants).
+- `TestLimiterProgressiveSteps` proves the exact 30s/2m/10m/30m step durations via the injected clock (behavioral check; no grep proxy).
 - `TestLimiterProgressiveSteps`, `TestLimiterAutoResetAfterWindow`, `TestLoginDefaultPasswordWhenNoHash`, `TestLoginOidcModeBlocksPassword` pass.
 
 ## Out of scope
