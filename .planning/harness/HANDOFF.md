@@ -70,7 +70,7 @@ w0-a..e merged.
 | w1-f cloud envelope | PASS | DONE | CLOSED (decision 2026-06-10) | all behavioral findings fixed |
 | w1-g Responses API | PASS | MERGED 6640b33+ca8274e | PASS (031-038 HAVE) | — |
 | w1-h ollama+commandcode | PASS | MERGED 14c971b+bc6358d | CLEAN (058-061 HAVE) | — |
-| w1-i kiro pair | PASS (v3) | queued | — | rows PAR-TRANS-062/063 added 2026-06-10 |
+| w1-i kiro pair | PASS | MERGED 0347b41+956b09c | CLEAN (062-063 HAVE) | — |
 | w1-j cursor pair | PASS (v3) | queued (dispatch-order: after h+i) | — | rows PAR-TRANS-064/065; protobuf=Wave-2 |
 | w1-k gemini client req | **PASS** (row 066 only) | queued | — | helpers 006/051/052/053 → Wave 4 |
 | w1-l claude pipeline helpers | **PASS** | queued | — | rows PAR-TRANS-022/054/055; _ide suffix |

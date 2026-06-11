@@ -6200,3 +6200,20 @@ Both responses↔chat translator directions, event-based SSE with sequence
 numbers, reasoning buffering, tool lifecycle, usage extraction. Diff gate: dead
 code + test gap fixed in ca8274e; hosted-tool finding rebutted ref-faithful
 (request/openai-responses.js:156-176 filters nameless only). PASS.
+
+## w1-i kiro pair — diff gate CLEAN (2026-06-11)
+
+```yaml
+wave: "parity-w1"
+plan: "w1-i-kiro-pair"
+status: MERGED
+rows: "PAR-TRANS-062,063 → HAVE"
+commits: "0347b41 (impl, two-job), 956b09c (gate fixes)"
+```
+Diff gate: 4 real findings (assistantResponseEvent.content vs textDelta,
+tool-input stringify, uuid test, test Printf) all fixed in 956b09c, none
+re-flagged. Final finding was the recurring `parity-w0/` false positive —
+ROOT CAUSE FIXED: critic-diff.md:10 hardcoded `parity-w0/` as the required
+commit format; corrected to make commit-message format out-of-scope for the
+diff gate (the orchestrator owns it; project format is `parity-w1/...`).
+Accepted by decision.
