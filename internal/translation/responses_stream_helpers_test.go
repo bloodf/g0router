@@ -42,6 +42,16 @@ func TestIsResponsesTerminalEvent(t *testing.T) {
 			want:  true,
 		},
 		{
+			name:  "completed by type",
+			chunk: map[string]any{"type": "response.completed"},
+			want:  true,
+		},
+		{
+			name:  "failed by type",
+			chunk: map[string]any{"type": "response.failed"},
+			want:  true,
+		},
+		{
 			name:  "completed by status",
 			chunk: map[string]any{"response": map[string]any{"status": "completed"}},
 			want:  true,
@@ -54,6 +64,11 @@ func TestIsResponsesTerminalEvent(t *testing.T) {
 		{
 			name:  "in progress",
 			chunk: map[string]any{"event": "response.in_progress"},
+			want:  false,
+		},
+		{
+			name:  "non-terminal type",
+			chunk: map[string]any{"type": "response.output_text.delta"},
 			want:  false,
 		},
 		{
