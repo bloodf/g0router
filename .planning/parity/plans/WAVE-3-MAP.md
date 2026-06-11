@@ -54,6 +54,23 @@ decision 2 fixes 7-day).
 - **Provider track (parallel):** w3-f touches `internal/auth/oauth.go`,
   `internal/providers/*` credential plumbing — disjoint from the dashboard track.
 
+## Deferred out of Wave 3 (recorded scope changes vs the original index)
+
+- **PAR-AUTH-017** (request-log header sanitization) → **Wave 5**: the request_log
+  persistence it sanitizes does not exist until Wave 5 (verified: no request_log
+  table in internal/store). Port `sanitizeHeaders` (`requestDetailsRepo.js:46-54`)
+  with the Wave-5 logging plan.
+- **PAR-AUTH-018** (debug log disabled in production) → **Wave 5** (or whichever
+  wave introduces the debug-log utility): `internal/logging/` is an empty package
+  today; the prod gate (`debugLog.js:3`) ports together with the utility.
+- **PAR-AUTH-020 MITM-DNS-bypass half** → Stage-2/Wave-7 with antigravity + the MITM
+  proxy platform feature; Wave 3 ships the env-proxy half (w3-e).
+- **PAR-PR-1711** → 30d TTL REJECTED by decision 2 (7-day opaque tokens stand);
+  parser-unification half is incidental engineering, not parity scope. Row closed
+  by decision.
+- w3-e was renamed/rescoped: `w3-e-outbound-proxy.md` (PAR-AUTH-020 Stage-1 half
+  only — 017/018 moved out per above).
+
 ## Per-micro-plan protocol (unchanged)
 
 Fable 5 plan → gpt-5.5 plan gate (max 3 cycles → decide) → kimi impl (TDD) →
