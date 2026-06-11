@@ -140,6 +140,21 @@
         "internal/translation/registry.go",
         "internal/translation/registry_test.go"
       ]
+    },
+    "w1-l-claude-pipeline-helpers": {
+      "base": "c11a2fd^",
+      "end": "c11a2fd",
+      "paths": [
+        "internal/translation/claude_appconstants.go",
+        "internal/translation/claude_appconstants_test.go",
+        "internal/translation/claude_thinking_signature.go",
+        "internal/translation/claude_cloaking.go",
+        "internal/translation/claude_cloaking_test.go",
+        "internal/translation/bypass_handler.go",
+        "internal/translation/bypass_handler_test.go",
+        "internal/translation/claude_prepare.go",
+        "internal/translation/claude_prepare_test.go"
+      ]
     }
   }
 }
