@@ -161,6 +161,8 @@ Run autonomously until **Stage 1 release-ready** unless user says stop. Prefer r
 ### Wave 2 — COMPLETE (2026-06-11)
 Stage-1 scope (10 'Include now' providers). Plans: w2-a catalog (PASS), w2-b generic adapter (PASS), w2-c ollama (approved-by-decision), w2-d router+/v1/models (approved-by-decision). Impl order: w2-a → w2-b + w2-c → w2-d (serial on catalog/router). OAuth→Wave3, routing logic→Wave4, media/free-tier/custom-format providers→Stage2+. Orchestration = Sonnet.
 
-### Wave 3 — PLANS LOCKED (2026-06-11), implementation pending
+### Wave 3 — COMPLETE (2026-06-11)
 Stage-1 scope per WAVE-3-MAP (OAuth handlers only for existing adapters: anthropic/gemini/xai; dashboard hardening fully in-scope). Plans: w3-a login-hardening, w3-b dashboard-guard, w3-c oidc-login (plan-gate PASS), w3-d api-keys, w3-e outbound-proxy, w3-f provider-oauth — a/b/d/e/f approved-by-decision after 3-4 cycles, c PASS. Deferral ledger in WAVE-3-MAP (017/018→W5, MITM-half→S2/W7, PR-1711 closed by decision 2).
 Impl order: dashboard track w3-a → w3-b → (w3-c ∥ w3-d) ; w3-e independent; w3-f parallel (provider track). w3-b/w3-d sequencing is load-bearing: /v1 gating ships ONLY with w3-d's validators. Orchestration = Sonnet.
+
+### Wave 4 — NEXT: Routing (combo chains, fallback, rate-limit rotation, bypass patterns PAR-ROUTE-034 canonical, model aliases). PAR-ROUTE ~60 + ~20 PR ports. Depends on W1+W2 (composes providers+translation). Needs Fable-5 planning. w2-d router does single-provider resolution today; Wave 4 adds the composition layer.

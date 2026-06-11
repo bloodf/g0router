@@ -6314,3 +6314,28 @@ Deferred to later (recorded in WAVE-2-MAP "Deferred to Stage 2+"):
   "wired/enabled" filter so it doesn't expose unrouted providers. (Wave-future note.)
 - All Stage-2+ provider classes: OAuth, custom-format/reverse-engineered, GCP,
   Chinese ecosystems, media specialists, free-tier, no-op.
+
+## Wave 3 — OAuth + auth hardening (Stage-1 scope) COMPLETE (2026-06-11)
+
+Plans_done: w3-a (login hardening: limiter/lockout/default-pw/auth-mode/reset-CLI),
+w3-b (central dashboard guard + local-only gate + tunnel toggles), w3-c (OIDC login
+PKCE + probe), w3-d (API keys + /v1 gating + CLI token), w3-e (outbound env-proxy),
+w3-f (provider OAuth: anthropic/gemini/xai + credential refresh + key resolution).
+Rows_have: PAR-AUTH-002,005-015,019,021-023,026-029 (20 → HAVE); 020 → PARTIAL
+(env-proxy half; MITM-DNS-bypass deferred to Stage-2/W7). All diff-gates resolved
+(PASS or closed-by-decision after fixes). Suite + `go test -race` green.
+
+Security holes caught & fixed by the diff gate (highest-value catches of the program):
+- w3-c: public OIDC secret-probe endpoint was reading the SERVER's stored
+  oidc_client_secret → restricted to caller-provided values only.
+- w3-d: x-9r-cli-token granted remote /v1 LLM access → narrowed to loopback-or-API-key
+  (CLI token valid for /api protected routes only).
+Other real fixes: limiter remaining-count semantics, single-flight refresh race,
+xai scope %20 encoding, Router.keyResolver race, credentials metadata-error handling,
+proxy dialer host:port, ParseAPIKey shape enforcement. GitHub push-protection block on
+the Gemini public client-secret resolved (env-overridable, runtime-assembled).
+
+Deferred (recorded in WAVE-3-MAP §Deferred): PAR-AUTH-017/018 → Wave 5 (request_log +
+debug-log substrates land there); PAR-AUTH-003 closed by decision 2 (opaque tokens, no
+JWT); PR-1711 closed by decision 2; ~11 Stage-2 provider OAuth handlers + PR-717/641/
+1388/1458/1004/665 → Stage 2 with their adapters.
