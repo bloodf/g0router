@@ -114,6 +114,20 @@
         "internal/translation/registry.go",
         "internal/translation/registry_test.go"
       ]
+    },
+    "w1-i-kiro-pair": {
+      "base": "0347b41^",
+      "end": "0347b41",
+      "paths": [
+        "internal/translation/kiro_constants.go",
+        "internal/translation/kiro_constants_test.go",
+        "internal/translation/openai_kiro_request.go",
+        "internal/translation/openai_kiro_request_test.go",
+        "internal/translation/kiro_openai_response.go",
+        "internal/translation/kiro_openai_response_test.go",
+        "internal/translation/registry.go",
+        "internal/translation/registry_test.go"
+      ]
     }
   }
 }
