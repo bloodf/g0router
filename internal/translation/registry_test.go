@@ -616,3 +616,26 @@ func TestNewRegistryWiresKiroPair(t *testing.T) {
 		t.Error("kiro->openai response translator is not kiroToOpenAIResponse")
 	}
 }
+
+func TestNewRegistryWiresCursorPair(t *testing.T) {
+	reg := NewRegistry()
+
+	if reg.RequestTranslatorFor(FormatOpenAI, FormatCursor) == nil {
+		t.Error("NewRegistry must wire openai->cursor request translator")
+	}
+	if reg.ResponseTranslatorFor(FormatCursor, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire cursor->openai response translator")
+	}
+
+	wantReq := reflect.ValueOf(RequestTranslator(buildCursorRequest)).Pointer()
+	gotReq := reflect.ValueOf(reg.RequestTranslatorFor(FormatOpenAI, FormatCursor)).Pointer()
+	if gotReq != wantReq {
+		t.Error("openai->cursor request translator is not buildCursorRequest")
+	}
+
+	wantResp := reflect.ValueOf(ResponseTranslator(cursorToOpenAIResponse)).Pointer()
+	gotResp := reflect.ValueOf(reg.ResponseTranslatorFor(FormatCursor, FormatOpenAI)).Pointer()
+	if gotResp != wantResp {
+		t.Error("cursor->openai response translator is not cursorToOpenAIResponse")
+	}
+}

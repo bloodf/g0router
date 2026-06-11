@@ -169,6 +169,8 @@ func NewRegistry() *Registry {
 	r.Register(FormatCommandCode, FormatOpenAI, nil, commandcodeToOpenAIResponse)
 	r.Register(FormatOpenAI, FormatKiro, buildKiroPayload, nil)
 	r.Register(FormatKiro, FormatOpenAI, nil, kiroToOpenAIResponse)
+	r.Register(FormatOpenAI, FormatCursor, buildCursorRequest, nil)
+	r.Register(FormatCursor, FormatOpenAI, nil, cursorToOpenAIResponse)
 	return r
 }
 
