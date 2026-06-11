@@ -22,10 +22,12 @@ In-repo integration: `internal/server/guard.go` (w3-b — this plan REPLACES the
   remote-key path (`dashboardGuard.js:106-116`, read whole).
 - **machineId** (PAR-AUTH-012 dependency): `MachineID(salt)` =
   hex(SHA256(raw + salt [+ cliSecret when salt=="9r-cli-auth"]))[:16]
-  (`machineId.js:49-54`); raw machine id source = stable per-host identifier — port
-  `loadRawMachineId` (read `machineId.js` whole; use the same os-level sources where
-  portable, else the existing store secret as the stable raw — document choice in a
-  comment with the ref cite).
+  (`machineId.js:49-54`); raw machine id source = port `loadRawMachineId`
+  (`machineId.js:16-32`) FAITHFULLY: (1) read the persisted machine-id file from the
+  data dir; (2) else the OS machine id (Linux `/etc/machine-id` — the Go equivalent
+  of the ref's `machineIdSync()`); (3) else a random UUID; persist the result to the
+  data-dir file mode 0600 so all entrypoints see one value. CLI secret = persisted
+  random secret file (`machineId.js:34-40`), mixed only for the cli salt.
 - **/v1 gating** (PAR-AUTH-008/009): replace w3-b's passthrough step with
   `dashboardGuard.js:118-122` semantics: loopback request (w3-b's `isLocalRequest`)
   → allow keyless; remote → `APIKeyValidator` (Authorization Bearer or x-api-key —
@@ -67,7 +69,7 @@ NOT touched: limiter/login (w3-a), OIDC (w3-c), provider OAuth (w3-f).
    `TestGuardV1LoopbackKeyless` (loopback /v1 allowed without key — PAR-AUTH-008),
    `TestGuardV1RemoteRequiresKey` (remote /v1 no key → 401 exact error body),
    `TestGuardV1RemoteValidKey` (created+active key in Authorization Bearer AND in
-   x-api-key → allowed; inactive → 401; CRC-corrupted → 401 without DB hit),
+   x-api-key → allowed; inactive → 401; CRC-corrupted → 401),
    `TestGuardCLIToken` (correct x-9r-cli-token passes ALWAYS_PROTECTED/api checks;
    wrong → 401).
 4. **Admin routes** (`internal/admin/apikeys.go`). Tests FIRST:
@@ -80,9 +82,22 @@ NOT touched: limiter/login (w3-a), OIDC (w3-c), provider OAuth (w3-f).
 - `grep -c 'TestGuardPublicLlmApiPassthrough' internal/server/guard_test.go` → 0 (superseded by gating tests).
 - `grep -rn 'func init(\|panic(' internal/auth/apikey.go internal/store/apikeys.go internal/admin/apikeys.go` → 0 hits.
 - `TestGuardV1LoopbackKeyless`, `TestGuardV1RemoteRequiresKey`, `TestGuardV1RemoteValidKey`, `TestParseAPIKeyNewAndLegacy`, `TestMachineIDDerivation` pass.
-- PAR-AUTH-008 and 009 flip HAVE here (gating + validators complete together).
+
+## Row-status note (not an acceptance criterion)
+
+PAR-AUTH-008/009/010/012/029 flip HAVE after this plan's diff gate passes (gating +
+validators complete together per the w3-b transfer).
 
 ## Out of scope
 
 Key-scoped rate limits / per-key usage (Wave 5). UI keys page (Wave 6). The login
 limiter (w3-a). Tunnel (Wave 7). Dashboard OIDC (w3-c).
+
+## Plan-gate disposition (Fable 5, 2026-06-11)
+
+APPROVED BY DECISION after 3 cycles. Real findings fixed: ref `/api/keys` routes
+cited (`route.js:7-30`, guard `:50`), ref-exact HMAC secret (`apiKey.js:3`),
+ref-faithful `loadRawMachineId` port (`machineId.js:16-32` — persisted-file/OS-id/
+UUID chain; the invented store-secret fallback REMOVED), "without DB hit" optimization
+clause dropped, routes_admin.go ownership named, masking claim dropped. The diff
+gate remains the binding implementation check.
