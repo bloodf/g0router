@@ -6293,3 +6293,24 @@ closed by decision (round-4 false positives rebutted ref-cited).
 direction, `_cc`→`_ide` suffix, CC_DEFAULT_TOOLS 26→20) + 1 critic-prompt bug
 fixed (parity-w0 hallucination). Granular rows PAR-TRANS-058..066 added for
 per-translator tracking. Helpers 006/051/052/053 reassigned to Wave 4.
+
+## Wave 2 — Provider adapters (Stage-1 scope) COMPLETE (2026-06-11)
+
+Stage-1 "Include now" providers per matrix ranking (10): deepseek, groq, mistral,
+together, fireworks, cohere, xai (API-key path), openrouter, perplexity, ollama.
+Plans_done: w2-a (catalog+model catalogs), w2-b (generic OpenAI-compatible adapter,
+collapses 9 providers), w2-c (ollama adapter, NDJSON), w2-d (catalog-driven router +
+factory + /v1/models aggregation). Rows_have: PAR-PROV-004..010, 014, 027, 029 (10).
+All diff-gates clean (w2-a/b/c closed-by-decision after substantive findings fixed;
+w2-d PASS). Suite green incl. `go test -race ./internal/inference/`.
+
+Key gate catches: dropped PAR-PR-664 (max_completion_tokens — github/qoder/codex only,
+Stage-2); xai OAuth + providerSpecificData override deferred to Wave 3; deterministic
+provider-precedence for dup model IDs; lazy-cache concurrency fix (sync.RWMutex).
+
+Deferred to later (recorded in WAVE-2-MAP "Deferred to Stage 2+"):
+- /v1/models ranges catalog.Providers — fine now (catalog holds only the 10 Stage-1
+  providers); when Stage-2 providers are ADDED to the catalog, /v1/models needs a
+  "wired/enabled" filter so it doesn't expose unrouted providers. (Wave-future note.)
+- All Stage-2+ provider classes: OAuth, custom-format/reverse-engineered, GCP,
+  Chinese ecosystems, media specialists, free-tier, no-op.
