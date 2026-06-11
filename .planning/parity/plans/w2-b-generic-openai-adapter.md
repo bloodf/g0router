@@ -38,7 +38,7 @@ TOUCH-ONLY: none (router wiring of these 9 ids → GenericProvider is w2-d; the 
 ## Tasks (STEP (a) failing tests first; STEP (b) implement)
 
 1. **GenericProvider struct + construction** (`provider.go`):
-   - `type Provider struct { id schemas.ModelProvider; config catalog.ProviderConfig; client *utils.ClientPool; networkConfig schemas.NetworkConfig; errorConverter *openai-style converter }`.
+   - `type Provider struct { id schemas.ModelProvider; config catalog.ProviderConfig; client *utils.ClientPool; networkConfig schemas.NetworkConfig; errorConverter *openai.ErrorConverter }` — `errorConverter` from the exported `openai.NewErrorConverter()` (`internal/providers/openai/errors.go:11-19`; provider-agnostic `Convert`).
    - `func New(providerID string) (*Provider, error)` — `catalog.Lookup(providerID)`; error if unknown or `config.Format != "openai"` (this adapter is openai-format only; ollama is w2-c). Reuse `utils.NewClientPool()`.
    - `GetProvider()`/`SetNetworkConfig()` like `openai/provider.go:27-35`.
    Tests: `TestNewGenericKnownProvider` (deepseek/groq/… construct, GetProvider==id), `TestNewGenericUnknown` (error), `TestNewGenericRejectsNonOpenAIFormat` (ollama id → error).
@@ -46,7 +46,7 @@ TOUCH-ONLY: none (router wiring of these 9 ids → GenericProvider is w2-d; the 
 2. **chat + stream** (`chat.go`), mirror `openai/chat.go` but config-driven:
    - URL helper: `func (p *Provider) chatURL() string { return p.config.BaseURL }` (full URL, no path append — the catalog BaseURL is the complete endpoint).
    - `ChatCompletion`: POST `p.chatURL()`; headers = Content-Type + `config.Headers` + (unless `config.NoAuth`) bearer `Authorization: Bearer <key.Value>`; marshal request; status/error via `p.errorConverter.Convert(status, body, schemas.ErrorMeta{Provider:string(p.id), ModelRequested:request.Model, RequestType:"chat", StatusCode:status, RawBody:body})`; decode `schemas.ChatResponse`.
-   - `ChatCompletionStream`: same URL/headers; `Stream=true`; SSE via `utils.NewSSEScanner`; `[DONE]` ends; malformed chunk → in-band `streamError` (AUD-045); read error → in-band (AUD-046); post-hook failure → in-band (AUD-047) — identical semantics to `openai/chat.go:130-166`.
+   - `ChatCompletionStream`: same URL/headers; `Stream=true`; SSE via `utils.NewSSEScanner`; `[DONE]` ends; malformed chunk → in-band `streamError` (AUD-045); read error → in-band (AUD-046); post-hook failure → in-band (AUD-047): the trigger is the `postHookRunner schemas.PostHookRunner` parameter (same signature as the interface) — `postHookRunner.Run(ctx, &chunk)` returning a non-nil error emits an in-band `streamError` then closes, identical to `openai/chat.go:158-164`.
    Tests (`chat_test.go`; round-trip tests use `httptest.NewServer` and set `p.config.BaseURL = srv.URL` — same in-package seam as `openai/stream_test.go:26-27` `p.baseURL = srv.URL`; no mocks):
      - `TestGenericChatURL` (PURE, no network: a deepseek-config provider's `chatURL()` == `https://api.deepseek.com/chat/completions`, with NO `/v1/chat/completions` appended).
      - `TestGenericChatBearerAuth` (httptest captures `Authorization: Bearer <key>`).
@@ -55,7 +55,7 @@ TOUCH-ONLY: none (router wiring of these 9 ids → GenericProvider is w2-d; the 
      - `TestGenericStreamParsesSSE` (httptest streams SSE → chunks emitted, [DONE] ends).
      - `TestGenericStreamMalformedChunkInBandError` (httptest emits bad chunk → in-band streamError, AUD-045).
 
-3. **Typed not-implemented stubs** (`stubs.go`), mirror `openai/stubs.go`: every remaining `schemas.Provider` method (TextCompletion(+Stream), Responses(+Stream), Embedding, Image*, Speech(+Stream), Transcription(+Stream), File*, Batch*, ListModels, CountTokens) returns a typed `*schemas.ProviderError{Type:"not_implemented", StatusCode:501, Message:"<method> not implemented for generic openai-compatible provider"}` (or nil+stub for channel returns). `Provider` must satisfy `schemas.Provider` (compile-time `var _ schemas.Provider = (*Provider)(nil)`).
+3. **Typed not-implemented stubs** (`stubs.go`) — decision 9 ("full Bifrost-size interface with typed not-implemented stubs"). The authoritative method set is the `schemas.Provider` interface (`internal/schemas/provider.go:68-107`); stub EVERY method not implemented in Tasks 1-2 (i.e. all except GetProvider/SetNetworkConfig/ChatCompletion/ChatCompletionStream): TextCompletion(+Stream), Responses(+Stream), Embedding, ImageGeneration(+Stream)/ImageEdit/ImageVariation, Speech(+Stream), Transcription(+Stream), File{Upload,List,Retrieve,Delete,Content}, Batch{Create,List,Retrieve,Cancel}, ListModels, CountTokens. Pattern: `internal/providers/openai/stubs.go`. Each returns a typed `*schemas.ProviderError{Type:"not_implemented", StatusCode:501, Message:"<method> not implemented for generic openai-compatible provider"}` (or nil+stub for channel returns). `Provider` must satisfy `schemas.Provider` (compile-time `var _ schemas.Provider = (*Provider)(nil)`).
    Tests: `TestGenericSatisfiesProviderInterface` (compile-time assertion present), `TestGenericEmbeddingNotImplemented` (501 typed error).
 
 ## Binary acceptance criteria
@@ -65,7 +65,7 @@ TOUCH-ONLY: none (router wiring of these 9 ids → GenericProvider is w2-d; the 
 - `grep -rn 'func init(\|panic(' internal/providers/generic/` → 0 hits.
 - `grep -c 'max_completion_tokens' internal/providers/generic/` → 0 (PAR-PR-664 excluded).
 - `grep -c '/v1/chat/completions' internal/providers/generic/chat.go` → 0 (uses full BaseURL).
-- `TestGenericChatPostsToFullBaseURL`, `TestGenericChatCustomHeaders`, `TestGenericStreamMalformedChunkInBandError` pass.
+- `TestGenericChatURL`, `TestGenericChatCustomHeaders`, `TestGenericStreamMalformedChunkInBandError` pass.
 
 ## Out of scope
 
