@@ -158,5 +158,7 @@ From `AGENTS.md`: TDD, no mocks, no `init()`, no panic, errors wrapped, match 9r
 
 Run autonomously until **Stage 1 release-ready** unless user says stop. Prefer reading artifact paths over dumping Kimi logs.
 
-### Wave 2 — PLANS LOCKED (2026-06-11), implementation pending
+### Wave 2 — COMPLETE (2026-06-11)
 Stage-1 scope (10 'Include now' providers). Plans: w2-a catalog (PASS), w2-b generic adapter (PASS), w2-c ollama (approved-by-decision), w2-d router+/v1/models (approved-by-decision). Impl order: w2-a → w2-b + w2-c → w2-d (serial on catalog/router). OAuth→Wave3, routing logic→Wave4, media/free-tier/custom-format providers→Stage2+. Orchestration = Sonnet.
+
+### Wave 3 — NEXT: OAuth flows (PAR-AUTH). Needs Fable-5 planning first (device-code, token-refresh, PKCE, session hardening). The Stage-1 adapters accept credentials; Wave 3 mints/refreshes them. xai-OAuth + ollama providerSpecificData override land here.
