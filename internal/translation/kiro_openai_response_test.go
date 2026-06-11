@@ -37,7 +37,7 @@ func TestKiroOpenAIContentAndRoleInjection(t *testing.T) {
 		state := NewStreamState()
 		chunk := map[string]any{
 			"_eventType": "assistantResponseEvent",
-			"textDelta":  "hello ",
+			"content":    "hello ",
 		}
 		out, err := kiroToOpenAIResponse(chunk, state)
 		if err != nil {
@@ -58,7 +58,7 @@ func TestKiroOpenAIContentAndRoleInjection(t *testing.T) {
 		// Second chunk should NOT inject role again.
 		chunk2 := map[string]any{
 			"_eventType": "assistantResponseEvent",
-			"textDelta":  "world",
+			"content":    "world",
 		}
 		out2, err := kiroToOpenAIResponse(chunk2, state)
 		if err != nil {
@@ -74,7 +74,7 @@ func TestKiroOpenAIContentAndRoleInjection(t *testing.T) {
 		state := NewStreamState()
 		chunk := map[string]any{
 			"assistantResponseEvent": map[string]any{
-				"textDelta": "wrapped ",
+				"content": "wrapped ",
 			},
 		}
 		out, err := kiroToOpenAIResponse(chunk, state)
@@ -97,7 +97,7 @@ func TestKiroOpenAIContentAndRoleInjection(t *testing.T) {
 		state := NewStreamState()
 		chunk := map[string]any{
 			"_eventType": "assistantResponseEvent",
-			"textDelta":  "",
+			"content":    "",
 		}
 		out, err := kiroToOpenAIResponse(chunk, state)
 		if err != nil {
@@ -217,6 +217,69 @@ func TestKiroOpenAIToolUseEvent(t *testing.T) {
 	if args["path"] != "/tmp/test" {
 		t.Errorf("arguments path = %v", args["path"])
 	}
+}
+
+func TestKiroToolUseStringInputStringified(t *testing.T) {
+	t.Run("string_input_quoted", func(t *testing.T) {
+		state := NewStreamState()
+		chunk := map[string]any{
+			"_eventType": "toolUseEvent",
+			"toolUseId":  "toolu_123",
+			"name":       "echo",
+			"input":      "raw",
+		}
+		out, err := kiroToOpenAIResponse(chunk, state)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		if len(out) != 1 {
+			t.Fatalf("expected 1 chunk, got %d", len(out))
+		}
+		tcs := out[0]["choices"].([]any)[0].(map[string]any)["delta"].(map[string]any)["tool_calls"].([]any)
+		fn := tcs[0].(map[string]any)["function"].(map[string]any)
+		if fn["arguments"] != `"raw"` {
+			t.Errorf("arguments = %q, want %q", fn["arguments"], `"raw"`)
+		}
+	})
+
+	t.Run("object_input_preserved", func(t *testing.T) {
+		state := NewStreamState()
+		chunk := map[string]any{
+			"_eventType": "toolUseEvent",
+			"toolUseId":  "toolu_124",
+			"name":       "read",
+			"input": map[string]any{
+				"a": 1,
+			},
+		}
+		out, err := kiroToOpenAIResponse(chunk, state)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		tcs := out[0]["choices"].([]any)[0].(map[string]any)["delta"].(map[string]any)["tool_calls"].([]any)
+		fn := tcs[0].(map[string]any)["function"].(map[string]any)
+		if fn["arguments"] != `{"a":1}` {
+			t.Errorf("arguments = %q, want %q", fn["arguments"], `{"a":1}`)
+		}
+	})
+
+	t.Run("absent_input_defaults_empty_object", func(t *testing.T) {
+		state := NewStreamState()
+		chunk := map[string]any{
+			"_eventType": "toolUseEvent",
+			"toolUseId":  "toolu_125",
+			"name":       "noop",
+		}
+		out, err := kiroToOpenAIResponse(chunk, state)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		tcs := out[0]["choices"].([]any)[0].(map[string]any)["delta"].(map[string]any)["tool_calls"].([]any)
+		fn := tcs[0].(map[string]any)["function"].(map[string]any)
+		if fn["arguments"] != `{}` {
+			t.Errorf("arguments = %q, want %q", fn["arguments"], `{}`)
+		}
+	})
 }
 
 func TestKiroOpenAIUsageThenStop(t *testing.T) {

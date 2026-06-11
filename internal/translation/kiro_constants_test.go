@@ -3,7 +3,6 @@ package translation
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"math"
 	"testing"
 )
@@ -209,6 +208,5 @@ func TestKiroAgenticPromptByteExact(t *testing.T) {
 	if len(kiroAgenticSystemPrompt) != 1864 {
 		t.Errorf("len = %d, want 1864", len(kiroAgenticSystemPrompt))
 	}
-	// Verify it matches the reference derivation.
-	fmt.Printf("kiroAgenticSystemPrompt length=%d sha256=%s\n", len(kiroAgenticSystemPrompt), got)
+	// Derivation: length=1864, sha256=df38d752b7913306e1d8885a32134e9ce214cb5b7303c979852a23e5e6080f6a
 }

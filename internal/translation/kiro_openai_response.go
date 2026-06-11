@@ -76,7 +76,7 @@ func resolveKiroEvent(chunk map[string]any) (string, map[string]any) {
 
 func handleAssistantResponseEvent(data map[string]any, state *StreamState) ([]map[string]any, error) {
 	text := ""
-	if t, ok := data["textDelta"].(string); ok {
+	if t, ok := data["content"].(string); ok {
 		text = t
 	}
 	if text == "" {
@@ -130,13 +130,11 @@ func handleToolUseEvent(data map[string]any, state *StreamState) ([]map[string]a
 
 	var argsStr string
 	if input, ok := data["input"]; ok {
-		switch v := input.(type) {
-		case string:
-			argsStr = v
-		default:
-			b, _ := json.Marshal(v)
-			argsStr = string(b)
+		b, err := json.Marshal(input)
+		if err != nil {
+			return nil, fmt.Errorf("marshal tool input: %w", err)
 		}
+		argsStr = string(b)
 	} else {
 		argsStr = "{}"
 	}

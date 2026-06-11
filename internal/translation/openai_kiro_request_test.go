@@ -323,6 +323,61 @@ func TestKiroAssistantToolUses(t *testing.T) {
 	}
 }
 
+func TestKiroAssistantToolUsesUUIDFallback(t *testing.T) {
+	body := map[string]any{
+		"messages": []any{
+			map[string]any{"role": "user", "content": "do it"},
+			map[string]any{
+				"role": "assistant",
+				"content": "",
+				"tool_calls": []any{
+					map[string]any{
+						// NO id field — should trigger uuid fallback.
+						"type": "function",
+						"function": map[string]any{
+							"name":      "read",
+							"arguments": `{}`,
+						},
+					},
+				},
+			},
+		},
+		"tools": []any{
+			map[string]any{
+				"type": "function",
+				"function": map[string]any{"name": "read"},
+			},
+		},
+	}
+
+	out, err := buildKiroPayload("m", body, false, nil)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+
+	cs := out["conversationState"].(map[string]any)
+	history := cs["history"].([]any)
+	if len(history) != 1 {
+		t.Fatalf("expected 1 history entry, got %d", len(history))
+	}
+
+	arm := history[0].(map[string]any)["assistantResponseMessage"].(map[string]any)
+	uses := arm["toolUses"].([]any)
+	if len(uses) != 1 {
+		t.Fatalf("expected 1 toolUse, got %d", len(uses))
+	}
+
+	use0 := uses[0].(map[string]any)
+	id := use0["toolUseId"].(string)
+	if id == "" {
+		t.Fatal("toolUseId should not be empty")
+	}
+	// UUID format: 36 chars with dashes at positions 8, 13, 18, 23.
+	if len(id) != 36 {
+		t.Errorf("toolUseId length = %d, want 36", len(id))
+	}
+}
+
 func TestKiroPayloadEnvelope(t *testing.T) {
 	body := map[string]any{
 		"messages": []any{
