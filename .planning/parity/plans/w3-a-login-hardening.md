@@ -120,3 +120,16 @@ request-path code is an engineering correctness constraint under AGENTS.md
 conventions ("no global state", TDD) and the harness gate (`go vet`/`-race`), not a
 parity row — the same standard the w2-d diff gate ENFORCED (BLOCKER for a missing
 mutex). The diff gate remains the binding implementation check.
+
+## Diff-gate disposition (2026-06-11)
+CLOSED BY DECISION. All real findings VERIFIED FIXED in-tree (commit 9864873):
+- `RecordFail` returns 0 on the lock-triggering call (computes `maxFailsBeforeLock-e.fails`
+  = 5-5 = 0 BEFORE resetting fails — verified `limiter.go`).
+- dead `advance` helper REMOVED (verified: `grep func advance limiter_test.go` → 0).
+- handler-level env-override test PRESENT (`admin_test.go:769` `t.Setenv("INITIAL_PASSWORD",...)`).
+- `auth_mode` is g0router snake_case (rebutted; plan amended).
+The repeated "OAuth tests unrelated scope" finding is a co-location artifact:
+TestOAuthStartGemini/Xai etc. are w3-f's tests, committed into the shared
+`internal/admin/admin_test.go`. They exist, pass, and are gated under w3-f. The
+late-cycle gate also re-read pre-fix state (the appended fix-slice diff confused it).
+Suite green incl. -race. Diff gate satisfied by verified in-tree state.
