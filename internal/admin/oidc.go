@@ -244,102 +244,91 @@ func (h *Handlers) OIDCCallback(ctx *fasthttp.RequestCtx) {
 }
 
 // OIDCTest handles POST /api/auth/oidc/test.
+// It operates exclusively on caller-provided body values; stored OIDC secrets
+// are never used.
 func (h *Handlers) OIDCTest(ctx *fasthttp.RequestCtx) {
 	var body struct {
-		IssuerURL    string `json:"issuerUrl"`
-		ClientID     string `json:"clientId"`
-		ClientSecret string `json:"clientSecret"`
-		RedirectURI  string `json:"redirectUri"`
-		Scopes       string `json:"scopes"`
+		TokenEndpoint string `json:"token_endpoint"`
+		IssuerURL     string `json:"issuer_url"`
+		ClientID      string `json:"client_id"`
+		ClientSecret  string `json:"client_secret"`
+		RedirectURI   string `json:"redirect_uri"`
+		Scopes        string `json:"scopes"`
 	}
 	if err := json.Unmarshal(ctx.PostBody(), &body); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON body")
 		return
 	}
 
-	settings, err := h.store.GetSettings()
-	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, "load settings")
-		return
-	}
-
+	tokenEndpoint := strings.TrimSpace(body.TokenEndpoint)
 	issuerURL := strings.TrimSpace(body.IssuerURL)
-	if issuerURL == "" {
-		issuerURL = strings.TrimSpace(settings["oidc_issuer_url"])
-	}
 	clientID := strings.TrimSpace(body.ClientID)
-	if clientID == "" {
-		clientID = strings.TrimSpace(settings["oidc_client_id"])
-	}
 	clientSecret := body.ClientSecret
-	if clientSecret == "" {
-		clientSecret = settings["oidc_client_secret"]
-	}
+	redirectURI := strings.TrimSpace(body.RedirectURI)
+
 	scopes := strings.TrimSpace(body.Scopes)
-	if scopes == "" {
-		scopes = strings.TrimSpace(settings["oidc_scopes"])
-	}
 	if scopes == "" {
 		scopes = "openid profile email"
 	}
-	redirectURI := strings.TrimSpace(body.RedirectURI)
-	if redirectURI == "" {
-		redirectURI = publicOrigin(ctx) + "/api/auth/oidc/callback"
-	}
 
-	if issuerURL == "" {
-		writeError(ctx, fasthttp.StatusBadRequest, "issuerUrl is required")
-		return
-	}
 	if clientID == "" {
-		writeError(ctx, fasthttp.StatusBadRequest, "clientId is required")
+		writeError(ctx, fasthttp.StatusBadRequest, "client_id is required")
+		return
+	}
+	if redirectURI == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "redirect_uri is required")
 		return
 	}
 
-	discovery, err := auth.FetchOIDCDiscovery(issuerURL, nil)
-	if err != nil {
-		writeError(ctx, fasthttp.StatusBadRequest, "failed to load OIDC discovery document")
-		return
+	var discovery *auth.OIDCDiscovery
+	if tokenEndpoint == "" {
+		if issuerURL == "" {
+			writeError(ctx, fasthttp.StatusBadRequest, "token_endpoint or issuer_url is required")
+			return
+		}
+		var err error
+		discovery, err = auth.FetchOIDCDiscovery(issuerURL, nil)
+		if err != nil {
+			writeError(ctx, fasthttp.StatusBadRequest, "failed to load OIDC discovery document")
+			return
+		}
+		tokenEndpoint = discovery.TokenEndpoint
 	}
 
-	probe, err := auth.ProbeOIDCClientSecret(discovery.TokenEndpoint, clientID, clientSecret, redirectURI, nil)
+	probe, err := auth.ProbeOIDCClientSecret(tokenEndpoint, clientID, clientSecret, redirectURI, nil)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, "oidc secret probe failed")
 		return
 	}
 
-	if probe.Tested && probe.Valid != nil && !*probe.Valid {
-		writeData(ctx, fasthttp.StatusOK, map[string]any{
-			"ok":                  false,
-			"discoveryOk":         true,
-			"clientSecretTested":  true,
-			"clientSecretValid":   false,
-			"issuerUrl":           issuerURL,
-			"clientId":            clientID,
-			"scopes":              scopes,
-			"redirectUri":         redirectURI,
-			"authorizationEndpoint": discovery.AuthorizationEndpoint,
-			"tokenEndpoint":       discovery.TokenEndpoint,
-			"jwksUri":             discovery.JWKSURI,
-			"error":               fmt.Sprintf("Discovery loaded, but the client secret is not valid: %s", probe.Message),
-		})
-		return
+	resp := map[string]any{
+		"ok":                   true,
+		"client_secret_tested": probe.Tested,
+		"client_secret_valid":  probe.Valid,
+		"client_id":            clientID,
+		"scopes":               scopes,
+		"redirect_uri":         redirectURI,
+		"token_endpoint":       tokenEndpoint,
+		"message":              probe.Message,
+	}
+	if discovery != nil {
+		resp["discovery_ok"] = true
+		resp["issuer_url"] = issuerURL
+		resp["authorization_endpoint"] = discovery.AuthorizationEndpoint
+		resp["jwks_uri"] = discovery.JWKSURI
 	}
 
-	writeData(ctx, fasthttp.StatusOK, map[string]any{
-		"ok":                    true,
-		"discoveryOk":           true,
-		"clientSecretTested":    probe.Tested,
-		"clientSecretValid":     probe.Valid,
-		"issuerUrl":             issuerURL,
-		"clientId":              clientID,
-		"scopes":                scopes,
-		"redirectUri":           redirectURI,
-		"authorizationEndpoint": discovery.AuthorizationEndpoint,
-		"tokenEndpoint":         discovery.TokenEndpoint,
-		"jwksUri":               discovery.JWKSURI,
-		"message":               probe.Message,
-	})
+	if probe.Tested && probe.Valid != nil && !*probe.Valid {
+		resp["ok"] = false
+		if discovery != nil {
+			resp["error"] = fmt.Sprintf("Discovery loaded, but the client secret is not valid: %s", probe.Message)
+		} else {
+			resp["error"] = fmt.Sprintf("Client secret is not valid: %s", probe.Message)
+		}
+		delete(resp, "message")
+	}
+
+	writeData(ctx, fasthttp.StatusOK, resp)
 }
 
 // redirectToLogin redirects the browser to the login page with an error.

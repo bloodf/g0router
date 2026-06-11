@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 )
 
@@ -313,11 +314,69 @@ func TestOIDCCallbackNonceMismatch401(t *testing.T) {
 	}
 }
 
+// callRouted exercises a handler through a router wrapped with a minimal
+// guard that mirrors the server's public-path policy: /api/auth/oidc/* is
+// public; other /api/* routes require a session.
+func callRouted(t *testing.T, h *Handlers, method, uri, body string) (int, map[string]json.RawMessage) {
+	t.Helper()
+	r := router.New()
+	r.POST("/api/auth/oidc/test", h.OIDCTest)
+	r.GET("/api/settings", h.RequireSession(h.GetSettings))
+
+	guard := func(next fasthttp.RequestHandler) fasthttp.RequestHandler {
+		return func(ctx *fasthttp.RequestCtx) {
+			path := string(ctx.Path())
+			if path == "/api/auth/oidc/test" || strings.HasPrefix(path, "/api/auth/oidc/") {
+				next(ctx)
+				return
+			}
+			if _, err := h.sessions.Validate(requestToken(ctx)); err != nil {
+				writeError(ctx, fasthttp.StatusUnauthorized, "unauthorized")
+				return
+			}
+			next(ctx)
+		}
+	}
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(method)
+	ctx.Request.SetRequestURI(uri)
+	if body != "" {
+		ctx.Request.SetBody([]byte(body))
+	}
+	guard(r.Handler)(&ctx)
+
+	envelope := map[string]json.RawMessage{}
+	if len(ctx.Response.Body()) > 0 {
+		if err := json.Unmarshal(ctx.Response.Body(), &envelope); err != nil {
+			t.Fatalf("response is not a JSON envelope: %v\nbody: %s", err, ctx.Response.Body())
+		}
+	}
+	return ctx.Response.StatusCode(), envelope
+}
+
+func TestProbeDoesNotUseStoredSecret(t *testing.T) {
+	env := newOIDCTestEnv(t)
+
+	body := fmt.Sprintf(`{"token_endpoint":%q,"client_id":"client-id","redirect_uri":"https://app.example.com/cb"}`, env.idp.URL+"/token")
+	status, envl := call(t, env.handlers.OIDCTest, "POST", "/api/auth/oidc/test", body, nil, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("status = %d err = %q", status, errMessage(t, envl))
+	}
+	data := dataField[map[string]any](t, envl)
+	if data["client_secret_tested"] != false {
+		t.Fatalf("client_secret_tested = %v, want false", data["client_secret_tested"])
+	}
+	if data["client_secret_valid"] != nil {
+		t.Fatalf("client_secret_valid = %v, want nil", data["client_secret_valid"])
+	}
+}
+
 func TestProbeEndpointPublic(t *testing.T) {
 	env := newOIDCTestEnv(t)
 
-	body := fmt.Sprintf(`{"issuerUrl":%q,"clientId":"client-id","clientSecret":"client-secret","redirectUri":"https://app.example.com/cb"}`, env.docURL)
-	status, envl := call(t, env.handlers.OIDCTest, "POST", "/api/auth/oidc/test", body, nil, nil)
+	body := fmt.Sprintf(`{"token_endpoint":%q,"client_id":"client-id","client_secret":"client-secret","redirect_uri":"https://app.example.com/cb"}`, env.idp.URL+"/token")
+	status, envl := callRouted(t, env.handlers, "POST", "/api/auth/oidc/test", body)
 	if status != fasthttp.StatusOK {
 		t.Fatalf("status = %d err = %q", status, errMessage(t, envl))
 	}
@@ -325,8 +384,11 @@ func TestProbeEndpointPublic(t *testing.T) {
 	if data["ok"] != true {
 		t.Fatalf("ok = %v", data["ok"])
 	}
-	if data["discoveryOk"] != true {
-		t.Fatalf("discoveryOk = %v", data["discoveryOk"])
+
+	// The same guard rejects an authenticated-only route without a session.
+	status, _ = callRouted(t, env.handlers, "GET", "/api/settings", "")
+	if status != fasthttp.StatusUnauthorized {
+		t.Fatalf("protected route status = %d, want 401", status)
 	}
 }
 
