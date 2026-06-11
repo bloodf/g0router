@@ -49,7 +49,7 @@ func TestRefreshSingleFlight(t *testing.T) {
 		requestCount++
 		mu.Unlock()
 		// Slow down to ensure concurrent requests hit the lock
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 		json.NewEncoder(w).Encode(map[string]any{"access_token": "at-new", "refresh_token": "rt-new", "expires_in": 3600})
 	}))
 	defer srv.Close()
@@ -79,18 +79,22 @@ func TestRefreshSingleFlight(t *testing.T) {
 		t.Fatalf("CreateConnection: %v", err)
 	}
 
+	// Start all goroutines then release them together so they truly race.
+	start := make(chan struct{})
 	var wg sync.WaitGroup
-	const n = 10
+	const n = 50
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			<-start
 			_, _, err := resolver.ResolveKey(provider.ID)
 			if err != nil {
 				t.Errorf("ResolveKey error: %v", err)
 			}
 		}()
 	}
+	close(start)
 	wg.Wait()
 
 	mu.Lock()

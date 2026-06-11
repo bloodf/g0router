@@ -51,18 +51,19 @@ func (p *ClientPool) Do(req *fasthttp.Request, resp *fasthttp.Response) error {
 		return p.client.Do(req, resp)
 	}
 
-	client := p.clientForProxy(proxyURL.String())
+	client := p.clientForProxy(proxyURL)
 	if err := client.Do(req, resp); err != nil {
 		return fmt.Errorf("do via proxy %s: %w", proxyURL, err)
 	}
 	return nil
 }
 
-func (p *ClientPool) clientForProxy(proxyURL string) *fasthttp.Client {
+func (p *ClientPool) clientForProxy(proxyURL *url.URL) *fasthttp.Client {
+	key := proxyURL.String()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if c, ok := p.proxies[proxyURL]; ok {
+	if c, ok := p.proxies[key]; ok {
 		return c
 	}
 
@@ -73,9 +74,9 @@ func (p *ClientPool) clientForProxy(proxyURL string) *fasthttp.Client {
 		MaxIdleConnDuration:           60000000000,  // 60s
 		DisablePathNormalizing:        true,
 		DisableHeaderNamesNormalizing: true,
-		Dial:                          fasthttpproxy.FasthttpHTTPDialer(proxyURL),
+		Dial:                          fasthttpproxy.FasthttpHTTPDialer(proxyURL.Host),
 	}
-	p.proxies[proxyURL] = c
+	p.proxies[key] = c
 	return c
 }
 

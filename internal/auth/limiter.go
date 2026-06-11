@@ -91,7 +91,10 @@ func (l *LoginLimiter) RecordFail(ip string) (remainingBeforeLock int) {
 		step := lockSteps[idx]
 		e.lockUntil = l.now().Add(step)
 		e.lockLevel++
+		remainingBeforeLock := maxFailsBeforeLock - e.fails
 		e.fails = 0
+		l.attempts[ip] = e
+		return remainingBeforeLock
 	}
 	l.attempts[ip] = e
 	return maxFailsBeforeLock - e.fails

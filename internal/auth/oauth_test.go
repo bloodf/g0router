@@ -241,3 +241,29 @@ func TestOAuthFlowExchangeWithRedirect(t *testing.T) {
 		t.Errorf("exchange redirect_uri = %q, want http://override/cb", lastForm.Get("redirect_uri"))
 	}
 }
+
+func TestOAuthFlowXaiScopeEncoding(t *testing.T) {
+	st := newTestStore(t)
+	flow := NewOAuthFlow(XaiOAuth(), st, nil)
+
+	authURL, _, err := flow.Start()
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if authURL == "" {
+		t.Fatal("empty authURL")
+	}
+	if strings.Contains(authURL, "scope=") && strings.Contains(authURL, "+") {
+		t.Fatalf("xai scope encoded with '+' instead of %%20: %s", authURL)
+	}
+	parsed, err := url.Parse(authURL)
+	if err != nil {
+		t.Fatalf("parse authURL: %v", err)
+	}
+	scope := parsed.Query().Get("scope")
+	wantScope := strings.Join(XaiOAuth().Scopes, " ")
+	if scope != wantScope {
+		t.Fatalf("scope = %q, want %q", scope, wantScope)
+	}
+}
+

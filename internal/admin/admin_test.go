@@ -752,16 +752,32 @@ func TestLoginLockout429AndRetryAfter(t *testing.T) {
 }
 
 func TestLoginDefaultPasswordWhenNoHash(t *testing.T) {
-	env := newTestEnv(t)
-	if err := env.store.SetUserPasswordHash("admin", ""); err != nil {
-		t.Fatalf("SetUserPasswordHash: %v", err)
-	}
+	t.Run("default", func(t *testing.T) {
+		env := newTestEnv(t)
+		if err := env.store.SetUserPasswordHash("admin", ""); err != nil {
+			t.Fatalf("SetUserPasswordHash: %v", err)
+		}
 
-	status, envl := call(t, env.handlers.Login, "POST", "/api/auth/login",
-		`{"username":"admin","password":"123456"}`, nil, nil)
-	if status != fasthttp.StatusOK {
-		t.Fatalf("login status = %d, err = %q", status, errMessage(t, envl))
-	}
+		status, envl := call(t, env.handlers.Login, "POST", "/api/auth/login",
+			`{"username":"admin","password":"123456"}`, nil, nil)
+		if status != fasthttp.StatusOK {
+			t.Fatalf("login status = %d, err = %q", status, errMessage(t, envl))
+		}
+	})
+
+	t.Run("env-override", func(t *testing.T) {
+		t.Setenv("INITIAL_PASSWORD", "custompw")
+		env := newTestEnv(t)
+		if err := env.store.SetUserPasswordHash("admin", ""); err != nil {
+			t.Fatalf("SetUserPasswordHash: %v", err)
+		}
+
+		status, envl := call(t, env.handlers.Login, "POST", "/api/auth/login",
+			`{"username":"admin","password":"custompw"}`, nil, nil)
+		if status != fasthttp.StatusOK {
+			t.Fatalf("login status = %d, err = %q", status, errMessage(t, envl))
+		}
+	})
 }
 
 func TestLoginOidcModeBlocksPassword(t *testing.T) {

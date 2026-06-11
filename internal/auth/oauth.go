@@ -178,10 +178,13 @@ func (f *OAuthFlow) StartWithRedirect(redirectURI string) (authURL, state string
 	q.Set("state", state)
 	q.Set("code_challenge", challenge)
 	q.Set("code_challenge_method", "S256")
+	query := q.Encode()
 	if len(f.cfg.Scopes) > 0 {
-		q.Set("scope", strings.Join(f.cfg.Scopes, " "))
+		scope := strings.Join(f.cfg.Scopes, " ")
+		// xAI requires spaces percent-encoded as %20, not +.
+		query += "&scope=" + strings.ReplaceAll(url.QueryEscape(scope), "+", "%20")
 	}
-	return f.cfg.AuthorizeURL + "?" + q.Encode(), state, nil
+	return f.cfg.AuthorizeURL + "?" + query, state, nil
 }
 
 // Exchange consumes the persisted state and trades the authorization code

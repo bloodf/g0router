@@ -128,9 +128,9 @@ func (r *CredentialResolver) doRefresh(providerType string, conn *store.Connecti
 	c.val, c.err = r.refreshAndPersist(providerType, conn)
 
 	r.mu.Lock()
+	c.wg.Done()
 	delete(r.calls, conn.ID)
 	r.mu.Unlock()
-	c.wg.Done()
 	return c.val, c.err
 }
 

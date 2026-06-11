@@ -38,8 +38,8 @@ func TestLimiterLocksAfterFiveFails(t *testing.T) {
 		t.Fatal("locked before 5th fail recorded")
 	}
 	remaining := l.RecordFail(ip)
-	if remaining != maxFailsBeforeLock {
-		t.Fatalf("5th fail remaining = %d, want %d", remaining, maxFailsBeforeLock)
+	if remaining != 0 {
+		t.Fatalf("5th fail remaining = %d, want 0", remaining)
 	}
 
 	locked, retryAfter := l.CheckLock(ip)

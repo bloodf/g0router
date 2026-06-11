@@ -54,12 +54,30 @@ func proxyStub(log *proxyLog) *httptest.Server {
 	}))
 }
 
-func targetStub(t *testing.T) (*httptest.Server, *bool) {
-	var seen bool
+// targetSeen records whether the target was reached safely for -race.
+type targetSeen struct {
+	mu   sync.Mutex
+	seen bool
+}
+
+func (s *targetSeen) mark() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.seen = true
+}
+
+func (s *targetSeen) wasSeen() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.seen
+}
+
+func targetStub(t *testing.T) (*httptest.Server, *targetSeen) {
+	ts := &targetSeen{}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seen = true
+		ts.mark()
 		w.WriteHeader(http.StatusOK)
-	})), &seen
+	})), ts
 }
 
 func TestClientPoolUsesEnvProxy(t *testing.T) {
@@ -114,7 +132,7 @@ func TestClientPoolNoProxyDirect(t *testing.T) {
 		if err := pool.Do(req, resp); err != nil {
 			t.Fatalf("Do: %v", err)
 		}
-		if !*targetSeen {
+		if !targetSeen.wasSeen() {
 			t.Fatal("request did not reach target directly")
 		}
 	})
@@ -146,7 +164,7 @@ func TestClientPoolNoProxyDirect(t *testing.T) {
 		if err := pool.Do(req, resp); err != nil {
 			t.Fatalf("Do: %v", err)
 		}
-		if !*targetSeen {
+		if !targetSeen.wasSeen() {
 			t.Fatal("request did not reach target despite NO_PROXY")
 		}
 		if len(log.connects) != 0 {
