@@ -91,6 +91,10 @@ func TestCursorToolRoleNamePrecedence(t *testing.T) {
 						"id":       "tc1",
 						"function": map[string]any{"name": "from_meta"},
 					},
+					map[string]any{
+						"id":       "tcNorm\nextra",
+						"function": map[string]any{"name": "from_meta_norm"},
+					},
 				},
 			},
 			map[string]any{
@@ -104,6 +108,11 @@ func TestCursorToolRoleNamePrecedence(t *testing.T) {
 				"tool_call_id": "tc2",
 				"content":      "r2",
 			},
+			map[string]any{
+				"role":         "tool",
+				"tool_call_id": "tcNorm",
+				"content":      "r3",
+			},
 		},
 	}
 	out, err := buildCursorRequest("m", body, false, nil)
@@ -111,8 +120,8 @@ func TestCursorToolRoleNamePrecedence(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	msgs := out["messages"].([]any)
-	if len(msgs) != 3 {
-		t.Fatalf("len(messages) = %d, want 3", len(msgs))
+	if len(msgs) != 4 {
+		t.Fatalf("len(messages) = %d, want 4", len(msgs))
 	}
 	// msg[0] is assistant with tool_calls
 	if msgs[0].(map[string]any)["role"] != "assistant" {
@@ -127,6 +136,11 @@ func TestCursorToolRoleNamePrecedence(t *testing.T) {
 	content2 := m2["content"].(string)
 	if !strings.Contains(content2, "<tool_name>tool</tool_name>") {
 		t.Errorf("msg[2] should fallback to 'tool': %q", content2)
+	}
+	m3 := msgs[3].(map[string]any)
+	content3 := m3["content"].(string)
+	if !strings.Contains(content3, "<tool_name>from_meta_norm</tool_name>") {
+		t.Errorf("msg[3] should resolve via normalized key: %q", content3)
 	}
 }
 
