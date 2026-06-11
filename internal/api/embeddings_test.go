@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/translation"
 	"github.com/valyala/fasthttp"
 )
 
@@ -23,7 +24,7 @@ func TestEmbeddingsHandlerMarshalFailureFallsBackTo500(t *testing.T) {
 		return nil, errors.New("simulated marshal failure")
 	}
 
-	router := inference.NewRouter()
+	router := inference.NewRouter(translation.NewRegistry())
 	h := NewEmbeddingsHandler(router)
 
 	var ctx fasthttp.RequestCtx

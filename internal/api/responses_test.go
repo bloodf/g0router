@@ -127,7 +127,7 @@ func (p *fakeResponsesProvider) CountTokens(_ *schemas.GatewayContext, _ schemas
 }
 
 func TestResponsesEndpointRejectsInvalidBody(t *testing.T) {
-	h := NewResponsesHandler(inference.NewRouter())
+	h := NewResponsesHandler(inference.NewRouter(translation.NewRegistry()))
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod(http.MethodPost)
 	ctx.Request.SetRequestURI("/v1/responses")

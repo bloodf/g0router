@@ -9,6 +9,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
+	"github.com/bloodf/g0router/internal/translation"
 	"github.com/valyala/fasthttp"
 )
 
@@ -261,7 +262,7 @@ func TestChatHandlerMarshalFailureFallsBackTo500(t *testing.T) {
 		return nil, errors.New("simulated marshal failure")
 	}
 
-	router := inference.NewRouter()
+	router := inference.NewRouter(translation.NewRegistry())
 	h := NewChatHandler(router)
 
 	var ctx fasthttp.RequestCtx

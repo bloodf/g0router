@@ -1,9 +1,10 @@
 package api
 
 import (
-	"fmt"
+	"sort"
 
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/valyala/fasthttp"
 )
@@ -20,25 +21,25 @@ func NewModelsHandler(router *inference.Router) *ModelsHandler {
 
 // List handles GET /v1/models.
 func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
-	provider, key, err := h.router.Resolve("")
-	if err != nil {
-		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
-		return
+	resp := &schemas.ListModelsResponse{
+		Object: "list",
 	}
 
-	// Keys are provided by the management layer (WebUI) via the router.
-	// Phase 6+ will wire the key store; empty keys yield provider auth errors.
-
-	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
-	resp, perr := provider.ListModels(gatewayCtx, key)
-	if perr != nil {
-		status := perr.StatusCode
-		if status == 0 {
-			status = fasthttp.StatusBadGateway
+	// Aggregate models from all Stage-1 provider catalogs.
+	for providerID := range catalog.Providers {
+		for _, m := range catalog.ModelsFor(providerID) {
+			resp.Data = append(resp.Data, schemas.ModelEntry{
+				ID:      m.ID,
+				Object:  "model",
+				OwnedBy: providerID,
+			})
 		}
-		writeError(ctx, status, perr.Type, perr.Message, perr.Code)
-		return
 	}
+
+	// Deterministic order: sort by model ID.
+	sort.Slice(resp.Data, func(i, j int) bool {
+		return resp.Data[i].ID < resp.Data[j].ID
+	})
 
 	b, err := jsonMarshal(resp)
 	if err != nil {

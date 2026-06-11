@@ -123,7 +123,7 @@ func (p *fakeMessagesProvider) CountTokens(_ *schemas.GatewayContext, _ schemas.
 }
 
 func TestMessagesHandlerBadJSON(t *testing.T) {
-	h := NewMessagesHandler(inference.NewRouter())
+	h := NewMessagesHandler(inference.NewRouter(translation.NewRegistry()))
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod(http.MethodPost)
 	ctx.Request.SetRequestURI("/v1/messages")

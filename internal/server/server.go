@@ -5,6 +5,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/translation"
 	httprouter "github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 )
@@ -13,7 +14,7 @@ import (
 // st backs the management API; pass nil to serve only the OpenAI-compatible
 // surface (no admin routes).
 func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server {
-	infRouter := inference.NewRouter()
+	infRouter := inference.NewRouter(translation.NewRegistry())
 
 	r := httprouter.New()
 	r.NotFound = uiHandler(uiFS)

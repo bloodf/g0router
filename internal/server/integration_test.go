@@ -15,6 +15,7 @@ import (
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/translation"
 	httprouter "github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 )
@@ -61,7 +62,7 @@ func newIntegrationEnv(t *testing.T) (*integrationEnv, *store.Store) {
 	r := httprouter.New()
 	r.NotFound = uiHandler(testUIFS())
 	r.GET("/api/health", healthHandler())
-	RegisterOpenAIRoutes(r, inference.NewRouter())
+	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()))
 	RegisterAdminRoutes(r, admin.New(st, sessions, flows))
 
 	srv := &fasthttp.Server{Handler: Chain(r.Handler, RequestIDMiddleware, CORSMiddleware(nil))}

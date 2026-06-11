@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/translation"
 	httprouter "github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 )
@@ -14,7 +15,7 @@ func TestResponsesRouteRegistered(t *testing.T) {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.SetBodyString("not found")
 	}
-	RegisterOpenAIRoutes(r, inference.NewRouter())
+	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()))
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod("POST")
