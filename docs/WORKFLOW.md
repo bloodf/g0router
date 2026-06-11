@@ -6171,3 +6171,18 @@ w1-g..j / Wave 5).
 
 **Artifacts**: `.planning/harness/artifacts/*-diff-scoped-gpt.txt`, fix plans
 `plans/fixes/*2026-06-10.md`, impl reports `artifacts/*-impl-report.md`.
+
+## w1-h ollama+commandcode — diff gate CLEAN (2026-06-11)
+
+```yaml
+wave: "parity-w1"
+plan: "w1-h-ollama-commandcode"
+status: MERGED
+rows: "PAR-TRANS-058,059,060,061 → HAVE"
+commits: "14c971b (impl), bc6358d (gate fixes)"
+```
+Diff gate: 3 real findings (dataURIPattern global, tc.index field, CommandCode
+usage omission) all fixed in bc6358d, none re-flagged. Final re-run's sole
+"BLOCKER" was a false positive — it cited a non-existent `parity-w0/` commit
+format; the commit correctly uses `parity-w1/w1-h:` per AGENTS.md, and
+commit-message format is outside diff-gate scope. Accepted by decision.
