@@ -152,9 +152,9 @@ func normalizeOllamaMessages(body map[string]any) ([]any, error) {
 						name = n
 					}
 					index := 0
-					if i, ok := fn["index"].(float64); ok {
+					if i, ok := tcMap["index"].(float64); ok {
 						index = int(i)
-					} else if i, ok := fn["index"].(int); ok {
+					} else if i, ok := tcMap["index"].(int); ok {
 						index = i
 					}
 					var arguments any
@@ -237,11 +237,13 @@ func normalizeOllamaContent(content any) string {
 	return ""
 }
 
-var dataURIPattern = regexp.MustCompile(`^data:[^;]+;base64,([\s\S]+)$`)
-
 func extractOllamaImages(content any) []any {
 	arr, ok := content.([]any)
 	if !ok {
+		return nil
+	}
+	dataURIPattern, err := regexp.Compile(`^data:[^;]+;base64,([\s\S]+)$`)
+	if err != nil {
 		return nil
 	}
 	images := make([]any, 0)

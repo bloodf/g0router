@@ -117,7 +117,6 @@ func NewStreamState() *StreamState {
 		ResponsesFuncItemDone:    make(map[int]bool),
 		ResponsesFuncArgsDone:    make(map[int]bool),
 		CommandCodeToolIndexByID: make(map[string]int),
-		CommandCodeUsage:         make(map[string]any),
 	}
 }
 

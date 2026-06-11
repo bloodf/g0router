@@ -194,7 +194,7 @@ func commandcodeToOpenAIResponse(chunk map[string]any, state *StreamState) ([]ma
 		if tu, ok := chunk["totalUsage"].(map[string]any); ok && tu != nil {
 			totalUsage = tu
 		}
-		if totalUsage != nil {
+		if totalUsage != nil && len(totalUsage) > 0 {
 			promptTokens := 0
 			if n, ok := totalUsage["inputTokens"].(float64); ok {
 				promptTokens = int(n)
@@ -268,7 +268,6 @@ func ensureCommandCodeState(state *StreamState, chunk map[string]any) {
 	state.CommandCodeToolIndex = 0
 	state.CommandCodeToolIndexByID = make(map[string]int)
 	state.CommandCodeFinishReason = ""
-	state.CommandCodeUsage = make(map[string]any)
 }
 
 func makeCommandCodeChunk(state *StreamState, delta map[string]any, finishReason string) map[string]any {

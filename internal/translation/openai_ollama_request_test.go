@@ -205,6 +205,69 @@ func TestOpenAIOllamaContentFlattenAndImages(t *testing.T) {
 	}
 }
 
+func TestOllamaToolCallIndexFromToolCall(t *testing.T) {
+	body := map[string]any{
+		"messages": []any{
+			map[string]any{
+				"role": "assistant",
+				"tool_calls": []any{
+					map[string]any{
+						"id":    "tc1",
+						"type":  "function",
+						"index": float64(2),
+						"function": map[string]any{
+							"name":      "foo",
+							"arguments": map[string]any{"a": 1},
+						},
+					},
+					map[string]any{
+						"id":   "tc2",
+						"type": "function",
+						"function": map[string]any{
+							"name":      "bar",
+							"arguments": map[string]any{"b": 2},
+						},
+					},
+					map[string]any{
+						"id":    "tc3",
+						"type":  "function",
+						"index": float64(5),
+						"function": map[string]any{
+							"index":     float64(99),
+							"name":      "baz",
+							"arguments": map[string]any{"c": 3},
+						},
+					},
+				},
+			},
+		},
+	}
+	out, err := openaiToOllamaRequest("llama3", body, false, nil)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	msgs := out["messages"].([]any)
+	if len(msgs) != 1 {
+		t.Fatalf("len(messages) = %d, want 1", len(msgs))
+	}
+	tcs := msgs[0].(map[string]any)["tool_calls"].([]any)
+	if len(tcs) != 3 {
+		t.Fatalf("len(tool_calls) = %d, want 3", len(tcs))
+	}
+	fn0 := tcs[0].(map[string]any)["function"].(map[string]any)
+	if fn0["index"] != 2 {
+		t.Errorf("tc1 function.index = %v, want 2", fn0["index"])
+	}
+	fn1 := tcs[1].(map[string]any)["function"].(map[string]any)
+	if fn1["index"] != 0 {
+		t.Errorf("tc2 function.index = %v, want 0", fn1["index"])
+	}
+	fn2 := tcs[2].(map[string]any)["function"].(map[string]any)
+	if fn2["index"] != 5 {
+		t.Errorf("tc3 function.index = %v, want 5 (top-level index should win, not function.index)", fn2["index"])
+	}
+}
+
 func TestOpenAIOllamaSkipsEmptyNonAssistant(t *testing.T) {
 	body := map[string]any{
 		"messages": []any{

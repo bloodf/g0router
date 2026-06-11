@@ -220,6 +220,59 @@ func TestCommandCodeOpenAIFinishUsage(t *testing.T) {
 	}
 }
 
+func TestCommandCodeFinishWithoutUsageOmitsUsage(t *testing.T) {
+	state := NewStreamState()
+	out, err := commandcodeToOpenAIResponse(map[string]any{
+		"type": "finish",
+	}, state)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("len(out) = %d, want 1", len(out))
+	}
+	if _, ok := out[0]["usage"]; ok {
+		t.Errorf("finish without usage should omit usage key, got %v", out[0]["usage"])
+	}
+}
+
+func TestCommandCodeFinishWithStepUsage(t *testing.T) {
+	state := NewStreamState()
+	_, err := commandcodeToOpenAIResponse(map[string]any{
+		"type":         "finish-step",
+		"finishReason": "stop",
+		"usage": map[string]any{
+			"inputTokens":  7,
+			"outputTokens": 3,
+		},
+	}, state)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	out, err := commandcodeToOpenAIResponse(map[string]any{
+		"type": "finish",
+	}, state)
+	if err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("len(out) = %d, want 1", len(out))
+	}
+	usage, ok := out[0]["usage"].(map[string]any)
+	if !ok {
+		t.Fatalf("usage missing")
+	}
+	if usage["prompt_tokens"] != 7 {
+		t.Errorf("prompt_tokens = %v, want 7", usage["prompt_tokens"])
+	}
+	if usage["completion_tokens"] != 3 {
+		t.Errorf("completion_tokens = %v, want 3", usage["completion_tokens"])
+	}
+	if usage["total_tokens"] != 10 {
+		t.Errorf("total_tokens = %v, want 10", usage["total_tokens"])
+	}
+}
+
 func TestCommandCodeOpenAIErrorTwoChunks(t *testing.T) {
 	state := NewStreamState()
 	out, err := commandcodeToOpenAIResponse(map[string]any{
