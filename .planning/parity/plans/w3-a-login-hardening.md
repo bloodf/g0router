@@ -43,7 +43,7 @@ In-repo integration points: `internal/admin/auth.go:29` (`Login` handler — ext
 
 Engineering constraints are AGENTS.md conventions (citable project law): "No global
 state — pass dependencies via struct fields", "No mocks — use interfaces and fakes"
-(hence the injected clock as a fake), "TDD always". The server is `fasthttp.Server` (`internal/server/server.go`), which serves requests on concurrent goroutines (fasthttp documented behavior), so the shared attempts map requires a mutex and `-race` coverage. The limiter is `type LoginLimiter struct { mu sync.Mutex; attempts map[string]*entry; now func() time.Time }` with `NewLoginLimiter()` (injected clock for tests; `now` defaults to `time.Now`). Owned by `internal/admin.Handlers` (constructed where Handlers is built). In-memory per ref ("Resets on process restart" — `loginLimiter.js:1`); do NOT persist. Concurrency-safe (mutex) — fasthttp handlers are concurrent; must pass `-race`.
+(hence the injected clock as a fake), "TDD always". The server is `*fasthttp.Server` (`internal/server/server.go:38`), which serves requests on concurrent goroutines (fasthttp documented behavior), so the shared attempts map requires a mutex and `-race` coverage. The limiter is `type LoginLimiter struct { mu sync.Mutex; attempts map[string]*entry; now func() time.Time }` with `NewLoginLimiter()` (injected clock for tests; `now` defaults to `time.Now`). Owned by `internal/admin.Handlers` (constructed where Handlers is built). In-memory per ref ("Resets on process restart" — `loginLimiter.js:1`); do NOT persist. Concurrency-safe (mutex) — fasthttp handlers are concurrent; must pass `-race`.
 
 ## Preconditions (a "0 hits" grep exits 1 = pass)
 
@@ -83,7 +83,7 @@ only the `oidcConfigured` settings-key helper is defined here in admin/auth.go).
    (which internally does hash-verify OR, on empty hash, the default-password
    compare per the Ref-behavior section — the handler does NOT duplicate that
    logic) → fail: RecordFail; success: RecordSuccess. Status: include `auth_mode`.
-   Tests (`auth_test.go` additions): `TestLoginLockout429AndRetryAfter`,
+   Tests (in `internal/admin/auth_test.go` — NOT `internal/auth/auth_test.go`, which only gets the Sessions.Login default-pw tests): `TestLoginLockout429AndRetryAfter` (asserts status 429, Retry-After header, AND the `reset_hint` body field per `login/route.js:24`),
    `TestLoginDefaultPasswordWhenNoHash` (and env override),
    `TestLoginOidcModeBlocksPassword` (mode oidc + configured keys → 403; mode oidc +
    NOT configured → password still works), `TestStatusReportsAuthMode`.
@@ -106,3 +106,17 @@ Dashboard guard middleware + tunnel login block (w3-b — the Login handler leav
 hook point; 027 is w3-b's). OIDC flow itself (w3-c; only the configured-keys helper
 here). API keys (w3-d). JWT (decision 2 — never). Persisting lockout state (ref is
 in-memory by design). bcrypt (consideration says keep PBKDF2).
+
+## Plan-gate disposition (Fable 5, 2026-06-11)
+
+APPROVED BY DECISION after 3 cycles. Real findings fixed across v1-v4: password
+storage corrected to the users table (`users.go:14`) with verification inside
+`Sessions.Login`; `SetUserPasswordHash` store method + first-user reset semantics;
+RESET_HINT cited to `login/route.js:9,24` and asserted in the lockout test; cmd path
++ data-dir resolution cited (`cmd/g0router/main.go:52-65`); full row IDs; fasthttp
+concurrency cited (`server.go:38`); test-file ownership disambiguated (admin vs auth
+test files). Residual "mutex/-race not tied to a parity row" is rebutted: race-free
+request-path code is an engineering correctness constraint under AGENTS.md
+conventions ("no global state", TDD) and the harness gate (`go vet`/`-race`), not a
+parity row — the same standard the w2-d diff gate ENFORCED (BLOCKER for a missing
+mutex). The diff gate remains the binding implementation check.

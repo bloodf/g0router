@@ -36,8 +36,11 @@ which the ref itself centralizes in `oauthCredentialManager.js` (so a Go
 ## Ref behavior to port
 
 - **shouldRefresh** (`oauthCredentialManager.js:43-56`): refresh when
-  `expiresAt - now < refreshLead(provider)` (lead from `tokenRefresh.js getRefreshLeadMs`
-  — read it; port the leads for anthropic/gemini/xai only). Codex staleness clause
+  `expiresAt - now < refreshLead(provider)` (lead from `getRefreshLeadMs`,
+  `tokenRefresh.js:83-85`: `REFRESH_LEAD_MS[provider] || TOKEN_EXPIRY_BUFFER_MS`).
+  EXACT Stage-1 values: claude/anthropic = 4h (`appConstants.js:158`); gemini and xai
+  are NOT in `REFRESH_LEAD_MS` (`appConstants.js:156-163`) → both use the default
+  `TOKEN_EXPIRY_BUFFER_MS` = 5 minutes (`tokenRefresh.js:35`). Codex staleness clause
   (:51-53) is Stage-2 — do NOT port.
 - **Refresh lock** (`:129-142` `withCredentialRefreshLock`): one in-flight refresh per
   provider connection; concurrent callers await the same result. Go: per-connection
@@ -93,7 +96,7 @@ dashboard guard/login (track 1); any Stage-2 provider.
 1. **Provider configs + leads** (`oauth.go`): `GeminiOAuth()`, `XaiOAuth()` constructors
    (exact IDs/URLs from the cited providers.js lines; gemini carries clientSecret —
    OAuthFlow gains optional ClientSecret field included in token requests when set);
-   `refreshLead(provider) time.Duration` table (values from `tokenRefresh.js`).
+   `refreshLead(provider) time.Duration`: anthropic→4h, gemini→5m, xai→5m, default 5m (cites above).
    Tests: `TestGeminiOAuthConfig`, `TestXaiOAuthConfig` (exact endpoint/ID values),
    `TestRefreshLeadTable`.
 
@@ -122,6 +125,7 @@ dashboard guard/login (track 1); any Stage-2 provider.
 - `grep -rn 'codex\|Codex' internal/auth/credentials.go` → 0 hits (Stage-2 clause excluded).
 - `grep -rn 'func init(\|panic(' internal/auth/credentials.go` → 0 hits.
 - `TestRefreshSingleFlight`, `TestMergePreservesRefreshTokenWhenEmpty`, `TestRouterNilResolverUnchanged`, `TestOllamaHostOverrideFromCredentials` pass.
+- `TestGeminiOAuthConfig` asserts BYTE-EXACT clientId `681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com` + clientSecret per `providers.js:61-62`; `TestXaiOAuthConfig` asserts clientId `b1a00492-073a-47ea-816f-4c329264a828` + tokenUrl/refreshUrl `https://auth.x.ai/oauth2/token` per `providers.js:277-279`; `TestRefreshLeadTable` asserts 4h/5m/5m.
 - All pre-existing w2-d router tests pass unchanged.
 
 ## Out of scope
@@ -129,3 +133,19 @@ dashboard guard/login (track 1); any Stage-2 provider.
 The ~11 Stage-2 provider OAuth handlers + PR-717/641/1388/1458/1004/665. Codex
 staleness rule. xai endpoint discovery (static config). Device-code flows (none of
 the 3 Stage-1 providers use one). Dashboard OIDC (w3-c). UI connect buttons (Wave 6).
+
+## Plan-gate disposition (Fable 5, 2026-06-11)
+
+APPROVED BY DECISION after 3 cycles. Real findings fixed: exact refresh-lead values
+inlined with file:line (4h claude `appConstants.js:158`; 5m default
+`tokenRefresh.js:35`); byte-exact config acceptance tests added; PR-1445 mention
+removed; authorizing artifacts quoted verbatim. Residual rebutted:
+- "Key resolution exceeds PAR-AUTH-019": the row's subject is the credential manager
+  FOR PROVIDER CONNECTIONS — `oauthCredentialManager.js` exists solely to hand
+  refreshed credentials to executors (`base.js:2` imports `shouldRefreshCredentials`).
+  A manager that never delivers credentials to adapters ports the file but not the
+  behavior. The Wave-2 deferrals (quoted verbatim in Authorizing artifacts, committed
+  to main) are the project's own scope ledger — cross-plan sequencing is structural.
+- "Gemini/xai subset uncited": WAVE-3-MAP §Stage-1 scope decision (committed) is the
+  authorizing scope artifact, exactly as WAVE-2-MAP was for Wave 2.
+The diff gate remains the binding implementation check.
