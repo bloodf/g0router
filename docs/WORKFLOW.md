@@ -6245,3 +6245,22 @@ Diff gate: 4 rounds on functionResponse truthiness — tool-call id format, regi
 wiring assertions, then the full result||response||{} chain with jsTruthy matching
 JS Boolean (empty {} and [] truthy). One round corrected a planner error (fix3
 wrongly made empty collections falsey). PASS. (strip/dedupe/inject helpers → Wave 4.)
+
+## w1-l claude pipeline helpers — diff gate CLOSED BY DECISION (2026-06-11)
+
+```yaml
+wave: "parity-w1"
+plan: "w1-l-claude-pipeline-helpers"
+status: MERGED
+rows: "PAR-TRANS-022,054,055 → HAVE"
+commits: "c11a2fd (impl), c0f42d9 + 238c02c + cfb1730 (gate fixes)"
+```
+Rounds 1-3 fixed all real findings: bypass source-format responses, escaped
+naming JSON (json.Marshal), translation-error propagation (no silent OpenAI
+downgrade), reg==nil error for non-OpenAI source, comma-ok assertions, +tests.
+Round 4 was entirely FALSE POSITIVES proposing frozen-ref divergence — all three
+rebutted with ref citations:
+- cloakClaudeTools suffixes ALL tool_use names unconditionally per claudeCloaking.js:54-58 (comment: "all client tools get suffix").
+- applyCloaking string-system branch has no skip-check per claudeCloaking.js:142-143 (a string is never a prior injection, which is always an array).
+- bypass title pattern is array-indexed content[0].text=="{" per bypassHandler.js:29 (a string "{" does not match — by design).
+Closed by decision (4 rounds; substance sound; round-4 contradicts the ref).
