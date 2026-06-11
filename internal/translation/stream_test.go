@@ -360,3 +360,65 @@ func TestProcessPassthroughReturnsErrorOnErrorChunk(t *testing.T) {
 		t.Errorf("error chunk should abort before [DONE]: %q", out)
 	}
 }
+
+// --- Row 050: translate-mode response.failed flush tests ---
+
+func TestProcessTranslateStreamSynthesizesResponseFailed(t *testing.T) {
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 1)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
+	close(ch)
+
+	reg := NewRegistry()
+	state := NewStreamState()
+	state.ResponsesCompletedSent = true // suppress flush from emitting response.completed
+
+	_, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := w.buf.String()
+	if !strings.Contains(out, "event: response.failed") {
+		t.Errorf("missing synthesized response.failed: %q", out)
+	}
+	if !strings.Contains(out, `"code":"stream_disconnected"`) {
+		t.Errorf("missing stream_disconnected code: %q", out)
+	}
+	if !strings.HasSuffix(out, "data: [DONE]\n\n") {
+		t.Errorf("missing [DONE] terminator: %q", out)
+	}
+	// Synthesized failure must appear before [DONE].
+	failedIdx := strings.Index(out, "event: response.failed")
+	doneIdx := strings.Index(out, "data: [DONE]")
+	if failedIdx == -1 || doneIdx == -1 || failedIdx > doneIdx {
+		t.Errorf("response.failed should appear before [DONE]: %q", out)
+	}
+}
+
+func TestProcessTranslateStreamNoSynthesisWhenCompleted(t *testing.T) {
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 1)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
+	close(ch)
+
+	reg := NewRegistry()
+	state := NewStreamState()
+	// Normal state: flush will emit response.completed, so terminal is seen.
+
+	_, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	out := w.buf.String()
+	if strings.Contains(out, "event: response.failed") {
+		t.Errorf("should not synthesize response.failed when terminal seen: %q", out)
+	}
+	if !strings.Contains(out, "event: response.completed") {
+		t.Errorf("expected response.completed from flush: %q", out)
+	}
+	if !strings.HasSuffix(out, "data: [DONE]\n\n") {
+		t.Errorf("missing [DONE] terminator: %q", out)
+	}
+}

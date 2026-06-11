@@ -61,6 +61,7 @@ type StreamState struct {
 	ResponsesFuncItemDone    map[int]bool
 	ResponsesFuncArgsDone    map[int]bool
 	ResponsesCompletedSent   bool
+	ResponsesTerminalSeen    bool
 	// Fields for responses→openai response translation.
 	ResponsesChatID            string
 	ResponsesToolCallIndex     int

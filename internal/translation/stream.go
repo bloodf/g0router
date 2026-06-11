@@ -54,6 +54,10 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 				continue
 			}
 
+			if to == FormatOpenAIResponses && isResponsesTerminalEvent(item) {
+				state.ResponsesTerminalSeen = true
+			}
+
 			if state.Usage != nil && isFinishChunk(item) {
 				item["usage"] = state.Usage
 				summary.Usage = state.Usage
@@ -76,8 +80,17 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 		if !HasValuableContent(item, to) {
 			continue
 		}
+		if to == FormatOpenAIResponses && isResponsesTerminalEvent(item) {
+			state.ResponsesTerminalSeen = true
+		}
 		if _, werr := w.Write(FormatSSE(to, item)); werr != nil {
 			return summary, fmt.Errorf("write flushed chunk: %w", werr)
+		}
+	}
+
+	if to == FormatOpenAIResponses && !state.ResponsesTerminalSeen {
+		if _, werr := w.Write(formatIncompleteResponsesStreamFailure()); werr != nil {
+			return summary, fmt.Errorf("write failed chunk: %w", werr)
 		}
 	}
 
