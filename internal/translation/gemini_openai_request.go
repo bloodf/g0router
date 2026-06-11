@@ -144,9 +144,9 @@ func jsTruthy(v any) bool {
 	case float64:
 		return val != 0
 	case map[string]any:
-		return len(val) > 0
+		return true
 	case []any:
-		return len(val) > 0
+		return true
 	default:
 		return true
 	}
