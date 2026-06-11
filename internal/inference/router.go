@@ -34,7 +34,9 @@ func NewRouter(reg *translation.Registry) *Router {
 // SetKeyResolver sets an optional key resolver. When non-nil, Resolve consults
 // it instead of returning the default empty key. nil leaves behavior unchanged.
 func (r *Router) SetKeyResolver(resolver KeyResolver) {
+	r.mu.Lock()
 	r.keyResolver = resolver
+	r.mu.Unlock()
 }
 
 // Resolve returns the provider and key for a given model request.
@@ -51,8 +53,12 @@ func (r *Router) Resolve(model string) (schemas.Provider, schemas.Key, error) {
 		return nil, schemas.Key{}, fmt.Errorf("resolve %q: %w", model, err)
 	}
 
-	if r.keyResolver != nil {
-		key, psd, err := r.keyResolver.ResolveKey(providerID)
+	r.mu.RLock()
+	resolver := r.keyResolver
+	r.mu.RUnlock()
+
+	if resolver != nil {
+		key, psd, err := resolver.ResolveKey(providerID)
 		if err != nil {
 			return nil, schemas.Key{}, fmt.Errorf("resolve key for %q: %w", model, err)
 		}

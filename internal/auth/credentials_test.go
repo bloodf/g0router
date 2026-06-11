@@ -151,9 +151,17 @@ func TestMergeProviderSpecificData(t *testing.T) {
 func TestResolveKeyNoConnection(t *testing.T) {
 	st := newTestStore(t)
 	resolver := NewCredentialResolver(st, nil)
-	_, _, err := resolver.ResolveKey("nonexistent")
+
+	st.CreateProvider(&store.ProviderRecord{Name: "NoConn", Type: "test", Enabled: true})
+	providers, _ := st.ListProviders()
+	provider := providers[0]
+
+	_, _, err := resolver.ResolveKey(provider.ID)
 	if err == nil {
 		t.Fatal("expected error for missing connection")
+	}
+	if !strings.Contains(err.Error(), "no connection for provider") {
+		t.Fatalf("error = %q, want to contain 'no connection for provider'", err.Error())
 	}
 }
 

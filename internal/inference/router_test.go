@@ -196,6 +196,44 @@ func (f *fakeResolver) ResolveKey(providerID string) (schemas.Key, map[string]st
 	return k, f.psd, f.err
 }
 
+func TestSetKeyResolverConcurrent(t *testing.T) {
+	r := NewRouter(translation.NewRegistry())
+	models := []string{"gpt-4", "anthropic/claude-3-5-sonnet"}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			if i%2 == 0 {
+				r.SetKeyResolver(&fakeResolver{
+					key: schemas.Key{ID: "k", Value: "resolved"},
+				})
+			} else {
+				r.SetKeyResolver(nil)
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 100; i++ {
+			for _, m := range models {
+				p, _, err := r.Resolve(m)
+				if err != nil {
+					t.Errorf("Resolve(%q) error: %v", m, err)
+				}
+				if p == nil {
+					t.Errorf("Resolve(%q) returned nil provider", m)
+				}
+			}
+		}
+	}()
+
+	wg.Wait()
+}
+
 func TestRouterConcurrentResolve(t *testing.T) {
 	r := NewRouter(translation.NewRegistry())
 	models := []string{"deepseek-chat", "gpt-4", "anthropic/claude-3-5-sonnet", "gemini/gemini-1.5-pro"}
