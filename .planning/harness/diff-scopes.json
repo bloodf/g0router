@@ -165,6 +165,21 @@
         "internal/translation/registry.go",
         "internal/translation/registry_test.go"
       ]
+    },
+    "w1-g2-responses-endpoint": {
+      "base": "5a21164^",
+      "end": "5a21164",
+      "paths": [
+        "internal/api/responses.go",
+        "internal/api/responses_test.go",
+        "internal/translation/responses_stream_helpers.go",
+        "internal/translation/responses_stream_helpers_test.go",
+        "internal/translation/stream.go",
+        "internal/translation/stream_test.go",
+        "internal/translation/registry.go",
+        "internal/server/routes_openai.go",
+        "internal/server/routes_openai_test.go"
+      ]
     }
   }
 }
