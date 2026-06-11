@@ -271,6 +271,18 @@
         "internal/auth/oauth.go",
         "internal/auth/oauth_proxy_test.go"
       ]
+    },
+    "w3-b-dashboard-guard": {
+      "base": "f3ae808^",
+      "end": "f3ae808",
+      "paths": [
+        "internal/server/guard.go",
+        "internal/server/guard_test.go",
+        "internal/server/server.go",
+        "internal/server/server_test.go",
+        "internal/admin/auth.go",
+        "internal/admin/auth_test.go"
+      ]
     }
   }
 }
