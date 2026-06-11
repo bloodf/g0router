@@ -6,7 +6,7 @@ Rows: PAR-TRANS-022 (claude cloaking — billing header + fake user id + `_ide` 
 
 Frozen ref (@ 827e5c3), read whole:
 - `open-sse/utils/claudeCloaking.js:1-155` (row 022)
-- `open-sse/config/appConstants.js:75-105` (`CLAUDE_TOOL_SUFFIX = "_ide"` at :75; `CC_DEFAULT_TOOLS` set at :79 — 26 entries)
+- `open-sse/config/appConstants.js:75-105` (`CLAUDE_TOOL_SUFFIX = "_ide"` at :75; `CC_DEFAULT_TOOLS` set at :79 — 20 entries; corrected 2026-06-11 from an erroneous 26)
 - `open-sse/config/defaultThinkingSignature.js:2` (`DEFAULT_THINKING_CLAUDE_SIGNATURE` literal)
 - `open-sse/utils/bypassHandler.js:1-195` (row 054, incl. `SKIP_PATTERNS`, `createStreamingResponse`/`createNonStreamingResponse`)
 - `open-sse/services/provider.js:49` (`detectFormat(body)` body-shape detector used by bypass)
@@ -26,8 +26,8 @@ TOUCH-ONLY: none (no registry change — these are pipeline helpers, not registe
 
 ## Tasks (each: STEP (a) write named failing tests; STEP (b) port)
 
-1. **Constants** (`claude_appconstants.go`, `claude_thinking_signature.go`): `claudeToolSuffix = "_ide"` (appConstants.js:75); `ccDefaultTools` set (appConstants.js:79-105, all 26 names — byte-exact, pin count in test); `ccDecoyTools` (claudeCloaking.js:95-116, 20 entries each `{name, description:"This tool is currently unavailable.", input_schema:{type:object,properties:{}}}`); `defaultThinkingClaudeSignature` constant (defaultThinkingSignature.js:2 verbatim — pin by `len` + sha256 in test).
-   Tests: `TestCCDefaultToolsCount` (==26), `TestCCDecoyToolsShape` (20 entries, all unavailable desc), `TestClaudeThinkingSignaturePinned` (sha256 + length).
+1. **Constants** (`claude_appconstants.go`, `claude_thinking_signature.go`): `claudeToolSuffix = "_ide"` (appConstants.js:75); `ccDefaultTools` set (appConstants.js:79-106, all 20 names — byte-exact, pin count in test; the count is 20, corrected from a planning typo of 26); `ccDecoyTools` (claudeCloaking.js:95-116, 20 entries each `{name, description:"This tool is currently unavailable.", input_schema:{type:object,properties:{}}}`); `defaultThinkingClaudeSignature` constant (defaultThinkingSignature.js:2 verbatim — pin by `len` + sha256 in test).
+   Tests: `TestCCDefaultToolsCount` (==20), `TestCCDecoyToolsShape` (20 entries, all unavailable desc), `TestClaudeThinkingSignaturePinned` (sha256 + length).
 
 2. **Row 022: cloaking** (`claude_cloaking.go`), port `claudeCloaking.js:1-155`:
    - `generateBillingHeader(payload) (string, error)` (:9-14): sha256-hex first-5 of `json.Marshal(payload)`, 3-hex build via crypto/rand (wrap errors), exact format `x-anthropic-billing-header: cc_version=2.1.92.<build>; cc_entrypoint=sdk-cli; cch=<cch>;`.
@@ -48,7 +48,7 @@ TOUCH-ONLY: none (no registry change — these are pipeline helpers, not registe
 - `grep -rn 'func init(\|panic(' <all new files>` → 0 hits.
 - `grep -c '"_ide"' internal/translation/claude_appconstants.go` ≥ 1.
 - `grep -c 'sk-ant-oat' internal/translation/claude_cloaking.go` ≥ 1.
-- `TestCCDefaultToolsCount` (==26), `TestCCDecoyToolsShape` (==20), `TestClaudeThinkingSignaturePinned` all pass.
+- `TestCCDefaultToolsCount` (==20), `TestCCDecoyToolsShape` (==20), `TestClaudeThinkingSignaturePinned` all pass.
 
 ## Parity-observability note (addresses "dead helper" gate concern)
 
