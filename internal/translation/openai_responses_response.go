@@ -2,7 +2,6 @@ package translation
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 )
 
@@ -478,15 +477,4 @@ func flushResponsesEvents(state *StreamState) []map[string]any {
 	return events
 }
 
-func parseIntAny(v any) int {
-	switch n := v.(type) {
-	case int:
-		return n
-	case float64:
-		return int(n)
-	case string:
-		i, _ := strconv.Atoi(n)
-		return i
-	}
-	return 0
-}
+

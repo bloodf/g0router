@@ -181,8 +181,8 @@ func TestOpenAIResponsesToolResultCoercion(t *testing.T) {
 		t.Errorf("expected array joined output, got %v", input[1].(map[string]any)["output"])
 	}
 	// JSON object should be JSON-stringified
-	out2 := input[1].(map[string]any)["output"].(string)
-	if out2 != "part1part2" {
+	out2 := input[2].(map[string]any)["output"].(string)
+	if out2 != `{"result":42}` {
 		t.Errorf("unexpected output2: %v", out2)
 	}
 }
