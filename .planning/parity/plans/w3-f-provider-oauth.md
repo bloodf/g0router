@@ -43,9 +43,8 @@ which the ref itself centralizes in `oauthCredentialManager.js` (so a Go
   provider connection; concurrent callers await the same result. Go: per-connection
   `singleflight` or mutex map — must pass `-race`.
 - **mergeRefreshedCredentials** (`:66-127`): refreshed token fields overwrite, but a
-  missing/empty new refreshToken PRESERVES the old one (PAR-PR-1445's "preserve
-  refreshed RT" applies to kiro=Stage-2, but the preserve-on-empty merge rule at
-  :66-127 is generic — port the generic rule); `providerSpecificData` shallow-merged
+  missing/empty new refreshToken PRESERVES the old one (the preserve-on-empty rule is
+  the ref's own logic at `oauthCredentialManager.js:66-127` — no PR row involved); `providerSpecificData` shallow-merged
   (`mergeProviderSpecificData` :58-64).
 - **Per-provider configs**: `GeminiOAuth()` — Google endpoints, clientId+clientSecret
   from `providers.js:58-62`, refresh via `default.js:248-258 refreshGoogle` (form-encoded

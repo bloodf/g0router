@@ -33,7 +33,7 @@ In-repo integration points: `internal/admin/auth.go:29` (`Login` handler — ext
   does NOT lock the operator out (the ref's `isOidcConfigured` guard, same line).
   `/api/auth/status` response gains `auth_mode` (snake_case envelope per AGENTS.md).
 - **Reset CLI** (`settings.js:177-204`): a `g0router reset-password` subcommand in
-  `cmd/main.go` operating on the data-dir DB directly (no server needed): set the
+  `cmd/g0router/main.go` operating on the data-dir DB directly (no server needed): set the
   admin user's `PasswordHash` to `""` via a NEW store method
   `SetUserPasswordHash(username, hash string) error` (`internal/store/users.go` —
   follows CreateUser/GetUserByUsername patterns :20-50), so the next login takes the
@@ -69,7 +69,7 @@ only the `oidcConfigured` settings-key helper is defined here in admin/auth.go).
 1. **LoginLimiter** (`internal/auth/limiter.go`): port the limiter verbatim with the
    exact constants/steps above; methods `CheckLock(ip) (locked bool, retryAfter int)`,
    `RecordFail(ip) (remainingBeforeLock int)`, `RecordSuccess(ip)`, plus
-   `ClientIP(xff, xRealIP string) string` (pure function for 026).
+   `ClientIP(xff, xRealIP string) string` (pure function for PAR-AUTH-026).
    Tests (`limiter_test.go`, injected clock): `TestLimiterLocksAfterFiveFails`,
    `TestLimiterProgressiveSteps` (4 lock levels: 30s/2m/10m/30m; level capped at last),
    `TestLimiterAutoResetAfterWindow` (advance >1h since lastFail, unlocked → entry gone; PAR-AUTH-023),
