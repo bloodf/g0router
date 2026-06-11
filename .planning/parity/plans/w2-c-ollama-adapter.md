@@ -73,3 +73,16 @@ in the w2-a DEPENDENCY package (not yet on disk — that is what the preconditio
 merge-gate guarantees) is an impossible bar for a dependent plan; cross-plan wave
 sequencing is structural, not scope creep. The Kimi diff gate is the binding
 quality check at implementation.
+
+## Diff-gate disposition (2026-06-11)
+CLOSED BY DECISION after 3 diff-gate cycles. Real findings fixed: malformed-NDJSON
+SKIP test (corrected from a wrong in-band-error spec — caught by kimi IMPL-BLOCKED),
+dedicated post-hook-error test, `New` restricted to ollama/ollama-local ids, stale
+comment corrected, auth-header comments reworded so the no-auth grep passes. Residual
+rebutted:
+- **buffered stream (client.Do before channel)**: matches the MERGED openai provider
+  (`openai/chat.go:104,135`) exactly — the accepted fasthttp ClientPool pattern;
+  incremental wire-streaming is a cross-cutting change to openai too, out of scope.
+- **catalog Format/ollama-ID tests "absent"**: those are w2-a's files, gated under w2-a
+  (prompt-scoping artifact of the combined fix plan), not w2-c's diff.
+Ollama adapter merged at 5725e46 (+ fixes). Suite green. Rows flip HAVE at w2-d.
