@@ -296,6 +296,24 @@
         "internal/admin/auth_test.go",
         "internal/server/routes_admin.go"
       ]
+    },
+    "w3-d-api-keys": {
+      "base": "406f65d^",
+      "end": "406f65d",
+      "paths": [
+        "internal/auth/apikey.go",
+        "internal/auth/apikey_test.go",
+        "internal/store/apikeys.go",
+        "internal/store/apikeys_test.go",
+        "internal/store/migrate.go",
+        "internal/admin/apikeys.go",
+        "internal/admin/apikeys_test.go",
+        "internal/server/guard.go",
+        "internal/server/guard_test.go",
+        "internal/server/server.go",
+        "internal/server/server_test.go",
+        "internal/server/routes_admin.go"
+      ]
     }
   }
 }
