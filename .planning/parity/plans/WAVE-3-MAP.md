@@ -21,28 +21,27 @@ order applies within each stage). Dashboard/gateway auth hardening (the bulk of
 PAR-AUTH) is fully in-scope — it has no Stage-2 dependency.
 
 Decision 2 governs sessions: **opaque SQLite tokens, no JWT** — PAR-AUTH-003 (JWT)
-is closed by decision (opaque equivalent already HAVE per PAR-AUTH-030); PAR-PR-1711's
-cookie semantics are adapted to the opaque token (unified parser yes; 30d TTL no —
-decision 2 fixes 7-day).
+is closed by decision (opaque equivalent already HAVE per PAR-AUTH-030); PAR-PR-1711 is closed by
+decision 2 (§Deferred ledger).
 
 ## Row coverage (30 PAR-AUTH rows)
 
 - Already HAVE (6): 001, 004, 016, 024, 025, 030.
 - Closed by decision 2 (1): 003 (JWT → opaque tokens).
-- In-scope MISSING/PARTIAL (23): 002, 005-015, 017-023, 026-029 → the 6 plans below.
-- PR ports in-scope: PAR-PR-1249 (OAuth redirect URI for remote deployments → w3-f),
-  PAR-PR-1711 (unified cookie parser, opaque-adapted → w3-b). Deferred with their
-  Stage-2 providers: PAR-PR-717/641/1388/1458/1004/665.
+- In-scope MISSING/PARTIAL (21): 002, 005-015, 019-023 (020 partial), 026-029 → the 6 plans below. 017/018 deferred to Wave 5 (§Deferred).
+- PR ports in-scope: PAR-PR-1249 (OAuth redirect URI → w3-f). PAR-PR-1711 closed by
+  decision 2 (§Deferred). Deferred with their Stage-2 providers:
+  PAR-PR-717/641/1388/1458/1004/665.
 
 ## Micro-plan index (6 plans, two tracks)
 
 | Plan | Scope | PAR-AUTH rows | Key ref evidence | Depends |
 |---|---|---|---|---|
 | **w3-a** | Login hardening: default-password fallback, auth-mode switch (password/oidc/both), login rate limiter + progressive lockout + 1h auto-reset + client-IP extraction, password-reset CLI | 002, 006, 014, 015, 023, 026 | `src/app/api/auth/login/route.js:40-50`, `src/lib/auth/loginLimiter.js:3-51`, `cli/src/cli/menus/settings.js:177-204`, `src/app/api/auth/status/route.js:13` | W2 |
-| **w3-b** | Centralized dashboard guard middleware (path lists), local-only route gate (loopback host+origin), tunnel dashboard toggle + tunnel login block, unified cookie parser (PR-1711, opaque-adapted) | 007, 011, 013, 027 + PR-1711 | `src/dashboardGuard.js:22-65,69-100,165-241,197-214`, `src/app/api/auth/login/route.js:11-16,33-35` | w3-a |
+| **w3-b** | Centralized dashboard guard middleware (path lists), local-only route gate (loopback host+origin), tunnel dashboard toggle + tunnel login block | 007, 011, 013, 027 | `src/dashboardGuard.js:22-65,69-100,165-241,197-214`, `src/app/api/auth/login/route.js:11-16,33-35` | w3-a |
 | **w3-c** | OIDC dashboard login with PKCE, logout clears OIDC cookies, OIDC cookie TTL (10 min), client-secret probe endpoint | 005, 021, 022, 028 | `src/lib/auth/oidc.js:74-78,144-210`, `src/app/api/auth/oidc/start/route.js:24-46,42`, `src/app/api/auth/logout/route.js:8-10` | w3-a, w3-b |
 | **w3-d** | API key system: key table with machineId, key format machineId+CRC8, remote API-key validation in guard, loopback no-key access, CLI token auth | 008, 009, 010, 012, 029 | `src/shared/utils/apiKey.js:34-38`, `src/lib/db/schema.js:74-84`, `src/dashboardGuard.js:6-19,35,102-122,177` | w3-b |
-| **w3-e** | Security hardening: request-log header sanitization, debug-log production gate, SSRF outbound-proxy protections | 017, 018, 020 | `src/lib/db/repos/requestDetailsRepo.js:46-54`, `open-sse/utils/debugLog.js:3`, `open-sse/utils/proxyFetch.js:314-334` | W2 (independent of a-d) |
+| **w3-e** | Outbound env-proxy support (PAR-AUTH-020 Stage-1 half; 017/018 deferred to Wave 5, MITM half to Stage-2/W7 — see §Deferred) | 020 (partial) | `open-sse/utils/proxyFetch.js:310-334` | W2 (independent of a-d) |
 | **w3-f** | Provider OAuth (decision 1, monolithic per-provider): complete anthropic (019 PARTIAL — token persistence + refresh-on-expiry + key resolution into adapters), add gemini + xai handlers, PR-1249 redirect URI, credentials plumbing (providerSpecificData → ollama host override from w2-c, generic-adapter refresh hook from w2-b) | 019 + PR-1249 (+ w2 deferrals) | `open-sse/services/oauthCredentialManager.js`, `src/lib/oauth/services/*`, `providers.js:58-62,273-280,442-445`, `executors/default.js:186-312`; in-repo `internal/auth/oauth.go:34-184` | W2 (parallel to a-e track) |
 
 ## Tracks & ownership
