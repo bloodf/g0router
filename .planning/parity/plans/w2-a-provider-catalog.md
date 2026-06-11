@@ -44,3 +44,16 @@ TOUCH-ONLY: none (pure new package; no registry/router change here — that is w
 ## Out of scope
 
 Request execution / HTTP (w2-b generic adapter, w2-c ollama). Router wiring + /v1/models (w2-d). OAuth fields/handlers (Wave 3 — Stage-1 providers are API-key/no-auth; do NOT add clientId/tokenUrl). Any provider outside the 10-row "Include now" set. Capability routing by model `Type` (Wave 4/5; the field is recorded only).
+
+## Diff-gate disposition (2026-06-11)
+CLOSED BY DECISION after 4 diff-gate cycles. ALL real findings fixed: exact-BaseURL,
+exact-Format, and exact ollama model-ID assertions now lock the catalog data. Residual
+findings rebutted (ref-verified):
+- **tts/embedding Params "data loss"**: the ref `providerModels.js:302-320` has `params`
+  ONLY on `type:"image"` entries; tts/embedding have none — omitting Params for them is
+  byte-faithful, not loss.
+- **`ProviderConfig.Name` "drift from ref display names"**: FALSE PREMISE — the ref
+  `PROVIDERS` entries (providers.js:50-438) have ZERO `name:` fields (verified: grep
+  count 0). `Name` has no ref source; it is an internal identifier set to the provider
+  key and cannot drift. (It may be dropped in a later cleanup; harmless.)
+Catalog merged at dd48ce6 (+ fixes). Data verified correct; suite green.
