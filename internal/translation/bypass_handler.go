@@ -124,7 +124,8 @@ func getTextContent(content any) string {
 
 // HandleBypassRequest checks for bypass patterns and returns a fake response
 // without calling the provider. Only works for Claude CLI requests.
-func HandleBypassRequest(body map[string]any, model string, userAgent string, ccFilterNaming bool) ([]map[string]any, bool) {
+// The response is shaped in the detected source format (OpenAI, Claude, etc.).
+func HandleBypassRequest(body map[string]any, model string, userAgent string, ccFilterNaming bool, reg *Registry) ([]map[string]any, bool) {
 	if !strings.Contains(userAgent, "claude-cli") {
 		return nil, false
 	}
@@ -256,16 +257,21 @@ func HandleBypassRequest(body map[string]any, model string, userAgent string, cc
 		text = defaultBypassText
 	}
 
-	if stream {
-		return createStreamingBypassResponse(model, text), true
+	sourceFormat := Format(detectBypassSourceFormat(body))
+	if sourceFormat == "" {
+		sourceFormat = FormatOpenAI
 	}
-	return []map[string]any{createNonStreamingBypassResponse(model, text)}, true
+
+	if stream {
+		return createStreamingBypassResponse(reg, sourceFormat, model, text), true
+	}
+	return createNonStreamingBypassResponse(reg, sourceFormat, model, text), true
 }
 
-func createNonStreamingBypassResponse(model string, text string) map[string]any {
+func createNonStreamingBypassResponse(reg *Registry, sourceFormat Format, model string, text string) []map[string]any {
 	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixMilli())
 	created := time.Now().Unix()
-	return map[string]any{
+	openaiChunk := map[string]any{
 		"id":      id,
 		"object":  "chat.completion",
 		"created": created,
@@ -286,9 +292,18 @@ func createNonStreamingBypassResponse(model string, text string) map[string]any 
 			"total_tokens":      2,
 		},
 	}
+	if reg == nil || sourceFormat == FormatOpenAI {
+		return []map[string]any{openaiChunk}
+	}
+	state := NewStreamState()
+	translated, err := reg.TranslateResponse(FormatOpenAI, sourceFormat, openaiChunk, state)
+	if err != nil {
+		return []map[string]any{openaiChunk}
+	}
+	return translated
 }
 
-func createStreamingBypassResponse(model string, text string) []map[string]any {
+func createStreamingBypassResponse(reg *Registry, sourceFormat Format, model string, text string) []map[string]any {
 	id := fmt.Sprintf("chatcmpl-%d", time.Now().UnixMilli())
 	created := time.Now().Unix()
 	usage := map[string]any{
@@ -296,7 +311,7 @@ func createStreamingBypassResponse(model string, text string) []map[string]any {
 		"completion_tokens": 1,
 		"total_tokens":      2,
 	}
-	return []map[string]any{
+	openaiChunks := []map[string]any{
 		{
 			"id":      id,
 			"object":  "chat.completion.chunk",
@@ -328,4 +343,18 @@ func createStreamingBypassResponse(model string, text string) []map[string]any {
 			"usage": usage,
 		},
 	}
+	if reg == nil || sourceFormat == FormatOpenAI {
+		return openaiChunks
+	}
+	state := NewStreamState()
+	var results []map[string]any
+	for _, chunk := range openaiChunks {
+		translated, err := reg.TranslateResponse(FormatOpenAI, sourceFormat, chunk, state)
+		if err != nil {
+			results = append(results, chunk)
+			continue
+		}
+		results = append(results, translated...)
+	}
+	return results
 }
