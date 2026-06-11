@@ -155,6 +155,16 @@
         "internal/translation/claude_prepare.go",
         "internal/translation/claude_prepare_test.go"
       ]
+    },
+    "w1-k-gemini-client": {
+      "base": "f94a58a^",
+      "end": "f94a58a",
+      "paths": [
+        "internal/translation/gemini_openai_request.go",
+        "internal/translation/gemini_openai_request_test.go",
+        "internal/translation/registry.go",
+        "internal/translation/registry_test.go"
+      ]
     }
   }
 }
