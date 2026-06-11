@@ -2,6 +2,7 @@ package inference
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/bloodf/g0router/internal/translation"
@@ -13,6 +14,7 @@ import (
 type Router struct {
 	registry  *translation.Registry
 	providers map[string]schemas.Provider
+	mu        sync.RWMutex
 }
 
 // NewRouter creates a router with all providers wired in.
@@ -47,14 +49,25 @@ func (r *Router) Resolve(model string) (schemas.Provider, schemas.Key, error) {
 // providerForID returns a cached provider instance for the given provider ID,
 // creating it lazily on first access.
 func (r *Router) providerForID(providerID string) (schemas.Provider, error) {
+	r.mu.RLock()
 	if p, ok := r.providers[providerID]; ok {
+		r.mu.RUnlock()
 		return p, nil
 	}
+	r.mu.RUnlock()
+
 	p, err := buildProvider(providerID, r.registry)
 	if err != nil {
 		return nil, fmt.Errorf("build provider %q: %w", providerID, err)
 	}
+
+	r.mu.Lock()
+	if existing, ok := r.providers[providerID]; ok {
+		r.mu.Unlock()
+		return existing, nil
+	}
 	r.providers[providerID] = p
+	r.mu.Unlock()
 	return p, nil
 }
 

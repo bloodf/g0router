@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/providers/generic"
@@ -139,4 +140,36 @@ func TestResolveUnknownDefaultsOpenAI(t *testing.T) {
 	if key.Provider != "openai" {
 		t.Errorf("key provider = %q, want openai", key.Provider)
 	}
+}
+
+func TestRouterConcurrentResolve(t *testing.T) {
+	r := NewRouter(translation.NewRegistry())
+	models := []string{"deepseek-chat", "gpt-4", "anthropic/claude-3-5-sonnet", "gemini/gemini-1.5-pro"}
+
+	const workers = 50
+	const iterations = 20
+
+	var wg sync.WaitGroup
+	wg.Add(workers * len(models))
+
+	for i := 0; i < workers; i++ {
+		for _, model := range models {
+			go func(m string) {
+				defer wg.Done()
+				for j := 0; j < iterations; j++ {
+					p, _, err := r.Resolve(m)
+					if err != nil {
+						t.Errorf("Resolve(%q) error: %v", m, err)
+						return
+					}
+					if p == nil {
+						t.Errorf("Resolve(%q) returned nil provider", m)
+						return
+					}
+				}
+			}(model)
+		}
+	}
+
+	wg.Wait()
 }

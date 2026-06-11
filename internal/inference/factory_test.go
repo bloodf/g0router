@@ -126,3 +126,14 @@ func TestProviderForModelDeterministic(t *testing.T) {
 		}
 	}
 }
+
+func TestBuildProviderUnknownErrors(t *testing.T) {
+	reg := translation.NewRegistry()
+	p, err := buildProvider("not-a-real-provider", reg)
+	if err == nil {
+		t.Fatalf("buildProvider(not-a-real-provider) error = nil, want error; provider = %T", p)
+	}
+	if p != nil {
+		t.Fatalf("buildProvider(not-a-real-provider) provider = %v, want nil", p)
+	}
+}

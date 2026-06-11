@@ -1,6 +1,7 @@
 package inference
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/bloodf/g0router/internal/providers/anthropic"
@@ -67,6 +68,9 @@ func buildProvider(providerID string, reg *translation.Registry) (schemas.Provid
 	case "ollama", "ollama-local":
 		return ollama.New(providerID, reg)
 	default:
+		if _, ok := catalog.Lookup(providerID); !ok {
+			return nil, fmt.Errorf("unknown provider %q", providerID)
+		}
 		return generic.New(providerID)
 	}
 }
