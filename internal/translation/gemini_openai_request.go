@@ -108,6 +108,46 @@ func geminiToOpenAIRequest(model string, body map[string]any, stream bool, crede
 	return result, nil
 }
 
+// jsTruthy approximates JavaScript truthiness for values found in Gemini
+// functionResponse maps. Falsey values: nil, false, 0, 0.0, "".
+func jsTruthy(v any) bool {
+	if v == nil {
+		return false
+	}
+	switch val := v.(type) {
+	case bool:
+		return val
+	case string:
+		return val != ""
+	case int:
+		return val != 0
+	case int8:
+		return val != 0
+	case int16:
+		return val != 0
+	case int32:
+		return val != 0
+	case int64:
+		return val != 0
+	case uint:
+		return val != 0
+	case uint8:
+		return val != 0
+	case uint16:
+		return val != 0
+	case uint32:
+		return val != 0
+	case uint64:
+		return val != 0
+	case float32:
+		return val != 0
+	case float64:
+		return val != 0
+	default:
+		return true
+	}
+}
+
 // convertGeminiContent turns a single Gemini content object into an OpenAI
 // message. Ported from request/gemini-to-openai.js:72-133.
 func convertGeminiContent(content map[string]any) map[string]any {
@@ -194,7 +234,7 @@ func convertGeminiContent(content map[string]any) map[string]any {
 				var contentVal any
 				if resp, ok := functionResponse["response"]; ok && resp != nil {
 					if respMap, ok := resp.(map[string]any); ok {
-						if result, ok := respMap["result"]; ok && result != nil {
+						if result, ok := respMap["result"]; ok && jsTruthy(result) {
 							contentVal = result
 						} else {
 							contentVal = respMap

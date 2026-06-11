@@ -460,6 +460,170 @@ func TestGeminiOpenAIFunctionResponse(t *testing.T) {
 			t.Errorf("content = %v, want '{}'", msg["content"])
 		}
 	})
+
+	t.Run("result 0 falls back to response object", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_4",
+								"response": map[string]any{"result": 0, "extra": "data"},
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(msg["content"].(string)), &parsed); err != nil {
+			t.Fatalf("content not valid JSON: %v", err)
+		}
+		if parsed["result"] != float64(0) {
+			t.Errorf("content result = %v, want 0", parsed["result"])
+		}
+		if parsed["extra"] != "data" {
+			t.Errorf("content extra = %v, want data", parsed["extra"])
+		}
+	})
+
+	t.Run("result false falls back to response object", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_5",
+								"response": map[string]any{"result": false, "extra": "data"},
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(msg["content"].(string)), &parsed); err != nil {
+			t.Fatalf("content not valid JSON: %v", err)
+		}
+		if parsed["result"] != false {
+			t.Errorf("content result = %v, want false", parsed["result"])
+		}
+		if parsed["extra"] != "data" {
+			t.Errorf("content extra = %v, want data", parsed["extra"])
+		}
+	})
+
+	t.Run("result empty string falls back to response object", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_6",
+								"response": map[string]any{"result": "", "extra": "data"},
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(msg["content"].(string)), &parsed); err != nil {
+			t.Fatalf("content not valid JSON: %v", err)
+		}
+		if parsed["result"] != "" {
+			t.Errorf("content result = %v, want empty string", parsed["result"])
+		}
+		if parsed["extra"] != "data" {
+			t.Errorf("content extra = %v, want data", parsed["extra"])
+		}
+	})
+
+	t.Run("result object passes through", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_7",
+								"response": map[string]any{"result": map[string]any{"x": 1}},
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(msg["content"].(string)), &parsed); err != nil {
+			t.Fatalf("content not valid JSON: %v", err)
+		}
+		if parsed["x"] != float64(1) {
+			t.Errorf("content x = %v, want 1", parsed["x"])
+		}
+	})
+
+	t.Run("absent result falls back to response object", func(t *testing.T) {
+		body := map[string]any{
+			"contents": []any{
+				map[string]any{
+					"role": "user",
+					"parts": []any{
+						map[string]any{
+							"functionResponse": map[string]any{
+								"id":       "call_8",
+								"response": map[string]any{"raw": "value"},
+							},
+						},
+					},
+				},
+			},
+		}
+		result, err := geminiToOpenAIRequest("gemini-pro", body, false, nil)
+		if err != nil {
+			t.Fatalf("err = %v", err)
+		}
+		msgs := result["messages"].([]any)
+		msg := msgs[0].(map[string]any)
+		var parsed map[string]any
+		if err := json.Unmarshal([]byte(msg["content"].(string)), &parsed); err != nil {
+			t.Fatalf("content not valid JSON: %v", err)
+		}
+		if parsed["raw"] != "value" {
+			t.Errorf("content raw = %v, want value", parsed["raw"])
+		}
+	})
 }
 
 func TestGeminiOpenAITools(t *testing.T) {
