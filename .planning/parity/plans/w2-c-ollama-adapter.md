@@ -16,11 +16,7 @@ TranslateResponse) + exported `OllamaBodyToOpenAI` — never reach into the pack
 - **Ollama-native wire** — the request body is ollama-shaped (via the registry
   openai→ollama translation), POSTed as JSON; the response is **NDJSON** (not SSE),
   parsed with `NewNDJSONScanner` then translated ollama→openai per line.
-- **Host resolution** — POST URL is `catalog.ResolveOllamaHost(override)` joined with
-  the ollama chat path (`/api/chat`); the cloud `ollama` provider uses the catalog
-  BaseURL directly. `ollama-local` resolves the local host (default
-  `http://localhost:11434`), honoring a `providerSpecificData.baseUrl` override (Stage-1:
-  the override source is the key/credentials struct; thread it from `key`).
+- **Host resolution** — cloud `ollama` uses `config.BaseURL` directly (full `/api/chat` URL). `ollama-local` uses `catalog.ResolveOllamaHost("") + "/api/chat"` = the DEFAULT host `http://localhost:11434`. The ref's `providerSpecificData.baseUrl` override is NOT threaded in Stage-1: the current `schemas.Key` struct (`internal/schemas/provider.go:30-34`) carries only ID/Provider/Value — no per-credential data — so the override is deferred to Wave 3 (credential plumbing). Pass `""` to `ResolveOllamaHost`; document the deferred override in a comment.
 
 ## Preconditions (a "0 hits" grep exits 1 = pass)
 
@@ -36,16 +32,16 @@ TOUCH-ONLY: none (router wiring is w2-d).
 
 ## Tasks (STEP (a) failing tests first; STEP (b) implement)
 
-1. **Provider struct** (`provider.go`): `type Provider struct { config catalog.ProviderConfig; registry *translation.Registry; client *utils.ClientPool; networkConfig schemas.NetworkConfig }`; `func New(providerID string, reg *translation.Registry) (*Provider, error)` — `catalog.Lookup` (must be "ollama"/"ollama-local", `Format=="ollama"`, else error); `GetProvider()`/`SetNetworkConfig()`.
+1. **Provider struct** (`provider.go`): `type Provider struct { config catalog.ProviderConfig (w2-a `catalog.go`); registry *translation.Registry; client *utils.ClientPool (`internal/providers/utils`, `utils.NewClientPool()`); networkConfig schemas.NetworkConfig (`internal/schemas/provider.go:37`) }`; `func New(providerID string, reg *translation.Registry) (*Provider, error)` — `catalog.Lookup` (must be "ollama"/"ollama-local", `Format=="ollama"`, else error); `GetProvider()`/`SetNetworkConfig()`.
    Tests: `TestNewOllamaProvider` (ollama + ollama-local construct), `TestNewOllamaRejectsNonOllama` (deepseek id → error).
 
 2. **chat + stream** (`chat.go`):
-   - URL: `func (p *Provider) chatURL(key schemas.Key) string` — for `ollama-local`, `catalog.ResolveOllamaHost(<override from key>) + "/api/chat"`; for cloud `ollama`, `config.BaseURL` (already the full `/api/chat` URL). Cite `ollama-local.js`.
-   - `ChatCompletion` (non-streaming): `reqMap` = registry `TranslateRequest(FormatOpenAI, FormatOllama, model, body, false, nil)`; POST JSON to chatURL, no auth; on 200 read the ollama response body, `OllamaBodyToOpenAI(body)` → `schemas.ChatResponse`; non-200 → ProviderError (provider id "ollama"). NOTE ollama non-streaming returns a single JSON object (not NDJSON).
-   - `ChatCompletionStream`: translate request (`stream:true`); POST; response is NDJSON → `NewNDJSONScanner`; per line: `TranslateResponse(FormatOllama, FormatOpenAI, lineMap, state)` → emit each OpenAI chunk; scanner EOF ends; malformed line → in-band `streamError` (AUD-045 parity with openai/chat.go); post-hook failure → in-band (AUD-047).
-   Tests (`chat_test.go`, fake upstream): `TestOllamaChatURLLocalVsCloud` (local resolves localhost:11434/api/chat; cloud uses BaseURL), `TestOllamaChatNoAuthHeader` (no Authorization sent), `TestOllamaChatNonStreaming` (single ollama JSON → OpenAI ChatResponse via OllamaBodyToOpenAI), `TestOllamaStreamNDJSON` (NDJSON lines → OpenAI chunks; done line ends), `TestOllamaStreamMalformedInBandError`.
+   - URL: `func (p *Provider) chatURL() string` — for `ollama-local`, `catalog.ResolveOllamaHost("") + "/api/chat"` (default host); for cloud `ollama`, `config.BaseURL`. Ref `executors/ollama-local.js`.
+   - `ChatCompletion` (non-streaming): `reqMap` = registry `TranslateRequest(FormatOpenAI, FormatOllama, model, body, false, nil)`; POST JSON to chatURL, no auth; on 200 read the ollama response body, `OllamaBodyToOpenAI(body)` (`internal/translation/ollama_openai_response.go:197`) → `schemas.ChatResponse`; non-200 → `*schemas.ProviderError` with `Meta.Provider = string(p.id)` (the actual id — `ollama` OR `ollama-local`, not hardcoded). NOTE ollama non-streaming returns a single JSON object (not NDJSON).
+   - `ChatCompletionStream`: translate request (`stream:true`); POST; response is NDJSON → `NewNDJSONScanner`; per line: `TranslateResponse(FormatOllama, FormatOpenAI, lineMap, state)` → emit each OpenAI chunk; scanner EOF ends; malformed line / read error / post-hook failure → in-band `streamError` then close — mirror the in-band error handling at `internal/providers/openai/chat.go:143-164` (the `postHookRunner schemas.PostHookRunner` param triggers the hook path, `provider.go:44-46`).
+   Tests (`chat_test.go`, fake upstream): `TestOllamaChatURLLocalVsCloud` (ollama-local → `http://localhost:11434/api/chat`; cloud ollama → config BaseURL), `TestOllamaChatNoAuthHeader` (no Authorization sent), `TestOllamaChatNonStreaming` (single ollama JSON → OpenAI ChatResponse via OllamaBodyToOpenAI), `TestOllamaStreamNDJSON` (NDJSON lines → OpenAI chunks; done line ends), `TestOllamaStreamMalformedInBandError`.
 
-3. **Typed stubs** (`stubs.go`): every other `schemas.Provider` method → typed 501 not-implemented (mirror w2-b/`openai/stubs.go`); `var _ schemas.Provider = (*Provider)(nil)`.
+3. **Typed stubs** (`stubs.go`): every `schemas.Provider` method (authority: `internal/schemas/provider.go:68-107`) except GetProvider/SetNetworkConfig/ChatCompletion/ChatCompletionStream → typed 501 not-implemented (pattern `internal/providers/openai/stubs.go`); decision 9; `var _ schemas.Provider = (*Provider)(nil)`.
    Tests: `TestOllamaSatisfiesProviderInterface`, `TestOllamaEmbeddingNotImplemented`.
 
 ## Binary acceptance criteria
