@@ -49,6 +49,12 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.DELETE("/api/connections/{id}", h.RequireSession(h.DeleteConnection))
 	r.POST("/api/connections/{id}/refresh", h.RequireSession(h.RefreshConnection))
 
+	r.GET("/api/keys", h.RequireSession(h.ListAPIKeys))
+	r.POST("/api/keys", h.RequireSession(h.CreateAPIKey))
+	r.GET("/api/keys/{id}", h.RequireSession(h.GetAPIKey))
+	r.PUT("/api/keys/{id}", h.RequireSession(h.UpdateAPIKey))
+	r.DELETE("/api/keys/{id}", h.RequireSession(h.DeleteAPIKey))
+
 	r.GET("/api/oauth/{provider}/start", h.RequireSession(h.OAuthStart))
 	r.POST("/api/oauth/{provider}/callback", h.RequireSession(h.OAuthCallback))
 }

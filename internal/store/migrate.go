@@ -63,12 +63,24 @@ func migrate(db *sql.DB) error {
 			expires_at INTEGER NOT NULL,
 			created_at INTEGER NOT NULL
 		)`},
+		{"api_keys", `CREATE TABLE IF NOT EXISTS api_keys (
+			id TEXT PRIMARY KEY,
+			key TEXT NOT NULL UNIQUE,
+			name TEXT NOT NULL,
+			machine_id TEXT NOT NULL,
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
 		if _, err := db.Exec(t.create); err != nil {
 			return fmt.Errorf("create table %s: %w", t.name, err)
 		}
+	}
+
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key)"); err != nil {
+		return fmt.Errorf("create api_keys key index: %w", err)
 	}
 
 	// Future additive column migrations go here, e.g.:

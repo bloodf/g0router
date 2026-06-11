@@ -100,9 +100,21 @@ func (g *Guard) Wrap(next fasthttp.RequestHandler) fasthttp.RequestHandler {
 			}
 		}
 
-		// 3. Public LLM API - pass through unchanged in this plan.
+		// 3. Public LLM API - loopback is keyless; remote needs CLI token or API key.
 		if isPublicLlmApi(path) {
-			next(ctx)
+			if isLocalRequest(ctx) {
+				next(ctx)
+				return
+			}
+			if g.cliTokenOK(ctx) {
+				next(ctx)
+				return
+			}
+			if g.apiKeyOK(ctx) {
+				next(ctx)
+				return
+			}
+			writeError(ctx, fasthttp.StatusUnauthorized, "API key required for remote API access")
 			return
 		}
 
@@ -164,6 +176,13 @@ func (g *Guard) cliTokenOK(ctx *fasthttp.RequestCtx) bool {
 		return false
 	}
 	return g.CLITokenValidator(ctx)
+}
+
+func (g *Guard) apiKeyOK(ctx *fasthttp.RequestCtx) bool {
+	if g.APIKeyValidator == nil {
+		return false
+	}
+	return g.APIKeyValidator(ctx)
 }
 
 func (g *Guard) sessionOK(ctx *fasthttp.RequestCtx) bool {

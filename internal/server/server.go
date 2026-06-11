@@ -37,7 +37,18 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 			"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
 		}
 		RegisterAdminRoutes(r, admin.New(st, sessions, flows))
-		guard = (&Guard{Sessions: sessions, Settings: st}).Wrap
+		guard = (&Guard{
+			Sessions:          sessions,
+			Settings:          st,
+			CLITokenValidator: auth.NewCLITokenValidator(st.DataDir()),
+			APIKeyValidator: auth.NewAPIKeyValidator(func(key string) (string, bool, error) {
+				rec, err := st.GetAPIKeyByKey(key)
+				if err != nil {
+					return "", false, err
+				}
+				return rec.MachineID, rec.IsActive, nil
+			}),
+		}).Wrap
 	}
 
 	handler := Chain(r.Handler,

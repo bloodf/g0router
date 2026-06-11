@@ -192,24 +192,140 @@ func TestGuardAlwaysProtected(t *testing.T) {
 	}
 }
 
-func TestGuardPublicLlmApiPassthrough(t *testing.T) {
+func TestGuardV1LoopbackKeyless(t *testing.T) {
 	g, _, _ := newTestGuard(t)
 
-	cases := []struct {
-		path string
-		host string
-	}{
-		{"/v1/chat/completions", "localhost"},
-		{"/v1/chat/completions", "remote.example.com"},
-		{"/v1beta/models", "remote.example.com"},
-		{"/api/v1/embeddings", "remote.example.com"},
-		{"/api/v1beta/messages", "remote.example.com"},
+	cases := []string{
+		"/v1/chat/completions",
+		"/v1beta/models",
+		"/api/v1/embeddings",
+		"/api/v1beta/messages",
 	}
-	for _, tc := range cases {
-		ctx := callGuard(t, g, "POST", tc.path, map[string]string{"Host": tc.host}, nil)
+	for _, path := range cases {
+		ctx := callGuard(t, g, "POST", path, map[string]string{"Host": "localhost"}, nil)
 		if ctx.Response.StatusCode() != fasthttp.StatusOK {
-			t.Fatalf("%s (%s) status = %d, want 200", tc.path, tc.host, ctx.Response.StatusCode())
+			t.Fatalf("%s status = %d, want 200", path, ctx.Response.StatusCode())
 		}
+	}
+}
+
+func TestGuardV1RemoteRequiresKey(t *testing.T) {
+	g, _, _ := newTestGuard(t)
+
+	cases := []string{
+		"/v1/chat/completions",
+		"/v1beta/models",
+		"/api/v1/embeddings",
+		"/api/v1beta/messages",
+	}
+	for _, path := range cases {
+		ctx := callGuard(t, g, "POST", path, map[string]string{"Host": "remote.example.com"}, nil)
+		if ctx.Response.StatusCode() != fasthttp.StatusUnauthorized {
+			t.Fatalf("%s status = %d, want 401", path, ctx.Response.StatusCode())
+		}
+		msg := envelopeMessage(t, ctx.Response.Body())
+		if msg != "API key required for remote API access" {
+			t.Fatalf("%s error = %q, want %q", path, msg, "API key required for remote API access")
+		}
+	}
+}
+
+func TestGuardV1RemoteValidKey(t *testing.T) {
+	g, _, st := newTestGuard(t)
+	dataDir := st.DataDir()
+	machineID, err := auth.MachineID(dataDir, "")
+	if err != nil {
+		t.Fatalf("MachineID: %v", err)
+	}
+	key, _, err := auth.GenerateAPIKey(machineID)
+	if err != nil {
+		t.Fatalf("GenerateAPIKey: %v", err)
+	}
+	created, err := st.CreateAPIKey("remote", key, machineID)
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+
+	g.APIKeyValidator = auth.NewAPIKeyValidator(func(k string) (string, bool, error) {
+		rec, err := st.GetAPIKeyByKey(k)
+		if err != nil {
+			return "", false, err
+		}
+		return rec.MachineID, rec.IsActive, nil
+	})
+
+	// Valid key in Authorization Bearer header.
+	ctx := callGuard(t, g, "POST", "/v1/chat/completions",
+		map[string]string{"Host": "remote.example.com", "Authorization": "Bearer " + key}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("Bearer valid key status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	// Valid key in x-api-key header.
+	ctx = callGuard(t, g, "POST", "/v1/chat/completions",
+		map[string]string{"Host": "remote.example.com", "x-api-key": key}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("x-api-key valid key status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	// Inactive key -> 401.
+	if err := st.SetAPIKeyActive(created.ID, false); err != nil {
+		t.Fatalf("SetAPIKeyActive: %v", err)
+	}
+	ctx = callGuard(t, g, "POST", "/v1/chat/completions",
+		map[string]string{"Host": "remote.example.com", "x-api-key": key}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusUnauthorized {
+		t.Fatalf("inactive key status = %d, want 401", ctx.Response.StatusCode())
+	}
+	if err := st.SetAPIKeyActive(created.ID, true); err != nil {
+		t.Fatalf("SetAPIKeyActive reactivate: %v", err)
+	}
+
+	// CRC-corrupted key -> 401.
+	corrupt := key[:len(key)-1] + "0"
+	if corrupt == key {
+		corrupt = key[:len(key)-1] + "1"
+	}
+	ctx = callGuard(t, g, "POST", "/v1/chat/completions",
+		map[string]string{"Host": "remote.example.com", "x-api-key": corrupt}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusUnauthorized {
+		t.Fatalf("corrupt key status = %d, want 401", ctx.Response.StatusCode())
+	}
+}
+
+func TestGuardCLIToken(t *testing.T) {
+	g, _, st := newTestGuard(t)
+	dataDir := st.DataDir()
+	cliToken, err := auth.MachineID(dataDir, "9r-cli-auth")
+	if err != nil {
+		t.Fatalf("MachineID cli: %v", err)
+	}
+	g.CLITokenValidator = auth.NewCLITokenValidator(dataDir)
+
+	// Set ALWAYS_PROTECTED to a route that exists for this test.
+	old := ALWAYS_PROTECTED
+	ALWAYS_PROTECTED = []string{"/api/shutdown"}
+	t.Cleanup(func() { ALWAYS_PROTECTED = old })
+
+	// Correct CLI token bypasses always-protected.
+	ctx := callGuard(t, g, "POST", "/api/shutdown",
+		map[string]string{"Host": "remote.example.com", "x-9r-cli-token": cliToken}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("always-protected+cli status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	// Correct CLI token also bypasses remote /v1 gating.
+	ctx = callGuard(t, g, "POST", "/v1/chat/completions",
+		map[string]string{"Host": "remote.example.com", "x-9r-cli-token": cliToken}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("/v1+cli status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	// Wrong CLI token -> 401 for always-protected.
+	ctx = callGuard(t, g, "POST", "/api/shutdown",
+		map[string]string{"Host": "remote.example.com", "x-9r-cli-token": "wrong"}, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusUnauthorized {
+		t.Fatalf("wrong cli always-protected status = %d, want 401", ctx.Response.StatusCode())
 	}
 }
 

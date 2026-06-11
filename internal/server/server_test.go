@@ -243,19 +243,49 @@ func TestServerGuardWired(t *testing.T) {
 		t.Fatalf("remote /api/settings body = %s, want envelope", body)
 	}
 
-	// /v1 chat completions reaches its handler unchanged (no store needed for routing).
+	// Remote /v1 without an API key is blocked by the central guard.
 	resp2, err := client.Post("http://server/v1/chat/completions", "application/json",
 		strings.NewReader(`{"model":"gpt-4"}`))
 	if err != nil {
 		t.Fatalf("/v1 chat: %v", err)
 	}
 	body2 := readBody(t, resp2)
-	if resp2.StatusCode == http.StatusNotFound {
-		t.Fatalf("/v1/chat/completions returned 404: %s", body2)
+	if resp2.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("remote /v1 without key status = %d, want 401: %s", resp2.StatusCode, body2)
+	}
+	if !strings.Contains(body2, `"error"`) || !strings.Contains(body2, "API key required for remote API access") {
+		t.Fatalf("remote /v1 without key body = %s, want API key error", body2)
+	}
+
+	// Remote /v1 with a valid API key reaches the LLM handler (no management envelope).
+	machineID, err := auth.MachineID(st.DataDir(), "")
+	if err != nil {
+		t.Fatalf("MachineID: %v", err)
+	}
+	apiKey, _, err := auth.GenerateAPIKey(machineID)
+	if err != nil {
+		t.Fatalf("GenerateAPIKey: %v", err)
+	}
+	if _, err := st.CreateAPIKey("server-test", apiKey, machineID); err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	req2, err := http.NewRequest("POST", "http://server/v1/chat/completions", strings.NewReader(`{"model":"gpt-4"}`))
+	if err != nil {
+		t.Fatalf("new /v1 request: %v", err)
+	}
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Authorization", "Bearer "+apiKey)
+	resp3, err := client.Do(req2)
+	if err != nil {
+		t.Fatalf("/v1 chat with key: %v", err)
+	}
+	body3 := readBody(t, resp3)
+	if resp3.StatusCode == http.StatusNotFound {
+		t.Fatalf("/v1/chat/completions returned 404: %s", body3)
 	}
 	// The guard must not produce the management API envelope; the LLM handler does its own auth.
-	if strings.Contains(body2, `"data"`) && strings.Contains(body2, `"error"`) {
-		t.Fatalf("/v1/chat/completions was blocked by guard: %s", body2)
+	if strings.Contains(body3, `"data"`) && strings.Contains(body3, `"error"`) {
+		t.Fatalf("/v1/chat/completions with key was blocked by guard: %s", body3)
 	}
 }
 
