@@ -6186,3 +6186,17 @@ usage omission) all fixed in bc6358d, none re-flagged. Final re-run's sole
 "BLOCKER" was a false positive — it cited a non-existent `parity-w0/` commit
 format; the commit correctly uses `parity-w1/w1-h:` per AGENTS.md, and
 commit-message format is outside diff-gate scope. Accepted by decision.
+
+## w1-g Responses API — diff gate PASS (2026-06-11)
+
+```yaml
+wave: "parity-w1"
+plan: "w1-g-responses-api"
+status: MERGED
+rows: "PAR-TRANS-031..038 → HAVE"
+commits: "6640b33 (impl), ca8274e (gate fixes)"
+```
+Both responses↔chat translator directions, event-based SSE with sequence
+numbers, reasoning buffering, tool lifecycle, usage extraction. Diff gate: dead
+code + test gap fixed in ca8274e; hosted-tool finding rebutted ref-faithful
+(request/openai-responses.js:156-176 filters nameless only). PASS.
