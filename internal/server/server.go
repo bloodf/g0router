@@ -3,6 +3,8 @@ package server
 import (
 	"io/fs"
 
+	"github.com/bloodf/g0router/internal/admin"
+	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/translation"
@@ -25,14 +27,23 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 	// OpenAI-compatible API routes
 	RegisterOpenAIRoutes(r, infRouter)
 
-	// Management API routes
+	// Management API routes and central guard (only when a store is present).
+	var guard Middleware = func(next fasthttp.RequestHandler) fasthttp.RequestHandler {
+		return next
+	}
 	if st != nil {
-		RegisterAdminRoutes(r, NewAdminHandlers(st))
+		sessions := auth.NewSessions(st, sessionTTL)
+		flows := map[string]*auth.OAuthFlow{
+			"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
+		}
+		RegisterAdminRoutes(r, admin.New(st, sessions, flows))
+		guard = (&Guard{Sessions: sessions, Settings: st}).Wrap
 	}
 
 	handler := Chain(r.Handler,
-		RequestIDMiddleware,
 		CORSMiddleware(allowedOrigins),
+		RequestIDMiddleware,
+		guard,
 	)
 
 	return &fasthttp.Server{

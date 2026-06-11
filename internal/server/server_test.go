@@ -216,6 +216,49 @@ func TestCORSMiddleware(t *testing.T) {
 	}
 }
 
+func TestServerGuardWired(t *testing.T) {
+	st := newTestStore(t)
+	sessions := auth.NewSessions(st, time.Hour)
+	if _, err := sessions.SeedAdmin("admin", "123456"); err != nil {
+		t.Fatalf("SeedAdmin: %v", err)
+	}
+
+	client := startServer(t, New(testUIFS(), st, nil))
+
+	// Remote /api/settings without a session is rejected by the central guard.
+	req, err := http.NewRequest("GET", "http://server/api/settings", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("Host", "remote.example")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	body := readBody(t, resp)
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("remote /api/settings status = %d body = %s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, `"error"`) {
+		t.Fatalf("remote /api/settings body = %s, want envelope", body)
+	}
+
+	// /v1 chat completions reaches its handler unchanged (no store needed for routing).
+	resp2, err := client.Post("http://server/v1/chat/completions", "application/json",
+		strings.NewReader(`{"model":"gpt-4"}`))
+	if err != nil {
+		t.Fatalf("/v1 chat: %v", err)
+	}
+	body2 := readBody(t, resp2)
+	if resp2.StatusCode == http.StatusNotFound {
+		t.Fatalf("/v1/chat/completions returned 404: %s", body2)
+	}
+	// The guard must not produce the management API envelope; the LLM handler does its own auth.
+	if strings.Contains(body2, `"data"`) && strings.Contains(body2, `"error"`) {
+		t.Fatalf("/v1/chat/completions was blocked by guard: %s", body2)
+	}
+}
+
 func TestNewWithoutStoreSkipsAdminRoutes(t *testing.T) {
 	client := startServer(t, New(testUIFS(), nil, nil))
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -66,6 +67,13 @@ func (h *Handlers) Login(ctx *fasthttp.RequestCtx) {
 		writeError(ctx, fasthttp.StatusInternalServerError, "load settings")
 		return
 	}
+
+	// Block tunnel/tailscale dashboard login when access is disabled.
+	if isTunnelRequest(ctx, settings) && settings["tunnelDashboardAccess"] != "true" {
+		writeError(ctx, fasthttp.StatusForbidden, "Dashboard access via tunnel is disabled")
+		return
+	}
+
 	authMode := settings["auth_mode"]
 	if authMode == "" {
 		authMode = "password"
@@ -192,4 +200,37 @@ func requestToken(ctx *fasthttp.RequestCtx) string {
 		return after
 	}
 	return string(ctx.Request.Header.Cookie(sessionCookieName))
+}
+
+// isTunnelRequest reports whether the request Host matches the tunnelUrl or
+// tailscaleUrl hostname.
+func isTunnelRequest(ctx *fasthttp.RequestCtx, settings map[string]string) bool {
+	host := hostName(string(ctx.Host()))
+	tunnelHost := urlHostname(settings["tunnelUrl"])
+	tailscaleHost := urlHostname(settings["tailscaleUrl"])
+	return (tunnelHost != "" && host == tunnelHost) || (tailscaleHost != "" && host == tailscaleHost)
+}
+
+// hostName strips port and IPv6 brackets from a host string, matching the
+// dashboardGuard.js :85-89 helper.
+func hostName(host string) string {
+	if host == "" {
+		return ""
+	}
+	h := strings.Split(host, ":")[0]
+	h = strings.TrimPrefix(h, "[")
+	h = strings.TrimSuffix(h, "]")
+	return strings.ToLower(h)
+}
+
+// urlHostname extracts the hostname from a URL setting value (e.g. https://host:port).
+func urlHostname(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Hostname())
 }
