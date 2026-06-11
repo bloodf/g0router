@@ -639,3 +639,35 @@ func TestNewRegistryWiresCursorPair(t *testing.T) {
 		t.Error("cursor->openai response translator is not cursorToOpenAIResponse")
 	}
 }
+
+func TestRegistryWiresGeminiClientRequest(t *testing.T) {
+	reg := NewRegistry()
+
+	req1 := reg.RequestTranslatorFor(FormatGemini, FormatOpenAI)
+	if req1 == nil {
+		t.Fatal("expected gemini->openai request translator")
+	}
+	want1 := reflect.ValueOf(RequestTranslator(geminiToOpenAIRequest)).Pointer()
+	got1 := reflect.ValueOf(req1).Pointer()
+	if got1 != want1 {
+		t.Error("gemini->openai request translator is not geminiToOpenAIRequest")
+	}
+
+	req2 := reg.RequestTranslatorFor(FormatGeminiCLI, FormatOpenAI)
+	if req2 == nil {
+		t.Fatal("expected gemini-cli->openai request translator")
+	}
+	want2 := reflect.ValueOf(RequestTranslator(geminiToOpenAIRequest)).Pointer()
+	got2 := reflect.ValueOf(req2).Pointer()
+	if got2 != want2 {
+		t.Error("gemini-cli->openai request translator is not geminiToOpenAIRequest")
+	}
+
+	// Response translators on those pairs must remain unchanged.
+	if reg.ResponseTranslatorFor(FormatGemini, FormatOpenAI) == nil {
+		t.Error("gemini->openai response translator should still be wired")
+	}
+	if reg.ResponseTranslatorFor(FormatGeminiCLI, FormatOpenAI) == nil {
+		t.Error("gemini-cli->openai response translator should still be wired")
+	}
+}

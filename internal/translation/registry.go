@@ -142,7 +142,7 @@ func NewRegistry() *Registry {
 	r.Register(FormatClaude, FormatOpenAI, claudeToOpenAIRequest, claudeToOpenAIResponse)
 	r.Register(FormatOpenAI, FormatClaude, openaiToClaudeRequest, openaiToClaudeResponse)
 	r.Register(FormatOpenAI, FormatGemini, openaiToGeminiRequest, nil)
-	r.Register(FormatGemini, FormatOpenAI, nil, geminiToOpenAIResponse)
+	r.Register(FormatGemini, FormatOpenAI, geminiToOpenAIRequest, geminiToOpenAIResponse)
 	r.Register(FormatOpenAI, FormatGeminiCLI, func(model string, body map[string]any, stream bool, credentials map[string]any) (map[string]any, error) {
 		gemini, err := openaiToGeminiCLIRequest(model, body, stream, credentials)
 		if err != nil {
@@ -158,7 +158,7 @@ func NewRegistry() *Registry {
 	r.Register(FormatAntigravity, FormatOpenAI, antigravityToOpenAIRequest, nil)
 	r.Register(FormatOpenAI, FormatVertex, openaiToVertexRequest, nil)
 	r.Register(FormatOpenAI, FormatAntigravity, nil, openaiToAntigravityResponse)
-	r.Register(FormatGeminiCLI, FormatOpenAI, nil, geminiToOpenAIResponse)
+	r.Register(FormatGeminiCLI, FormatOpenAI, geminiToOpenAIRequest, geminiToOpenAIResponse)
 	r.Register(FormatVertex, FormatOpenAI, nil, geminiToOpenAIResponse)
 	r.Register(FormatAntigravity, FormatOpenAI, nil, geminiToOpenAIResponse)
 	r.Register(FormatOpenAIResponses, FormatOpenAI, responsesToOpenAIRequest, responsesToOpenAIResponse)
