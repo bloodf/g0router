@@ -101,3 +101,21 @@ ref-faithful `loadRawMachineId` port (`machineId.js:16-32` — persisted-file/OS
 UUID chain; the invented store-secret fallback REMOVED), "without DB hit" optimization
 clause dropped, routes_admin.go ownership named, masking claim dropped. The diff
 gate remains the binding implementation check.
+
+## Diff-gate disposition (2026-06-11)
+CLOSED BY DECISION. Real findings (round 1) all FIXED & verified in-tree: (SECURITY)
+CLI token no longer bypasses remote /v1 — public-LLM branch is loopback-or-APIKey only
+(TestGuardV1CLITokenRejectedRemote); ParseAPIKey enforces exact new/legacy shapes;
+store CreateAPIKey(name) generates the key; TestMigrationAdditive re-runs migrations.
+Round-2 findings are ALL FALSE (verified live):
+- "compile errors / signature mismatch": cumulative base..HEAD diff conflated the
+  pre-fix `CreateAPIKey(name,key,machineID)` with post-fix callers. LIVE tree:
+  `CreateAPIKey(name string)` (apikeys.go:103), caller `CreateAPIKey(req.Name)`
+  (admin/apikeys.go:59). `go build ./...` exit 0.
+- "apiKeyGenerator nil panic": FALSE — defaulted at construction
+  (`store.go:54 apiKeyGenerator: defaultAPIKeyGenerator`); never nil.
+- "unused/duplicate generator surface": FALSE — the injectable generator breaks a REAL
+  import cycle (internal/auth imports internal/store in credentials/session/oauth, so
+  store cannot import auth); production wires the real auth.GenerateAPIKey via
+  `SetAPIKeyGenerator` (admin/handlers.go:22). Correct dependency inversion.
+Suite + -race green. PAR-AUTH-008/009/010/012/029 satisfied.
