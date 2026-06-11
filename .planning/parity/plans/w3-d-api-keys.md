@@ -2,7 +2,7 @@
 
 Rows: PAR-AUTH-029 (apiKeys table with machineId — `src/lib/db/schema.js:74-84`: id, key UNIQUE, name, machineId, isActive, createdAt + key index), PAR-AUTH-010 (key format `sk-{machineId}-{keyId}-{crc8}` — `src/shared/utils/apiKey.js:34-38`; keyId = 6 chars [a-z0-9] `:8-15`; crc8 = first 8 hex of HMAC-SHA256(machineId+keyId, API_KEY_SECRET) `:20-26`, env `API_KEY_SECRET` default "endpoint-proxy-api-key-secret" `:3`), PAR-AUTH-009 (remote API-key validation — `src/dashboardGuard.js:106-116`), PAR-AUTH-008 (loopback no-key access — `src/dashboardGuard.js:35,102-104,118-122`), PAR-AUTH-012 (CLI token auth — `src/dashboardGuard.js:6-19`: header `x-9r-cli-token`, token = `getConsistentMachineId("9r-cli-auth")`; machineId derivation `src/shared/utils/machineId.js:49-54`: SHA256(rawMachineId + salt + cliSecret)[:16]). Scope per `WAVE-3-MAP.md` track 1, plan 4 + w3-b v4's explicit transfer: "PAR-AUTH-008/009 … are ENTIRELY w3-d's: gating + validators land together so remote /v1 is never broken in an interim state." Frozen ref @ 827e5c3. Depends on w3-b MERGED (guard live with inert `APIKeyValidator`/`CLITokenValidator` fields + passthrough /v1 step).
 
-In-repo integration: `internal/server/guard.go` (w3-b — this plan REPLACES the passthrough step 3 with the ref's loopback/key gating and injects both validators in `server.go` wiring), `internal/store/migrate.go` (additive-only `ensureColumn` migrations per AGENTS.md decisions), `internal/store/secret.go` (existing secret material for HMAC; do NOT introduce a parallel secret scheme — reuse the store secret as the HMAC key, with `API_KEY_SECRET` env override for ref compat).
+In-repo integration: `internal/server/guard.go` (w3-b — this plan REPLACES the passthrough step 3 with the ref's loopback/key gating and injects both validators in `server.go` wiring), `internal/store/migrate.go` (additive-only `ensureColumn` migrations per AGENTS.md decisions), HMAC key source = REF PARITY EXACTLY: env `API_KEY_SECRET`, default `"endpoint-proxy-api-key-secret"` (`apiKey.js:3`) — no alternative secret scheme.
 
 ## Ref behavior to port
 
@@ -10,8 +10,11 @@ In-repo integration: `internal/server/guard.go` (w3-b — this plan REPLACES the
   (snake_case columns per g0router style; key UNIQUE + index). CRUD:
   `CreateAPIKey(name)` (generates the formatted key), `ListAPIKeys`,
   `SetAPIKeyActive(id, active)`, `DeleteAPIKey(id)`, `GetAPIKeyByKey(key)`.
-  Admin routes `/api/keys` (list/create/delete/toggle) behind the guard's protected
-  set (already deny-by-default — no guard change needed for these routes).
+  Admin routes are REF-EVIDENCED, not invented: `src/app/api/keys/route.js` (GET list
+  :7-8; POST create :18-30 — machineId always taken server-side via
+  `getConsistentMachineId()` :28-29) + `src/app/api/keys/[id]/` (per-key routes), and
+  the guard PROTECTED_API_PATHS lists "/api/keys" (`dashboardGuard.js:50`). Port GET/
+  POST/[id] behavior from those files (read whole) behind the guard's protected set.
 - **Format** (PAR-AUTH-010): `GenerateAPIKey(machineID)` → `sk-{machineId}-{keyId}-{crc8}`
   exactly as `:8-38`; `ParseAPIKey` supports new format AND legacy `sk-{random8}`
   (`:42-48` "Supports both formats"). Validation = parse → CRC recompute match →
@@ -46,7 +49,7 @@ NEW: `internal/auth/apikey.go` + `apikey_test.go` (format/CRC/machineId/parse),
 TOUCH: `internal/server/guard.go` + `guard_test.go` (replace passthrough step 3 with
 gating; replace `TestGuardPublicLlmApiPassthrough` with the gating tests below),
 `internal/server/server.go` (inject the two validators), `internal/store/migrate.go`
-(api_keys table), routes registration file for `/api/keys`.
+(api_keys table), `internal/server/routes_admin.go` (register `/api/keys` + `/api/keys/{id}` routes).
 NOT touched: limiter/login (w3-a), OIDC (w3-c), provider OAuth (w3-f).
 
 ## Tasks (each: STEP (a) named failing tests FIRST, run, show fail; STEP (b) implement)
@@ -69,8 +72,7 @@ NOT touched: limiter/login (w3-a), OIDC (w3-c), provider OAuth (w3-f).
    wrong → 401).
 4. **Admin routes** (`internal/admin/apikeys.go`). Tests FIRST:
    `TestKeysCRUDEndpoints` (session-guarded; snake_case `{data,error}` envelope;
-   created key shown ONCE in the create response, masked in list per the
-   PAR-AUTH-025 masking convention already HAVE).
+   response shapes ported from `src/app/api/keys/route.js` GET/POST (read whole — the create response includes the full key + machineId per :30-36; the list response per the GET handler) — no invented masking policy).
 
 ## Binary acceptance criteria
 
