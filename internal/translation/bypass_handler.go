@@ -307,8 +307,11 @@ func createNonStreamingBypassResponse(reg *Registry, sourceFormat Format, model 
 			"total_tokens":      2,
 		},
 	}
-	if reg == nil || sourceFormat == FormatOpenAI {
+	if sourceFormat == FormatOpenAI {
 		return []map[string]any{openaiChunk}, nil
+	}
+	if reg == nil {
+		return nil, fmt.Errorf("bypass: registry required to build %s source-format response", sourceFormat)
 	}
 	state := NewStreamState()
 	translated, err := reg.TranslateResponse(FormatOpenAI, sourceFormat, openaiChunk, state)
@@ -358,8 +361,11 @@ func createStreamingBypassResponse(reg *Registry, sourceFormat Format, model str
 			"usage": usage,
 		},
 	}
-	if reg == nil || sourceFormat == FormatOpenAI {
+	if sourceFormat == FormatOpenAI {
 		return openaiChunks, nil
+	}
+	if reg == nil {
+		return nil, fmt.Errorf("bypass: registry required to build %s source-format response", sourceFormat)
 	}
 	state := NewStreamState()
 	var results []map[string]any

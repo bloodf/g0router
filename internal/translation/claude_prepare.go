@@ -191,12 +191,16 @@ func PrepareClaudeRequest(body map[string]any, provider string, apiKey string, c
 				continue
 			}
 			if content, ok := msg["content"].([]any); ok {
+				filteredContent := make([]any, 0, len(content))
 				for _, item := range content {
 					block, ok := item.(map[string]any)
-					if ok {
-						delete(block, "cache_control")
+					if !ok {
+						continue
 					}
+					delete(block, "cache_control")
+					filteredContent = append(filteredContent, block)
 				}
+				msg["content"] = filteredContent
 			}
 			isFinalAssistant := i == lenMsgs-1 && msg["role"] == "assistant"
 			if isFinalAssistant || hasValidContent(msg) {

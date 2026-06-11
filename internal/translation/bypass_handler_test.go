@@ -173,6 +173,65 @@ func TestBypassTranslationErrorPropagated(t *testing.T) {
 	}
 }
 
+func TestBypassNilRegistryClaudeNonStreamingError(t *testing.T) {
+	body := map[string]any{
+		"model":    "claude-3-opus-20240229",
+		"stream":   false,
+		"system":   []any{map[string]any{"type": "text", "text": "You are helpful"}},
+		"messages": []any{map[string]any{"role": "user", "content": "Warmup"}},
+	}
+	_, bypassed, err := HandleBypassRequest(body, "claude-3-opus-20240229", "claude-cli/1.0", false, nil)
+	if !bypassed {
+		t.Fatal("expected bypass")
+	}
+	if err == nil {
+		t.Fatal("expected error for nil registry with claude source format")
+	}
+	if !strings.Contains(err.Error(), "registry required") {
+		t.Errorf("error = %q, want to contain 'registry required'", err.Error())
+	}
+}
+
+func TestBypassNilRegistryClaudeStreamingError(t *testing.T) {
+	body := map[string]any{
+		"model":    "claude-3-opus-20240229",
+		"stream":   true,
+		"system":   []any{map[string]any{"type": "text", "text": "You are helpful"}},
+		"messages": []any{map[string]any{"role": "user", "content": "Warmup"}},
+	}
+	_, bypassed, err := HandleBypassRequest(body, "claude-3-opus-20240229", "claude-cli/1.0", false, nil)
+	if !bypassed {
+		t.Fatal("expected bypass")
+	}
+	if err == nil {
+		t.Fatal("expected error for nil registry with claude source format")
+	}
+	if !strings.Contains(err.Error(), "registry required") {
+		t.Errorf("error = %q, want to contain 'registry required'", err.Error())
+	}
+}
+
+func TestBypassNilRegistryOpenAIReturnsChunk(t *testing.T) {
+	body := map[string]any{
+		"model":    "gpt-4",
+		"stream":   false,
+		"messages": []any{map[string]any{"role": "user", "content": "Warmup"}},
+	}
+	resp, bypassed, err := HandleBypassRequest(body, "gpt-4", "claude-cli/1.0", false, nil)
+	if !bypassed {
+		t.Fatal("expected bypass")
+	}
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(resp) != 1 {
+		t.Fatalf("expected 1 chunk, got %d", len(resp))
+	}
+	if _, ok := resp[0]["id"]; !ok {
+		t.Error("expected OpenAI id field")
+	}
+}
+
 func TestBypassNoMatchNil(t *testing.T) {
 	reg := NewRegistry()
 	body := map[string]any{

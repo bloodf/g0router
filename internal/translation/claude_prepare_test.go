@@ -468,7 +468,7 @@ func TestPrepareEmptyMessagesFiltered(t *testing.T) {
 	}
 }
 
-func TestPrepareNonMapContentElementNoPanic(t *testing.T) {
+func TestPrepareNonMapContentElementSkipped(t *testing.T) {
 	body := map[string]any{
 		"messages": []any{
 			map[string]any{
@@ -480,11 +480,18 @@ func TestPrepareNonMapContentElementNoPanic(t *testing.T) {
 			},
 		},
 	}
-	// Must not panic on non-map content element.
 	result := PrepareClaudeRequest(body, "claude", "", "")
 	msgs := result["messages"].([]any)
 	if len(msgs) != 1 {
 		t.Fatalf("messages len = %d, want 1", len(msgs))
+	}
+	content := msgs[0].(map[string]any)["content"].([]any)
+	if len(content) != 1 {
+		t.Fatalf("content len = %d, want 1 (non-map element should be skipped)", len(content))
+	}
+	block := content[0].(map[string]any)
+	if block["type"] != "text" || block["text"] != "hello" {
+		t.Errorf("content block = %v, want text/hello", block)
 	}
 }
 
