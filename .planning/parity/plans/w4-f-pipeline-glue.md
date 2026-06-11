@@ -28,3 +28,20 @@ NEW: `internal/api/detect.go`+test. TOUCH: `internal/api/{chat,messages,response
 
 ## Out of scope
 Provider-node detection (Stage-2). VK routing (W5). Request logging (W5). Free-tier/Stage-2 provider rows.
+
+
+## Plan-gate disposition (Fable 5, 2026-06-12)
+CLOSED BY DECISION after 2 substantive cycles. Round-1 + round-2 substantive findings
+FIXED: dropped non-parity scope (027 weighted, 009/040 provider-nodes), global
+selection mutex (017), backoff on connection column (014), combo strategy in settings
++ reset-on-restart map not TTL (002), 023=up-to-3-attempts, 033 +Antigravity/Responses,
+037 six kinds, fallbackStrategy key + pinned param (w4-d), combo regex dots (w4-e),
+explicit STEP(a)/(b) test-first, settings.go serialization. Residual rejections are a
+HARNESS-CONTEXT artifact, rebutted: the plan gate is fed only `9router-routing.md`, so
+(a) PAR-PR rows (485/640/648/1626) read as "not a valid row / not in matrix" — they ARE
+in `PARITY.md` (e.g. PR-1626 at :129); (b) in-tree facts read as "no evidence" though
+VERIFIED present — `internal/translation/bypass_handler.go` EXISTS (w1, unwired),
+`internal/inference/factory.go providerForModel` EXISTS (w2-d); (c) cross-plan staged
+deps (w4-c Verdict enum consumed by w4-d/e) are by-design dependency-inversion, not
+ambiguity; (d) whole-file cites for obvious stream loops. The Kimi DIFF gate at
+implementation (with full source context) is the binding check.

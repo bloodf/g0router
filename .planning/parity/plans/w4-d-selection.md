@@ -5,8 +5,8 @@ Rows: PAR-ROUTE-016 (fallback loop with excludeConnectionIds, `src/sse/handlers/
 NOTE: PAR-ROUTE-027 (weighted selection) is NOT in scope — the matrix states 9router has NO weighted provider selection; it is a g0router Phase-8 *plan*, not parity. Deferred to g0router's own roadmap, out of Stage-1 routing parity.
 
 ## Tasks (STEP (a) failing tests FIRST; STEP (b) implement)
-1. **Strategy engine** (`internal/inference/selection.go` NEW). (a) `TestPinnedPreferred` (051), `TestFillFirstDefault` (fill-first is the ref default per `auth.js:102-157`), `TestRoundRobinSticky` (limit honored, counter resets at limit), `TestStrategyOverridePerProvider` (050), `TestSkipsLockedConnections` (uses w4-c ActiveLocks), `TestSelectionGlobalMutexSerializes` (-race; concurrent calls serialize through the one mutex). (b) `SelectConnection(providerID, model, exclude []string)(*store.Connection,error)`: pinned first, else strategy ∈ {fill-first(default), round-robin} from `settings["providerStrategies"]` (JSON; default in `settings["accountStrategy"]` per ref), sticky counter in-memory (reset on process restart — matches ref Map, NO TTL), skip w4-c-locked/cooled; ALL selection behind ONE package-level `sync.Mutex` (017 faithful).
-2. **Fallback loop** (`internal/inference/selection.go`). (a) `TestFallbackAdvancesOnFailure`, `TestFallbackTerminatesAllExcluded` (PR-640 — finite; returns w4-c `GroupRetryAfter` error when exhausted), `TestFallbackSuccessMarksReset`. (b) `WithAccountFallback(providerID, model, fn)`: try selected; on failure-verdict call w4-c `MarkUnavailable` + retry NEXT with grown exclude-list (016); terminate when all excluded (PR-640).
+1. **Strategy engine** (`internal/inference/selection.go` NEW). (a) `TestPinnedPreferred` (051), `TestFillFirstDefault` (fill-first is the ref default per `auth.js:102-157`), `TestRoundRobinSticky` (limit honored, counter resets at limit), `TestStrategyOverridePerProvider` (050, providerStrategies[id].fallbackStrategy), `TestGlobalFallbackStrategyDefault` (settings.fallbackStrategy else fill-first), `TestSkipsLockedConnections` (uses w4-c ActiveLocks), `TestSelectionGlobalMutexSerializes` (-race; concurrent calls serialize through the one mutex). (b) `SelectConnection(providerID, model string, exclude []string, preferredConnID string)(*store.Connection,error)`: if `preferredConnID` set and eligible, return it (pinned, 051); else strategy, else strategy ∈ {fill-first(default), round-robin} from `settings["providerStrategies"][providerId].fallbackStrategy`, else global `settings["fallbackStrategy"]`, else `"fill-first"` (EXACT, `auth.js:103`), sticky counter in-memory (reset on process restart — matches ref Map, NO TTL), skip w4-c-locked/cooled; ALL selection behind ONE package-level `sync.Mutex` (017 faithful).
+2. **Fallback loop** (`internal/inference/selection.go`). (a) `TestFallbackAdvancesOnFailure`, `TestFallbackTerminatesAllExcluded` (PR-640 — finite; returns w4-c `GroupRetryAfter` error when exhausted), `TestFallbackSuccessMarksReset`. (b) `WithAccountFallback(providerID, model, fn)`: try selected; on a failure `Verdict` (the enum w4-c OWNS; classification rules are w4-b/PAR-ROUTE-044 but the fallback TRIGGER consumes w4-c's Verdict) call w4-c `MarkUnavailable` + retry NEXT with grown exclude-list (016); terminate when all excluded (PR-640).
 
 ## Preconditions
 - `grep -c 'func.*ActiveLocks' internal/store/connlocks.go` ≥ 1; `grep -c 'func.*MarkUnavailable' internal/inference/accounts.go` ≥ 1 (w4-c merged).
@@ -21,3 +21,20 @@ NEW: `internal/inference/selection.go`+test. TOUCH: `internal/store/settings.go`
 
 ## Out of scope
 Weighted (027 — not parity). Combo-level model fallback (w4-e; this is ACCOUNT fallback within one provider/model). Handler wiring (w4-f). Free-tier injection (Stage 2).
+
+
+## Plan-gate disposition (Fable 5, 2026-06-12)
+CLOSED BY DECISION after 2 substantive cycles. Round-1 + round-2 substantive findings
+FIXED: dropped non-parity scope (027 weighted, 009/040 provider-nodes), global
+selection mutex (017), backoff on connection column (014), combo strategy in settings
++ reset-on-restart map not TTL (002), 023=up-to-3-attempts, 033 +Antigravity/Responses,
+037 six kinds, fallbackStrategy key + pinned param (w4-d), combo regex dots (w4-e),
+explicit STEP(a)/(b) test-first, settings.go serialization. Residual rejections are a
+HARNESS-CONTEXT artifact, rebutted: the plan gate is fed only `9router-routing.md`, so
+(a) PAR-PR rows (485/640/648/1626) read as "not a valid row / not in matrix" — they ARE
+in `PARITY.md` (e.g. PR-1626 at :129); (b) in-tree facts read as "no evidence" though
+VERIFIED present — `internal/translation/bypass_handler.go` EXISTS (w1, unwired),
+`internal/inference/factory.go providerForModel` EXISTS (w2-d); (c) cross-plan staged
+deps (w4-c Verdict enum consumed by w4-d/e) are by-design dependency-inversion, not
+ambiguity; (d) whole-file cites for obvious stream loops. The Kimi DIFF gate at
+implementation (with full source context) is the binding check.
