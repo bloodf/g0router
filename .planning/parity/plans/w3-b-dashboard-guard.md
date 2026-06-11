@@ -1,6 +1,6 @@
 # w3-b — Centralized dashboard guard middleware, local-only gate, tunnel toggles
 
-Rows: PAR-AUTH-007 (centralized guard with path lists, `src/dashboardGuard.js:22-65,165-241`), PAR-AUTH-011 (local-only route gate: loopback host + origin, `src/dashboardGuard.js:69-81,83-100`), PAR-AUTH-013 (tunnel dashboard access toggle, `src/dashboardGuard.js:197-214`, `src/app/api/settings/require-login/route.js`), PAR-AUTH-027 (tunnel login block, `src/app/api/auth/login/route.js:11-16,33-35`), PAR-AUTH-008 PARTIAL — GUARD-SIDE ONLY (the loopback-allow clause + /v1 prefix routing, `dashboardGuard.js:35,102-104,118-122`; the API-KEY validation half stays w3-d), PAR-AUTH-009 PARTIAL — GUARD-SIDE ONLY (the deny-with-401 semantics + injection point; the key-validation implementation is w3-d; rows flip HAVE only after w3-d) + PAR-PR-1711 (`PARITY.md:250` "Persistent dashboard session cookie — 30d TTL, unified parser") ADAPTED under decision 2 ("Keep g0router opaque SQLite session tokens (7-day TTL). No JWT.", `matrix/9router-auth.md` decisions table): unified cookie parsing yes; 30d TTL no — 7-day stands. Scope per `WAVE-3-MAP.md` track 1, plan 2. Frozen ref @ 827e5c3. Depends on w3-a MERGED (it owns `internal/admin/auth.go` first; this plan touches it after).
+Rows: PAR-AUTH-007 (centralized guard with path lists, `src/dashboardGuard.js:22-65,165-241`), PAR-AUTH-011 (local-only route gate: loopback host + origin, `src/dashboardGuard.js:69-81,83-100`), PAR-AUTH-013 (tunnel dashboard access toggle, `src/dashboardGuard.js:197-214`, `src/app/api/settings/require-login/route.js`), PAR-AUTH-027 (tunnel login block, `src/app/api/auth/login/route.js:11-16,33-35`), PAR-AUTH-008 PARTIAL — GUARD-SIDE ONLY (the loopback-allow clause + /v1 prefix routing, `dashboardGuard.js:35,102-104,118-122`; the API-KEY validation half stays w3-d), PAR-AUTH-009 PARTIAL — GUARD-SIDE ONLY (the deny-with-401 semantics + injection point; the key-validation implementation is w3-d; rows flip HAVE only after w3-d). (PAR-PR-1711 is NOT in this plan: its 30d TTL is rejected by decision 2 — "Keep g0router opaque SQLite session tokens (7-day TTL). No JWT." — and its parser-unification half is incidental engineering, not parity scope; recorded in WAVE-3-MAP.) Scope per `WAVE-3-MAP.md` track 1, plan 2. Frozen ref @ 827e5c3. Depends on w3-a MERGED (it owns `internal/admin/auth.go` first; this plan touches it after).
 
 In-repo integration: `internal/server/server.go:16-40` (`New` builds `*fasthttp.Server`; guard wraps the root handler), `internal/admin/auth.go:100` (`RequireSession` — superseded for /api/* by the central guard; kept for direct handler use), `internal/auth/session.go:75` (`Validate` — the opaque-token check replacing the ref's `verifyDashboardAuthToken`, decision 2), `internal/store/settings.go:9` (settings keys: requireLogin, tunnelUrl, tailscaleUrl, tunnelDashboardAccess).
 
@@ -10,14 +10,21 @@ Evaluation order of `proxy(request)` (:165-241), ported as a fasthttp middleware
 `internal/server/guard.go` evaluated BEFORE route dispatch:
 
 1. **LOCAL_ONLY_PATHS** (:69-81): prefix match → require local request, else 403
-   `{"error":"Local only: CLI token required"}`. Port the list verbatim (:69-81);
-   entries for routes that do not exist yet in g0router stay in the list (harmless —
-   deny-by-default protects them regardless).
+   `{"error":"Local only: CLI token required"}`. Stage-1 list = the ref entries whose
+   routes EXIST in g0router today: `/api/mcp/` ONLY (the mcp package exists; tunnel
+   routes are Wave 7, cursor/kiro auto-import are Stage-2, cowork is excluded by
+   decision 4). Each future feature ADDS its own entries with its plan — the list is
+   a package-level var with a comment citing :69-81 for the full ref set. Acceptance
+   test pins today's list exactly (no nonexistent-route behavior change).
    `isLocalRequest` (:91-100): Host header hostname ∈ {localhost, 127.0.0.1, ::1}
    (strip port + IPv6 brackets, :85-89) AND, when an Origin header is present, its
    hostname must also be loopback; malformed Origin → NOT local. (PAR-AUTH-011)
 2. **ALWAYS_PROTECTED** (:38-45): prefix match → require valid session (opaque
-   `Sessions.Validate`, decision 2) OR valid CLI token; else 401. CLI-token
+   `Sessions.Validate`, decision 2) OR valid CLI token; else 401. Stage-1 list = ref
+   entries with existing g0router routes: `/api/settings/database` does not exist
+   yet → Stage-1 list is EMPTY with the ref set in a comment (:38-45); future plans
+   add entries with their routes. The evaluation step itself ships now (tested with
+   a synthetic entry in tests). CLI-token
    validation is PAR-AUTH-012 (w3-d): the guard struct carries
    `CLITokenValidator func(*fasthttp.RequestCtx) bool` — nil means "no CLI tokens
    exist" → deny (today's truth; w3-d injects the real validator). This mirrors the
@@ -28,8 +35,9 @@ Evaluation order of `proxy(request)` (:165-241), ported as a fasthttp middleware
    (PAR-AUTH-008's loopback clause) else require API key — `APIKeyValidator` field,
    nil → 401 `{"error":"API key required for remote API access"}` (PAR-AUTH-009 is
    w3-d's; nil-deny is today's truth and fail-closed).
-4. **/api/* deny-by-default** (:188-194): PUBLIC_API_PATHS allow-list (:22-32,
-   verbatim) bypasses; everything else requires session or CLI token; else 401.
+4. **/api/* deny-by-default** (:188-194): PUBLIC_API_PATHS allow-list (:22-32 — keep verbatim: every entry is a no-auth
+   endpoint by definition, safe to allow-list before its route exists since an
+   unrouted path 404s AFTER the guard) bypasses; everything else requires session or CLI token; else 401.
 5. **Dashboard routes** (:196-235): settings requireLogin (default true) +
    tunnelDashboardAccess (default false per `settings.tunnelDashboardAccess === true`
    truthiness); when tunnel access disabled AND Host matches tunnelUrl/tailscaleUrl
@@ -43,10 +51,6 @@ Evaluation order of `proxy(request)` (:165-241), ported as a fasthttp middleware
 handler (w3-a's file, now owned here for this addition): `isTunnelRequest` (Host
 hostname equals tunnelUrl/tailscaleUrl hostname) AND `tunnelDashboardAccess != true`
 → 403 `{"error":"Dashboard access via tunnel is disabled"}` before password checks.
-
-**Unified cookie parser** (PR-1711 adapted): one helper `sessionTokenFromRequest`
-(cookie name used by the existing admin handlers) used by guard + handlers — no
-duplicate parsing. TTL stays 7-day (decision 2).
 
 ## Preconditions (a "0 hits" grep exits 1 = pass)
 
@@ -76,8 +80,12 @@ to PUBLIC_API_PATHS' existing `/api/auth/oidc` prefix — already in the ported 
 3. **Tunnel login block** (`admin/auth.go`): the PAR-AUTH-027 check before password verification; settings-driven.
    Tests FIRST: `TestLoginBlockedViaTunnelHost` (Host == tunnelUrl hostname + tunnelDashboardAccess unset/false → 403 with error "Dashboard access via tunnel is disabled", NO session cookie set; tunnelDashboardAccess=true + correct password → 200 AND Set-Cookie session present), `TestLoginNormalHostUnaffected` (non-tunnel Host + correct password → 200 regardless of toggle).
 
-4. **Unified cookie parser**: extract `sessionTokenFromRequest` used by guard + admin handlers (PR-1711's parser unification; TTL untouched).
-   Tests FIRST: `TestSessionCookieRoundTrip` (behavioral: POST login → capture the Set-Cookie name+token → a guarded /api request presenting exactly that cookie passes the guard; mutating the cookie NAME in the request → 401 — proving guard and handler agree on one cookie contract).
+4. **Cookie contract test** (no refactor): the guard MUST read the same session
+   cookie the Login handler sets (it consumes `Sessions.Validate` with the token from
+   the existing cookie name). Tests FIRST: `TestSessionCookieRoundTrip` (behavioral:
+   POST login → capture Set-Cookie name+token → a guarded /api request with exactly
+   that cookie passes; a renamed cookie → 401). This is the guard-correctness test
+   for PAR-AUTH-007's session check — no parser refactor involved.
 
 ## Binary acceptance criteria
 
@@ -85,7 +93,7 @@ to PUBLIC_API_PATHS' existing `/api/auth/oidc` prefix — already in the ported 
 - `grep -c 'verifyDashboardAuthToken\|jwt\|JWT' internal/server/guard.go` → 0 (decision 2: opaque only).
 - `grep -rn 'func init(\|panic(' internal/server/guard.go` → 0 hits.
 - All six Task-1 test groups pass; pre-existing server/integration tests pass unchanged.
-- The PUBLIC_API_PATHS, ALWAYS_PROTECTED, LOCAL_ONLY_PATHS slices match the ref lists verbatim (diff gate checks against `dashboardGuard.js:22-81`).
+- PUBLIC_API_PATHS matches `dashboardGuard.js:22-32` verbatim; LOCAL_ONLY_PATHS == ["/api/mcp/"]; ALWAYS_PROTECTED == [] with the ref sets cited in comments (Stage-1 existing-routes rule above); `TestGuardListContents` pins all three exactly.
 
 ## Out of scope
 
