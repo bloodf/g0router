@@ -81,10 +81,10 @@ only the `oidcConfigured` settings-key helper is defined here in admin/auth.go).
 
 2. **Login handler integration** (`internal/admin/auth.go`): order — ClientIP →
    CheckLock (locked → 429 + Retry-After + reset-hint error in the `{data,error}`
-   envelope) → authMode check (oidc-only + configured → 403) → password verify:
-   stored hash → `VerifyPassword`; no hash → constant-time compare against
-   `INITIAL_PASSWORD` env or "123456" (002) → fail: RecordFail; success:
-   RecordSuccess + existing session issue. Status: include `auth_mode`.
+   envelope) → authMode check (oidc-only + configured → 403) → `Sessions.Login`
+   (which internally does hash-verify OR, on empty hash, the default-password
+   compare per the Ref-behavior section — the handler does NOT duplicate that
+   logic) → fail: RecordFail; success: RecordSuccess. Status: include `auth_mode`.
    Tests (`auth_test.go` additions): `TestLoginLockout429AndRetryAfter`,
    `TestLoginDefaultPasswordWhenNoHash` (and env override),
    `TestLoginOidcModeBlocksPassword` (mode oidc + configured keys → 403; mode oidc +
