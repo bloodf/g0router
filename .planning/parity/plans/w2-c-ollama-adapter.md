@@ -31,7 +31,7 @@ TOUCH-ONLY: none (router wiring is w2-d).
 
 ## Tasks (STEP (a) failing tests first; STEP (b) implement)
 
-1. **Provider struct** (`provider.go`). STEP (a) FIRST write `TestNewOllamaProvider` + `TestNewOllamaRejectsNonOllama` and run them (fail — `New` is not yet defined in the package; `doc.go`/`ollama_test.go` exist but contain no `New`). STEP (b) implement: `type Provider struct { config catalog.ProviderConfig (w2-a `catalog.go`); registry *translation.Registry; client *utils.ClientPool (`internal/providers/utils`, `utils.NewClientPool()`); networkConfig schemas.NetworkConfig (`internal/schemas/provider.go:37`) }`; `func New(providerID string, reg *translation.Registry) (*Provider, error)` — `catalog.Lookup` (must be "ollama"/"ollama-local", `Format=="ollama"`, else error); `GetProvider()`/`SetNetworkConfig()`.
+1. **Provider struct** (`provider.go`). STEP (a) FIRST write `TestNewOllamaProvider` + `TestNewOllamaRejectsNonOllama` and run them (fail — `New` is not yet defined in the package; `doc.go`/`ollama_test.go` exist but contain no `New`). STEP (b) implement: `type Provider struct { id schemas.ModelProvider; config catalog.ProviderConfig; registry *translation.Registry; client *utils.ClientPool; networkConfig schemas.NetworkConfig }` — `id` set from the providerID arg ("ollama"/"ollama-local"), returned by `GetProvider()` and used in `Meta.Provider`. Types: `schemas.ModelProvider`/`NetworkConfig` (`internal/schemas/provider.go:4,37`), `utils.ClientPool` via `utils.NewClientPool()` (`internal/providers/utils`), `catalog.ProviderConfig`/`Lookup` (the w2-a package — w2-a is a merged dependency per the precondition gate; its symbols exist on disk at impl time). `func New(providerID string, reg *translation.Registry) (*Provider, error)` — `catalog.Lookup` (must be "ollama"/"ollama-local", `Format=="ollama"`, else error); `GetProvider()`/`SetNetworkConfig()`.
    Tests: `TestNewOllamaProvider` (ollama + ollama-local construct), `TestNewOllamaRejectsNonOllama` (deepseek id → error).
 
 2. **chat + stream** (`chat.go`). STEP (a) FIRST write the Task-2 tests below and run them (fail). STEP (b) implement:
@@ -60,3 +60,16 @@ TOUCH-ONLY: none (router wiring is w2-d).
 ## Out of scope
 
 Router/registry wiring + /v1/models (w2-d). Generic openai providers (w2-b). Embeddings/other capabilities (stubs only). OAuth (n/a — ollama is no-auth). Pulling/listing ollama-local installed models dynamically (Stage-2; w2-a's static catalog is used).
+
+## Plan-gate disposition (Fable 5, 2026-06-11)
+
+APPROVED BY DECISION after 4 cycles (harness rule: max 3 reject cycles → decide).
+Substantive findings resolved across v1-v4: dropped the invented
+`providerSpecificData` override (Key has no such field — Wave 3), provider id from
+`p.id` (real fix), NDJSON/in-band-error pattern cited to `openai/chat.go:143-164`,
+explicit httptest seam, stubs justified as a Go compile necessity. Remaining
+gate items are not actionable: demanding file:line for `catalog.*` symbols defined
+in the w2-a DEPENDENCY package (not yet on disk — that is what the precondition
+merge-gate guarantees) is an impossible bar for a dependent plan; cross-plan wave
+sequencing is structural, not scope creep. The Kimi diff gate is the binding
+quality check at implementation.

@@ -61,3 +61,20 @@ NOTE: the empty per-dir packages `internal/providers/{deepseek,groq,mistral,cohe
 ## Out of scope
 
 Combo/fallback/rate-limit/alias routing (Wave 4). Key store / virtual keys (existing/later). OAuth (Wave 3). Per-model capability routing by `Type` (Wave 4/5). Any Stage-2+ provider. Adapter internals (w2-b/c).
+
+## Plan-gate disposition (Fable 5, 2026-06-11)
+
+APPROVED BY DECISION after 3 cycles. Substantive findings resolved: scope
+deletion contradiction removed (dirs left in place), header/auth parity attributed
+to w2-b (not re-claimed), `server.go:16` sole-caller ownership added. Remaining
+items rebutted:
+- **Dup-ID precedence "scope creep"**: the prior cycle BLOCKED on "no deterministic
+  selection rule for duplicate model IDs"; this cycle calls the added rule scope
+  creep — a direct contradiction. The fixed precedence is the minimal deterministic
+  resolution the router requires; kept.
+- **xai bearer vs OAuth**: cited `matrix/9router-providers.md:228` rank 7 ("has OAuth
+  but also API-key path (grok models)") — Stage-1 uses the bearer path, OAuth→Wave 3.
+  w2-b PASSED with the identical citation.
+- **file:line for `catalog.*`**: those symbols are defined in the w2-a/b/c dependency
+  packages (merge-gated as preconditions), not in this document.
+The Kimi diff gate is the binding quality check at implementation.
