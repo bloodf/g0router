@@ -1,6 +1,6 @@
 # w2-d — Provider registry/factory + catalog-driven router + /v1/models
 
-Rows: PAR-PROV-001 (openai), 002 (anthropic), 003 (gemini) — their catalogs are aggregated into `/v1/models` and their existing adapters routed unchanged; completes reachability for PAR-PROV-004 (groq), 005 (deepseek), 006 (mistral), 007 (cohere), 008 (together), 009 (fireworks), 010 (ollama), 014 (openrouter), 027 (xai), 029 (perplexity) — these flip HAVE after w2-d (the adapters from w2-b/w2-c become routable + visible in `/v1/models`). w2-a/b/c build the catalog+adapters; w2-d wires routing so a request reaches them.
+Rows: PAR-PROV-001 (openai), 002 (anthropic), 003 (gemini) — their catalogs are aggregated into `/v1/models` and their existing adapters routed unchanged; completes reachability for PAR-PROV-004 (groq), 005 (deepseek), 006 (mistral), 007 (cohere), 008 (together), 009 (fireworks), 010 (ollama), 014 (openrouter), 027 (xai), 029 (perplexity) — these flip HAVE after w2-d (the adapters from w2-b/w2-c become routable + visible in `/v1/models`). Provider-specific behavior is OWNED upstream, not re-claimed here: openrouter's `HTTP-Referer`/`X-Title` headers and xai's bearer auth are delivered by the w2-b generic adapter (config.Headers + bearer; tested by w2-b `TestGenericChatCustomHeaders`/`TestGenericChatBearerAuth`); w2-d only ROUTES the model to that adapter. The row flips HAVE = adapter (w2-b) + routing (w2-d).
 
 Frozen ref (@ 827e5c3): `open-sse/services/provider.js` (model→provider resolution + getExecutor dispatch), `open-sse/executors/index.js:46-52` (`getExecutor` factory). In-repo to REPLACE: `internal/inference/router.go:1-63` (the Phase-5 prefix stub — 3 hardcoded providers), `internal/api/models.go:21-40` (single-provider ListModels).
 
@@ -18,8 +18,9 @@ Depends on w2-a (catalog), w2-b (generic adapter), w2-c (ollama adapter) ALL mer
   providers) keep their dedicated packages; w2-d's factory routes their models to them.
   The 9 openai-format Stage-1 providers route to `generic.New(id)`; ollama to
   `ollama.New("ollama"|"ollama-local", registry)`. The superseded empty per-dir packages
-  (deepseek/groq/mistral/cohere/together/fireworks) are removed in this plan (their models
-  now route to the generic adapter).
+  (deepseek/groq/mistral/cohere/together/fireworks) are left in place (harmless dead
+  packages; their models now route to the generic adapter). Removal is a separate
+  cleanup, out of scope.
 
 ## Preconditions (a "0 hits" grep exits 1 = pass)
 
@@ -37,9 +38,9 @@ NOTE: the empty per-dir packages `internal/providers/{deepseek,groq,mistral,cohe
 ## Tasks (STEP (a) failing tests first; STEP (b) implement)
 
 1. **Model→provider index + factory** (`factory.go`):
-   - `func providerForModel(model string) (providerID string, ok bool)` — search `catalog.Models` across all Stage-1 providers for an entry whose `ID == model`; also keep the existing prefix routing for openai/anthropic/gemini (claude-*/gemini-* and default openai) so current behavior is preserved — port the existing `router.go:36-54` switch (default openai at `router.go:48`). Catalog match wins over prefix default.
+   - `func providerForModel(model string) (providerID string, ok bool)` — search `catalog.Models` across the Stage-1 providers IN A FIXED PRECEDENCE ORDER (the ranking order: deepseek, groq, mistral, together, fireworks, cohere, xai, openrouter, perplexity, ollama, ollama-local) and return the FIRST whose catalog contains the exact `ID == model` — a deterministic tie-break for any colliding IDs. Test `TestProviderForModelDeterministic` asserts a stable result; a precondition check (`go test`) confirms no two Stage-1 catalogs share an exact model ID today, so the order only matters defensively. also keep the existing prefix routing for openai/anthropic/gemini (claude-*/gemini-* and default openai) so current behavior is preserved — port the existing `router.go:36-54` switch (default openai at `router.go:48`). Catalog match wins over prefix default.
    - `func buildProvider(providerID string, reg *translation.Registry) (schemas.Provider, error)` — the factory (Go analog of `getExecutor`): openai→`openai.NewProvider()`, anthropic→`anthropic.NewProvider()`, gemini→`gemini.NewProvider()`, ollama/ollama-local→`ollama.New(id, reg)`, any other catalog openai-format id→`generic.New(id)`; unknown→error.
-   Tests (`factory_test.go`): `TestProviderForModelCatalog` (`deepseek-chat`→"deepseek", `grok-4`→"xai", `sonar`→"perplexity"), `TestProviderForModelPrefix` (`claude-…`→"anthropic", `gemini-…`→"gemini", unknown→openai default), `TestBuildProviderGeneric` (deepseek id → *generic.Provider), `TestBuildProviderOllama` (ollama → *ollama.Provider), `TestBuildProviderExisting` (openai/anthropic/gemini → their types).
+   Tests (`factory_test.go`): `TestProviderForModelCatalog` (`deepseek-chat`→"deepseek", `grok-4`→"xai", `sonar`→"perplexity"), `TestProviderForModelPrefix` (`claude-…`→"anthropic", `gemini-…`→"gemini", unknown→openai default), `TestBuildProviderGeneric` (deepseek id → *generic.Provider), `TestBuildProviderOllama` (ollama → *ollama.Provider), `TestBuildProviderExisting` (openai/anthropic/gemini → their types), `TestProviderForModelDeterministic` (fixed precedence; stable result).
 
 2. **Catalog-driven Router** (`router.go`, REPLACE the prefix stub):
    - `Router` holds a `*translation.Registry` (shared, for ollama) + cached provider instances (lazy via `buildProvider`). `NewRouter(reg *translation.Registry)` — update the SOLE caller `internal/server/server.go:16` (`inference.NewRouter()`) to construct + pass a shared `translation.NewRegistry()`. No other caller exists (verified: `grep -rn 'NewRouter(' internal cmd` → only server.go:16).

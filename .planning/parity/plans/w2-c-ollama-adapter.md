@@ -10,8 +10,7 @@ TranslateResponse) + exported `OllamaBodyToOpenAI` — never reach into the pack
 
 ## Scope decisions
 
-- **chat + stream only** (consideration #1); embeddings/other capabilities = typed
-  not-implemented stubs (decision 9), matching w2-b.
+- **chat + stream only** — the adapter implements ChatCompletion + ChatCompletionStream; the remaining `schemas.Provider` methods (`provider.go:68-107`) are typed 501 stubs required for the type to satisfy the interface and compile (see Task 3).
 - **No auth** — ollama `config.NoAuth == true`; send no Authorization header.
 - **Ollama-native wire** — the request body is ollama-shaped (via the registry
   openai→ollama translation), POSTed as JSON; the response is **NDJSON** (not SSE),
@@ -32,16 +31,21 @@ TOUCH-ONLY: none (router wiring is w2-d).
 
 ## Tasks (STEP (a) failing tests first; STEP (b) implement)
 
-1. **Provider struct** (`provider.go`). STEP (a) FIRST write `TestNewOllamaProvider` + `TestNewOllamaRejectsNonOllama` and run them (fail — package absent). STEP (b) implement: `type Provider struct { config catalog.ProviderConfig (w2-a `catalog.go`); registry *translation.Registry; client *utils.ClientPool (`internal/providers/utils`, `utils.NewClientPool()`); networkConfig schemas.NetworkConfig (`internal/schemas/provider.go:37`) }`; `func New(providerID string, reg *translation.Registry) (*Provider, error)` — `catalog.Lookup` (must be "ollama"/"ollama-local", `Format=="ollama"`, else error); `GetProvider()`/`SetNetworkConfig()`.
+1. **Provider struct** (`provider.go`). STEP (a) FIRST write `TestNewOllamaProvider` + `TestNewOllamaRejectsNonOllama` and run them (fail — `New` is not yet defined in the package; `doc.go`/`ollama_test.go` exist but contain no `New`). STEP (b) implement: `type Provider struct { config catalog.ProviderConfig (w2-a `catalog.go`); registry *translation.Registry; client *utils.ClientPool (`internal/providers/utils`, `utils.NewClientPool()`); networkConfig schemas.NetworkConfig (`internal/schemas/provider.go:37`) }`; `func New(providerID string, reg *translation.Registry) (*Provider, error)` — `catalog.Lookup` (must be "ollama"/"ollama-local", `Format=="ollama"`, else error); `GetProvider()`/`SetNetworkConfig()`.
    Tests: `TestNewOllamaProvider` (ollama + ollama-local construct), `TestNewOllamaRejectsNonOllama` (deepseek id → error).
 
 2. **chat + stream** (`chat.go`). STEP (a) FIRST write the Task-2 tests below and run them (fail). STEP (b) implement:
    - URL: `func (p *Provider) chatURL() string` — for `ollama-local`, `catalog.ResolveOllamaHost("") + "/api/chat"` (default host); for cloud `ollama`, `config.BaseURL`. Ref `executors/ollama-local.js`.
    - `ChatCompletion` (non-streaming): `reqMap` = registry `TranslateRequest(FormatOpenAI, FormatOllama, model, body, false, nil)`; POST JSON to chatURL, no auth; on 200 read the ollama response body, `OllamaBodyToOpenAI(body)` (`internal/translation/ollama_openai_response.go:197`) → `schemas.ChatResponse`; non-200 → `*schemas.ProviderError` with `Meta.Provider = string(p.id)` (the actual id — `ollama` OR `ollama-local`, not hardcoded). NOTE ollama non-streaming returns a single JSON object (not NDJSON).
    - `ChatCompletionStream`: translate request (`stream:true`); POST; response is NDJSON → `NewNDJSONScanner`; per line: `TranslateResponse(FormatOllama, FormatOpenAI, lineMap, state)` → emit each OpenAI chunk; scanner EOF ends; malformed line / read error / post-hook failure → in-band `streamError` then close — mirror the in-band error handling at `internal/providers/openai/chat.go:143-164` (the `postHookRunner schemas.PostHookRunner` param triggers the hook path, `internal/schemas/provider.go:44-46`).
-   Tests (`chat_test.go`, fake upstream): `TestOllamaChatURLLocalVsCloud` (ollama-local → `http://localhost:11434/api/chat`; cloud ollama → config BaseURL), `TestOllamaChatNoAuthHeader` (no Authorization sent), `TestOllamaChatNonStreaming` (single ollama JSON → OpenAI ChatResponse via OllamaBodyToOpenAI), `TestOllamaStreamNDJSON` (NDJSON lines → OpenAI chunks; done line ends), `TestOllamaStreamMalformedInBandError`.
+   Tests (`chat_test.go`): round-trip tests use the CLOUD ollama config and set `p.config.BaseURL = srv.URL` (in-package seam, same as `openai/stream_test.go:26-27` `p.baseURL = srv.URL`) to redirect POSTs to `httptest.NewServer`; the local-host case is a PURE assertion (no network).
+     - `TestOllamaChatURLLocalVsCloud` (PURE: ollama-local `chatURL()` == `http://localhost:11434/api/chat`; cloud ollama `chatURL()` == config BaseURL).
+     - `TestOllamaChatNoAuthHeader` (httptest captures NO Authorization header).
+     - `TestOllamaChatNonStreaming` (httptest returns one ollama JSON object → OpenAI ChatResponse via OllamaBodyToOpenAI).
+     - `TestOllamaStreamNDJSON` (httptest streams NDJSON lines → OpenAI chunks; done line ends).
+     - `TestOllamaStreamMalformedInBandError` (httptest bad line → in-band streamError).
 
-3. **Typed stubs** (`stubs.go`). STEP (a) FIRST write `TestOllamaSatisfiesProviderInterface` + `TestOllamaEmbeddingNotImplemented` (fail). STEP (b): Go REQUIRES every interface method to compile, so stubs are a compile necessity (not added scope); every `schemas.Provider` method (authority: `internal/schemas/provider.go:68-107`) except GetProvider/SetNetworkConfig/ChatCompletion/ChatCompletionStream → typed 501 not-implemented (pattern `internal/providers/openai/stubs.go`); decision 9; `var _ schemas.Provider = (*Provider)(nil)`.
+3. **Typed stubs** (`stubs.go`). STEP (a) FIRST write `TestOllamaSatisfiesProviderInterface` + `TestOllamaEmbeddingNotImplemented` (fail). STEP (b): the type MUST satisfy `schemas.Provider` (`internal/schemas/provider.go:68-107`) to be usable by the router, and Go requires EVERY interface method to be defined for the type to compile — so the non-chat methods are a compile necessity, not added scope. Stub every method except GetProvider/SetNetworkConfig/ChatCompletion/ChatCompletionStream → typed 501 not-implemented, pattern `internal/providers/openai/stubs.go:17-23`; add `var _ schemas.Provider = (*Provider)(nil)`.
    Tests: `TestOllamaSatisfiesProviderInterface`, `TestOllamaEmbeddingNotImplemented`.
 
 ## Binary acceptance criteria
