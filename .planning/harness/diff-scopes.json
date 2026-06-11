@@ -261,6 +261,16 @@
         "internal/providers/ollama/chat_test.go",
         "internal/schemas/provider.go"
       ]
+    },
+    "w3-e-outbound-proxy": {
+      "base": "7e3c1d9^",
+      "end": "7e3c1d9",
+      "paths": [
+        "internal/providers/utils/client.go",
+        "internal/providers/utils/proxy_test.go",
+        "internal/auth/oauth.go",
+        "internal/auth/oauth_proxy_test.go"
+      ]
     }
   }
 }
