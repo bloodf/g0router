@@ -18,6 +18,19 @@ func TestLookupKnownProviders(t *testing.T) {
 		"ollama":       "https://ollama.com/api/chat",
 		"ollama-local": "http://localhost:11434/api/chat",
 	}
+	wantFormat := map[string]string{
+		"groq":         "openai",
+		"deepseek":     "openai",
+		"mistral":      "openai",
+		"cohere":       "openai",
+		"together":     "openai",
+		"fireworks":    "openai",
+		"openrouter":   "openai",
+		"xai":          "openai",
+		"perplexity":   "openai",
+		"ollama":       "ollama",
+		"ollama-local": "ollama",
+	}
 	known := []string{
 		"groq", "deepseek", "mistral", "cohere",
 		"together", "fireworks", "openrouter", "xai",
@@ -34,8 +47,8 @@ func TestLookupKnownProviders(t *testing.T) {
 		if got, want := cfg.BaseURL, wantBaseURL[name]; got != want {
 			t.Errorf("Lookup(%q).BaseURL = %q, want %q", name, got, want)
 		}
-		if cfg.Format == "" {
-			t.Errorf("Lookup(%q).Format is empty", name)
+		if got, want := cfg.Format, wantFormat[name]; got != want {
+			t.Errorf("Lookup(%q).Format = %q, want %q", name, got, want)
 		}
 	}
 }

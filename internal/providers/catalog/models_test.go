@@ -108,6 +108,19 @@ func TestModelsForOllama(t *testing.T) {
 	if len(models) != 6 {
 		t.Errorf("ModelsFor(\"ollama\") len = %d, want 6", len(models))
 	}
+	want := []string{
+		"gpt-oss:120b",
+		"kimi-k2.5",
+		"glm-5",
+		"minimax-m2.5",
+		"glm-4.7-flash",
+		"qwen3.5",
+	}
+	for i, id := range want {
+		if models[i].ID != id {
+			t.Errorf("ModelsFor(\"ollama\")[%d].ID = %q, want %q", i, models[i].ID, id)
+		}
+	}
 }
 
 func TestModelsForUnknown(t *testing.T) {
