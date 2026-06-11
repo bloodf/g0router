@@ -180,6 +180,16 @@
         "internal/server/routes_openai.go",
         "internal/server/routes_openai_test.go"
       ]
+    },
+    "w2-a-provider-catalog": {
+      "base": "dd48ce6^",
+      "end": "dd48ce6",
+      "paths": [
+        "internal/providers/catalog/catalog.go",
+        "internal/providers/catalog/catalog_test.go",
+        "internal/providers/catalog/models.go",
+        "internal/providers/catalog/models_test.go"
+      ]
     }
   }
 }
