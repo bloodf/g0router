@@ -81,6 +81,13 @@ type StreamState struct {
 	CommandCodeToolIndexByID map[string]int
 	CommandCodeFinishReason string
 	CommandCodeUsage        map[string]any
+	// Fields for kiro→openai response translation.
+	KiroID         string
+	KiroCreated    int64
+	KiroModel      string
+	KiroChunkIndex int
+	KiroFinishReason string
+	KiroUsage      map[string]any
 }
 
 // claudeOpenAIToolCall tracks an in-flight Claude tool_use block during
@@ -161,6 +168,8 @@ func NewRegistry() *Registry {
 	r.Register(FormatOllama, FormatOpenAI, nil, ollamaToOpenAIResponse)
 	r.Register(FormatOpenAI, FormatCommandCode, openaiToCommandCodeRequest, nil)
 	r.Register(FormatCommandCode, FormatOpenAI, nil, commandcodeToOpenAIResponse)
+	r.Register(FormatOpenAI, FormatKiro, buildKiroPayload, nil)
+	r.Register(FormatKiro, FormatOpenAI, nil, kiroToOpenAIResponse)
 	return r
 }
 

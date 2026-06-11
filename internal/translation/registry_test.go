@@ -57,7 +57,7 @@ func TestRegistryRegisterLookup(t *testing.T) {
 		t.Error("override request translator was not called")
 	}
 
-	if reg.ResponseTranslatorFor(FormatKiro, FormatOpenAI) != nil {
+	if reg.ResponseTranslatorFor(FormatClaude, FormatGemini) != nil {
 		t.Error("expected no response translator for unwired pair")
 	}
 }
@@ -591,5 +591,28 @@ func TestNewRegistryWiresCommandCodePair(t *testing.T) {
 	gotResp := reflect.ValueOf(reg.ResponseTranslatorFor(FormatCommandCode, FormatOpenAI)).Pointer()
 	if gotResp != wantResp {
 		t.Error("commandcode->openai response translator is not commandcodeToOpenAIResponse")
+	}
+}
+
+func TestNewRegistryWiresKiroPair(t *testing.T) {
+	reg := NewRegistry()
+
+	if reg.RequestTranslatorFor(FormatOpenAI, FormatKiro) == nil {
+		t.Error("NewRegistry must wire openai->kiro request translator")
+	}
+	if reg.ResponseTranslatorFor(FormatKiro, FormatOpenAI) == nil {
+		t.Error("NewRegistry must wire kiro->openai response translator")
+	}
+
+	wantReq := reflect.ValueOf(RequestTranslator(buildKiroPayload)).Pointer()
+	gotReq := reflect.ValueOf(reg.RequestTranslatorFor(FormatOpenAI, FormatKiro)).Pointer()
+	if gotReq != wantReq {
+		t.Error("openai->kiro request translator is not buildKiroPayload")
+	}
+
+	wantResp := reflect.ValueOf(ResponseTranslator(kiroToOpenAIResponse)).Pointer()
+	gotResp := reflect.ValueOf(reg.ResponseTranslatorFor(FormatKiro, FormatOpenAI)).Pointer()
+	if gotResp != wantResp {
+		t.Error("kiro->openai response translator is not kiroToOpenAIResponse")
 	}
 }
