@@ -149,6 +149,7 @@ func (h *Handlers) Logout(ctx *fasthttp.RequestCtx) {
 		}
 	}
 	ctx.Response.Header.DelClientCookie(sessionCookieName)
+	deleteAllOIDCCookies(ctx)
 	writeData(ctx, fasthttp.StatusOK, map[string]any{"logged_out": true})
 }
 

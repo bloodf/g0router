@@ -62,6 +62,41 @@ func TestLoginBlockedViaTunnelHost(t *testing.T) {
 	}
 }
 
+func TestLogoutClearsOIDCCookies(t *testing.T) {
+	env := newTestEnv(t)
+	token := loginToken(t, env)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod("POST")
+	ctx.Request.SetRequestURI("/api/auth/logout")
+	ctx.Request.Header.Set("Authorization", "Bearer "+token)
+	ctx.Request.Header.SetCookie("oidc_state", "state-value")
+	ctx.Request.Header.SetCookie("oidc_nonce", "nonce-value")
+	ctx.Request.Header.SetCookie("oidc_code_verifier", "verifier-value")
+
+	env.handlers.RequireSession(env.handlers.Logout)(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d", ctx.Response.StatusCode())
+	}
+
+	cookies := parseCookies(t, &ctx)
+	for _, name := range []string{"oidc_state", "oidc_nonce", "oidc_code_verifier"} {
+		c, ok := cookies[name]
+		if !ok {
+			t.Fatalf("missing deletion cookie %q", name)
+		}
+		if c["value"] != "" {
+			t.Errorf("cookie %q not deleted, value = %q", name, c["value"])
+		}
+	}
+
+	// Session should also be cleared.
+	if _, ok := cookies[sessionCookieName]; !ok {
+		t.Fatal("missing session deletion cookie")
+	}
+}
+
 func TestLoginNormalHostUnaffected(t *testing.T) {
 	env := newTestEnv(t)
 

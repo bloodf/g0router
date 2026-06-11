@@ -27,6 +27,9 @@ func NewAdminHandlers(st *store.Store) *admin.Handlers {
 func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	// Public.
 	r.POST("/api/auth/login", h.Login)
+	r.GET("/api/auth/oidc/start", h.OIDCStart)
+	r.GET("/api/auth/oidc/callback", h.OIDCCallback)
+	r.POST("/api/auth/oidc/test", h.OIDCTest)
 
 	// Protected.
 	r.POST("/api/auth/logout", h.RequireSession(h.Logout))
