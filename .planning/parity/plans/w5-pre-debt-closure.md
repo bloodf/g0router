@@ -131,3 +131,10 @@ All PAR-USAGE rows (w5-a..f). Virtual keys (w5-g). request_log/usage glue (w5-f)
 Messages/responses/embeddings refresher seams (not in the debt record). Mid-stream
 combo fallback (ref has none). Per-model SelectionEngine routing for NON-combo single
 models (Router.Resolve path unchanged). Live model pinging for GetTestByKind (W6).
+
+## Plan-gate disposition (Fable 5, 2026-06-12)
+PASS at cycle 3 (artifacts/w5-pre-debt-closure-plan-review.txt). Cycle-1/2 substantive
+findings FIXED: map amended to authorize combo-dispatch glue + ownership serialization
+note; full PAR row IDs; absence claims tied to precondition greps (verified at 7cc9b7c);
+per-element scope justification for Task 3; streaming combo test added to acceptance.
+Residual MINOR (dense mechanics) acknowledged — all mechanics pinned to cited files.
