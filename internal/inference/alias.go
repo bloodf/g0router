@@ -2,6 +2,7 @@ package inference
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/bloodf/g0router/internal/providers/catalog"
@@ -64,15 +65,20 @@ func ParseModelPrefix(model string) (providerPrefix, bareModel string) {
 
 // InferProvider checks whether the bare model name starts with a known provider
 // alias prefix. This is the PAR-ROUTE-008 name-prefix inference fallback.
+// Aliases are checked longest-first so that more-specific prefixes win deterministically.
 func InferProvider(bareModel string) (providerID string, ok bool) {
-	var found string
+	type entry struct{ alias, id string }
+	var entries []entry
 	catalog.ForEachProviderAlias(func(alias, id string) {
-		if strings.HasPrefix(bareModel, alias+"-") {
-			found = id
-		}
+		entries = append(entries, entry{alias, id})
 	})
-	if found != "" {
-		return found, true
+	sort.Slice(entries, func(i, j int) bool {
+		return len(entries[i].alias) > len(entries[j].alias)
+	})
+	for _, e := range entries {
+		if strings.HasPrefix(bareModel, e.alias+"-") {
+			return e.id, true
+		}
 	}
 	return "", false
 }
