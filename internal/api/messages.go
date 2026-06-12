@@ -81,8 +81,9 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	}
 
 	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before dispatch.
-	if vkHeader := string(ctx.Request.Header.Peek("x-g0-vk")); vkHeader != "" {
-		if ok, status, reason := h.vkGate.AllowVK(vkHeader, model); !ok {
+	vkHeader := string(ctx.Request.Header.Peek("x-g0-vk"))
+	if vkHeader != "" {
+		if ok, status, reason := h.vkGate.AllowVK(vkHeader, model, key.Provider); !ok {
 			errType := "invalid_request_error"
 			if status == 429 {
 				errType = "rate_limit_exceeded"

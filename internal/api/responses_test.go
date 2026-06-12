@@ -27,7 +27,7 @@ func (f *fakeResponsesResolver) ResolveForModel(req *schemas.ChatRequest) (schem
 	if f.providerErr != nil {
 		return nil, schemas.Key{}, errors.New(f.providerErr.Message)
 	}
-	return &fakeResponsesProvider{response: f.response, streamCh: f.streamCh, resolver: f}, schemas.Key{}, nil
+	return &fakeResponsesProvider{response: f.response, streamCh: f.streamCh, resolver: f}, schemas.Key{Provider: "openai"}, nil
 }
 
 type fakeResponsesProvider struct {
@@ -217,9 +217,11 @@ func TestResponsesEndpointStreamsEvents(t *testing.T) {
 func TestResponsesVKDenied(t *testing.T) {
 	resolver := newFakeVKResolver()
 	resolver.set("vk-denied", &VKInfo{
-		Key:           "vk-denied",
-		AllowedModels: []string{"gpt-3.5-turbo"},
-		IsActive:      true,
+		Key: "vk-denied",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-3.5-turbo"}},
+		},
+		IsActive: true,
 	})
 	quota := newFakeVKQuotaChecker(struct {
 		ok     bool

@@ -17,7 +17,7 @@ type fakeEmbeddingsResolver struct {
 }
 
 func (r *fakeEmbeddingsResolver) Resolve(model string) (schemas.Provider, schemas.Key, error) {
-	return r.prov, schemas.Key{}, nil
+	return r.prov, schemas.Key{Provider: "openai"}, nil
 }
 
 // fakeEmbeddingsProvider records Embedding calls.
@@ -65,9 +65,11 @@ func TestEmbeddingsHandlerMarshalFailureFallsBackTo500(t *testing.T) {
 func TestEmbeddingsVKDenied(t *testing.T) {
 	resolver := newFakeVKResolver()
 	resolver.set("vk-denied", &VKInfo{
-		Key:           "vk-denied",
-		AllowedModels: []string{"text-embedding-ada-002"},
-		IsActive:      true,
+		Key: "vk-denied",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"text-embedding-ada-002"}},
+		},
+		IsActive: true,
 	})
 	quota := newFakeVKQuotaChecker(struct {
 		ok     bool

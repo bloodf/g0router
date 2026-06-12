@@ -349,7 +349,7 @@ type testProviderResolver struct {
 }
 
 func (r *testProviderResolver) ResolveForModel(_ *schemas.ChatRequest) (schemas.Provider, schemas.Key, error) {
-	return r.prov, schemas.Key{}, nil
+	return r.prov, schemas.Key{Provider: "openai"}, nil
 }
 
 // testDispatchProvider records which ChatCompletion variant was called
@@ -671,14 +671,18 @@ func TestChatComboAllFailReturnsError(t *testing.T) {
 func TestChatVKHeaderRouting(t *testing.T) {
 	resolver := newFakeVKResolver()
 	resolver.set("vk-allowed", &VKInfo{
-		Key:           "vk-allowed",
-		AllowedModels: []string{"gpt-4o"},
-		IsActive:      true,
+		Key: "vk-allowed",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+		},
+		IsActive: true,
 	})
 	resolver.set("vk-denied-model", &VKInfo{
-		Key:           "vk-denied-model",
-		AllowedModels: []string{"gpt-3.5-turbo"},
-		IsActive:      true,
+		Key: "vk-denied-model",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-3.5-turbo"}},
+		},
+		IsActive: true,
 	})
 
 	prov := &testDispatchProvider{
@@ -722,9 +726,11 @@ func TestChatVKHeaderRouting(t *testing.T) {
 func TestChatVKQuotaDenied(t *testing.T) {
 	resolver := newFakeVKResolver()
 	resolver.set("vk-quota", &VKInfo{
-		Key:           "vk-quota",
-		AllowedModels: []string{"gpt-4o"},
-		IsActive:      true,
+		Key: "vk-quota",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+		},
+		IsActive: true,
 	})
 	quota := newFakeVKQuotaChecker(struct {
 		ok     bool
@@ -762,9 +768,11 @@ func TestChatVKQuotaDenied(t *testing.T) {
 func TestChatNoVKHeaderUnchanged(t *testing.T) {
 	resolver := newFakeVKResolver()
 	resolver.set("vk-allowed", &VKInfo{
-		Key:           "vk-allowed",
-		AllowedModels: []string{"gpt-4o"},
-		IsActive:      true,
+		Key: "vk-allowed",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+		},
+		IsActive: true,
 	})
 	quota := newFakeVKQuotaChecker(struct {
 		ok     bool

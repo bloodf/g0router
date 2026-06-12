@@ -108,14 +108,11 @@ func storeVKToAPI(vk *store.VirtualKey) *api.VKInfo {
 	if vk.RateLimitRPM != nil {
 		info.RateLimitRPM = *vk.RateLimitRPM
 	}
-	modelSet := map[string]struct{}{}
 	for _, pc := range vk.ProviderConfigs {
-		for _, m := range pc.AllowedModels {
-			modelSet[m] = struct{}{}
-		}
-	}
-	for m := range modelSet {
-		info.AllowedModels = append(info.AllowedModels, m)
+		info.Configs = append(info.Configs, api.VKProviderConfig{
+			Provider:      pc.Provider,
+			AllowedModels: pc.AllowedModels,
+		})
 	}
 	return info
 }

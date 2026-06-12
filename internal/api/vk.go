@@ -1,9 +1,15 @@
 package api
 
+// VKProviderConfig binds a provider to the models a virtual key may use.
+type VKProviderConfig struct {
+	Provider      string
+	AllowedModels []string
+}
+
 // VKInfo is the subset of virtual key state needed by VKGate.
 type VKInfo struct {
 	Key           string
-	AllowedModels []string
+	Configs       []VKProviderConfig
 	BudgetLimit   float64
 	BudgetPeriod  string
 	RateLimitRPM  int
@@ -34,11 +40,11 @@ func NewVKGate(resolver VKResolver, quota VKQuotaChecker) *VKGate {
 	return &VKGate{resolver: resolver, quota: quota}
 }
 
-// AllowVK checks whether a request bearing x-g0-vk may proceed for the given model.
-// It returns ok=true when the key is absent/unresolved, when the model is allowed,
-// and when quota checks pass. On denial it returns an HTTP status (403 or 429) and
-// a human-readable reason.
-func (g *VKGate) AllowVK(key, model string) (ok bool, status int, reason string) {
+// AllowVK checks whether a request bearing x-g0-vk may proceed for the given model
+// and resolved provider. It returns ok=true when the key is absent/unresolved, when
+// an active config matches the provider and model, and when quota checks pass. On
+// denial it returns an HTTP status (401, 403, or 429) and a human-readable reason.
+func (g *VKGate) AllowVK(key, model, providerID string) (ok bool, status int, reason string) {
 	if g == nil || g.resolver == nil || key == "" {
 		return true, 0, ""
 	}
@@ -52,8 +58,8 @@ func (g *VKGate) AllowVK(key, model string) (ok bool, status int, reason string)
 	if !vk.IsActive {
 		return false, 403, "virtual key inactive"
 	}
-	if !modelAllowed(vk.AllowedModels, model) {
-		return false, 403, "model not allowed for virtual key"
+	if !providerConfigAllowed(vk.Configs, model, providerID) {
+		return false, 403, "provider/model not allowed for virtual key"
 	}
 	if g.quota != nil {
 		return g.quota.Allow(vk, model)
@@ -61,13 +67,18 @@ func (g *VKGate) AllowVK(key, model string) (ok bool, status int, reason string)
 	return true, 0, ""
 }
 
-func modelAllowed(models []string, model string) bool {
-	if len(models) == 0 {
-		return true
-	}
-	for _, m := range models {
-		if m == model {
+func providerConfigAllowed(configs []VKProviderConfig, model, providerID string) bool {
+	for _, cfg := range configs {
+		if cfg.Provider != providerID {
+			continue
+		}
+		if len(cfg.AllowedModels) == 0 {
 			return true
+		}
+		for _, m := range cfg.AllowedModels {
+			if m == model {
+				return true
+			}
 		}
 	}
 	return false

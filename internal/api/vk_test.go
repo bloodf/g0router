@@ -85,7 +85,7 @@ func TestVKGateUnknownKeyDenied(t *testing.T) {
 	quota := newFakeVKQuotaChecker()
 	gate := NewVKGate(resolver, quota)
 
-	ok, status, reason := gate.AllowVK("g0vk-does-not-exist", "gpt-4")
+	ok, status, reason := gate.AllowVK("g0vk-does-not-exist", "gpt-4", "openai")
 	if ok {
 		t.Fatalf("AllowVK unknown key: got ok=true, want false")
 	}
@@ -98,4 +98,64 @@ func TestVKGateUnknownKeyDenied(t *testing.T) {
 	if quota.calls != nil {
 		t.Errorf("quota checker called %d times, want 0", len(quota.calls))
 	}
+}
+
+// TestVKGateProviderConfigEnforced verifies Fix 2: the gate checks the resolved
+// provider against the VK's provider configs and the model against the config's
+// AllowedModels (empty list means any model for that provider).
+func TestVKGateProviderConfigEnforced(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-openai", &VKInfo{
+		Key: "vk-openai",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+		},
+		IsActive: true,
+	})
+	resolver.set("vk-anthropic-open", &VKInfo{
+		Key: "vk-anthropic-open",
+		Configs: []VKProviderConfig{
+			{Provider: "anthropic", AllowedModels: []string{}},
+		},
+		IsActive: true,
+	})
+	quota := newFakeVKQuotaChecker()
+	gate := NewVKGate(resolver, quota)
+
+	t.Run("provider mismatch denied", func(t *testing.T) {
+		ok, status, reason := gate.AllowVK("vk-openai", "gpt-4o", "anthropic")
+		if ok {
+			t.Fatal("provider mismatch should be denied")
+		}
+		if status != 403 {
+			t.Errorf("status = %d, want 403", status)
+		}
+		if reason != "provider/model not allowed for virtual key" {
+			t.Errorf("reason = %q, want %q", reason, "provider/model not allowed for virtual key")
+		}
+	})
+
+	t.Run("model mismatch denied", func(t *testing.T) {
+		ok, status, _ := gate.AllowVK("vk-openai", "gpt-4", "openai")
+		if ok {
+			t.Fatal("model mismatch should be denied")
+		}
+		if status != 403 {
+			t.Errorf("status = %d, want 403", status)
+		}
+	})
+
+	t.Run("empty allowed models allows any model of provider", func(t *testing.T) {
+		ok, status, _ := gate.AllowVK("vk-anthropic-open", "claude-opus-4", "anthropic")
+		if !ok {
+			t.Fatalf("empty AllowedModels for provider should allow any model: status=%d", status)
+		}
+	})
+
+	t.Run("listed model allowed", func(t *testing.T) {
+		ok, status, _ := gate.AllowVK("vk-openai", "gpt-4o", "openai")
+		if !ok {
+			t.Fatalf("listed model should be allowed: status=%d", status)
+		}
+	})
 }

@@ -31,7 +31,7 @@ func (f *fakeMessagesResolver) ResolveForModel(req *schemas.ChatRequest) (schema
 	}
 	p := &fakeMessagesProvider{response: f.response, streamCh: f.streamCh}
 	f.lastProv = p
-	return p, schemas.Key{}, nil
+	return p, schemas.Key{Provider: "anthropic"}, nil
 }
 
 type fakeMessagesProvider struct {
@@ -395,14 +395,18 @@ func TestBypassWarmupShortCircuits(t *testing.T) {
 func TestMessagesVKHeaderRouting(t *testing.T) {
 	resolver := newFakeVKResolver()
 	resolver.set("vk-allowed", &VKInfo{
-		Key:           "vk-allowed",
-		AllowedModels: []string{"claude-opus-4"},
-		IsActive:      true,
+		Key: "vk-allowed",
+		Configs: []VKProviderConfig{
+			{Provider: "anthropic", AllowedModels: []string{"claude-opus-4"}},
+		},
+		IsActive: true,
 	})
 	resolver.set("vk-denied", &VKInfo{
-		Key:           "vk-denied",
-		AllowedModels: []string{"claude-3-haiku"},
-		IsActive:      true,
+		Key: "vk-denied",
+		Configs: []VKProviderConfig{
+			{Provider: "anthropic", AllowedModels: []string{"claude-3-haiku"}},
+		},
+		IsActive: true,
 	})
 	quota := newFakeVKQuotaChecker(struct {
 		ok     bool
