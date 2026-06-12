@@ -6598,3 +6598,13 @@ started_at: "2026-06-12T19:23:00Z"
 map: .planning/parity/plans/WAVE-6-MAP.md
 governance: CLI_ORCHESTRATOR.md
 ```
+
+## w6-pre — MERGED (2026-06-12)
+6 commits: custom+alias model merging (PAR-ROUTE-057), sub-config models (PAR-ROUTE-058),
+VKGate KeyIDs return, KeyIDs pinned dispatch in all 4 handlers, production wiring
+(customModelsAdapter/aliasModelsAdapter/subConfigModelsAdapter/vkPinnedSelector).
+Diff gate: 1 cycle, closed by decision — all 4 findings false positives (plan's pre-P5
+order guess vs ref-verified catalog-first order; ref sub-config has no type field).
+P5 REF-CHECK finding: `new Set([...modelIds, ...customModelIds, ...aliasModelIds])` →
+catalog seeds seen-set first. Rows: PAR-ROUTE-030 PARTIAL→HAVE, 057 MISSING→HAVE,
+058 MISSING→HAVE. Routing rollup: 48/2/10.

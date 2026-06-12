@@ -404,3 +404,21 @@ names (fixed — neutral names with behavior from P5(4)); git log base-SHA gate 
 parallel commits (removed; §8 diff-gate scope list is the ownership check); top-level metadata
 fallback beyond ref scope (removed; only providerSpecificData.ttsConfig/embeddingConfig per
 route.js:364-383). Plan is now actionable for kimi dispatch after P5 REF-CHECK completes.
+
+## Diff-gate disposition (closed by decision — 2026-06-12)
+
+Gate cycle 1 REJECT. All 4 findings FALSE POSITIVE:
+
+**BLOCKERs 1+2** (catalog-before-custom contradicts plan order): The plan speculated
+"combos→custom→alias→catalog" before P5 REF-CHECK. Kimi ran P5 (mandatory hard gate)
+and found the ref at route.js:358 does `new Set([...modelIds, ...customModelIds, ...aliasModelIds])`
+— catalog (modelIds) seeds the Set FIRST. The correct order is combos→catalog→custom→alias→sub-config.
+models.go:115-185 implements this exactly; tests validate the ref-correct order.
+Ground truth (ref) is binding per protocol.
+
+**MAJORs 1+2** (sub-config entries missing type mapping): The ref sub-config push at
+route.js:86-93 produces `{id, object, owned_by}` only — NO `type` field. Kimi correctly
+omits type for sub-config entries. Gate invented a requirement not present in the ref.
+
+Live-tree verification: `grep -n "seen\[m.ID\]" internal/api/models.go` confirms catalog
+is seeded before custom/alias. `go test ./internal/api/` green.
