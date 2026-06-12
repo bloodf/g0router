@@ -362,7 +362,8 @@ func TestFallbackExhaustionReturnsGroupRetryAfter(t *testing.T) {
 	cs := &fakeConnStore{
 		conns: []*store.Connection{makeConn("c1", "p1")},
 	}
-	wantRetry := time.Date(2026, 1, 1, 0, 5, 0, 0, time.UTC)
+	// Use a distinctive time whose formatted representation we can assert on.
+	wantRetry := time.Date(2026, 3, 15, 12, 30, 0, 0, time.UTC)
 	cd := &fakeCooldownWithRetryAfter{retryAt: wantRetry}
 	engine := NewSelectionEngine(cs, &fakeSettingStore{}, cd, time.Now)
 
@@ -373,15 +374,13 @@ func TestFallbackExhaustionReturnsGroupRetryAfter(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 	if !errors.Is(err, ErrAllUnavailable) {
-		t.Errorf("expected ErrAllUnavailable, got: %v", err)
+		t.Errorf("expected errors.Is(err, ErrAllUnavailable), got: %v", err)
 	}
-	if got := err.Error(); !containsRetryTime(got, wantRetry) {
-		t.Errorf("error %q should mention retry time %v", got, wantRetry)
+	// The error message must contain the exact retry time so callers can parse it.
+	wantSubstr := wantRetry.UTC().Format("2006-01-02 15:04:05")
+	if got := err.Error(); !strings.Contains(got, wantSubstr) {
+		t.Errorf("error %q must contain retry time substring %q", got, wantSubstr)
 	}
-}
-
-func containsRetryTime(msg string, t time.Time) bool {
-	return strings.Contains(msg, "retry after") || strings.Contains(msg, t.Format("2006"))
 }
 
 func TestFallbackSuccessMarksReset(t *testing.T) {
