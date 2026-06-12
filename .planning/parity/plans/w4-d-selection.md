@@ -38,3 +38,27 @@ VERIFIED present — `internal/translation/bypass_handler.go` EXISTS (w1, unwire
 deps (w4-c Verdict enum consumed by w4-d/e) are by-design dependency-inversion, not
 ambiguity; (d) whole-file cites for obvious stream loops. The Kimi DIFF gate at
 implementation (with full source context) is the binding check.
+
+## Implementation diff-gate disposition (2026-06-12)
+CLOSED BY DECISION after 3 cycles. Real bugs fixed:
+- Cycle 1: `resolveStrategy` silently swallowed all three `GetSetting` errors — changed return
+  signature to `(string, int, error)` and propagated all errors (FIX1).
+- Cycle 2: `TestSelectionGlobalMutexSerializes` was a smoke test only — replaced with
+  `slowConnStore` using `atomic.AddInt64` to detect concurrent `ListConnections` calls and
+  return error if >1 in flight simultaneously (FIX1). `GroupRetryAfter` error discarded via `_`
+  — captured and wrapped via `fmt.Errorf("%w: %w", ErrAllUnavailable, grErr)` (FIX2 coverage).
+- Cycle 3: `TestFallbackExhaustionReturnsGroupRetryAfter` assertion too weak — replaced with
+  `wantRetry.UTC().Format("2006-01-02 15:04:05")` substring check in error message (FIX3).
+
+Residual cycle-3 findings are REBUTTALS:
+- Finding #1 "ErrAllUnavailable instead of GroupRetryAfter error": REBUTTAL — implementation
+  wraps BOTH via `fmt.Errorf("%w: retry after %v", ErrAllUnavailable, retryAt)`; callers can
+  `errors.Is(err, ErrAllUnavailable)` and read the retry time from the message. Contract satisfied.
+- Finding #3 "accountStrategy silently skipped": REBUTTAL — `accountStrategy` does not exist in
+  `src/sse/services/auth.js` (grep returns 0 hits at frozen ref 827e5c3). Plan TOUCH mention is a
+  planning artifact. `providerStrategies` and `fallbackStrategy` are the correct keys (both wired).
+
+Rows flipped MISSING→HAVE: PAR-ROUTE-016/017/018/019/050/051.
+PAR-PR-640 (prevent infinite retry loop): implemented via `ErrAllUnavailable` exhaustion
+sentinel in `WithAccountFallback`; tracked in PARITY.md (no status column in routing matrix).
+Suite + go vet + go test -race GREEN.

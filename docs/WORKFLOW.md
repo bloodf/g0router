@@ -6399,3 +6399,17 @@ rate_limited_until write + IsDisabled error propagation + DisabledChecker wiring
 GroupRetryAfter error swallowing (cycle 3). Residual cycle-3 finding: backoff 2s/5min vs plan
 comment 1s/4min — REBUTTAL: plan comment is a transcription error; actual accountFallback.js:9-13
 uses base=2000ms and max=5*60*1000ms; implementation matches ref. Suite + go vet + go test -race GREEN.
+
+### w4-d — Selection engine + account fallback loop COMPLETE (2026-06-12)
+
+Plans_done: w4-d (PAR-ROUTE-016/017/018/019/050/051 + PAR-PR-640).
+Rows_flipped: PAR-ROUTE-016/017/018/019/050/051 MISSING→HAVE. PAR-PR-640 tracked in PARITY.md.
+Commits: 41ab54c (initial selection engine + tests), bc1ee23 (FIX1: error propagation +
+atomic mutex test), 025f1ec (FIX2: exhaustion test coverage), 2af418a (FIX3: precise
+retry-after assertion).
+Diff-gate: CLOSED BY DECISION after 3 cycles. Real bugs fixed: resolveStrategy GetSetting error
+swallowing + atomic mutex serialization test (cycle 2), precise retry-after substring assertion
+(cycle 3). Residual: ErrAllUnavailable wrapping satisfies contract (both sentinel + retry time);
+accountStrategy key doesn't exist in frozen ref. Suite + go vet + go test -race GREEN.
+
+Next: w4-e (combos).
