@@ -6428,3 +6428,27 @@ Diff-gate: CLOSED BY DECISION after cycle 3.
     contract is fully defined and tested; interface boundary is the correct split point.
 
 Next: w4-f (pipeline glue).
+
+## w4-f: Pipeline Glue (2026-06-12)
+Plan: .planning/parity/plans/w4-f-pipeline-glue.md
+PAR rows: PAR-ROUTE-023/052 (refresh-retry), PAR-ROUTE-033 (format auto-detect),
+  PAR-ROUTE-034 (bypass wiring), PAR-ROUTE-037 (kind routes), PAR-ROUTE-038 (model-test-by-kind),
+  PAR-ROUTE-041 (native passthrough), PAR-ROUTE-042 (thinking override),
+  PAR-ROUTE-043 (stream decision), PAR-TRANS-050b (DetectFormat), PAR-028/029/035/036 (verify-flips).
+Rows_flipped: PAR-ROUTE-023/033/034/036/037/038/041/042/043/052 MISSING→HAVE.
+  PAR-ROUTE-035 MISSING→PARTIAL (single URL, no fallback). PAR-028/029 MISSING→HAVE.
+  PAR-TRANS-050b: remains MISSING (Wave 2 — responses passthrough executor deferred).
+Commits: 8f18271 (initial), 5d504d4 (FIX1: model-test route, native passthrough before translate,
+  scope fix), eb950ae (FIX2: refresh semantics, catalog type assertions, cycle-2 rebuttal),
+  3edad62 (cycle-3 close-by-decision).
+Diff-gate: CLOSED BY DECISION after cycle 3.
+  Cycle-1 FIXED: model-test-by-kind route, native passthrough restructured to resolve
+    provider before translation, bypass_handler.go scope reverted (DetectFormat inlined).
+  Cycle-2 FIXED: refresh-retry to 3 dispatch cycles, TestRefreshRetryUpTo3On401 tightened,
+    TestModelsByKind catalog-type assertions added.
+  Cycle-3 BLOCKER rebutted: SetCredentialRefresher production wiring deferred to OAuth wave
+    (requires external HTTP token exchange; nil guard provides graceful degradation).
+  MAJOR rebuttals: routing regression (false — routing only uses req.Model, unchanged by
+    translation); GetTestByKind metadata (architectural adaptation, pingModelByKind is BFF).
+
+Next: Wave-4 complete. Next phase per HANDOFF.md.
