@@ -16,6 +16,7 @@ const (
 	ClassAuthError
 	ClassTransient
 	ClassPermanent
+	ClassUnsupportedParam
 )
 
 // Classification holds the verdict for an upstream response.
@@ -48,6 +49,7 @@ var errorRules = []errorRule{
 	{text: "no credentials", class: ClassAuthError},
 	{text: "request not allowed", class: ClassAuthError},
 	{text: "improperly formed request", class: ClassPermanent},
+	{text: "unsupported", class: ClassUnsupportedParam},
 	{text: "rate limit", class: ClassRateLimit},
 	{text: "too many requests", class: ClassRateLimit},
 	{text: "quota exceeded", class: ClassRateLimit},
@@ -99,7 +101,7 @@ func Classify(statusCode int, body []byte) Classification {
 		c.Retryable = true
 	case ClassTransient:
 		c.Retryable = true
-	case ClassAuthError, ClassPermanent:
+	case ClassAuthError, ClassPermanent, ClassUnsupportedParam:
 		c.Retryable = false
 	}
 

@@ -101,6 +101,7 @@ func TestErrorClassFixture(t *testing.T) {
 		{"text_no_credentials", 200, `{"error":{"message":"no credentials provided"}}`, ClassAuthError, false},
 		{"text_request_not_allowed", 200, `{"error":{"message":"request not allowed"}}`, ClassAuthError, false},
 		{"text_improperly_formed_request", 200, `{"error":{"message":"improperly formed request"}}`, ClassPermanent, false},
+		{"text_unsupported_param", 200, `{"error":{"message":"unsupported parameter: max_tokens"}}`, ClassUnsupportedParam, false},
 		{"text_rate_limit", 200, `{"error":{"message":"rate limit hit"}}`, ClassRateLimit, true},
 		{"text_too_many_requests", 200, `{"error":{"message":"too many requests"}}`, ClassRateLimit, true},
 		{"text_quota_exceeded", 200, `{"error":{"message":"quota exceeded"}}`, ClassRateLimit, true},

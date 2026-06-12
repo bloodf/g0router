@@ -81,7 +81,7 @@ func WithRetry(ctx context.Context, provider Provider, call func() (int, []byte,
 		}
 
 		class := Classify(status, body)
-		if class.Class == ClassPermanent {
+		if !class.Retryable {
 			return status, body, nil
 		}
 
@@ -180,7 +180,7 @@ func AutoLearnTokenParam(
 	}
 
 	class := Classify(status, respBody)
-	if class.Class != ClassPermanent || !isUnsupportedTokenParamMismatch(respBody, currentParam) {
+	if class.Class != ClassUnsupportedParam || !isUnsupportedTokenParamMismatch(respBody, currentParam) {
 		return status, respBody, nil
 	}
 
