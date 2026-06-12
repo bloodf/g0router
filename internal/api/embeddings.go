@@ -15,6 +15,7 @@ type EmbeddingsHandler struct {
 	usageRecorder  UsageRecorder
 	pendingTracker PendingTracker
 	detailCapture  DetailCapture
+	vkGate         *VKGate
 }
 
 // embeddingsResolver is the subset of *inference.Router used by the embeddings
@@ -40,6 +41,9 @@ func (h *EmbeddingsHandler) SetPendingTracker(t PendingTracker) { h.pendingTrack
 // (PAR-USAGE-026 production call-sites).
 func (h *EmbeddingsHandler) SetDetailCapture(d DetailCapture) { h.detailCapture = d }
 
+// SetVKGate wires a virtual-key gate for x-g0-vk header enforcement (PAR-ROUTE-030).
+func (h *EmbeddingsHandler) SetVKGate(g *VKGate) { h.vkGate = g }
+
 // Handle processes embedding requests.
 func (h *EmbeddingsHandler) Handle(ctx *fasthttp.RequestCtx) {
 	raw := ctx.PostBody()
@@ -56,6 +60,19 @@ func (h *EmbeddingsHandler) Handle(ctx *fasthttp.RequestCtx) {
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
 		return
+	}
+
+	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before dispatch.
+	if vkHeader := string(ctx.Request.Header.Peek("x-g0-vk")); vkHeader != "" {
+		if ok, status, reason := h.vkGate.AllowVK(vkHeader, req.Model); !ok {
+			errType := "invalid_request_error"
+			if status == 429 {
+				errType = "rate_limit_exceeded"
+			}
+			g.recordError("/v1/embeddings", req.Model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: status, Message: reason, Type: errType})
+			writeError(ctx, status, errType, reason, nil)
+			return
+		}
 	}
 
 	// Pending-tracker start (PAR-USAGE-018 wiring half).

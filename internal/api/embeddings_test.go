@@ -6,9 +6,30 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/bloodf/g0router/internal/translation"
 	"github.com/valyala/fasthttp"
 )
+
+// fakeEmbeddingsResolver resolves embeddings models to a fake provider.
+type fakeEmbeddingsResolver struct {
+	prov schemas.Provider
+}
+
+func (r *fakeEmbeddingsResolver) Resolve(model string) (schemas.Provider, schemas.Key, error) {
+	return r.prov, schemas.Key{}, nil
+}
+
+// fakeEmbeddingsProvider records Embedding calls.
+type fakeEmbeddingsProvider struct {
+	fakeMessagesProvider
+	embeddingCalled bool
+}
+
+func (p *fakeEmbeddingsProvider) Embedding(_ *schemas.GatewayContext, _ schemas.Key, _ *schemas.EmbeddingRequest) (*schemas.EmbeddingResponse, *schemas.ProviderError) {
+	p.embeddingCalled = true
+	return &schemas.EmbeddingResponse{Object: "list"}, nil
+}
 
 // TestEmbeddingsHandlerMarshalFailureFallsBackTo500 verifies that when
 // the response marshal seam fails, the embeddings handler eventually
@@ -38,5 +59,37 @@ func TestEmbeddingsHandlerMarshalFailureFallsBackTo500(t *testing.T) {
 	}
 	if got := string(ctx.Response.Body()); got != "internal error" {
 		t.Errorf("body = %q, want %q", got, "internal error")
+	}
+}
+
+func TestEmbeddingsVKDenied(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-denied", &VKInfo{
+		Key:           "vk-denied",
+		AllowedModels: []string{"text-embedding-ada-002"},
+		IsActive:      true,
+	})
+	quota := newFakeVKQuotaChecker(struct {
+		ok     bool
+		status int
+		reason string
+	}{ok: false, status: 429, reason: "budget exhausted"})
+
+	prov := &fakeEmbeddingsProvider{}
+	h := &EmbeddingsHandler{router: &fakeEmbeddingsResolver{prov: prov}}
+	h.SetVKGate(NewVKGate(resolver, quota))
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/embeddings")
+	ctx.Request.Header.Set("x-g0-vk", "vk-denied")
+	ctx.Request.SetBody([]byte(`{"model":"text-embedding-ada-002","input":"hello"}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", ctx.Response.StatusCode())
+	}
+	if prov.embeddingCalled {
+		t.Fatal("provider Embedding should not be called")
 	}
 }

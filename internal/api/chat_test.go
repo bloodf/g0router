@@ -668,6 +668,132 @@ func TestChatComboAllFailReturnsError(t *testing.T) {
 	}
 }
 
+func TestChatVKHeaderRouting(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-allowed", &VKInfo{
+		Key:           "vk-allowed",
+		AllowedModels: []string{"gpt-4o"},
+		IsActive:      true,
+	})
+	resolver.set("vk-denied-model", &VKInfo{
+		Key:           "vk-denied-model",
+		AllowedModels: []string{"gpt-3.5-turbo"},
+		IsActive:      true,
+	})
+
+	prov := &testDispatchProvider{
+		fakeMessagesProvider: fakeMessagesProvider{
+			response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"},
+		},
+	}
+	h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+	h.SetVKGate(NewVKGate(resolver, newFakeVKQuotaChecker()))
+
+	// Allowed model with VK header → dispatched.
+	var ctx1 fasthttp.RequestCtx
+	ctx1.Request.Header.SetMethod(http.MethodPost)
+	ctx1.Request.SetRequestURI("/v1/chat/completions")
+	ctx1.Request.Header.Set("x-g0-vk", "vk-allowed")
+	ctx1.Request.SetBody([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx1)
+	if ctx1.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("allowed: status = %d, want 200", ctx1.Response.StatusCode())
+	}
+	if !prov.chatCalled {
+		t.Fatal("allowed: provider ChatCompletion not called")
+	}
+
+	// Disallowed model with VK header → 403, provider not called again.
+	prov.chatCalled = false
+	var ctx2 fasthttp.RequestCtx
+	ctx2.Request.Header.SetMethod(http.MethodPost)
+	ctx2.Request.SetRequestURI("/v1/chat/completions")
+	ctx2.Request.Header.Set("x-g0-vk", "vk-denied-model")
+	ctx2.Request.SetBody([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx2)
+	if ctx2.Response.StatusCode() != fasthttp.StatusForbidden {
+		t.Fatalf("denied model: status = %d, want 403", ctx2.Response.StatusCode())
+	}
+	if prov.chatCalled {
+		t.Fatal("denied model: provider should not be called")
+	}
+}
+
+func TestChatVKQuotaDenied(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-quota", &VKInfo{
+		Key:           "vk-quota",
+		AllowedModels: []string{"gpt-4o"},
+		IsActive:      true,
+	})
+	quota := newFakeVKQuotaChecker(struct {
+		ok     bool
+		status int
+		reason string
+	}{ok: false, status: 429, reason: "budget exhausted"})
+
+	prov := &testDispatchProvider{
+		fakeMessagesProvider: fakeMessagesProvider{
+			response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"},
+		},
+	}
+	h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+	h.SetVKGate(NewVKGate(resolver, quota))
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.Header.Set("x-g0-vk", "vk-quota")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", ctx.Response.StatusCode())
+	}
+	if prov.chatCalled {
+		t.Fatal("provider should not be called when quota denies")
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "budget exhausted") {
+		t.Fatalf("body = %q, want budget exhausted", body)
+	}
+}
+
+func TestChatNoVKHeaderUnchanged(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-allowed", &VKInfo{
+		Key:           "vk-allowed",
+		AllowedModels: []string{"gpt-4o"},
+		IsActive:      true,
+	})
+	quota := newFakeVKQuotaChecker(struct {
+		ok     bool
+		status int
+		reason string
+	}{ok: false, status: 429, reason: "budget exhausted"})
+
+	prov := &testDispatchProvider{
+		fakeMessagesProvider: fakeMessagesProvider{
+			response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"},
+		},
+	}
+	h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+	h.SetVKGate(NewVKGate(resolver, quota))
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if !prov.chatCalled {
+		t.Fatal("provider ChatCompletion not called")
+	}
+}
+
 func TestChatComboStreamFallsBackPreStream(t *testing.T) {
 	m1 := &comboChatProvider{streamErr: &schemas.ProviderError{StatusCode: 503, Message: "unavailable"}}
 	ch := make(chan *schemas.StreamChunk, 1)

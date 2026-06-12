@@ -20,6 +20,7 @@ type ResponsesHandler struct {
 	usageRecorder  UsageRecorder
 	pendingTracker PendingTracker
 	detailCapture  DetailCapture
+	vkGate         *VKGate
 }
 
 // NewResponsesHandler creates an OpenAI Responses API handler.
@@ -40,6 +41,9 @@ func (h *ResponsesHandler) SetPendingTracker(t PendingTracker) { h.pendingTracke
 // SetDetailCapture wires a consumer for full request detail capture
 // (PAR-USAGE-026 production call-sites).
 func (h *ResponsesHandler) SetDetailCapture(d DetailCapture) { h.detailCapture = d }
+
+// SetVKGate wires a virtual-key gate for x-g0-vk header enforcement (PAR-ROUTE-030).
+func (h *ResponsesHandler) SetVKGate(g *VKGate) { h.vkGate = g }
 
 // Handle processes Responses-format requests, translating to/from OpenAI Chat
 // Completions format. The streaming path is the only path — the ref endpoint is
@@ -84,6 +88,19 @@ func (h *ResponsesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
 		return
+	}
+
+	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before dispatch.
+	if vkHeader := string(ctx.Request.Header.Peek("x-g0-vk")); vkHeader != "" {
+		if ok, status, reason := h.vkGate.AllowVK(vkHeader, req.Model); !ok {
+			errType := "invalid_request_error"
+			if status == 429 {
+				errType = "rate_limit_exceeded"
+			}
+			g.recordError("/v1/responses", req.Model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: status, Message: reason, Type: errType})
+			writeError(ctx, status, errType, reason, nil)
+			return
+		}
 	}
 
 	// Pending-tracker start (PAR-USAGE-018 wiring half).

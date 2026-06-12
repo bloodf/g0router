@@ -214,6 +214,41 @@ func TestResponsesEndpointStreamsEvents(t *testing.T) {
 	}
 }
 
+func TestResponsesVKDenied(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-denied", &VKInfo{
+		Key:           "vk-denied",
+		AllowedModels: []string{"gpt-3.5-turbo"},
+		IsActive:      true,
+	})
+	quota := newFakeVKQuotaChecker(struct {
+		ok     bool
+		status int
+		reason string
+	}{ok: false, status: 403, reason: "model not allowed for virtual key"})
+
+	ch := make(chan *schemas.StreamChunk)
+	close(ch)
+	fake := &fakeResponsesResolver{streamCh: ch}
+	h := &ResponsesHandler{router: fake, registry: translation.NewRegistry()}
+	h.SetVKGate(NewVKGate(resolver, quota))
+
+	body := `{"model":"gpt-4","input":[{"role":"user","content":"hi"}]} `
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/responses")
+	ctx.Request.Header.Set("x-g0-vk", "vk-denied")
+	ctx.Request.SetBody([]byte(body))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusForbidden {
+		t.Fatalf("status = %d, want 403", ctx.Response.StatusCode())
+	}
+	if fake.streamCalled {
+		t.Fatal("provider stream should not be called")
+	}
+}
+
 func TestResponsesEndpointForcesStreaming(t *testing.T) {
 	ch := make(chan *schemas.StreamChunk)
 	close(ch)

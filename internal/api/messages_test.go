@@ -392,6 +392,63 @@ func TestBypassWarmupShortCircuits(t *testing.T) {
 
 // TestBypassTitleSkip verifies that an assistant message with content "{" (title extraction pattern)
 // short-circuits the provider with a bypass response (PAR-ROUTE-034).
+func TestMessagesVKHeaderRouting(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-allowed", &VKInfo{
+		Key:           "vk-allowed",
+		AllowedModels: []string{"claude-opus-4"},
+		IsActive:      true,
+	})
+	resolver.set("vk-denied", &VKInfo{
+		Key:           "vk-denied",
+		AllowedModels: []string{"claude-3-haiku"},
+		IsActive:      true,
+	})
+	quota := newFakeVKQuotaChecker(struct {
+		ok     bool
+		status int
+		reason string
+	}{ok: true, status: 0, reason: ""},
+		struct {
+			ok     bool
+			status int
+			reason string
+		}{ok: false, status: 429, reason: "rate limit exceeded"})
+
+	fake := &fakeMessagesResolver{response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"}}
+	h := &MessagesHandler{router: fake, registry: translation.NewRegistry()}
+	h.SetVKGate(NewVKGate(resolver, quota))
+
+	// Allowed model → dispatched.
+	var ctx1 fasthttp.RequestCtx
+	ctx1.Request.Header.SetMethod(http.MethodPost)
+	ctx1.Request.SetRequestURI("/v1/messages")
+	ctx1.Request.Header.Set("x-g0-vk", "vk-allowed")
+	ctx1.Request.SetBody([]byte(`{"model":"claude-opus-4","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx1)
+	if ctx1.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("allowed: status = %d, want 200", ctx1.Response.StatusCode())
+	}
+	if fake.lastProv == nil || !fake.lastProv.chatCalled {
+		t.Fatal("allowed: provider ChatCompletion not called")
+	}
+
+	// Disallowed model → 403.
+	fake.lastProv = nil
+	var ctx2 fasthttp.RequestCtx
+	ctx2.Request.Header.SetMethod(http.MethodPost)
+	ctx2.Request.SetRequestURI("/v1/messages")
+	ctx2.Request.Header.Set("x-g0-vk", "vk-denied")
+	ctx2.Request.SetBody([]byte(`{"model":"claude-opus-4","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx2)
+	if ctx2.Response.StatusCode() != fasthttp.StatusForbidden {
+		t.Fatalf("denied: status = %d, want 403", ctx2.Response.StatusCode())
+	}
+	if fake.lastProv != nil && fake.lastProv.chatCalled {
+		t.Fatal("denied: provider should not be called")
+	}
+}
+
 func TestBypassTitleSkip(t *testing.T) {
 	fake := &fakeMessagesResolver{}
 	h := &MessagesHandler{router: fake, registry: translation.NewRegistry()}

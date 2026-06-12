@@ -18,6 +18,7 @@ type MessagesHandler struct {
 	usageRecorder  UsageRecorder
 	pendingTracker PendingTracker
 	detailCapture  DetailCapture
+	vkGate         *VKGate
 }
 
 // NewMessagesHandler creates a Claude-compatible messages handler.
@@ -38,6 +39,9 @@ func (h *MessagesHandler) SetPendingTracker(t PendingTracker) { h.pendingTracker
 // SetDetailCapture wires a consumer for full request detail capture
 // (PAR-USAGE-026 production call-sites).
 func (h *MessagesHandler) SetDetailCapture(d DetailCapture) { h.detailCapture = d }
+
+// SetVKGate wires a virtual-key gate for x-g0-vk header enforcement (PAR-ROUTE-030).
+func (h *MessagesHandler) SetVKGate(g *VKGate) { h.vkGate = g }
 
 // Handle processes Claude-format requests, translating to/from OpenAI format.
 func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
@@ -74,6 +78,19 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
 		return
+	}
+
+	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before dispatch.
+	if vkHeader := string(ctx.Request.Header.Peek("x-g0-vk")); vkHeader != "" {
+		if ok, status, reason := h.vkGate.AllowVK(vkHeader, model); !ok {
+			errType := "invalid_request_error"
+			if status == 429 {
+				errType = "rate_limit_exceeded"
+			}
+			g.recordError("/v1/messages", model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: status, Message: reason, Type: errType})
+			writeError(ctx, status, errType, reason, nil)
+			return
+		}
 	}
 
 	// Pending-tracker start (PAR-USAGE-018 wiring half).
