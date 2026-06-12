@@ -40,6 +40,7 @@ func PreprocessChatRequest(req *schemas.ChatRequest) {
 	NormalizeThinkingConfig(req)
 	EnsureToolCallIDs(req)
 	FixMissingToolResponses(req)
+	DedupeTools(req)
 }
 
 // NormalizeThinkingConfig removes Thinking and ReasoningEffort when the
