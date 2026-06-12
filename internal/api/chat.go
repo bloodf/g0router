@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -99,10 +100,18 @@ type CredentialRefresher interface {
 	RefreshCredentials(connectionID string) (string, error)
 }
 
+// ComboDispatcher resolves combo names and executes their ordered model chain.
+// The api layer uses this interface so it does not need to import store types.
+type ComboDispatcher interface {
+	IsCombo(name string) bool
+	ExecuteCombo(name string, fn func(model, connID, credential string) (inference.Verdict, error)) error
+}
+
 // ChatHandler handles POST /v1/chat/completions.
 type ChatHandler struct {
-	router    modelResolver
-	refresher CredentialRefresher
+	router           modelResolver
+	refresher        CredentialRefresher
+	comboDispatcher  ComboDispatcher
 }
 
 // NewChatHandler creates a chat completion handler.
@@ -113,6 +122,115 @@ func NewChatHandler(router *inference.Router) *ChatHandler {
 // SetCredentialRefresher wires an OAuth credential refresher for 401/403 retry.
 func (h *ChatHandler) SetCredentialRefresher(cr CredentialRefresher) {
 	h.refresher = cr
+}
+
+// SetComboDispatcher wires a combo dispatcher for combo model chains.
+func (h *ChatHandler) SetComboDispatcher(cd ComboDispatcher) {
+	h.comboDispatcher = cd
+}
+
+// classifyProviderError maps a provider error to the verdict used by the
+// account-fallback and combo engines. It reuses the w4-b classifier.
+func classifyProviderError(perr *schemas.ProviderError) inference.Verdict {
+	class := inference.Classify(perr.StatusCode, []byte(perr.Message))
+	return verdictFromClass(class.Class)
+}
+
+func verdictFromClass(class inference.ErrorClass) inference.Verdict {
+	switch class {
+	case inference.ClassRateLimit:
+		return inference.VerdictRateLimit
+	case inference.ClassAuthError:
+		return inference.VerdictAuth
+	case inference.ClassTransient:
+		return inference.VerdictTransient
+	case inference.ClassPermanent, inference.ClassUnsupportedParam:
+		return inference.VerdictPermanent
+	default:
+		return inference.VerdictUnknown
+	}
+}
+
+// handleCombo runs the combo chain for the requested model. It falls back through
+// models on failure and streams the first model that opens a stream channel.
+func (h *ChatHandler) handleCombo(ctx *fasthttp.RequestCtx, req *schemas.ChatRequest, userAgent, accept string) {
+	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
+
+	err := h.comboDispatcher.ExecuteCombo(req.Model, func(model, connID, credential string) (inference.Verdict, error) {
+		modelReq := *req
+		modelReq.Model = model
+
+		provider, key, err := h.router.ResolveForModel(&modelReq)
+		if err != nil {
+			return inference.VerdictPermanent, err
+		}
+		key.ID = connID
+		key.Value = credential
+
+		// Stream decision mirrors the single-model path (PAR-ROUTE-043).
+		useStream := modelReq.Stream
+		if sr, ok := provider.(interface{ RequiresStreaming() bool }); ok && sr.RequiresStreaming() {
+			useStream = true
+		}
+		if strings.Contains(userAgent, "deepseek-tui") && !modelReq.Stream {
+			useStream = false
+		}
+		if strings.Contains(accept, "application/json") && !strings.Contains(accept, "text/event-stream") && !modelReq.Stream {
+			useStream = false
+		}
+
+		// Thinking config override (PAR-ROUTE-042).
+		if tm, ok := provider.(interface{ ThinkingMode() string }); ok {
+			applyThinkingOverride(&modelReq, tm.ThinkingMode())
+		}
+
+		if useStream {
+			ctx.SetContentTypeBytes([]byte("text/event-stream"))
+			ctx.Response.Header.Set("Cache-Control", "no-cache")
+			ctx.Response.Header.Set("Connection", "keep-alive")
+
+			ch, perr := provider.ChatCompletionStream(gatewayCtx, nil, key, &modelReq)
+			if perr != nil {
+				return classifyProviderError(perr), perr
+			}
+			streamCtx, cancel := withRequestCancel(ctx)
+			defer cancel()
+			if err := writeSSEStream(streamCtx, ctx, ch); err != nil {
+				// Channel opened; consume the error and stop fallback (ref parity).
+				return inference.VerdictUnknown, nil
+			}
+			return inference.VerdictUnknown, nil
+		}
+
+		resp, perr := provider.ChatCompletion(gatewayCtx, key, &modelReq)
+		if perr != nil {
+			return classifyProviderError(perr), perr
+		}
+		b, err := jsonMarshal(resp)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			ctx.SetContentTypeBytes([]byte("text/plain"))
+			ctx.SetBodyString("internal error")
+			return inference.VerdictUnknown, nil
+		}
+		ctx.SetStatusCode(fasthttp.StatusOK)
+		ctx.SetContentTypeBytes([]byte("application/json"))
+		ctx.SetBody(b)
+		return inference.VerdictUnknown, nil
+	})
+
+	if err != nil {
+		var perr *schemas.ProviderError
+		if errors.As(err, &perr) {
+			status := perr.StatusCode
+			if status == 0 {
+				status = fasthttp.StatusBadGateway
+			}
+			writeError(ctx, status, perr.Type, perr.Message, perr.Code)
+			return
+		}
+		writeError(ctx, fasthttp.StatusBadGateway, "server_error", err.Error(), nil)
+	}
 }
 
 // applyThinkingOverride injects provider-level thinking config when not already set.
@@ -196,6 +314,14 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 
 	translation.PreprocessChatRequest(&req)
 
+	accept := string(ctx.Request.Header.Peek("Accept"))
+
+	// Combo dispatch: if the requested model is a combo, run its model chain.
+	if h.comboDispatcher != nil && h.comboDispatcher.IsCombo(req.Model) {
+		h.handleCombo(ctx, &req, userAgent, accept)
+		return
+	}
+
 	provider, key, err := h.router.ResolveForModel(&req)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
@@ -211,7 +337,6 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	if strings.Contains(userAgent, "deepseek-tui") && !req.Stream {
 		useStream = false
 	}
-	accept := string(ctx.Request.Header.Peek("Accept"))
 	if strings.Contains(accept, "application/json") && !strings.Contains(accept, "text/event-stream") && !req.Stream {
 		useStream = false
 	}

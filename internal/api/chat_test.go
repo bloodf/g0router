@@ -558,3 +558,141 @@ func TestChatStreamStopsOnClientAbort(t *testing.T) {
 		t.Fatal("writeSSEStream did not return after context cancellation")
 	}
 }
+
+// comboChatResolver returns a fixed provider per model for combo tests.
+type comboChatResolver struct {
+	providers map[string]schemas.Provider
+}
+
+func (r *comboChatResolver) ResolveForModel(req *schemas.ChatRequest) (schemas.Provider, schemas.Key, error) {
+	p, ok := r.providers[req.Model]
+	if !ok {
+		return nil, schemas.Key{}, fmt.Errorf("unknown model %s", req.Model)
+	}
+	return p, schemas.Key{}, nil
+}
+
+// comboChatProvider wraps fakeMessagesProvider and allows injecting provider errors.
+type comboChatProvider struct {
+	fakeMessagesProvider
+	chatErr   *schemas.ProviderError
+	streamErr *schemas.ProviderError
+}
+
+func (p *comboChatProvider) ChatCompletion(ctx *schemas.GatewayContext, key schemas.Key, req *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
+	if p.chatErr != nil {
+		return nil, p.chatErr
+	}
+	return p.fakeMessagesProvider.ChatCompletion(ctx, key, req)
+}
+
+func (p *comboChatProvider) ChatCompletionStream(ctx *schemas.GatewayContext, runner schemas.PostHookRunner, key schemas.Key, req *schemas.ChatRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
+	if p.streamErr != nil {
+		return nil, p.streamErr
+	}
+	return p.fakeMessagesProvider.ChatCompletionStream(ctx, runner, key, req)
+}
+
+// fakeComboDispatcher simulates a combo engine that tries models in order and
+// surfaces the last error when all fail.
+type fakeComboDispatcher struct {
+	models []string
+}
+
+func (f *fakeComboDispatcher) IsCombo(name string) bool { return name == "best" }
+
+func (f *fakeComboDispatcher) ExecuteCombo(name string, fn func(model, connID, credential string) (inference.Verdict, error)) error {
+	var lastErr error
+	for _, model := range f.models {
+		_, err := fn(model, "conn-"+model, "key-"+model)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+	}
+	if lastErr != nil {
+		return lastErr
+	}
+	return errors.New("all combo models exhausted")
+}
+
+func TestChatComboDispatchFallsBack(t *testing.T) {
+	m1 := &comboChatProvider{chatErr: &schemas.ProviderError{StatusCode: 503, Message: "unavailable"}}
+	m2 := &comboChatProvider{fakeMessagesProvider: fakeMessagesProvider{response: &schemas.ChatResponse{
+		ID:      "m2",
+		Object:  "chat.completion",
+		Choices: []schemas.Choice{{Message: &schemas.Message{Content: "m2-wins"}}},
+	}}}
+
+	resolver := &comboChatResolver{providers: map[string]schemas.Provider{"m1": m1, "m2": m2}}
+	dispatcher := &fakeComboDispatcher{models: []string{"m1", "m2"}}
+
+	h := &ChatHandler{router: resolver}
+	h.SetComboDispatcher(dispatcher)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.SetBody([]byte(`{"model":"best","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "m2-wins") {
+		t.Errorf("body = %q, want m2-wins", body)
+	}
+}
+
+func TestChatComboAllFailReturnsError(t *testing.T) {
+	m1 := &comboChatProvider{chatErr: &schemas.ProviderError{StatusCode: 503, Message: "unavailable"}}
+	m2 := &comboChatProvider{chatErr: &schemas.ProviderError{StatusCode: 504, Message: "gateway timeout"}}
+
+	resolver := &comboChatResolver{providers: map[string]schemas.Provider{"m1": m1, "m2": m2}}
+	dispatcher := &fakeComboDispatcher{models: []string{"m1", "m2"}}
+
+	h := &ChatHandler{router: resolver}
+	h.SetComboDispatcher(dispatcher)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.SetBody([]byte(`{"model":"best","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() == fasthttp.StatusOK {
+		t.Fatal("expected error status")
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "error") {
+		t.Errorf("body = %q, want error envelope", body)
+	}
+}
+
+func TestChatComboStreamFallsBackPreStream(t *testing.T) {
+	m1 := &comboChatProvider{streamErr: &schemas.ProviderError{StatusCode: 503, Message: "unavailable"}}
+	ch := make(chan *schemas.StreamChunk, 1)
+	ch <- &schemas.StreamChunk{ID: "m2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "m2-stream"}}}}
+	close(ch)
+	m2 := &comboChatProvider{fakeMessagesProvider: fakeMessagesProvider{streamCh: ch}}
+
+	resolver := &comboChatResolver{providers: map[string]schemas.Provider{"m1": m1, "m2": m2}}
+	dispatcher := &fakeComboDispatcher{models: []string{"m1", "m2"}}
+
+	h := &ChatHandler{router: resolver}
+	h.SetComboDispatcher(dispatcher)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.SetBody([]byte(`{"model":"best","messages":[{"role":"user","content":"hi"}],"stream":true}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "m2-stream") {
+		t.Errorf("body = %q, want m2-stream", body)
+	}
+	if !strings.Contains(body, "data: [DONE]") {
+		t.Errorf("body missing DONE terminator: %q", body)
+	}
+}

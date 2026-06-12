@@ -17,6 +17,11 @@ type AccountRunner struct {
 	sel *SelectionEngine
 }
 
+// NewAccountRunner creates an AccountRunner backed by the given selection engine.
+func NewAccountRunner(sel *SelectionEngine) *AccountRunner {
+	return &AccountRunner{sel: sel}
+}
+
 // RunModel resolves the model to a provider and executes fn against successive
 // connections via the selection engine. On final failure, if the underlying
 // error is a ProviderError with status 502/503/504, the returned error joins

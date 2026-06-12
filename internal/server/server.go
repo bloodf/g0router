@@ -2,6 +2,7 @@ package server
 
 import (
 	"io/fs"
+	"time"
 
 	"github.com/bloodf/g0router/internal/admin"
 	"github.com/bloodf/g0router/internal/api"
@@ -25,8 +26,10 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 	// Health check (public, no auth)
 	r.GET("/api/health", healthHandler())
 
-	// Credential refresher for OAuth retry paths (only when a store is present).
+	// Credential refresher and combo dispatcher for OAuth/combo paths
+	// (only when a store is present).
 	var refresher api.CredentialRefresher
+	var comboDisp api.ComboDispatcher
 	var flows map[string]*auth.OAuthFlow
 	if st != nil {
 		flows = map[string]*auth.OAuthFlow{
@@ -38,10 +41,16 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 		refresher = resolver
 		infRouter.SetKeyResolver(resolver)
 		infRouter.SetAliasStore(st)
+
+		cd := inference.NewCooldownEngine(st, time.Now)
+		sel := inference.NewSelectionEngine(st, st, cd, time.Now)
+		runner := inference.NewAccountRunner(sel)
+		comboEngine := inference.NewComboEngine(st, st, runner, time.Now, time.Sleep)
+		comboDisp = newComboDispatcher(st, comboEngine)
 	}
 
 	// OpenAI-compatible API routes
-	RegisterOpenAIRoutes(r, infRouter, st, refresher)
+	RegisterOpenAIRoutes(r, infRouter, st, refresher, comboDisp)
 
 	// Management API routes and central guard (only when a store is present).
 	var guard Middleware = func(next fasthttp.RequestHandler) fasthttp.RequestHandler {
@@ -76,4 +85,43 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 		WriteTimeout:       0,
 		MaxRequestBodySize: 1 << 30, // 1 GiB
 	}
+}
+
+// comboDispatcher adapts the inference.ComboEngine to the api.ComboDispatcher
+// interface so the api layer stays store-free. It surfaces the last model error
+// when all combo models fail, matching combo.js behavior.
+type comboDispatcher struct {
+	cs inference.ComboStore
+	ce *inference.ComboEngine
+}
+
+func newComboDispatcher(cs inference.ComboStore, ce *inference.ComboEngine) *comboDispatcher {
+	return &comboDispatcher{cs: cs, ce: ce}
+}
+
+func (d *comboDispatcher) IsCombo(name string) bool {
+	_, err := d.cs.GetCombo(name)
+	return err == nil
+}
+
+func (d *comboDispatcher) ExecuteCombo(name string, fn func(model, connID, credential string) (inference.Verdict, error)) error {
+	var lastErr error
+	err := d.ce.ExecuteCombo(name, func(model string, conn *store.Connection) (inference.Verdict, error) {
+		credential := conn.AccessToken
+		if credential == "" {
+			credential = conn.Secret
+		}
+		verdict, fnErr := fn(model, conn.ID, credential)
+		if fnErr != nil {
+			lastErr = fnErr
+		}
+		return verdict, fnErr
+	})
+	if err != nil {
+		if lastErr != nil {
+			return lastErr
+		}
+		return err
+	}
+	return nil
 }
