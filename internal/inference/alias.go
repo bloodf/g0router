@@ -77,10 +77,14 @@ func ParseModelPrefix(model string) (providerPrefix, bareModel string) {
 // InferProvider checks whether the bare model name starts with a known provider
 // alias prefix. This is the PAR-ROUTE-008 name-prefix inference fallback.
 func InferProvider(bareModel string) (providerID string, ok bool) {
-	for alias, id := range catalog.ProviderAliases {
+	var found string
+	catalog.ForEachProviderAlias(func(alias, id string) {
 		if strings.HasPrefix(bareModel, alias+"-") {
-			return id, true
+			found = id
 		}
+	})
+	if found != "" {
+		return found, true
 	}
 	return "", false
 }

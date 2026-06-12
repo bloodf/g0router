@@ -1,8 +1,8 @@
 package catalog
 
-// ProviderAliases maps provider aliases and canonical names to provider IDs.
+// providerAliases maps provider aliases and canonical names to provider IDs.
 // It is the Go port of ALIAS_TO_PROVIDER_ID in open-sse/services/model.js:2-143.
-var ProviderAliases = map[string]string{
+var providerAliases = map[string]string{
 	// Coding assistants
 	"cc":        "claude",
 	"cx":        "codex",
@@ -149,6 +149,16 @@ var ProviderAliases = map[string]string{
 // ResolveProviderAlias returns the provider ID for the given alias.
 // It returns ("", false) when the alias is not known.
 func ResolveProviderAlias(alias string) (string, bool) {
-	id, ok := ProviderAliases[alias]
+	id, ok := providerAliases[alias]
 	return id, ok
+}
+
+// ProviderAliasCount returns the number of entries in the alias table.
+func ProviderAliasCount() int { return len(providerAliases) }
+
+// ForEachProviderAlias calls fn for every alias→providerID pair.
+func ForEachProviderAlias(fn func(alias, providerID string)) {
+	for a, id := range providerAliases {
+		fn(a, id)
+	}
 }
