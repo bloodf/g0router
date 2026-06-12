@@ -2,7 +2,6 @@ package usage
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -188,7 +187,7 @@ func (w *DetailWriter) prepareRow(d RequestDetail, cfg ObsConfig) (*store.Reques
 		"response":         TruncateField(d.Response, cfg.MaxJSONSize),
 	}
 
-	data, err := json.Marshal(record)
+	data, err := marshalNoHTMLEscape(record)
 	if err != nil {
 		return nil, fmt.Errorf("marshal detail record: %w", err)
 	}

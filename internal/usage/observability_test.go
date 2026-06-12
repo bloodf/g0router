@@ -280,6 +280,36 @@ func TestTruncateFieldShortOversize(t *testing.T) {
 	}
 }
 
+func TestTruncateFieldNoHTMLEscape(t *testing.T) {
+	// value whose marshaled JSON contains <, >, &. The reference uses
+	// JSON.stringify which does not escape these; Go's json.Marshal
+	// defaults to HTML-escaping, expanding "<" to "\u003c", etc. The
+	// blob-size threshold decision must agree with the reference, so
+	// TruncateField must marshal blob fields without HTML-escaping.
+	value := map[string]any{"text": "<b>&"}
+	got := TruncateField(value, 5)
+
+	marker, ok := got.(map[string]any)
+	if !ok {
+		t.Fatalf("type = %T, want map[string]any", got)
+	}
+	if marker["_truncated"] != true {
+		t.Errorf("_truncated = %v, want true", marker["_truncated"])
+	}
+	// JSON.stringify({"text":"<b>&"}) === '{"text":"<b>&"}' (15 bytes).
+	wantSize := len(`{"text":"<b>&"}`)
+	if marker["_originalSize"] != wantSize {
+		t.Errorf("_originalSize = %v, want %d (JS byte length)", marker["_originalSize"], wantSize)
+	}
+	preview, ok := marker["_preview"].(string)
+	if !ok {
+		t.Fatalf("_preview type = %T, want string", marker["_preview"])
+	}
+	if !strings.Contains(preview, "<b>&") {
+		t.Errorf("preview = %q, want to contain literal \"<b>&\"", preview)
+	}
+}
+
 func TestTruncateFieldUTF8Preview(t *testing.T) {
 	// Construct a value whose marshaled JSON contains multibyte runes
 	// (e.g. "é") straddling the 200-byte preview boundary. The JSON

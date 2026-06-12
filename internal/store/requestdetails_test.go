@@ -194,6 +194,33 @@ func TestRequestDetailsQuery(t *testing.T) {
 			t.Errorf("ids = %v, want %v", got, want)
 		}
 	})
+
+	t.Run("empty result is non-nil zero-length slice", func(t *testing.T) {
+		// Parity: the JS reference maps over an empty rows array and
+		// returns []; encoding/json renders a nil []T as null. The Go
+		// implementation must always return a non-nil slice.
+		rows, pg, err := st.QueryRequestDetails(RequestDetailsFilter{Provider: "nope-no-such-provider"})
+		if err != nil {
+			t.Fatalf("QueryRequestDetails: %v", err)
+		}
+		if rows == nil {
+			t.Fatal("rows is nil, want non-nil zero-length slice")
+		}
+		if len(rows) != 0 {
+			t.Errorf("len(rows) = %d, want 0", len(rows))
+		}
+		if pg.TotalItems != 0 {
+			t.Errorf("TotalItems = %d, want 0", pg.TotalItems)
+		}
+		// Verify JSON rendering matches the JS reference ([] not null).
+		encoded, err := json.Marshal(rows)
+		if err != nil {
+			t.Fatalf("json.Marshal: %v", err)
+		}
+		if string(encoded) != "[]" {
+			t.Errorf("json.Marshal(rows) = %s, want []", string(encoded))
+		}
+	})
 }
 
 func TestRequestDetailByID(t *testing.T) {

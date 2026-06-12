@@ -158,7 +158,9 @@ func (s *Store) QueryRequestDetails(f RequestDetailsFilter) ([]json.RawMessage, 
 	}
 	defer rows.Close()
 
-	var out []json.RawMessage
+	// Always return a non-nil slice so an empty result marshals as []
+	// (matching the reference) rather than null.
+	out := make([]json.RawMessage, 0)
 	for rows.Next() {
 		var data string
 		if err := rows.Scan(&data); err != nil {

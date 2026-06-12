@@ -316,6 +316,43 @@ func TestWriterSanitizesAndTruncates(t *testing.T) {
 	}
 }
 
+func TestWriterPreservesHTMLCharsInStoredData(t *testing.T) {
+	// Parity: the reference implementation serializes the per-detail
+	// record with JSON.stringify, which does not escape <, >, &. Go's
+	// json.Marshal defaults to HTML-escaping these in strings, which
+	// would diverge the stored blob from the reference. Small (non-
+	// truncated) blob values must round-trip literal <b>& verbatim.
+	st := newRealWriterStore(t)
+	s := &fakeSettingsReader{values: map[string]string{
+		"observabilityBatchSize":   "1",
+		"observabilityMaxJsonSize": "1024",
+	}}
+	loader := NewObsConfigLoader(s, func(string) string { return "" }, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) })
+	w := NewDetailWriter(st, loader, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) }, nil, rand.Read)
+
+	if err := w.Save(RequestDetail{
+		Model:    "gpt-4o",
+		Response: map[string]any{"body": "<b>&"},
+	}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	rows, _, err := st.QueryRequestDetails(store.RequestDetailsFilter{})
+	if err != nil {
+		t.Fatalf("QueryRequestDetails: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	raw := string(rows[0])
+	if strings.Contains(raw, `\u003c`) || strings.Contains(raw, `\u003e`) || strings.Contains(raw, `\u0026`) {
+		t.Errorf("stored blob contains HTML-escape sequences: %s", raw)
+	}
+	if !strings.Contains(raw, "<b>&") {
+		t.Errorf("stored blob does not contain literal \"<b>&\": %s", raw)
+	}
+}
+
 func TestWriterFlushErrorPropagates(t *testing.T) {
 	st, loader, clock, tf, _, _ := newTestWriterDeps()
 	loader.settings = &fakeSettingsReader{values: map[string]string{"observabilityBatchSize": "1"}}

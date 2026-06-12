@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -155,7 +156,7 @@ func TruncateField(v any, maxSize int) any {
 	if v == nil {
 		v = map[string]any{}
 	}
-	str, err := json.Marshal(v)
+	str, err := marshalNoHTMLEscape(v)
 	if err != nil {
 		str = []byte("null")
 	}
@@ -172,4 +173,22 @@ func TruncateField(v any, maxSize int) any {
 		"_originalSize": len(str),
 		"_preview":      string(runes[:previewLen]),
 	}
+}
+
+// marshalNoHTMLEscape marshals v without HTML-escaping <, >, & so the
+// result matches JSON.stringify semantics used by the reference impl.
+func marshalNoHTMLEscape(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	out := buf.Bytes()
+	// json.Encoder.Encode always appends a trailing newline; trim it
+	// so downstream byte-length measurements match JSON.stringify.
+	if n := len(out); n > 0 && out[n-1] == '\n' {
+		out = out[:n-1]
+	}
+	return out, nil
 }
