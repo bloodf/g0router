@@ -1,0 +1,255 @@
+package usage
+
+import (
+	"errors"
+	"reflect"
+	"strings"
+	"testing"
+	"time"
+)
+
+var errFake = errors.New("fake settings error")
+
+type fakeSettingsReader struct {
+	values map[string]string
+	err    error
+}
+
+func (f *fakeSettingsReader) GetSettings() (map[string]string, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.values, nil
+}
+
+func TestObservabilityConfig(t *testing.T) {
+	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	clock := func() time.Time { return now }
+
+	tests := []struct {
+		name     string
+		env      map[string]string
+		settings map[string]string
+		want     ObsConfig
+	}{
+		{
+			name: "defaults",
+			want: ObsConfig{
+				Enabled:         true,
+				MaxRecords:      200,
+				BatchSize:       20,
+				FlushIntervalMs: 5000,
+				MaxJSONSize:     5 * 1024,
+			},
+		},
+		{
+			name: "settings override",
+			settings: map[string]string{
+				"enableObservability":          "false",
+				"observabilityMaxRecords":      "50",
+				"observabilityBatchSize":       "10",
+				"observabilityFlushIntervalMs": "1000",
+				"observabilityMaxJsonSize":     "10",
+			},
+			want: ObsConfig{
+				Enabled:         false,
+				MaxRecords:      50,
+				BatchSize:       10,
+				FlushIntervalMs: 1000,
+				MaxJSONSize:     10 * 1024,
+			},
+		},
+		{
+			name: "env override",
+			env: map[string]string{
+				"OBSERVABILITY_ENABLED":          "false",
+				"OBSERVABILITY_MAX_RECORDS":      "300",
+				"OBSERVABILITY_BATCH_SIZE":       "30",
+				"OBSERVABILITY_FLUSH_INTERVAL_MS": "2000",
+				"OBSERVABILITY_MAX_JSON_SIZE":    "10",
+			},
+			want: ObsConfig{
+				Enabled:         false,
+				MaxRecords:      300,
+				BatchSize:       30,
+				FlushIntervalMs: 2000,
+				MaxJSONSize:     10 * 1024,
+			},
+		},
+		{
+			name: "settings precedence over env",
+			settings: map[string]string{
+				"enableObservability":     "true",
+				"observabilityMaxRecords": "100",
+			},
+			env: map[string]string{
+				"OBSERVABILITY_ENABLED":     "false",
+				"OBSERVABILITY_MAX_RECORDS": "400",
+			},
+			want: ObsConfig{
+				Enabled:         true,
+				MaxRecords:      100,
+				BatchSize:       20,
+				FlushIntervalMs: 5000,
+				MaxJSONSize:     5 * 1024,
+			},
+		},
+		{
+			name: "enabled falls back to env when settings missing",
+			env: map[string]string{
+				"OBSERVABILITY_ENABLED": "false",
+			},
+			want: ObsConfig{
+				Enabled:         false,
+				MaxRecords:      200,
+				BatchSize:       20,
+				FlushIntervalMs: 5000,
+				MaxJSONSize:     5 * 1024,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			getenv := func(key string) string { return tt.env[key] }
+			loader := NewObsConfigLoader(&fakeSettingsReader{values: tt.settings}, getenv, clock)
+			got := loader.Load()
+			if got != tt.want {
+				t.Errorf("Load() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+
+	t.Run("cache 5s", func(t *testing.T) {
+		settings := &fakeSettingsReader{values: map[string]string{
+			"observabilityMaxRecords": "42",
+		}}
+		getenv := func(string) string { return "" }
+		loader := NewObsConfigLoader(settings, getenv, clock)
+
+		if got := loader.Load(); got.MaxRecords != 42 {
+			t.Fatalf("first load MaxRecords = %d, want 42", got.MaxRecords)
+		}
+
+		settings.values = map[string]string{
+			"observabilityMaxRecords": "99",
+		}
+		if got := loader.Load(); got.MaxRecords != 42 {
+			t.Errorf("cached load MaxRecords = %d, want 42", got.MaxRecords)
+		}
+
+		now = now.Add(5 * time.Second)
+		if got := loader.Load(); got.MaxRecords != 99 {
+			t.Errorf("expired cache MaxRecords = %d, want 99", got.MaxRecords)
+		}
+	})
+
+	t.Run("load error returns disabled defaults", func(t *testing.T) {
+		settings := &fakeSettingsReader{err: errFake}
+		getenv := func(string) string { return "" }
+		loader := NewObsConfigLoader(settings, getenv, clock)
+		got := loader.Load()
+		want := ObsConfig{
+			Enabled:         false,
+			MaxRecords:      200,
+			BatchSize:       20,
+			FlushIntervalMs: 5000,
+			MaxJSONSize:     5 * 1024,
+		}
+		if got != want {
+			t.Errorf("Load() on error = %+v, want %+v", got, want)
+		}
+	})
+}
+
+func TestSanitizeHeaders(t *testing.T) {
+	tests := []struct {
+		name string
+		in   map[string]string
+		want map[string]string
+	}{
+		{
+			name: "sensitive keys removed",
+			in: map[string]string{
+				"Authorization": "Bearer secret",
+				"X-Api-Key":     "key",
+				"Cookie":        "session=abc",
+				"X-Auth-Token":  "token",
+				"api-key":       "key2",
+				"Content-Type":  "application/json",
+			},
+			want: map[string]string{
+				"Content-Type": "application/json",
+			},
+		},
+		{
+			name: "substring match removes x-csrf-token",
+			in: map[string]string{
+				"X-CSRF-Token": "csrf",
+				"Accept":       "*/*",
+			},
+			want: map[string]string{
+				"Accept": "*/*",
+			},
+		},
+		{
+			name: "nil returns empty non-nil map",
+			in:   nil,
+			want: map[string]string{},
+		},
+		{
+			name: "empty map stays empty",
+			in:   map[string]string{},
+			want: map[string]string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SanitizeHeaders(tt.in)
+			if len(got) != len(tt.want) {
+				t.Errorf("len = %d, want %d; got=%v", len(got), len(tt.want), got)
+			}
+			for k, v := range tt.want {
+				if got[k] != v {
+					t.Errorf("%q = %q, want %q", k, got[k], v)
+				}
+			}
+			if tt.in != nil && reflect.ValueOf(got).Pointer() == reflect.ValueOf(tt.in).Pointer() {
+				t.Error("SanitizeHeaders returned the same map, want a copy")
+			}
+		})
+	}
+}
+
+func TestTruncateField(t *testing.T) {
+	small := map[string]any{"key": "value"}
+	got := TruncateField(small, 1024)
+	m, ok := got.(map[string]any)
+	if !ok {
+		t.Fatalf("small field type = %T, want map[string]any", got)
+	}
+	if m["key"] != "value" {
+		t.Errorf("small field = %v, want unchanged", got)
+	}
+
+	large := map[string]any{"data": strings.Repeat("a", 6000)}
+	got = TruncateField(large, 1024)
+	marker, ok := got.(map[string]any)
+	if !ok {
+		t.Fatalf("large field type = %T, want map[string]any", got)
+	}
+	if marker["_truncated"] != true {
+		t.Errorf("_truncated = %v, want true", marker["_truncated"])
+	}
+	if marker["_originalSize"] == nil {
+		t.Error("_originalSize missing")
+	}
+	preview, ok := marker["_preview"].(string)
+	if !ok {
+		t.Fatalf("_preview type = %T, want string", marker["_preview"])
+	}
+	if len(preview) != 200 {
+		t.Errorf("preview len = %d, want 200", len(preview))
+	}
+}
