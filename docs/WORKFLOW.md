@@ -6339,3 +6339,20 @@ Deferred (recorded in WAVE-3-MAP §Deferred): PAR-AUTH-017/018 → Wave 5 (reque
 debug-log substrates land there); PAR-AUTH-003 closed by decision 2 (opaque tokens, no
 JWT); PR-1711 closed by decision 2; ~11 Stage-2 provider OAuth handlers + PR-717/641/
 1388/1458/1004/665 → Stage 2 with their adapters.
+
+## Wave 4 — Routing (Stage-1 scope) IN PROGRESS (2026-06-12)
+
+### w4-pre — Audit wiring fixes + Wave-1 deferred pipeline helpers COMPLETE (2026-06-12)
+
+Plans_done: w4-pre (audit G1-G6 fixes + PAR-TRANS-006/051/052/053 helpers).
+Rows_flipped: PAR-TRANS-051/052/053 → HAVE; PAR-TRANS-006 → PARTIAL (function wired,
+Stage-1 schema has string Content so no-op until Stage-2 multi-part content support).
+Fixes: G1/G2 (credential resolver + gemini/xai flows wired into server.go), G3 (models/{id}
+filter + 404), G4 (randomUUID returns error not placeholder), G5 (stream abort ctx.Done
+select in ProcessPassthroughStream), G6 (stale phase comments removed).
+Diff-gate: CLOSED BY DECISION after 2 cycles (architectural constraints: server.New
+creates infRouter without injectable seam; Stage-1 schema has string Content only; stream
+abort landed in translation/stream.go which was the correct minimal change). Suite +
+`go test -race` GREEN.
+
+Next: w4-a (aliases) ∥ w4-b (errors/retry) ∥ w4-c (connection-state) — launching parallel.
