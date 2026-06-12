@@ -12,8 +12,12 @@ Authorizing artifacts (verbatim, with file:line):
 - `WAVE-5-MAP.md` w5-pre row + §Ownership tracks (combo dispatch glue explicitly in
   w5-pre; w5-pre runs ALONE so its `internal/api/chat.go` touch precedes every
   concurrent W5 job — the "ONLY internal/api editor" rule binds the concurrent phase).
-Frozen ref @ 827e5c3. Runs ALONE, first in Wave 5. No PAR rows flip here; this plan
-makes already-flipped rows (PAR-ROUTE-023, 001-004/011/024) real in production.
+Frozen ref @ 827e5c3. Runs ALONE, first in Wave 5. No PAR rows flip here. The rows
+whose matrix notes already record the deferred production halves are (full IDs,
+`matrix/9router-routing.md`): PAR-ROUTE-023 (row note: "production OAuth wiring
+deferred to credential-management wave (w4-f)"), and PAR-ROUTE-001, PAR-ROUTE-002,
+PAR-ROUTE-003, PAR-ROUTE-004, PAR-ROUTE-011, PAR-ROUTE-024 (flipped citing
+`ComboEngine` — whose production caller chain is exactly what this plan wires).
 
 ## Tasks
 
@@ -37,13 +41,17 @@ makes already-flipped rows (PAR-ROUTE-023, 001-004/011/024) real in production.
    `RegisterOpenAIRoutes(r, infRouter, st, refresher api.CredentialRefresher)`
    (`internal/server/routes_openai.go:11`) to call `chat.SetCredentialRefresher(refresher)`
    when non-nil. ChatHandler only — `internal/api/messages.go` has no refresher seam
-   (verified: zero `refresh` matches) and adding one is out of scope.
+   (precondition grep below: `grep -ci 'refresh' internal/api/messages.go` → `0`) and
+   adding one is out of scope (PAR-ROUTE-023's matrix note cites `ChatHandler` only).
 
 2. **Production ModelRunner: transient wrap (w4-e debt)** — evidence:
    `internal/inference/combo.go:21-32` declares `ErrModelTransient` + the `ModelRunner`
-   interface; grep shows NO production implementer; `internal/inference/selection.go:226`
-   `WithAccountFallback` is the account-fallback engine awaiting a caller;
-   `internal/inference/factory.go:37` `providerForModel` maps model→providerID.
+   interface; the absence of any production implementer is proved by the precondition
+   grep below (`grep -rn 'func (.*) RunModel' internal/inference/ --include='*.go' |
+   grep -v _test | wc -l` → `0`, verified 2026-06-12 against HEAD 7cc9b7c);
+   `internal/inference/selection.go:226` `WithAccountFallback` is the account-fallback
+   engine awaiting a caller; `internal/inference/factory.go:37` `providerForModel` maps
+   model→providerID.
    STEP (a): write `TestAccountRunnerWrapsTransient` (table-driven: fn returns error
    carrying `*schemas.ProviderError` StatusCode 502/503/504 → `errors.Is(err,
    ErrModelTransient)` true; 400/401/429 → false, original error preserved via
@@ -60,7 +68,18 @@ makes already-flipped rows (PAR-ROUTE-023, 001-004/011/024) real in production.
    `internal/store/combos.go:35` `GetCombo`; `internal/inference/combo.go:143`
    `ExecuteCombo(name, fn)`; ref behavior `open-sse/services/combo.js:108-198` (combo
    chain executes per-model with account fallback; client errors surface from the last
-   attempt).
+   attempt). Scope justification per element: "wire combo dispatch into the chat path"
+   (`w4-f-pipeline-glue.md:22`) entails every mechanic below and nothing more —
+   (i) the chat path serves BOTH stream and non-stream requests (`chat.go:226-285`), so
+   the branch must cover both (stream fallback restricted to pre-channel errors = ref
+   parity, combo.js falls back on executor error only); (ii) the setter follows the
+   established w4-e layering precedent (`SetComboLister`, `internal/api/models.go` —
+   api imports no store); (iii) per-connection dispatch is what `ExecuteCombo`'s
+   `fn(model, conn)` contract requires (`combo.go:143`); (iv) verdict mapping reuses
+   w4-b's existing classifier (`internal/inference/errorclass.go` — no new
+   classification logic); (v) server construction is the minimal dependency chain the
+   engines' constructors already demand (`accounts.go:66`, `selection.go:52`,
+   `combo.go:57`).
    STEP (a): write `TestChatComboDispatchFallsBack` (store combo `best=[m1,m2]`; fake
    provider for m1 always returns ProviderError 503, m2 succeeds → POST
    /v1/chat/completions with model=best returns 200 with m2's response),
@@ -87,6 +106,7 @@ makes already-flipped rows (PAR-ROUTE-023, 001-004/011/024) real in production.
 - `grep -rn 'func (.*) RunModel' internal/inference/ --include='*.go' | grep -v _test | wc -l` outputs `0` (w4-e gap — interface has no production implementer).
 - `grep -c 'ExecuteCombo' internal/api/chat.go` outputs `0` (combo dispatch unwired).
 - `grep -c 'func (r \*CredentialResolver) doRefresh' internal/auth/credentials.go` ≥ 1 (refresh machinery exists; only the entry point is new).
+- `grep -ci 'refresh' internal/api/messages.go` outputs `0` (messages has no refresher seam — out-of-scope claim in Task 1).
 
 ## Exclusive file ownership
 NEW: `internal/inference/runner.go`(+test). TOUCH: `internal/auth/credentials.go`(+test),
