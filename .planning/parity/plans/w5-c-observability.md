@@ -63,9 +63,12 @@ the utility").
    STEP (b): `internal/usage/detailwriter.go`: `DetailWriter{store DetailStore,
    config loader, mu, buffer, timerFactory, randRead seam}` with `Save(detail
    RequestDetail)` + `Close()`. Store side NEW `internal/store/requestdetails.go`:
-   `(s *Store) SaveRequestDetails(items []*RequestDetailRow) error` (one tx: upserts
-   + retention delete given maxRecords param) — keep store a leaf; sanitize/truncate
-   happen in the domain writer before rows reach the store.
+   `(s *Store) SaveRequestDetails(items []*RequestDetailRow, maxRecords int) error` —
+   EXACTLY this signature: one tx of upserts followed by the retention delete-oldest
+   when COUNT > maxRecords (the writer passes its loaded config's MaxRecords on each
+   flush, mirroring `requestDetailsRepo.js:80,109-115` where flush re-reads config and
+   enforces retention inside the same transaction). Keep store a leaf;
+   sanitize/truncate happen in the domain writer before rows reach the store.
 
 5. **Filtered + paginated query (PAR-USAGE-024)** — evidence:
    `requestDetailsRepo.js:144-181`: filters provider/model/connectionId/status/
@@ -77,15 +80,24 @@ the utility").
    combos; page 2 of pageSize 2 → correct slice + pagination math) and
    `TestRequestDetailByID` — fail.
    STEP (b): in `internal/store/requestdetails.go`: `RequestDetailsFilter` struct,
-   `(s *Store) QueryRequestDetails(f) (rows, Pagination, error)`,
-   `(s *Store) GetRequestDetailByID(id string) ([]byte, error)`.
+   `(s *Store) QueryRequestDetails(f) (rows, Pagination, error)` (rows = decoded
+   `data` blobs as `[]json.RawMessage`, DESC by timestamp),
+   `(s *Store) GetRequestDetailByID(id string) (json.RawMessage, error)` — not-found
+   returns `(nil, nil)` (exact port of `requestDetailsRepo.js:177-181`
+   `row ? parse : null`; missing is not an error, matching the
+   `settings.go:33-40` store convention); the blob is returned RAW and the w5-d route
+   passes it through undecoded.
 
 6. **Debug log production gate (PAR-AUTH-018)** — evidence: `debugLog.js:1-15`:
    `isDev = NODE_ENV !== "production"`; `dbg(tag,msg)` no-ops in production; output
-   format `[HH:MM:SS] 🐛 [DBG:tag] msg`. Go adaptation (recorded decision): gate on
-   env `G0ROUTER_ENV != "production"` (no NODE_ENV in Go), constructor-injected —
-   no init(), no global mutable state; package `internal/logging` (currently a
-   placeholder — `internal/logging/doc.go` says request-log/audit arrive later;
+   format `[HH:MM:SS] 🐛 [DBG:tag] msg`. PLANNER DECISION recorded HERE (Fable 5,
+   2026-06-12, this plan is the decision artifact — same mechanism as w4-pre's
+   plan-explicit decisions): the ref's gate variable `NODE_ENV` (`debugLog.js:3`) is a
+   Node.js runtime convention with no Go equivalent; the Go port gates on
+   `G0ROUTER_ENV != "production"`, preserving the ref's exact SEMANTICS (default =
+   dev/enabled; only the literal value "production" disables). Constructor-injected
+   getenv — no init(), no global mutable state; package `internal/logging` (currently
+   a placeholder — `internal/logging/doc.go` says request-log/audit arrive later;
    this plan adds ONLY the debug gate, not the audit trail).
    STEP (a): `TestDebugLogProductionGate` (production env → writer receives nothing;
    dev → tagged line written; format contains `[DBG:tag]`) — fails (placeholder

@@ -8,12 +8,20 @@ NOT in scope: read APIs (PAR-USAGE-013..017/021..023 → w5-d), observability
 Frozen ref @ 827e5c3. Depends: w5-a merged. Runs ∥ w5-c (disjoint files).
 
 ## Layering decision
-`internal/store` stays a leaf (imports no internal packages — verified: zero
-`bloodf/g0router` imports in non-test store files). The daily-rollup JSON blob is a
-persistence format, so its aggregation helper lives INSIDE store (private), mirroring
-the ref where aggregation is repo-internal (`usageRepo.js:44-77`). Cost is computed in
-the DOMAIN (`internal/usage.Recorder`) before persisting — port of
-`usageRepo.js:248` `entry.cost = await calculateCost(...)`.
+`internal/store` stays a leaf — the §Preconditions grep below is the binding evidence
+(`grep -rh 'bloodf/g0router' internal/store/*.go | grep -v _test | wc -l` → `0`).
+The daily-rollup JSON blob is a persistence format, so its aggregation helper lives
+INSIDE store (private), mirroring the ref where aggregation is repo-internal
+(`usageRepo.js:44-77`). Cost is computed in the DOMAIN (`internal/usage.Recorder`)
+before persisting — port of `usageRepo.js:248` `entry.cost = await calculateCost(...)`.
+Domain→repository imports are the established in-repo pattern per `AGENTS.md:24`
+(transport→domain→repository dependency direction) and the live precedent
+`internal/inference/combo.go:12` + `internal/inference/selection.go:11` (both import
+`internal/store`): therefore `internal/usage/recorder.go` and `tracker.go` use
+`*store.RequestLogEntry`/store types DIRECTLY — no duplicate entry struct, no adapter.
+(w5-a's "usage does not import store" acceptance bound w5-a's pure pricing files —
+`pricingdata/pricing/tokens/cost.go` stay store-free; the recorder/tracker files this
+plan adds follow the inference precedent.)
 
 ## Tasks
 
@@ -51,14 +59,17 @@ the DOMAIN (`internal/usage.Recorder`) before persisting — port of
 3. **Cost-at-save Recorder (PAR-USAGE-012)** — evidence: `usageRepo.js:243-252`:
    timestamp defaulted, cost computed from provider+model+tokens via pricing
    resolution, prompt/completion extracted via synonym normalization
-   (`usageRepo.js:121-122` ports as w5-a `NormalizeTokens`).
+   (`usageRepo.js:121-122` ports as w5-a `NormalizeTokens`). Emits the "update" event
+   after a successful save (`usageRepo.js:283` `statsEmitter.emit("update")`).
    STEP (a): `TestRecorderComputesCost` (fake UsageStore capturing the entry; Recorder
    over w5-a Resolver with known model pricing → entry.Cost matches golden value;
-   missing pricing → Cost 0; timestamp filled when empty); run — fails.
-   STEP (b): NEW `internal/usage/recorder.go`: `UsageStore` interface
-   (`SaveUsage(*store-shaped entry) error` — defined locally with a small entry struct
-   to keep usage→store decoupled; server wiring adapts), `Recorder{resolver, store,
-   clock}` with `Record(entry) error`: normalize tokens → CostFor → SaveUsage.
+   missing pricing → Cost 0; timestamp filled when empty) and `TestRecorderEmitsUpdate`
+   (registered callback receives kind "update" exactly once per successful Record);
+   run — fail.
+   STEP (b): NEW `internal/usage/recorder.go`: `UsageStore` interface typed DIRECTLY
+   on the store type (`SaveUsage(*store.RequestLogEntry) error` — §Layering decision;
+   inference precedent), `Recorder{resolver, store, clock, events *Events}` with
+   `Record(entry) error`: normalize tokens → CostFor → SaveUsage → emit "update".
 
 4. **Recent-request dedup (PAR-USAGE-038)** — evidence: `usageRepo.js:217-237` and
    duplicate logic `:345-365`: drop zero-token entries; dedupe key
@@ -69,20 +80,27 @@ the DOMAIN (`internal/usage.Recorder`) before persisting — port of
    STEP (b): `internal/usage/recent.go`: `RecentRequest` struct +
    `DedupeRecent([]RecentRequest) []RecentRequest` (pure).
 
-5. **Pending tracker (PAR-USAGE-018)** — evidence: `usageRepo.js:6,153-196`:
-   byModel counts keyed `model (provider)`; byAccount nested connectionId→modelKey;
-   START increments / END decrements clamped ≥0 with map cleanup; 60s timer per
-   `connectionId|modelKey` zeroes counts and emits; END clears the timer; error END
-   records lastErrorProvider (lowercased) with 10s read window (`:188-191,239`);
-   emits a stats event on every change (SSE hook for w5-e).
+5. **Pending tracker + event emission (PAR-USAGE-018)** — evidence:
+   `usageRepo.js:6,153-196`: byModel counts keyed `model (provider)`; byAccount nested
+   connectionId→modelKey; START increments / END decrements clamped ≥0 with map
+   cleanup; 60s timer per `connectionId|modelKey` zeroes counts and emits; END clears
+   the timer; error END records lastErrorProvider (lowercased) with 10s read window
+   (`:188-191,239`). Event emission is IN the cited evidence, not w5-e scope: the
+   tracker itself emits "pending" on every change (`usageRepo.js:181,195`
+   `statsEmitter.emit("pending")` — both lines inside the PAR-USAGE-018 evidence range
+   153-196; the emitter global is `:14-17`). w5-e only CONSUMES the events.
    STEP (a): `TestTrackerStartEnd` (counts, clamp, cleanup), `TestTrackerTimeout`
-   (injected timer-factory fires → counts zeroed, event emitted),
-   `TestTrackerErrorProvider` (10s window via injected clock), `TestTrackerConcurrent`
+   (injected timer-factory fires → counts zeroed, "pending" emitted),
+   `TestTrackerErrorProvider` (10s window via injected clock), `TestTrackerEmitsPending`
+   (one callback invocation kind "pending" per Start/End), `TestTrackerConcurrent`
    (parallel Start/End under -race); run — fail.
-   STEP (b): NEW `internal/usage/tracker.go`: `Tracker` (mutex-guarded maps; injected
-   `clock func() time.Time` + `timerFactory func(d, fn) stopFn` — production
-   `time.AfterFunc`; `Subscribe(chan struct{})`-style or callback list for events —
-   pick the simplest seam w5-e can consume). No globals, no init().
+   STEP (b): NEW `internal/usage/events.go`: `Events` — mutex-guarded callback
+   registry, EXACTLY this API: `(e *Events) OnEvent(fn func(kind string))` +
+   `(e *Events) Emit(kind string)` (synchronous fan-out; kinds used: "pending",
+   "update" — the two the ref emits). NEW `internal/usage/tracker.go`: `Tracker`
+   (mutex-guarded maps; injected `clock func() time.Time` + `timerFactory
+   func(time.Duration, func()) (stop func())` — production wraps `time.AfterFunc`;
+   holds *Events and emits "pending"). No globals, no init().
 
 6. **Ring buffer + connection-name cache (PAR-USAGE-019, PAR-USAGE-020)** — evidence:
    `usageRepo.js:7,79-111` (ring cap 50, lazily initialized once from last-50 history
@@ -100,10 +118,11 @@ the DOMAIN (`internal/usage.Recorder`) before persisting — port of
 - `grep -c 'request_log' internal/store/migrate.go` ≥ 1 (w5-a merged — tables exist).
 - `grep -c 'func MatchPattern\|func.*CostFor' internal/usage/*.go` ≥ 1 (w5-a pricing engine present).
 - `ls internal/store/requestlog.go 2>/dev/null | wc -l` outputs `0` (write path is the gap).
-- `grep -rc 'bloodf/g0router' internal/store/store.go internal/store/connections.go | grep -v ':0' | wc -l` outputs `0` (store leaf invariant to preserve).
+- `grep -rh 'bloodf/g0router' internal/store/*.go | grep -v _test | wc -l` outputs `0` (store leaf invariant — evidence for §Layering decision; preserved by this plan).
 
 ## Exclusive file ownership
-NEW: `internal/store/requestlog.go`(+test), `internal/usage/{recorder,recent,tracker}.go`
+NEW: `internal/store/requestlog.go`(+test),
+`internal/usage/{recorder,recent,tracker,events}.go`
 (+tests; `ring.go` optional split). TOUCHES NO file owned by w5-c
 (`internal/store/requestdetails*.go`, `internal/usage/observability*.go`,
 `internal/logging/*`) — the two run concurrently.
@@ -113,8 +132,8 @@ NEW: `internal/store/requestlog.go`(+test), `internal/usage/{recorder,recent,tra
 - `sqlite3` smoke on a migrated DB after one SaveUsage: `SELECT COUNT(*) FROM request_log` = 1; `SELECT COUNT(*) FROM usage_daily` = 1; kv meta counter = '1'.
 - `grep -rc 'bloodf/g0router/internal' internal/store/requestlog.go` → `:0` (leaf preserved).
 - TestSaveUsageTransactional, TestAggregateEntryToDay, TestRecorderComputesCost,
-  TestDedupeRecent, TestTrackerTimeout, TestTrackerConcurrent, TestRingInitOnceFromStore,
-  TestConnNameCacheTTL all pass.
+  TestRecorderEmitsUpdate, TestDedupeRecent, TestTrackerTimeout, TestTrackerEmitsPending,
+  TestTrackerConcurrent, TestRingInitOnceFromStore, TestConnNameCacheTTL all pass.
 
 ## Out of scope
 getUsageStats/chart/logs readers (w5-d). Observability writer (w5-c). SSE emit
