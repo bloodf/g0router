@@ -19,6 +19,12 @@ agentic-engineering: opt-in
 -->
 agentic-engineering-profile: strict
 
+## Orchestration
+- Multi-agent CLI work follows `CLI_ORCHESTRATOR.md` (roles, autonomy rule,
+  no-leftovers rule, plan-before-dispatch, review/validation/shipping loops).
+- The 9router parity program (Waves 0–5) ran under `.planning/harness/HANDOFF.md`;
+  from Wave 6 onward and for all non-parity work, `CLI_ORCHESTRATOR.md` governs.
+
 ## Decisions
 - SQLite WAL store with additive-only `ensureColumn` migrations.
 - Layered DDD architecture (transport→domain→repository) enforced by arch test (phase 12B).
