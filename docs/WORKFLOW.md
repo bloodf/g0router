@@ -30,17 +30,18 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: "Wave 6 — UI dashboard parity"
-current_wave: "w6-a fix round 2 — NAV_ITEMS single source + apiFetch Bearer test"
-last_completed_plan: "w6-a fix round 2 (Kimi, 2 findings fixed, all gates green)"
-last_updated: "2026-06-12T21:52:09Z"
+current_wave: "w6-d — i18n locale catalog, react-i18next runtime, locale endpoint"
+last_completed_plan: "w6-d (Kimi, T1-T3 complete, all gates green)"
+last_updated: "2026-06-12T22:29:39Z"
 orchestrator: "Claude Code (VPS) — see CLI_ORCHESTRATOR.md"
 planner: "Fable 5"
 implementer: "Kimi"
 notes: |
-  Refactored ui/src/components/layout/sidebar.tsx to render from NAV_ITEMS;
-  verified mobile-sidebar.tsx consumes the same export.
-  Added two apiFetch Authorization Bearer header tests to ui/src/lib/api.test.ts.
-  Gates green: vitest 12/12, playwright navigation 9/9, ui build, go test, go vet.
+  T1: Go POST /api/locale endpoint + cookie (already committed before handoff).
+  T2: 33-locale catalog transcribed from ref config.js; locales.test.ts green.
+  T3: i18next init via import.meta.glob, I18nProvider with cookie hydrate,
+  router.subscribe('onResolved') re-apply, setLocale via apiFetch.
+  Gates green: vitest 39/39 (src/i18n + providers), npm run build, go test, go vet.
 ```
 
 ---
@@ -6638,3 +6639,29 @@ Diff gate: 3 cycles, closed by decision — pre-existing login spec failures (no
 Sonner v2 toaster pattern, w6-pre scope artifact. Rows flipped: PAR-UI-001/026/030/031/
 073/074/075/076/077/078/079/080 HAVE; PAR-UI-028/029 PARTIAL; PAR-UI-081 HAVE (variant).
 UI track: frozen foundation. Next: w6-b (shadcn primitives) ∥ w6-d (i18n).
+
+## w6-d — MERGED (2026-06-12)
+
+T1: `internal/admin/locale.go` + `locale_test.go` + append-only `routes_admin.go` wiring.
+`POST /api/locale` validates against 33 ref locales, sets non-HttpOnly `locale` cookie
+(`Path=/; SameSite=Lax`), returns snake_case `{data,error}` envelope.
+
+T2: `ui/src/i18n/locales.ts` with `{code,name,flag}` ×33 mirrored from
+`/home/cortexos/Developer/github.com/bloodf/_refs/9router/src/i18n/config.js`;
+33 minimal JSON files under `ui/src/i18n/locales/`.
+
+T3: `ui/src/i18n/index.ts` initializes `i18next` + `react-i18next` with eager
+`import.meta.glob` resource loading; `ui/src/providers/i18n.tsx` exposes
+`useI18n()` context (`currentLocale`, `locales`, `setLocale`), hydrates initial
+locale from the `locale` cookie / `navigator.language`, re-applies language on
+TanStack Router `onResolved` events, and `setLocale` POSTs to `/api/locale` via
+`apiFetch`.
+
+Gates: `npx vitest run src/i18n/` 35/35 pass; `npx vitest run src/providers/i18n.test.tsx`
+4/4 pass; `npm run build` green; `go test ./... && go vet ./...` green.
+
+Rows flipped: PAR-UI-069 MISSING→HAVE, PAR-UI-070 MISSING→PARTIAL (react-i18next
+variant), PAR-UI-071 MISSING→PARTIAL (router.subscribe variant; full HAVE deferred
+to w6-b mount in `__root.tsx`), PAR-UI-072 MISSING→HAVE.
+
+UI track: frozen foundation untouched. Next: w6-b (shadcn primitives) ∥ w6-c∥...

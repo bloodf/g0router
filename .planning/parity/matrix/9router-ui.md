@@ -77,10 +77,10 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-066 | Auth: OIDC flow with PKCE, state, nonce, JWKS verification | `src/app/login/page.js:90-92`, callback page | MISSING | g0router e2e has no OIDC tests |
 | PAR-UI-067 | Auth: `GET /api/auth/status` on mount to check requireLogin, authMode, oidcConfigured | `src/app/login/page.js:26-59` | MISSING | g0router e2e mocks `GET /api/auth/status` |
 | PAR-UI-068 | Auth: logout POST `/api/auth/logout` clears cookies, redirects to `/login` | `src/shared/components/Header.js:211-221` | MISSING | g0router e2e tests logout flow |
-| PAR-UI-069 | i18n: 39 locales configured in `LOCALES` array | `src/i18n/config.js:1` | MISSING | g0router `package.json` has `i18next` + `react-i18next` |
-| PAR-UI-070 | i18n: runtime DOM translation via MutationObserver, stores `_originalText` per node | `src/i18n/runtime.js` | MISSING | g0router intends `react-i18next` hook-based approach |
-| PAR-UI-071 | i18n: `RuntimeI18nProvider` re-processes DOM on route change (double RAF) | `src/i18n/RuntimeI18nProvider.js:7-27` | MISSING | g0router `package.json` `sideEffects: ["src/lib/i18n.ts"]` |
-| PAR-UI-072 | i18n: locale cookie name `locale`, POST `/api/locale` to set server-side | `src/shared/components/LanguageSwitcher.js` | MISSING | g0router e2e mocks `GET/PUT /api/locale` |
+| PAR-UI-069 | i18n: 33 locales configured in `LOCALES` array | `src/i18n/config.js:1` | HAVE | `ui/src/i18n/locales.ts` mirrors ref exactly (33 codes) |
+| PAR-UI-070 | i18n: runtime DOM translation via MutationObserver, stores `_originalText` per node | `src/i18n/runtime.js` | PARTIAL | variant: `react-i18next` hook-based init in `ui/src/i18n/index.ts`; DOM scan not ported |
+| PAR-UI-071 | i18n: `RuntimeI18nProvider` re-processes DOM on route change (double RAF) | `src/i18n/RuntimeI18nProvider.js:7-27` | PARTIAL | variant: `I18nProvider` subscribes to `router.subscribe('onResolved', ...)`; mounted by w6-b |
+| PAR-UI-072 | i18n: locale cookie name `locale`, POST `/api/locale` to set server-side | `src/shared/components/LanguageSwitcher.js` | HAVE | `POST /api/locale` sets non-HttpOnly `locale` cookie; `I18nProvider.setLocale` uses `apiFetch` |
 | PAR-UI-073 | Theming: Tailwind CSS v4 with `@theme inline` and semantic tokens | `ui/src/index.css` | HAVE | `@theme inline` with primary, background, foreground, muted, border, ring tokens + dark overrides |
 | PAR-UI-074 | Theming: brand color `#E56A4A`, light `#FDFAF6`, dark `#1a1a1a` | `ui/src/index.css` | HAVE | `--color-primary: #e56a4a; --color-bg-light: #fdfaf6; --color-bg-dark: #1a1a1a` |
 | PAR-UI-075 | Theming: Zustand themeStore with `persist` middleware, key `"theme"` | `ui/src/stores/theme.ts` | HAVE | `create(persist(..., { name: 'theme' }))` with light/dark/system |
