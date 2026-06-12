@@ -138,3 +138,29 @@ findings FIXED: map amended to authorize combo-dispatch glue + ownership seriali
 note; full PAR row IDs; absence claims tied to precondition greps (verified at 7cc9b7c);
 per-element scope justification for Task 3; streaming combo test added to acceptance.
 Residual MINOR (dense mechanics) acknowledged — all mechanics pinned to cited files.
+
+## Diff-gate disposition (cycle 2, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Cycle-1 REAL findings FIXED in fixes/w5-pre-fix-r1.md (commit 9e14ed3):
+TestProductionComboDispatcherBridges (real store → real CooldownEngine→Selection→
+AccountRunner→ComboEngine→production adapter; fallback semantics asserted) and
+TestRegisterOpenAIRoutesPlumbsComboDispatcher (HTTP request through the registered
+router proves the dispatcher reaches ChatHandler) + compile assertion
+`var _ api.CredentialRefresher = (*auth.CredentialResolver)(nil)`. Cycle-2 residual
+triage (close-by-decision precedent: w4-pre closed after 2 cycles):
+- BLOCKER "combo tests not store-backed through chat HTTP": ARCHITECTURAL CONSTRAINT,
+  third occurrence of the same finding (w4-pre c1/c2, w5-pre c1). Provider base URLs
+  are catalog-hardcoded, so a full HTTP→production-adapter→real-engine→upstream test
+  requires the registry seam that does not exist (recorded w4-pre disposition). The
+  fix-r1 pair covers the chain decomposed at the fn boundary: production adapter over
+  the REAL engine+store (bridges test) + HTTP plumbing to the handler (routes test).
+  Dead production wiring now fails one of the two.
+- MAJOR "refresher plumbing untested at route level": same constraint (needs a
+  401-returning real upstream); covered by compile assertion + api-level
+  refresh-retry suite (w4-f) + resolver behavior tests (w5-pre Task 1).
+- MAJOR "test mutates global catalog.Providers": FALSE POSITIVE — the test restores
+  via t.Cleanup in BOTH branches (routes_openai_test.go:68,70), the package runs no
+  t.Parallel, and the package-level catalog map is the catalog's existing design
+  (the only seam available; same mutation pattern as existing catalog tests).
+Binary acceptance: build/vet/test/-race all green (verified live 2026-06-12).
+MERGED. Debts closed: PAR-ROUTE-023 production wiring; ErrModelTransient production
+runner; combo dispatch glue.

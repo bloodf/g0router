@@ -202,3 +202,18 @@ about those files. Re-run with exact w5-a file paths only (migrate, kv, doc,
 pricingdata, pricing, tokens, cost + tests). Cycle-1 REAL findings were fixed in
 fixes/w5-a-fix-r1.md (commit b6089ab): Store.UserPricing() kv reader, wrapped
 resolver errors, exact-match user overrides.
+
+## Diff-gate disposition (cycle 2, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Cycle-1 REAL findings FIXED in fixes/w5-a-fix-r1.md (commit b6089ab): concrete
+`Store.UserPricing()` kv reader (+TestUserPricingReadsKV); resolver errors wrapped
+("user pricing: %w"); user-override matching restricted to exact provider/model
+(baseModel stripping only in constants chain). Cycle-2 runs were BOTH artifacts:
+run A swept w5-b's interleaved files into the diff (see artifact note above); run B's
+findings are disproven by ground truth — `fakeOverrideStore`/`errPricingBoom` are
+DEFINED in `internal/usage/merged_test.go:9-17` and `TestMergedPricingAndCache`
+EXISTS at `merged_test.go:22` and PASSES (verified live: `go test ./internal/usage/
+-run TestMergedPricingAndCache` → 1 passed; full `go build && go vet && go test
+./...` green) — the file was missing from the gate's path list, the recorded
+known-gate-artifact pattern (diff-only analysis; go build is ground truth, rebutted
+3× in w4-f). MERGED. Rows flip: PAR-USAGE-004/005/006/007/008/009/010/040 → HAVE;
+001/002/003 table halves done (write semantics flip with w5-b/c).
