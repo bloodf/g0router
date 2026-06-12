@@ -6387,10 +6387,15 @@ swallowing intentional design. Suite + go vet GREEN.
 
 Next: w4-c (connection-state) — NOW UNBLOCKED (migrate.go free; w4-a merged).
 
-### w4-c — Connection/account state: locks, backoff, disabled models IN PROGRESS (2026-06-12)
+### w4-c — Connection/account state: locks, backoff, disabled models COMPLETE (2026-06-12)
 
-Commit: 70a3bc4. Diff-gate: cycle 1 running.
-Files: store/connlocks.go, store/disabledmodels.go, inference/accounts.go,
-admin/disabledmodels.go, api/models.go (+DisabledChecker), store/migrate.go,
-server/routes_admin.go.
-Suite + go vet + go test -race ./internal/inference/ ./internal/store/ GREEN.
+Plans_done: w4-c (PAR-ROUTE-012/013/014/015/025/026/049).
+Rows_flipped: PAR-ROUTE-012/013/014/015/025/026/049 MISSING→HAVE.
+Commits: 70a3bc4 (initial), c0c813a (FIX1: providerID scope + rate_limited_until + snake_case),
+794dce4 (FIX2: migrate.go provider_id + admin tests), d312de8 (FIX3: GroupRetryAfter error propagation).
+Diff-gate: CLOSED BY DECISION after 3 cycles. Real bugs fixed: providerID scoping in EarliestExpiry +
+rate_limited_until write + IsDisabled error propagation + DisabledChecker wiring + snake_case API
+(cycle 2), migrate.go provider_id commit + admin disabledmodels tests (cycle 2 carry-over),
+GroupRetryAfter error swallowing (cycle 3). Residual cycle-3 finding: backoff 2s/5min vs plan
+comment 1s/4min — REBUTTAL: plan comment is a transcription error; actual accountFallback.js:9-13
+uses base=2000ms and max=5*60*1000ms; implementation matches ref. Suite + go vet + go test -race GREEN.

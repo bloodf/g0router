@@ -39,3 +39,20 @@ VERIFIED present — `internal/translation/bypass_handler.go` EXISTS (w1, unwire
 deps (w4-c Verdict enum consumed by w4-d/e) are by-design dependency-inversion, not
 ambiguity; (d) whole-file cites for obvious stream loops. The Kimi DIFF gate at
 implementation (with full source context) is the binding check.
+
+## Implementation diff-gate disposition (2026-06-12)
+CLOSED BY DECISION after 3 cycles. HEAD: d312de8.
+Real bugs fixed per cycle:
+- Cycle 1→2: providerID scope in LockModel/EarliestExpiry, rate_limited_until write on rate-limit
+  verdict, IsDisabled errors propagated (was discarded with _), DisabledChecker wired via
+  RegisterOpenAIRoutes, snake_case provider_alias in admin API.
+- Cycle 2→3: migrate.go provider_id column staged in commit, admin/disabledmodels_test.go added
+  (TestDisabledModelsCRUD, TestDisabledModelsPostValidation, TestDisabledModelsDeleteRequiresAlias).
+- Cycle 3: GroupRetryAfter now returns (time.Time, bool, error) — EarliestExpiry errors propagated.
+Residual finding after cycle 3 (REBUTTAL — not fixed):
+- "Backoff 2s/5min vs plan 1s/4min" — plan comment transcription error; actual
+  accountFallback.js:9-13 uses base=2000ms, max=5*60*1000ms=300s; TestBackoffSchedule pins
+  exact ref behavior (2s/4s/8s…capped 300s). Implementation is correct parity.
+- "routes_openai.go TOUCH list violation" — required to wire DisabledChecker into ModelsHandler;
+  plan TOUCH list omitted this file, not scope creep.
+Suite + go vet + go test -race ./internal/inference/ ./internal/store/ ./internal/admin/ GREEN.
