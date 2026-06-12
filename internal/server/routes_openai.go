@@ -8,8 +8,11 @@ import (
 )
 
 // RegisterOpenAIRoutes adds /v1/* routes to the router.
-func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store.Store) {
+func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store.Store, refresher api.CredentialRefresher) {
 	chat := api.NewChatHandler(router_)
+	if refresher != nil {
+		chat.SetCredentialRefresher(refresher)
+	}
 	messages := api.NewMessagesHandler(router_)
 	responses := api.NewResponsesHandler(router_)
 	embeddings := api.NewEmbeddingsHandler(router_)

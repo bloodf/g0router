@@ -4,6 +4,7 @@ import (
 	"io/fs"
 
 	"github.com/bloodf/g0router/internal/admin"
+	"github.com/bloodf/g0router/internal/api"
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/store"
@@ -24,8 +25,23 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 	// Health check (public, no auth)
 	r.GET("/api/health", healthHandler())
 
+	// Credential refresher for OAuth retry paths (only when a store is present).
+	var refresher api.CredentialRefresher
+	var flows map[string]*auth.OAuthFlow
+	if st != nil {
+		flows = map[string]*auth.OAuthFlow{
+			"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
+			"gemini":    auth.NewOAuthFlow(auth.GeminiOAuth(), st, nil),
+			"xai":       auth.NewOAuthFlow(auth.XaiOAuth(), st, nil),
+		}
+		resolver := auth.NewCredentialResolver(st, flows)
+		refresher = resolver
+		infRouter.SetKeyResolver(resolver)
+		infRouter.SetAliasStore(st)
+	}
+
 	// OpenAI-compatible API routes
-	RegisterOpenAIRoutes(r, infRouter, st)
+	RegisterOpenAIRoutes(r, infRouter, st, refresher)
 
 	// Management API routes and central guard (only when a store is present).
 	var guard Middleware = func(next fasthttp.RequestHandler) fasthttp.RequestHandler {
@@ -33,13 +49,6 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 	}
 	if st != nil {
 		sessions := auth.NewSessions(st, sessionTTL)
-		flows := map[string]*auth.OAuthFlow{
-			"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
-			"gemini":    auth.NewOAuthFlow(auth.GeminiOAuth(), st, nil),
-			"xai":       auth.NewOAuthFlow(auth.XaiOAuth(), st, nil),
-		}
-		infRouter.SetKeyResolver(auth.NewCredentialResolver(st, flows))
-		infRouter.SetAliasStore(st)
 		RegisterAdminRoutes(r, admin.New(st, sessions, flows))
 		guard = (&Guard{
 			Sessions:          sessions,

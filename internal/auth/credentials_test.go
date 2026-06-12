@@ -264,3 +264,67 @@ func TestResolveKeyEmptyMetadataOK(t *testing.T) {
 		t.Errorf("psd = %v, want empty", psd)
 	}
 }
+
+func TestRefreshCredentialsByConnectionID(t *testing.T) {
+	st := newTestStore(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "rotated-at",
+			"refresh_token": "rotated-rt",
+			"expires_in":    3600,
+		})
+	}))
+	defer srv.Close()
+
+	flow := NewOAuthFlow(OAuthConfig{Provider: "xai", ClientID: "c", TokenURL: srv.URL}, st, srv.Client())
+	resolver := NewCredentialResolver(st, map[string]*OAuthFlow{"xai": flow})
+
+	st.CreateProvider(&store.ProviderRecord{Name: "xAI", Type: "xai", Enabled: true})
+	providers, _ := st.ListProviders()
+	provider := providers[0]
+
+	conn := &store.Connection{
+		ProviderID:   provider.ID,
+		Name:         "test",
+		Kind:         "oauth",
+		AccessToken:  "at-old",
+		RefreshToken: "rt-old",
+		ExpiresAt:    time.Now().Add(time.Hour).Unix(),
+	}
+	if err := st.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	tok, err := resolver.RefreshCredentials(conn.ID)
+	if err != nil {
+		t.Fatalf("RefreshCredentials: %v", err)
+	}
+	if tok != "rotated-at" {
+		t.Errorf("token = %q, want rotated-at", tok)
+	}
+
+	refreshed, err := st.GetConnection(conn.ID)
+	if err != nil {
+		t.Fatalf("GetConnection: %v", err)
+	}
+	if refreshed.AccessToken != "rotated-at" {
+		t.Errorf("AccessToken = %q, want rotated-at", refreshed.AccessToken)
+	}
+	if refreshed.RefreshToken != "rotated-rt" {
+		t.Errorf("RefreshToken = %q, want rotated-rt", refreshed.RefreshToken)
+	}
+}
+
+func TestRefreshCredentialsUnknownConnection(t *testing.T) {
+	st := newTestStore(t)
+	resolver := NewCredentialResolver(st, nil)
+
+	tok, err := resolver.RefreshCredentials("does-not-exist")
+	if err == nil {
+		t.Fatal("expected error for unknown connection")
+	}
+	if tok != "" {
+		t.Errorf("token = %q, want empty", tok)
+	}
+}

@@ -33,23 +33,27 @@ func NewCredentialResolver(st *store.Store, flows map[string]*OAuthFlow) *Creden
 	return &CredentialResolver{store: st, flows: flows, calls: map[string]*refreshCall{}}
 }
 
+// providerRecordByID finds the provider record for the given provider ID.
+func (r *CredentialResolver) providerRecordByID(providerID string) (*store.ProviderRecord, error) {
+	providers, err := r.store.ListProviders()
+	if err != nil {
+		return nil, fmt.Errorf("list providers: %w", err)
+	}
+	for _, p := range providers {
+		if p.ID == providerID {
+			return p, nil
+		}
+	}
+	return nil, fmt.Errorf("no provider record for id %s", providerID)
+}
+
 // ResolveKey finds the connection for the given provider ID, decrypts it,
 // refreshes if needed (with single-flight dedup), persists the result, and
 // returns the key plus provider-specific data.
 func (r *CredentialResolver) ResolveKey(providerID string) (schemas.Key, map[string]string, error) {
-	providers, err := r.store.ListProviders()
+	provider, err := r.providerRecordByID(providerID)
 	if err != nil {
-		return schemas.Key{}, nil, fmt.Errorf("list providers: %w", err)
-	}
-	var provider *store.ProviderRecord
-	for _, p := range providers {
-		if p.ID == providerID {
-			provider = p
-			break
-		}
-	}
-	if provider == nil {
-		return schemas.Key{}, nil, fmt.Errorf("no provider record for id %s", providerID)
+		return schemas.Key{}, nil, err
 	}
 
 	conns, err := r.store.ListConnections()
@@ -100,6 +104,27 @@ func (r *CredentialResolver) ResolveKey(providerID string) (schemas.Key, map[str
 		key.Value = conn.Secret
 	}
 	return key, psd, nil
+}
+
+// RefreshCredentials refreshes the OAuth tokens for the connection identified
+// by connectionID and persists the result. It is called by the chat handler
+// after a 401/403, so it always attempts a refresh (not gated on expiry).
+func (r *CredentialResolver) RefreshCredentials(connectionID string) (string, error) {
+	conn, err := r.store.GetConnection(connectionID)
+	if err != nil {
+		return "", fmt.Errorf("get connection %s: %w", connectionID, err)
+	}
+
+	provider, err := r.providerRecordByID(conn.ProviderID)
+	if err != nil {
+		return "", fmt.Errorf("resolve provider for connection %s: %w", connectionID, err)
+	}
+
+	refreshed, err := r.doRefresh(provider.Type, conn)
+	if err != nil {
+		return "", fmt.Errorf("refresh credentials for connection %s: %w", connectionID, err)
+	}
+	return refreshed.AccessToken, nil
 }
 
 // shouldRefresh returns true when the connection's expiry is within the
