@@ -55,3 +55,19 @@ func TestSetSettingUpdatesGetSettings(t *testing.T) {
 		t.Errorf("settings[log_level]=%q, want debug", all["log_level"])
 	}
 }
+
+func TestSetSettingLearnedTokenParam(t *testing.T) {
+	st := newTestStore(t)
+
+	key := "learned_token_param:openai:gpt-4"
+	if err := st.SetSetting(key, "max_completion_tokens"); err != nil {
+		t.Fatalf("SetSetting: %v", err)
+	}
+	got, err := st.GetSetting(key)
+	if err != nil {
+		t.Fatalf("GetSetting: %v", err)
+	}
+	if got != "max_completion_tokens" {
+		t.Errorf("GetSetting(%q)=%q, want max_completion_tokens", key, got)
+	}
+}
