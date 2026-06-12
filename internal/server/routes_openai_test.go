@@ -34,7 +34,7 @@ func TestResponsesRouteRegistered(t *testing.T) {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.SetBodyString("not found")
 	}
-	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()), nil, nil, nil)
+	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()), nil, nil, nil, nil, nil, nil)
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod("POST")
@@ -77,7 +77,7 @@ func TestRegisterOpenAIRoutesPlumbsComboDispatcher(t *testing.T) {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.SetBodyString("not found")
 	}
-	RegisterOpenAIRoutes(r, router, nil, nil, &fakeComboDispatcherForRoutes{})
+	RegisterOpenAIRoutes(r, router, nil, nil, &fakeComboDispatcherForRoutes{}, nil, nil, nil)
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod("POST")
@@ -100,7 +100,7 @@ func TestRegisterOpenAIRoutesPlumbsComboDispatcher(t *testing.T) {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.SetBodyString("not found")
 	}
-	RegisterOpenAIRoutes(r2, inference.NewRouter(translation.NewRegistry()), nil, nil, nil)
+	RegisterOpenAIRoutes(r2, inference.NewRouter(translation.NewRegistry()), nil, nil, nil, nil, nil, nil)
 
 	var ctx2 fasthttp.RequestCtx
 	ctx2.Request.Header.SetMethod("POST")

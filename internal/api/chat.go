@@ -37,6 +37,15 @@ func writeSSEStream(ctx context.Context, w streamWriter, ch chan *schemas.Stream
 	return err
 }
 
+// writeSSEStreamWithSource is the usage-aware variant of writeSSEStream.
+// src threads the request body and client format into the stream processor
+// so the finish-chunk estimation machinery can fire (PAR-TRANS-046 usage
+// clause). The returned summary exposes the accumulated content length and
+// the final usage payload for the caller to record.
+func writeSSEStreamWithSource(ctx context.Context, w streamWriter, ch chan *schemas.StreamChunk, src *translation.EstimateSource) (translation.StreamSummary, error) {
+	return translation.ProcessPassthroughStream(ctx, w, ch, src)
+}
+
 // withRequestCancel returns a cancellable context derived from reqCtx when
 // running inside a real fasthttp server. Unit tests often use a bare
 // *fasthttp.RequestCtx whose Done() panics, so the helper falls back to
@@ -112,6 +121,9 @@ type ChatHandler struct {
 	router           modelResolver
 	refresher        CredentialRefresher
 	comboDispatcher  ComboDispatcher
+	usageRecorder    UsageRecorder
+	pendingTracker   PendingTracker
+	detailCapture    DetailCapture
 }
 
 // NewChatHandler creates a chat completion handler.
@@ -128,6 +140,18 @@ func (h *ChatHandler) SetCredentialRefresher(cr CredentialRefresher) {
 func (h *ChatHandler) SetComboDispatcher(cd ComboDispatcher) {
 	h.comboDispatcher = cd
 }
+
+// SetUsageRecorder wires a consumer for request_log entries (PAR-ROUTE-054
+// attribution; consumed from w5-b).
+func (h *ChatHandler) SetUsageRecorder(r UsageRecorder) { h.usageRecorder = r }
+
+// SetPendingTracker wires a consumer for in-flight request accounting
+// (PAR-USAGE-018 wiring half).
+func (h *ChatHandler) SetPendingTracker(t PendingTracker) { h.pendingTracker = t }
+
+// SetDetailCapture wires a consumer for full request detail capture
+// (PAR-USAGE-026 production call-sites).
+func (h *ChatHandler) SetDetailCapture(d DetailCapture) { h.detailCapture = d }
 
 // classifyProviderError maps a provider error to the verdict used by the
 // account-fallback and combo engines. It reuses the w4-b classifier.
@@ -328,6 +352,11 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	// Pending-tracker start (PAR-USAGE-018 wiring half).
+	if h.pendingTracker != nil {
+		h.pendingTracker.Start(req.Model, key.Provider, key.ID)
+	}
+
 	// Stream decision (PAR-ROUTE-043): provider-required streaming, deepseek-tui,
 	// and Accept: application/json all override the client's stream field.
 	useStream := req.Stream
@@ -347,6 +376,9 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	}
 
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
+
+	// EstimateSource for stream-time usage estimation (PAR-TRANS-046 usage clause).
+	src := &translation.EstimateSource{Body: bodyMap, Format: translation.FormatOpenAI}
 
 	if useStream {
 		ctx.SetContentTypeBytes([]byte("text/event-stream"))
@@ -369,15 +401,18 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 			}
 		}
 		if perr != nil {
+			h.recordError(ctx, req.Model, key.Provider, key.ID, perr)
 			writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
 			return
 		}
 
 		streamCtx, cancel := withRequestCancel(ctx)
 		defer cancel()
-		if err := writeSSEStream(streamCtx, ctx, ch); err != nil {
-			log.Printf("chat stream error: %v", err)
+		summary, sErr := writeSSEStreamWithSource(streamCtx, ctx, ch, src)
+		if sErr != nil {
+			log.Printf("chat stream error: %v", sErr)
 		}
+		h.recordStream(ctx, req.Model, key.Provider, key.ID, summary, sErr)
 		return
 	}
 
@@ -389,6 +424,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		}, key, perr)
 	}
 	if perr != nil {
+		h.recordError(ctx, req.Model, key.Provider, key.ID, perr)
 		status := perr.StatusCode
 		if status == 0 {
 			status = fasthttp.StatusBadGateway
@@ -399,6 +435,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 
 	b, err := jsonMarshal(resp)
 	if err != nil {
+		h.recordError(ctx, req.Model, key.Provider, key.ID, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		ctx.SetContentTypeBytes([]byte("text/plain"))
 		ctx.SetBodyString("internal error")
@@ -407,4 +444,157 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	ctx.SetStatusCode(fasthttp.StatusOK)
 	ctx.SetContentTypeBytes([]byte("application/json"))
 	ctx.SetBody(b)
+
+	h.recordNonStream(ctx, req.Model, key.Provider, key.ID, resp)
+}
+
+// recordError terminates the pending request accounting and persists the
+// failure as a single request_log row + a request_details row. Called on
+// non-stream error paths (PAR-ROUTE-054, PAR-USAGE-018/026).
+func (h *ChatHandler) recordError(ctx *fasthttp.RequestCtx, model, provider, connID string, perr *schemas.ProviderError) {
+	if h.pendingTracker != nil {
+		h.pendingTracker.End(model, provider, connID, true)
+	}
+	statusCode := perr.StatusCode
+	if statusCode == 0 {
+		statusCode = 502
+	}
+	statusLabel := fmt.Sprintf("%d", statusCode)
+	if h.usageRecorder != nil {
+		_ = h.usageRecorder.Record(&UsageEntry{
+			Provider:     provider,
+			Model:        model,
+			ConnectionID: connID,
+			Endpoint:     "/v1/chat/completions",
+			Status:       "error",
+			Tokens:       map[string]int64{},
+		})
+	}
+	if h.detailCapture != nil {
+		_ = h.detailCapture.Save(RequestDetailCapture{
+			Provider:     provider,
+			Model:        model,
+			ConnectionID: connID,
+			Status:       "error",
+			Response:     map[string]any{"error": map[string]any{"message": perr.Message, "status": statusLabel}},
+		})
+	}
+}
+
+// recordNonStream terminates the pending request accounting and persists the
+// success as a single request_log row + a request_details row. Called on
+// non-stream success paths (PAR-ROUTE-054, PAR-USAGE-018/026).
+func (h *ChatHandler) recordNonStream(ctx *fasthttp.RequestCtx, model, provider, connID string, resp *schemas.ChatResponse) {
+	if h.pendingTracker != nil {
+		h.pendingTracker.End(model, provider, connID, false)
+	}
+	entry := &UsageEntry{
+		Provider:     provider,
+		Model:        model,
+		ConnectionID: connID,
+		Endpoint:     "/v1/chat/completions",
+		Status:       "ok",
+	}
+	if resp != nil && resp.Usage != nil {
+		entry.PromptTokens = int64(resp.Usage.PromptTokens)
+		entry.CompletionTokens = int64(resp.Usage.CompletionTokens)
+		entry.Tokens = map[string]int64{
+			"prompt_tokens":     entry.PromptTokens,
+			"completion_tokens": entry.CompletionTokens,
+		}
+	}
+	if h.usageRecorder != nil {
+		_ = h.usageRecorder.Record(entry)
+	}
+	if h.detailCapture != nil {
+		_ = h.detailCapture.Save(RequestDetailCapture{
+			Provider:     provider,
+			Model:        model,
+			ConnectionID: connID,
+			Status:       "success",
+			Tokens:       entry.Tokens,
+			Response:     resp,
+		})
+	}
+}
+
+// recordStream terminates the pending request accounting and persists the
+// stream's accumulated/estimated usage + a request_details row. Called on
+// stream completion (success or error). src is unused here because the
+// processor already applied the estimation machinery.
+func (h *ChatHandler) recordStream(ctx *fasthttp.RequestCtx, model, provider, connID string, summary translation.StreamSummary, sErr error) {
+	isError := sErr != nil
+	if h.pendingTracker != nil {
+		h.pendingTracker.End(model, provider, connID, isError)
+	}
+	status := "ok"
+	if isError {
+		status = "error"
+	}
+	entry := &UsageEntry{
+		Provider:     provider,
+		Model:        model,
+		ConnectionID: connID,
+		Endpoint:     "/v1/chat/completions",
+		Status:       status,
+	}
+	if summary.Usage != nil {
+		entry.PromptTokens = int64(extractInt(summary.Usage, "prompt_tokens"))
+		entry.CompletionTokens = int64(extractInt(summary.Usage, "completion_tokens"))
+		entry.Tokens = map[string]int64{}
+		if v, ok := summary.Usage["prompt_tokens"]; ok {
+			entry.Tokens["prompt_tokens"] = int64(toFloat(v))
+		}
+		if v, ok := summary.Usage["completion_tokens"]; ok {
+			entry.Tokens["completion_tokens"] = int64(toFloat(v))
+		}
+	}
+	if h.usageRecorder != nil {
+		_ = h.usageRecorder.Record(entry)
+	}
+	if h.detailCapture != nil {
+		capture := RequestDetailCapture{
+			Provider:     provider,
+			Model:        model,
+			ConnectionID: connID,
+			Status:       status,
+			Tokens:       entry.Tokens,
+		}
+		if isError {
+			capture.Response = map[string]any{"error": sErr.Error()}
+		}
+		_ = h.detailCapture.Save(capture)
+	}
+}
+
+// extractInt / toFloat / toFloatMapInt64: small helpers for pulling numeric
+// fields out of an untyped usage map. Kept local to avoid exposing them
+// across the package.
+func extractInt(m map[string]any, key string) int {
+	if v, ok := m[key]; ok {
+		return int(toFloat(v))
+	}
+	return 0
+}
+
+func toFloat(v any) float64 {
+	switch x := v.(type) {
+	case int:
+		return float64(x)
+	case int32:
+		return float64(x)
+	case int64:
+		return float64(x)
+	case uint:
+		return float64(x)
+	case uint32:
+		return float64(x)
+	case uint64:
+		return float64(x)
+	case float32:
+		return float64(x)
+	case float64:
+		return x
+	}
+	return 0
 }

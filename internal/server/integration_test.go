@@ -62,7 +62,7 @@ func newIntegrationEnv(t *testing.T) (*integrationEnv, *store.Store) {
 	r := httprouter.New()
 	r.NotFound = uiHandler(testUIFS())
 	r.GET("/api/health", healthHandler())
-	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()), nil, nil, nil)
+	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()), nil, nil, nil, nil, nil, nil)
 	RegisterAdminRoutes(r, admin.New(st, sessions, flows))
 
 	srv := &fasthttp.Server{Handler: Chain(r.Handler, RequestIDMiddleware, CORSMiddleware(nil))}
