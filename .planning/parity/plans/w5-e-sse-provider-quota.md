@@ -7,16 +7,22 @@ Frozen ref @ 827e5c3. Depends: w5-b (Events/Tracker/Ring), w5-d (StatsService +
 routes_admin.go merged — this plan edits routes_admin.go SERIALLY after w5-d),
 w5-pre (production refresher).
 
-## Stage-1 scope note (PAR-USAGE-032, from WAVE-5-MAP)
-Ref dispatcher `open-sse/services/usage.js:60-101` covers
-github/gemini-cli/antigravity/claude/codex/kiro/qoder/qwen/iflow/ollama/glm/minimax.
-Stage-1 ships the DISPATCHER plus the two fetchers whose providers have Stage-1 OAuth
-flows (W3: anthropic/gemini/xai): **claude** (`usage.js:497-614`) and **gemini**
-(`usage.js:225-342`). xai has no usage fetcher in the ref (not in the dispatcher
-switch). All other fetchers defer to Stage 2 with their providers; unknown providers
-return the ref's fallback `{message: "Usage API not implemented for <provider>"}`
+## Stage-1 scope note (PAR-USAGE-032 — authorized by WAVE-5-MAP, supplied as gate context)
+`WAVE-5-MAP.md` §Stage-1 scope decisions: "PARTIAL Stage-1 (2): 032/033
+provider-quota API … Stage-1 ships the dispatcher + claude and gemini fetchers — the
+only Stage-1 providers with OAuth flows (W3 shipped anthropic/gemini/xai; xai has no
+usage endpoint in the ref)." The structural reason the other six fetchers CANNOT ship
+now: their providers do not exist in g0router — the Stage-1 catalog holds only the 11
+Stage-1 entries (`internal/providers/catalog/catalog.go:26-27` "Only the 11 Stage-1
+entries are…"), and github/antigravity/codex/kiro/glm/minimax have neither adapters
+nor OAuth flows (`internal/server/server.go` flows map = anthropic/gemini/xai) — a
+fetcher whose provider cannot be connected is dead code. This mirrors the recorded
+W3 precedent (`WAVE-3-MAP.md` §Stage-1 scope: OAuth handlers ONLY for providers
+whose adapters exist). Ref dispatcher `open-sse/services/usage.js:60-101`; claude
+fetcher `usage.js:497-614`; gemini `usage.js:225-342`; unknown providers return the
+ref's fallback `{message: "Usage API not implemented for <provider>"}`
 (`usage.js:95-96`). Row 032 flips to PARTIAL (Stage-1 half), recorded in the matrix
-note.
+note — same mechanism as PAR-AUTH-020's Stage-1 half (w3-e precedent).
 
 ## Tasks
 
@@ -31,12 +37,17 @@ note.
    StatsService + w5-b Events; emit "update" → two SSE data frames (quick then full));
    `TestUsageStreamPendingLightweight` (emit "pending" → one frame, stats source NOT
    recalled for full stats); `TestUsageStreamKeepalive` (injected ticker → `: ping`
-   comment frame); `TestUsageStreamUnsubscribesOnClose` (close client → callback
-   count in Events stops growing; no goroutine leak via goleak-style channel check) —
-   run — fail.
+   comment frame); `TestUsageStreamUnsubscribesOnClose` (BINARY assertion: after the
+   client writer closes, `Emit("update")` twice more → the captured frame count does
+   NOT increase AND the handler goroutine returns within 1s, observed via a
+   done-channel the test selects on) — run — fail.
    STEP (b): NEW `internal/admin/usagestream.go`: `UsageStream` handler on
-   `*Handlers` using fasthttp streaming body writer; subscribes via w5-b
-   `Events.OnEvent`; injected keepalive interval (default 25s); register
+   `*Handlers` (struct defined at `internal/admin/handlers.go` — the type every
+   admin endpoint hangs off; the staged deps on w5-b `Events.OnEvent` and w5-d
+   `StatsService` are by-design dependency-inversion across already-gated plans —
+   the recorded W4 precedent: w4-c's Verdict enum consumed by w4-d/e) using fasthttp
+   streaming body writer; keepalive interval as a struct field with production value
+   `25 * time.Second` (PAR-USAGE-035), test-injected smaller; register
    GET `/api/usage/stream` in `internal/server/routes_admin.go` under
    `RequireSession`.
 
@@ -73,10 +84,13 @@ note.
    fetch returns quotas → 200 quotas; refresher called exactly once),
    `TestConnectionUsageNonOAuthMessage` — run — fail.
    STEP (b): NEW `internal/admin/connectionusage.go`: GET
-   `/api/usage/connections/{id}` (g0router route shape — `{connectionId}` directly
-   under /api/usage would shadow w5-d's literal routes in fasthttp/router; recorded
-   adaptation) registered in routes_admin.go under `RequireSession`; uses store
-   GetConnection, w5-pre refresher, and Task-2 dispatcher.
+   `/api/usage/{connectionId}` — the REF-EXACT route shape
+   (`src/app/api/usage/[connectionId]/route.js`). Coexistence with w5-d's static
+   `/api/usage/stats|chart|...` routes is VERIFIED empirically (2026-06-12,
+   fasthttp/router: registering `/api/usage/stats` + `/api/usage/{connectionId}`
+   on one router → no panic, both resolve; static segments win over the param).
+   Registered in routes_admin.go under `RequireSession`; uses store GetConnection,
+   w5-pre refresher, and Task-2 dispatcher.
 
 ## Preconditions (each states its own pass condition)
 - `grep -c 'OnEvent' internal/usage/events.go` ≥ 1 (w5-b merged).
@@ -91,8 +105,8 @@ NEW: `internal/admin/usagestream.go`(+test), `internal/admin/connectionusage.go`
 
 ## Binary acceptance
 - `go build ./... && go vet ./...` clean; `go test ./...` green; `go test -race ./internal/admin/ ./internal/usage/` green.
-- `grep -c '/api/usage/stream\|/api/usage/connections/' internal/server/routes_admin.go` ≥ 2.
-- `grep -c '25' internal/admin/usagestream.go` ≥ 1 (default keepalive constant).
+- `grep -c '/api/usage/stream\|/api/usage/{connectionId}' internal/server/routes_admin.go` ≥ 2.
+- `grep -c '25 \* time.Second' internal/admin/usagestream.go` = 1 (production keepalive constant, PAR-USAGE-035).
 - TestUsageStreamPushesOnUpdate, TestUsageStreamPendingLightweight,
   TestUsageStreamKeepalive, TestUsageStreamUnsubscribesOnClose,
   TestClaudeUsageFetcher, TestGeminiUsageFetcher,

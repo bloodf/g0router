@@ -11,12 +11,14 @@ Frozen ref @ 827e5c3. Depends: w5-a + w5-b + w5-c merged. Serial: w5-e edits
 
 Ref route inventory (verified against frozen tree, `src/app/api/`):
 `/api/usage/stats`, `/api/usage/chart`, `/api/usage/request-logs` (getRecentLogs 200,
-`request-logs/route.js:4-13`), `/api/usage/logs` (IDENTICAL body — also
-getRecentLogs(200), `logs/route.js:4-12` — registered here as an alias to the same
-handler), `/api/usage/history` (bare getUsageStats() default period,
-`history/route.js:4-12` — alias to the stats handler with period="all"),
-`/api/usage/request-details` (filters+pagination, pageSize cap 100), `/api/pricing`
-(GET/PATCH/DELETE). EXCLUDED with evidence: `/api/usage/providers`
+`request-logs/route.js:4-13` — the path PAR-USAGE-037 cites), `/api/usage/logs`
+(IDENTICAL body — also getRecentLogs(200), `logs/route.js:4-12`; REQUIRED by the
+matrix itself: `matrix/9router-usage.md:125` Go-port considerations list
+`/api/usage/logs` among the admin routes to add — both names register the one
+handler), `/api/usage/request-details` (filters+pagination, pageSize cap 100),
+`/api/pricing` (GET/PATCH/DELETE). EXCLUDED with evidence: `/api/usage/history`
+(`history/route.js:4-12` is a bare getUsageStats() duplicate of the stats route with
+no PAR row and no matrix Go-port mention — not ported); `/api/usage/providers`
 (`providers/route.js:1-40` builds a provider-dropdown list for the RequestDetails UI
 panel from request-details rows — a UI filter helper with no PAR row; ships with the
 W6 UI wave that renders that panel); `/api/usage/{connectionId}` (PAR-USAGE-032/033
@@ -39,10 +41,14 @@ W6 UI wave that renders that panel); `/api/usage/{connectionId}` (PAR-USAGE-032/
    lines 372-375) — this plan CONSUMES them read-only through w5-b's existing
    `Tracker` snapshot / `Ring` + `DedupeRecent` APIs; the PAR-USAGE-018/019
    implementations remain w5-b's, untouched here.
-   STEP (a): `TestUsageStatsDailyPath` (seed usage_daily 2 days + request_log overlay
+   STEP (a): store-level FIRST — `TestLoadDailyRange` (seed 4 usage_daily rows;
+   maxDays=2 → only rows at/after the dateKey cutoff; nil maxDays → all) and
+   `TestRangeRequestLogs` (ISO window bounds inclusive per `usageRepo.js:403-405`)
+   in `internal/store/requestlog_test.go`; then service-level
+   `TestUsageStatsDailyPath` (seed usage_daily 2 days + request_log overlay
    rows → 7d stats: totals, all five breakdowns' key shapes, provider display-name
    mapping) and `TestUsageStatsLivePath` (today/24h reads request_log only; cutoff =
-   start-of-day vs now-24h) — fail.
+   start-of-day vs now-24h) — all fail before implementation.
    STEP (b): NEW `internal/usage/stats.go`: `StatsService` over interfaces
    `UsageReader` (daily range + log range reads — implemented by store),
    `NameSource` (connection map — w5-b ConnNameCache; provider id→name; api-key
@@ -121,10 +127,10 @@ W6 UI wave that renders that panel); `/api/usage/{connectionId}` (PAR-USAGE-032/
    STEP (b): NEW `internal/admin/usage.go` + `internal/admin/pricing.go` handlers on
    `*Handlers` using the `{data, error}` envelope (`internal/admin/respond.go:10-17`)
    and snake_case JSON (AGENTS.md); register in `internal/server/routes_admin.go`
-   under `RequireSession`: GET `/api/usage/stats` (+ alias `/api/usage/history`,
-   period fixed "all"), `/api/usage/chart`, `/api/usage/request-logs` (+ alias
-   `/api/usage/logs` — same handler, `logs/route.js:4-12` is byte-equivalent),
-   `/api/usage/request-details`; GET+PATCH+DELETE `/api/pricing`. Wire StatsService/Resolver construction in
+   under `RequireSession`: GET `/api/usage/stats`, `/api/usage/chart`,
+   `/api/usage/request-logs` AND `/api/usage/logs` (one handler, two registrations —
+   `matrix/9router-usage.md:125` requires `/api/usage/logs`; PAR-USAGE-037 cites
+   `request-logs`), `/api/usage/request-details`; GET+PATCH+DELETE `/api/pricing`. Wire StatsService/Resolver construction in
    `internal/server/routes_admin.go`'s handler bootstrap (follow `NewAdminHandlers`,
    `routes_admin.go:15-23`).
 
@@ -144,13 +150,14 @@ routes_admin.go; w5-f owns internal/api (disjoint).
 
 ## Binary acceptance
 - `go build ./... && go vet ./...` clean; `go test ./...` green; `go test -race ./internal/usage/ ./internal/admin/ ./internal/store/` green.
-- `grep -c '/api/usage/stats\|/api/usage/chart\|/api/usage/request-logs\|/api/usage/request-details' internal/server/routes_admin.go` ≥ 4; `grep -c '/api/pricing' internal/server/routes_admin.go` ≥ 3 (GET/PATCH/DELETE).
-- TestUsageStatsDailyPath, TestUsageStatsLivePath, TestLast10MinuteBuckets,
+- `grep -c '/api/usage/stats\|/api/usage/chart\|/api/usage/request-logs\|/api/usage/logs\|/api/usage/request-details' internal/server/routes_admin.go` ≥ 5; method-explicit registration checks: `grep -c 'r.GET("/api/pricing"' internal/server/routes_admin.go` = 1, `grep -c 'r.PATCH("/api/pricing"' ...` = 1, `grep -c 'r.DELETE("/api/pricing"' ...` = 1.
+- TestLoadDailyRange, TestRangeRequestLogs, TestUsageStatsDailyPath, TestUsageStatsLivePath, TestLast10MinuteBuckets,
   TestLastUsedOverlay, TestChartToday, TestChartDailyZeroFill, TestRecentLogsFormat,
   TestUpdatePricingMergesPerProvider, TestResetPricing, TestPricingPatchValidation,
   TestRequestDetailsRouteValidation all pass.
 
 ## Out of scope
 SSE `/api/usage/stream` + per-connection provider quota (w5-e). Wiring usage capture
-into chat/messages handlers (w5-f). UI (W6). `/api/usage/logs`, `/api/usage/history`,
-`/api/usage/providers` legacy sibling routes (no PAR row).
+into chat/messages handlers (w5-f). UI (W6). `/api/usage/history` and
+`/api/usage/providers` (excluded with evidence in §Ref route inventory; NOTE
+`/api/usage/logs` IS in scope — required by `matrix/9router-usage.md:125`).

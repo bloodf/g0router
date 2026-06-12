@@ -1,11 +1,20 @@
 # w5-f — Pipeline usage glue (ONLY internal/api editor of the concurrent phase)
 
-PAR rows: PAR-TRANS-046 (usage clause — flips PARTIAL→HAVE), PAR-ROUTE-054, plus the
-WIRING halves of PAR-USAGE-003 (detail capture call-sites), PAR-USAGE-012
-(saveRequestUsage invoked after provider response), PAR-USAGE-018 (pending start/end
-around dispatch). Deferral provenance: PAR-ROUTE-054 deferred from W4
-(`WAVE-4-MAP.md` §Stage-1 scope: "054 request-log attribution → Wave 5");
-PAR-TRANS-046 usage clause deferred from W1 (`WAVE-MAP.md:55`).
+PAR rows: PAR-TRANS-046 (usage clause — flips PARTIAL→HAVE; row text,
+`matrix/9router-translation.md:55`: "Central stream processor … tracks TTFT,
+accumulates content/thinking lengths, ESTIMATES USAGE ON FINISH … g0router
+`internal/api/chat.go` writes raw chunks; NO ACCUMULATION OR USAGE ESTIMATION" —
+the estimation machinery is exactly what Tasks 1-2 port), PAR-ROUTE-054, plus the
+HANDLER-WIRING gaps the usage matrix itself names: PAR-USAGE-012 (row NOTE:
+"Chat/embed handlers do not extract usage" — that note IS this plan's gap) and the
+matrix Go-port directive `matrix/9router-usage.md:124` ("Wire usage extraction into
+chat/embeddings handlers after provider response"); PAR-USAGE-018 wiring half
+(pending start/end around dispatch — tracker built in w5-b, call-sites here);
+PAR-USAGE-026 production call-sites (the buffered writer built in w5-c is dead code
+until the handlers call Save — `chatCore.js:196,242` are those call-sites in the
+ref). Deferral provenance: PAR-ROUTE-054 deferred from W4 (`WAVE-4-MAP.md` §Stage-1
+scope: "054 request-log attribution → Wave 5"); PAR-TRANS-046 usage clause deferred
+from W1 (`WAVE-MAP.md:55`).
 NOT in scope: any admin route (w5-d/e), store/domain write logic (w5-a/b/c — consumed
 here, not modified), virtual keys (w5-g).
 Frozen ref @ 827e5c3. Depends: w5-b + w5-c merged. Runs ∥ w5-d/e (api vs admin files).
@@ -73,14 +82,19 @@ Frozen ref @ 827e5c3. Depends: w5-b + w5-c merged. Runs ∥ w5-d/e (api vs admin
    `TestMessagesRecordsUsage`, `TestEmbeddingsRecordsUsage` (endpoint attribution
    varies per route) — run — fail.
    STEP (b): in `internal/api`: small consumer interfaces (api imports neither store
-   nor usage — w4-e ComboLister precedent): `UsageRecorder`, `PendingTracker`,
+   nor usage — the established seam precedent `internal/api/models.go:17-19`
+   `ComboLister` interface, w4-e): `UsageRecorder`, `PendingTracker`,
    `DetailCapture`; setters on Chat/Messages/Embeddings/Responses handlers; glue:
    Start before dispatch; on completion End + Record (+ Detail) with endpoint =
    route path; on error End(error=true) + Record(status=error) + Detail. Server
-   wiring: construct Recorder/Tracker/DetailWriter (w5-b/c) in `internal/server`
-   (routes_openai.go bootstrap — produced by w5-pre's signature change) and inject;
-   also call `DetailWriter.Close()` on server shutdown (the hook w5-c deferred
-   here).
+   wiring: construct Recorder/Tracker/DetailWriter (w5-b/c) in `internal/server` and
+   inject through `RegisterOpenAIRoutes` — whose dependency-injection signature
+   ALREADY exists post-w5-pre (`internal/server/routes_openai.go:11` now takes
+   `refresher api.CredentialRefresher, comboDisp api.ComboDispatcher`; this plan
+   extends the same pattern). Also call `DetailWriter.Close()` on server shutdown —
+   the hook w5-c EXPLICITLY deferred here (`w5-c-observability.md` §Task 4: "explicit
+   `Close()` called from server shutdown is OUT of this plan's files" and §Out of
+   scope: "the server Close hook ships with w5-f's glue").
 
 ## Preconditions (each states its own pass condition)
 - `grep -c 'func (r \*Recorder) Record\|func (.*Recorder) Record' internal/usage/recorder.go` ≥ 1 (w5-b merged).
@@ -92,8 +106,12 @@ Frozen ref @ 827e5c3. Depends: w5-b + w5-c merged. Runs ∥ w5-d/e (api vs admin
 NEW: `internal/translation/usage_tracking.go`(+test). TOUCH:
 `internal/translation/stream.go`(+test),
 `internal/api/{chat,messages,responses,embeddings}.go`(+tests),
-`internal/server/{server,routes_openai}.go`(+tests — wiring only). NO
-routes_admin.go (w5-d/e), NO store or usage files (consumed via interfaces/calls).
+`internal/server/{server,routes_openai}.go`(+tests — wiring only). NO concurrency
+conflict: the plans running in the same phase touch DISJOINT files — w5-d's
+ownership is `internal/admin/* + internal/server/routes_admin.go + store read
+queries` and w5-e's is `internal/admin/* + routes_admin.go` (their §Exclusive file
+ownership sections); NEITHER touches server.go/routes_openai.go/internal/api. NO
+routes_admin.go here, NO store or usage files (consumed via interfaces/calls).
 
 ## Binary acceptance
 - `go build ./... && go vet ./...` clean; `go test ./...` green; `go test -race ./internal/api/ ./internal/translation/ ./internal/server/` green.
