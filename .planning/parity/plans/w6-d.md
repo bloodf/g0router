@@ -22,7 +22,7 @@ Serial slot: `internal/server/routes_admin.go` — w6-d is the 2nd w6 holder (af
 
 ## 2. Precondition checks (run before writing any code)
 
-1. **Read the ref locale list FIRST:** `/home/cortexos/Developer/github.com/bloodf/_refs/9router/src/i18n/config.js` — extract the LOCALES array. Count MUST be exactly 39. If the count differs, STOP and report; do not invent or trim locales.
+1. **Read the ref locale list FIRST:** `/home/cortexos/Developer/github.com/bloodf/_refs/9router/src/i18n/config.js` — extract the LOCALES array. Count MUST be exactly 33. If the count differs, STOP and report; do not invent or trim locales.
 2. Confirm w6-a is merged: `ui/src/lib/apiFetch` and the stores exist on `main`.
 3. Confirm `internal/server/routes_admin.go` has w6-pre's routes and no uncommitted edits (`git status` clean for that file) — serial-slot handoff is clean.
 4. Read 3 existing admin handlers (e.g., w6-pre's additions in `internal/admin/`) to match handler + envelope patterns before writing `locale.go`.
@@ -38,7 +38,7 @@ UI — new directory `ui/src/i18n/` (no other task touches it):
 - `ui/src/providers/i18n.tsx` — `I18nProvider`: mounts react-i18next, reads `locale` cookie for initial language, subscribes to TanStack Router route changes (PAR-UI-071 variant), exposes `setLocale` that calls `POST /api/locale` via `apiFetch` then `i18n.changeLanguage`.
 
 Go — new files plus one append-only slot:
-- `internal/admin/locale.go` — handler + locale validation list (39 codes, same source).
+- `internal/admin/locale.go` — handler + locale validation list (33 codes, same source).
 - `internal/admin/locale_test.go` — tests first (TDD).
 - `internal/server/routes_admin.go` — APPEND ONLY: register `POST /api/locale`. PAR-UI-072 only requires POST; no GET endpoint. No reordering, no edits to existing lines.
 
@@ -63,12 +63,12 @@ with `grep -r "i18n" .planning/parity/plans/w6-b.md` — w6-b must not list `i18
    - `TestPostLocaleSetsCookie` — `POST /api/locale` body `{"locale":"pt-BR"}` → 200, envelope `{data:{locale:"pt-BR"}, error:null}`, `Set-Cookie: locale=pt-BR; Path=/; SameSite=Lax` (NOT HttpOnly — locale is a non-sensitive pref; JS must read it to hydrate the initial language on page load).
    - `TestPostLocaleRejectsUnknown` — body `{"locale":"xx-XX"}` → 400, `data:null`, error message names the invalid locale. Also: empty body / malformed JSON → 400.
 2. Run `go test ./internal/admin/` — confirm failures are compile/404-shaped (right reason).
-3. Implement `internal/admin/locale.go` minimally: validate against the 39-code set, set cookie, return envelope. No auth middleware — `POST /api/locale` is a UI preference endpoint. Ref evidence: `src/shared/components/LanguageSwitcher.js:96` (9router frozen ref @ 827e5c3): `await fetch("/api/locale", { method: "POST", ... body: JSON.stringify({ locale: nextLocale }) })` — no Authorization header, no session header.
+3. Implement `internal/admin/locale.go` minimally: validate against the 33-code set, set cookie, return envelope. No auth middleware — `POST /api/locale` is a UI preference endpoint. Ref evidence: `src/shared/components/LanguageSwitcher.js:96` (9router frozen ref @ 827e5c3): `await fetch("/api/locale", { method: "POST", ... body: JSON.stringify({ locale: nextLocale }) })` — no Authorization header, no session header.
 4. Append route(s) in `routes_admin.go`; tests green; `go vet ./...` green.
 
 **T2 — UI locale catalog (test first):**
-1. Write `ui/src/i18n/locales.test.ts`: LOCALES has exactly 39 entries; codes are unique; every entry has non-empty `code`, `name`, `flag`; every code has a matching `locales/<code>.json`.
-2. See it fail; create `locales.ts` (transcribed from ref) + 39 JSON files; green.
+1. Write `ui/src/i18n/locales.test.ts`: LOCALES has exactly 33 entries; codes are unique; every entry has non-empty `code`, `name`, `flag`; every code has a matching `locales/<code>.json`.
+2. See it fail; create `locales.ts` (transcribed from ref) + 33 JSON files; green.
 
 **T3 — i18n init + provider (test first):**
 
@@ -94,8 +94,8 @@ Initial locale: read `document.cookie` for `locale=` segment on mount; fall back
 
 ## 5. Binary acceptance criteria
 
-- [ ] `LOCALES` in `ui/src/i18n/locales.ts` has exactly 39 entries, codes identical to ref `config.js` (PAR-UI-069).
-- [ ] 39 files exist under `ui/src/i18n/locales/`, one per code, all valid JSON.
+- [ ] `LOCALES` in `ui/src/i18n/locales.ts` has exactly 33 entries, codes identical to ref `config.js` (PAR-UI-069).
+- [ ] 33 files exist under `ui/src/i18n/locales/`, one per code, all valid JSON.
 - [ ] `grep -r "MutationObserver" ui/src/i18n ui/src/providers` returns nothing; `ui/src/i18n/runtime.js` does not exist (PAR-UI-070 variant).
 - [ ] `I18nProvider` subscribes to TanStack Router route changes; no DOM re-scan (PAR-UI-071 variant).
 - [ ] `POST /api/locale` with a valid code → 200, snake_case `{data,error}` envelope, cookie `locale` set with `Path=/; SameSite=Lax` (NOT HttpOnly — JS-readable locale pref) (PAR-UI-072).
@@ -122,6 +122,7 @@ internal/admin/locale.go          (new)
 internal/admin/locale_test.go     (new)
 internal/server/routes_admin.go   (append-only hunk)
 docs/WORKFLOW.md                  (merge entry on close)
+.planning/parity/matrix/9router-ui.md  (PAR-UI-069/070/071/072 row flips on close)
 ```
 
 Gate checks: no edits to frozen w6-a files; no `runtime.js`; `routes_admin.go` hunk is additive only; no files intersecting w6-b's claim list; `ui/package.json` unchanged (no new deps); PAR-UI-070/071 flipped to PARTIAL (HAVE deferred to w6-b mount).
