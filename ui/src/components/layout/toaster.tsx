@@ -25,9 +25,8 @@ export function AppToaster() {
   }, [toasts]);
 
   return (
-    <>
-      <div data-sonner-toaster style={{ display: "none" }} aria-hidden="true" />
+    <div data-testid="app-toaster">
       <Toaster position="bottom-right" />
-    </>
+    </div>
   );
 }

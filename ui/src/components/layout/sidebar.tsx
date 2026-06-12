@@ -63,6 +63,11 @@ export const NAV_ITEMS = [
   { label: "Console", to: "/console", icon: Terminal },
 ];
 
+const linkClass =
+  "flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted transition-colors";
+const activeLinkClass =
+  "flex items-center gap-3 px-3 py-2 rounded-md text-sm bg-primary/10 text-primary font-medium";
+
 export function Sidebar() {
   const updateAvailable = useSettingsStore((state) => state.updateAvailable);
   const latestVersion = useSettingsStore((state) => state.latestVersion);
@@ -81,57 +86,181 @@ export function Sidebar() {
       <div className="px-4 pb-3 font-bold text-lg text-foreground">g0router</div>
 
       <nav className="flex-1 overflow-y-auto px-2">
-        {/*
-          nav link targets:
-          to="/dashboard"
-          to="/providers"
-          to="/connections"
-          to="/combos"
-          to="/usage"
-          to="/logs"
-          to="/traffic"
-          to="/quota"
-          to="/pricing"
-          to="/virtual-keys"
-          to="/routing-rules"
-          to="/model-limits"
-          to="/aliases"
-          to="/teams"
-          to="/audit"
-          to="/feature-flags"
-          to="/guardrails"
-          to="/prompts"
-          to="/alerts"
-          to="/mcp"
-          to="/skills"
-          to="/settings"
-          to="/keys"
-          to="/endpoint"
-          to="/tunnels"
-          to="/mitm"
-          to="/proxy-pools"
-          to="/chat"
-          to="/console"
-        */}
         <ul className="space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.to}>
-                <Link
-                  to={item.to}
-                  className="flex items-center gap-3 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-muted transition-colors"
-                  activeProps={{
-                    className:
-                      "flex items-center gap-3 px-3 py-2 rounded-md text-sm bg-primary/10 text-primary font-medium",
-                  }}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{item.label}</span>
-                </Link>
-              </li>
-            );
-          })}
+          <li>
+            <Link to="/dashboard" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <LayoutDashboard className="w-4 h-4 shrink-0" />
+              <span>Dashboard</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/providers" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Server className="w-4 h-4 shrink-0" />
+              <span>Providers</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/connections" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Link2 className="w-4 h-4 shrink-0" />
+              <span>Connections</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/combos" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Activity className="w-4 h-4 shrink-0" />
+              <span>Combos</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/usage" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <BarChart3 className="w-4 h-4 shrink-0" />
+              <span>Usage</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/logs" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <ScrollText className="w-4 h-4 shrink-0" />
+              <span>Logs</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/traffic" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Activity className="w-4 h-4 shrink-0" />
+              <span>Traffic</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/quota" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Gauge className="w-4 h-4 shrink-0" />
+              <span>Quota</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/pricing" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <CreditCard className="w-4 h-4 shrink-0" />
+              <span>Pricing</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/virtual-keys" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <KeyRound className="w-4 h-4 shrink-0" />
+              <span>Virtual Keys</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/routing-rules" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Route className="w-4 h-4 shrink-0" />
+              <span>Routing Rules</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/model-limits" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <SlidersHorizontal className="w-4 h-4 shrink-0" />
+              <span>Model Limits</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/aliases" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Tag className="w-4 h-4 shrink-0" />
+              <span>Aliases</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/teams" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Users className="w-4 h-4 shrink-0" />
+              <span>Teams</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/audit" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <ClipboardCheck className="w-4 h-4 shrink-0" />
+              <span>Audit</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/feature-flags" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Flag className="w-4 h-4 shrink-0" />
+              <span>Feature Flags</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/guardrails" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <ShieldAlert className="w-4 h-4 shrink-0" />
+              <span>Guardrails</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/prompts" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <FileText className="w-4 h-4 shrink-0" />
+              <span>Prompts</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/alerts" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Bell className="w-4 h-4 shrink-0" />
+              <span>Alerts</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/mcp" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Bot className="w-4 h-4 shrink-0" />
+              <span>MCP</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/skills" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Brain className="w-4 h-4 shrink-0" />
+              <span>Skills</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/settings" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Settings className="w-4 h-4 shrink-0" />
+              <span>Settings</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/keys" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Key className="w-4 h-4 shrink-0" />
+              <span>Keys</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/endpoint" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Globe className="w-4 h-4 shrink-0" />
+              <span>Endpoint</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/tunnels" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Waypoints className="w-4 h-4 shrink-0" />
+              <span>Tunnels</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/mitm" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <ArrowLeftRight className="w-4 h-4 shrink-0" />
+              <span>MITM</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/proxy-pools" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Network className="w-4 h-4 shrink-0" />
+              <span>Proxy Pools</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/chat" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <MessageSquare className="w-4 h-4 shrink-0" />
+              <span>Chat</span>
+            </Link>
+          </li>
+          <li>
+            <Link to="/console" className={linkClass} activeProps={{ className: activeLinkClass }}>
+              <Terminal className="w-4 h-4 shrink-0" />
+              <span>Console</span>
+            </Link>
+          </li>
         </ul>
       </nav>
 

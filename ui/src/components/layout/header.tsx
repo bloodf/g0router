@@ -51,8 +51,8 @@ export function Header({ onMenuClick }: HeaderProps) {
       </button>
 
       <div className="flex-1 min-w-0">
-        <div className="text-xs text-muted-foreground">Home / {title}</div>
-        <h1 className="text-lg font-semibold text-foreground truncate">{title}</h1>
+        <div data-testid="breadcrumbs" className="text-xs text-muted-foreground">Home / {title}</div>
+        <h1 data-testid="page-title" className="text-lg font-semibold text-foreground truncate">{title}</h1>
       </div>
 
       <input

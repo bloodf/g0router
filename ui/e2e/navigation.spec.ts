@@ -21,6 +21,8 @@ test.describe("Navigation", () => {
   });
 
   test("sidebar shows update badge when settingsStore.updateAvailable", async ({ page }) => {
+    await page.goto("/dashboard");
+    await expect(page.locator('[data-testid="update-badge"]')).not.toBeVisible();
     await page.addInitScript(() => {
       localStorage.setItem(
         "settings",
@@ -35,6 +37,8 @@ test.describe("Navigation", () => {
 
   test("header renders title, breadcrumbs, search, and null slots", async ({ page }) => {
     await page.goto("/dashboard");
+    await expect(page.getByTestId("page-title")).toBeVisible();
+    await expect(page.getByTestId("breadcrumbs")).toBeVisible();
     await expect(page.getByPlaceholder(/search/i)).toBeVisible();
     await page.getByPlaceholder(/search/i).fill("hello");
     await expect(page.getByPlaceholder(/search/i)).toHaveValue("hello");
@@ -48,8 +52,8 @@ test.describe("Navigation", () => {
 
   test("toaster is mounted", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.locator("[data-sonner-toaster]")).toBeAttached();
-    await expect(page.locator("[data-sonner-toaster]")).toHaveCount(1);
+    await expect(page.locator('[data-testid="app-toaster"]')).toBeAttached();
+    await expect(page.locator('[data-testid="app-toaster"]')).toHaveCount(1);
   });
 
   test("theme=dark in localStorage applies .dark to <html>", async ({ page }) => {
