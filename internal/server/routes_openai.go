@@ -24,5 +24,5 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 	r.POST("/v1/responses", responses.Handle)
 	r.POST("/v1/embeddings", embeddings.Handle)
 	r.GET("/v1/models", models.List)
-	r.GET("/v1/models/{id}", models.Get)
+	r.GET("/v1/models/{param}", models.GetOrByKind)
 }

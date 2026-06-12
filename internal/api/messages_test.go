@@ -263,3 +263,143 @@ func TestMessagesHandlerStreamingAbortsOnErrorChunk(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+// captureMessagesProvider captures ChatCompletion requests for assertions.
+// It optionally implements NativeFormat() and ThinkingMode().
+type captureMessagesProvider struct {
+	fakeMessagesProvider
+	capturedReq  *schemas.ChatRequest
+	nativeFormat string
+	thinkingMode string
+}
+
+func (p *captureMessagesProvider) NativeFormat() string { return p.nativeFormat }
+func (p *captureMessagesProvider) ThinkingMode() string { return p.thinkingMode }
+
+func (p *captureMessagesProvider) ChatCompletion(_ *schemas.GatewayContext, _ schemas.Key, req *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
+	p.capturedReq = req
+	return &schemas.ChatResponse{}, nil
+}
+
+// captureMessagesResolver returns a captureMessagesProvider.
+type captureMessagesResolver struct {
+	prov *captureMessagesProvider
+}
+
+func (r *captureMessagesResolver) ResolveForModel(_ *schemas.ChatRequest) (schemas.Provider, schemas.Key, error) {
+	return r.prov, schemas.Key{}, nil
+}
+
+// TestNativePassthroughSkipsTranslation verifies PAR-ROUTE-041: when the provider's
+// NativeFormat matches the detected source format, translation is skipped and the
+// request is rebuilt directly from the original body.
+func TestNativePassthroughSkipsTranslation(t *testing.T) {
+	prov := &captureMessagesProvider{nativeFormat: "claude"}
+	h := &MessagesHandler{
+		router:   &captureMessagesResolver{prov: prov},
+		registry: translation.NewRegistry(),
+	}
+
+	// Claude body: translation would extract "system" as messages[0].
+	// Native passthrough: system key is NOT in ChatRequest schema → ignored;
+	// messages[0] stays the user message.
+	body := `{"model":"claude-3","system":"you are helpful","messages":[{"role":"user","content":"hello"}],"stream":false}`
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod("POST")
+	ctx.Request.SetBody([]byte(body))
+	h.Handle(&ctx)
+
+	if prov.capturedReq == nil {
+		t.Fatal("ChatCompletion not called")
+	}
+	msgs := prov.capturedReq.Messages
+	if len(msgs) == 0 {
+		t.Fatal("captured req has no messages")
+	}
+	if msgs[0].Role == "system" {
+		t.Error("native passthrough should skip translation; got system injected as messages[0]")
+	}
+	if msgs[0].Role != "user" {
+		t.Errorf("messages[0].role = %q, want user (native passthrough preserves original body)", msgs[0].Role)
+	}
+}
+
+// TestThinkingOverrideInjected verifies PAR-ROUTE-042: when a provider implements
+// ThinkingMode() returning "on", the handler injects thinking config into the request
+// even when the client body omits it.
+func TestThinkingOverrideInjected(t *testing.T) {
+	prov := &captureMessagesProvider{thinkingMode: "on"}
+	h := &MessagesHandler{
+		router:   &captureMessagesResolver{prov: prov},
+		registry: translation.NewRegistry(),
+	}
+
+	body := `{"model":"claude-3","messages":[{"role":"user","content":"hello"}],"stream":false}`
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod("POST")
+	ctx.Request.SetBody([]byte(body))
+	h.Handle(&ctx)
+
+	if prov.capturedReq == nil {
+		t.Fatal("ChatCompletion not called")
+	}
+	if prov.capturedReq.Thinking == nil {
+		t.Fatal("thinking config not injected (want non-nil Thinking)")
+	}
+	if prov.capturedReq.Thinking.Type != "enabled" {
+		t.Errorf("thinking.type = %q, want enabled", prov.capturedReq.Thinking.Type)
+	}
+	if prov.capturedReq.Thinking.BudgetTokens != 10000 {
+		t.Errorf("thinking.budget_tokens = %d, want 10000", prov.capturedReq.Thinking.BudgetTokens)
+	}
+}
+
+// TestBypassWarmupShortCircuits verifies that a "Warmup" message with claude-cli User-Agent
+// returns a fake bypass response without calling the provider (PAR-ROUTE-034).
+func TestBypassWarmupShortCircuits(t *testing.T) {
+	fake := &fakeMessagesResolver{}
+	h := &MessagesHandler{router: fake, registry: translation.NewRegistry()}
+
+	body := `{"model":"claude-opus-4","messages":[{"role":"user","content":[{"type":"text","text":"Warmup"}]}],"stream":false}`
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/messages")
+	ctx.Request.Header.Set("User-Agent", "claude-cli/1.0")
+	ctx.Request.SetBody([]byte(body))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if fake.captured != nil {
+		t.Fatal("provider was called for bypass request — should have short-circuited")
+	}
+	if len(ctx.Response.Body()) == 0 {
+		t.Fatal("bypass response body is empty")
+	}
+}
+
+// TestBypassTitleSkip verifies that an assistant message with content "{" (title extraction pattern)
+// short-circuits the provider with a bypass response (PAR-ROUTE-034).
+func TestBypassTitleSkip(t *testing.T) {
+	fake := &fakeMessagesResolver{}
+	h := &MessagesHandler{router: fake, registry: translation.NewRegistry()}
+
+	body := `{"model":"claude-opus-4","messages":[{"role":"user","content":"hi"},{"role":"assistant","content":[{"type":"text","text":"{"}]}],"stream":false}`
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/messages")
+	ctx.Request.Header.Set("User-Agent", "claude-cli/1.0")
+	ctx.Request.SetBody([]byte(body))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if fake.captured != nil {
+		t.Fatal("provider was called for bypass request — should have short-circuited")
+	}
+	if len(ctx.Response.Body()) == 0 {
+		t.Fatal("bypass response body is empty")
+	}
+}

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"strings"
@@ -339,6 +340,186 @@ func TestChatHandlerPreprocessesRequest(t *testing.T) {
 	// Verify that the Type was also set by preprocessing.
 	if msgs[1].ToolCalls[0].Type != "function" {
 		t.Errorf("tool_call type = %q, want %q", msgs[1].ToolCalls[0].Type, "function")
+	}
+}
+
+// testProviderResolver is a simple resolver that always returns a fixed provider.
+type testProviderResolver struct {
+	prov schemas.Provider
+}
+
+func (r *testProviderResolver) ResolveForModel(_ *schemas.ChatRequest) (schemas.Provider, schemas.Key, error) {
+	return r.prov, schemas.Key{}, nil
+}
+
+// testDispatchProvider records which ChatCompletion variant was called
+// and optionally implements RequiresStreaming() and ThinkingMode().
+type testDispatchProvider struct {
+	fakeMessagesProvider
+	requiresStream bool
+	thinkMode      string
+	streamCalled   bool
+	chatCalled     bool
+	capturedReq    *schemas.ChatRequest
+}
+
+func (p *testDispatchProvider) RequiresStreaming() bool { return p.requiresStream }
+func (p *testDispatchProvider) ThinkingMode() string    { return p.thinkMode }
+
+func (p *testDispatchProvider) ChatCompletion(_ *schemas.GatewayContext, _ schemas.Key, req *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
+	p.chatCalled = true
+	p.capturedReq = req
+	return p.fakeMessagesProvider.response, nil
+}
+
+func (p *testDispatchProvider) ChatCompletionStream(_ *schemas.GatewayContext, _ schemas.PostHookRunner, _ schemas.Key, _ *schemas.ChatRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
+	p.streamCalled = true
+	return p.fakeMessagesProvider.streamCh, nil
+}
+
+// TestStreamDecision verifies PAR-ROUTE-043: provider-required streaming,
+// DeepSeek-TUI non-stream forcing, and Accept: application/json non-stream forcing.
+func TestStreamDecision(t *testing.T) {
+	t.Run("provider_requires_streaming", func(t *testing.T) {
+		ch := make(chan *schemas.StreamChunk)
+		close(ch)
+		prov := &testDispatchProvider{
+			fakeMessagesProvider: fakeMessagesProvider{streamCh: ch},
+			requiresStream:       true,
+		}
+		h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+
+		var ctx fasthttp.RequestCtx
+		// stream:false in body, but provider requires streaming.
+		ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}],"stream":false}`))
+		h.Handle(&ctx)
+
+		if !prov.streamCalled {
+			t.Error("want ChatCompletionStream called (provider requires streaming)")
+		}
+		if prov.chatCalled {
+			t.Error("want ChatCompletion NOT called")
+		}
+		ct := string(ctx.Response.Header.ContentType())
+		if !strings.Contains(ct, "text/event-stream") {
+			t.Errorf("content-type = %q, want text/event-stream", ct)
+		}
+	})
+
+	t.Run("deepseek_tui_forces_nonstream", func(t *testing.T) {
+		prov := &testDispatchProvider{
+			fakeMessagesProvider: fakeMessagesProvider{
+				response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"},
+			},
+		}
+		h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+
+		var ctx fasthttp.RequestCtx
+		// No explicit stream:true → deepseek-tui forces non-stream.
+		ctx.Request.Header.Set("User-Agent", "deepseek-tui/1.0")
+		ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
+		h.Handle(&ctx)
+
+		if !prov.chatCalled {
+			t.Error("want ChatCompletion called (deepseek-tui forces non-stream)")
+		}
+		if prov.streamCalled {
+			t.Error("want ChatCompletionStream NOT called")
+		}
+	})
+
+	t.Run("accept_json_forces_nonstream", func(t *testing.T) {
+		prov := &testDispatchProvider{
+			fakeMessagesProvider: fakeMessagesProvider{
+				response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"},
+			},
+		}
+		h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+
+		var ctx fasthttp.RequestCtx
+		ctx.Request.Header.Set("Accept", "application/json")
+		ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
+		h.Handle(&ctx)
+
+		if !prov.chatCalled {
+			t.Error("want ChatCompletion called (Accept: application/json forces non-stream)")
+		}
+		if prov.streamCalled {
+			t.Error("want ChatCompletionStream NOT called")
+		}
+	})
+}
+
+// testRefreshProvider returns 401 for the first failTimes calls, then succeeds.
+type testRefreshProvider struct {
+	fakeMessagesProvider
+	failTimes int
+	callCount int
+}
+
+func (p *testRefreshProvider) ChatCompletion(_ *schemas.GatewayContext, _ schemas.Key, _ *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
+	p.callCount++
+	if p.callCount <= p.failTimes {
+		return nil, &schemas.ProviderError{StatusCode: 401, Message: "unauthorized", Type: "auth_error"}
+	}
+	return &schemas.ChatResponse{ID: "ok", Object: "chat.completion"}, nil
+}
+
+// testCredRefresher counts refresh calls; returns error for the first failTimes calls.
+type testCredRefresher struct {
+	failTimes   int
+	callCount   int
+	returnToken string
+}
+
+func (r *testCredRefresher) RefreshCredentials(_ string) (string, error) {
+	r.callCount++
+	if r.callCount <= r.failTimes {
+		return "", fmt.Errorf("refresh failed")
+	}
+	return r.returnToken, nil
+}
+
+// TestRefreshRetryUpTo3On401 verifies PAR-ROUTE-023: on 401 the refresher is tried
+// up to 3 times; on success the provider is retried once.
+func TestRefreshRetryUpTo3On401(t *testing.T) {
+	prov := &testRefreshProvider{failTimes: 1}
+	ref := &testCredRefresher{failTimes: 1, returnToken: "new-token"}
+	h := &ChatHandler{router: &testProviderResolver{prov: prov}, refresher: ref}
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Errorf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if ref.callCount > 3 {
+		t.Errorf("refresh calls = %d, want ≤3", ref.callCount)
+	}
+	if prov.callCount != 2 { // initial 401 + one retry
+		t.Errorf("provider calls = %d, want 2", prov.callCount)
+	}
+}
+
+// TestNoRefreshLoopBeyond3 verifies PAR-ROUTE-023: refresh is capped at 3 attempts.
+func TestNoRefreshLoopBeyond3(t *testing.T) {
+	prov := &testRefreshProvider{failTimes: 999}
+	ref := &testCredRefresher{failTimes: 999, returnToken: "new-token"}
+	h := &ChatHandler{router: &testProviderResolver{prov: prov}, refresher: ref}
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ref.callCount > 3 {
+		t.Errorf("refresh calls = %d, want ≤3 (capped)", ref.callCount)
+	}
+	if prov.callCount > 1 {
+		t.Errorf("provider calls = %d, want 1 (no retry since refresh always fails)", prov.callCount)
+	}
+	if ctx.Response.StatusCode() == fasthttp.StatusOK {
+		t.Error("expected non-200 when all refreshes fail")
 	}
 }
 

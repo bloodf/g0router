@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -59,9 +60,49 @@ func tryDeriveCancel(ctx context.Context) (context.Context, context.CancelFunc, 
 	return c, cancel, true
 }
 
+// writeBypassResponse writes a bypass (fake) response to ctx without calling a provider.
+// For streaming requests each chunk is framed as an SSE event; for non-streaming the
+// first chunk is written as JSON. (PAR-ROUTE-034)
+func writeBypassResponse(ctx *fasthttp.RequestCtx, chunks []map[string]any, stream bool) {
+	if stream {
+		ctx.SetContentTypeBytes([]byte("text/event-stream"))
+		ctx.Response.Header.Set("Cache-Control", "no-cache")
+		ctx.Response.Header.Set("Connection", "keep-alive")
+		for _, chunk := range chunks {
+			b, _ := json.Marshal(chunk)
+			fmt.Fprintf(ctx, "data: %s\n\n", b)
+		}
+		fmt.Fprint(ctx, "data: [DONE]\n\n")
+		return
+	}
+	if len(chunks) == 0 {
+		ctx.SetStatusCode(fasthttp.StatusOK)
+		ctx.SetContentTypeBytes([]byte("application/json"))
+		ctx.SetBodyString("{}")
+		return
+	}
+	b, err := json.Marshal(chunks[0])
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetContentTypeBytes([]byte("text/plain"))
+		ctx.SetBodyString("internal error")
+		return
+	}
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetContentTypeBytes([]byte("application/json"))
+	ctx.SetBody(b)
+}
+
+// CredentialRefresher refreshes OAuth credentials on 401/403 from a provider.
+// It is wired in production via SetCredentialRefresher (PAR-ROUTE-023).
+type CredentialRefresher interface {
+	RefreshCredentials(connectionID string) (string, error)
+}
+
 // ChatHandler handles POST /v1/chat/completions.
 type ChatHandler struct {
-	router modelResolver
+	router    modelResolver
+	refresher CredentialRefresher
 }
 
 // NewChatHandler creates a chat completion handler.
@@ -69,10 +110,72 @@ func NewChatHandler(router *inference.Router) *ChatHandler {
 	return &ChatHandler{router: router}
 }
 
+// SetCredentialRefresher wires an OAuth credential refresher for 401/403 retry.
+func (h *ChatHandler) SetCredentialRefresher(cr CredentialRefresher) {
+	h.refresher = cr
+}
+
+// applyThinkingOverride injects provider-level thinking config when not already set.
+// Mirrors chatCore.js:48-58 (PAR-ROUTE-042).
+func applyThinkingOverride(req *schemas.ChatRequest, mode string) {
+	if mode == "" || mode == "auto" {
+		return
+	}
+	switch mode {
+	case "on":
+		if req.Thinking == nil {
+			req.Thinking = &schemas.ThinkingConfig{Type: "enabled", BudgetTokens: 10000}
+		}
+	case "off":
+		if req.Thinking == nil {
+			req.Thinking = &schemas.ThinkingConfig{Type: "disabled"}
+		}
+	default:
+		if req.ReasoningEffort == "" {
+			req.ReasoningEffort = mode
+		}
+	}
+}
+
+// refreshCredentials attempts credential refresh up to 3 times (PAR-ROUTE-023).
+// Returns the new token on success, empty string when all attempts fail.
+func (h *ChatHandler) refreshCredentials(connectionID string) string {
+	for i := 0; i < 3; i++ {
+		tok, err := h.refresher.RefreshCredentials(connectionID)
+		if err == nil && tok != "" {
+			return tok
+		}
+	}
+	return ""
+}
+
 // Handle processes chat completion requests (streaming and non-streaming).
 func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
+	raw := ctx.PostBody()
+
+	// Bypass check: short-circuit for Claude CLI patterns without calling provider (PAR-ROUTE-034).
+	var bodyMap map[string]any
+	if err := json.Unmarshal(raw, &bodyMap); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "invalid JSON body", nil)
+		return
+	}
+	model, _ := bodyMap["model"].(string)
+	stream := false
+	if s, ok := bodyMap["stream"].(bool); ok {
+		stream = s
+	}
+	userAgent := string(ctx.Request.Header.UserAgent())
+	if chunks, bypassed, err := translation.HandleBypassRequest(bodyMap, model, userAgent, false, nil); bypassed {
+		if err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, "server_error", "bypass error", nil)
+			return
+		}
+		writeBypassResponse(ctx, chunks, stream)
+		return
+	}
+
 	var req schemas.ChatRequest
-	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+	if err := json.Unmarshal(raw, &req); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "invalid JSON body", nil)
 		return
 	}
@@ -85,19 +188,45 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// Keys are resolved by the router via the wired credential resolver.
+	// Stream decision (PAR-ROUTE-043): provider-required streaming, deepseek-tui,
+	// and Accept: application/json all override the client's stream field.
+	useStream := req.Stream
+	if sr, ok := provider.(interface{ RequiresStreaming() bool }); ok && sr.RequiresStreaming() {
+		useStream = true
+	}
+	if strings.Contains(userAgent, "deepseek-tui") && !req.Stream {
+		useStream = false
+	}
+	accept := string(ctx.Request.Header.Peek("Accept"))
+	if strings.Contains(accept, "application/json") && !strings.Contains(accept, "text/event-stream") && !req.Stream {
+		useStream = false
+	}
+
+	// Thinking config override (PAR-ROUTE-042).
+	if tm, ok := provider.(interface{ ThinkingMode() string }); ok {
+		applyThinkingOverride(&req, tm.ThinkingMode())
+	}
 
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
 
-	if req.Stream {
+	if useStream {
 		ctx.SetContentTypeBytes([]byte("text/event-stream"))
 		ctx.Response.Header.Set("Cache-Control", "no-cache")
 		ctx.Response.Header.Set("Connection", "keep-alive")
 
 		ch, perr := provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
 		if perr != nil {
-			writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
-			return
+			// Refresh-retry on 401/403 (PAR-ROUTE-023).
+			if (perr.StatusCode == 401 || perr.StatusCode == 403) && h.refresher != nil {
+				if tok := h.refreshCredentials(key.ID); tok != "" {
+					key.Value = tok
+					ch, perr = provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
+				}
+			}
+			if perr != nil {
+				writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
+				return
+			}
 		}
 
 		streamCtx, cancel := withRequestCancel(ctx)
@@ -109,6 +238,13 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	}
 
 	resp, perr := provider.ChatCompletion(gatewayCtx, key, &req)
+	// Refresh-retry on 401/403 (PAR-ROUTE-023).
+	if perr != nil && (perr.StatusCode == 401 || perr.StatusCode == 403) && h.refresher != nil {
+		if tok := h.refreshCredentials(key.ID); tok != "" {
+			key.Value = tok
+			resp, perr = provider.ChatCompletion(gatewayCtx, key, &req)
+		}
+	}
 	if perr != nil {
 		status := perr.StatusCode
 		if status == 0 {

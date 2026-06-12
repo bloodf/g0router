@@ -103,6 +103,94 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 	ctx.SetBody(b)
 }
 
+// kindSlugMap maps URL kind slugs to catalog Type values (PAR-ROUTE-037).
+// Ported from 9router src/app/api/v1/models/[kind]/route.js KIND_SLUG_MAP.
+var kindSlugMap = map[string][]string{
+	"image":        {"image"},
+	"tts":          {"tts"},
+	"stt":          {"stt"},
+	"embedding":    {"embedding"},
+	"image-to-text": {"imageToText"},
+	"web":          {"webSearch", "webFetch"},
+}
+
+// GetByKind handles GET /v1/models/{kind} — returns catalog models filtered by capability type.
+// Valid kinds with no catalog entries return an empty list, not 404.
+// Unknown kinds return 404.
+func (h *ModelsHandler) GetByKind(ctx *fasthttp.RequestCtx) {
+	kind, ok := ctx.UserValue("kind").(string)
+	if !ok || kind == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "missing kind", nil)
+		return
+	}
+
+	wantTypes, valid := kindSlugMap[kind]
+	if !valid {
+		writeError(ctx, fasthttp.StatusNotFound, "not_found_error",
+			"unknown model kind: "+kind+". Supported: image, tts, stt, embedding, image-to-text, web", nil)
+		return
+	}
+
+	typeSet := make(map[string]bool, len(wantTypes))
+	for _, t := range wantTypes {
+		typeSet[t] = true
+	}
+
+	resp := &schemas.ListModelsResponse{Object: "list"}
+	for providerID := range catalog.Providers {
+		for _, m := range catalog.ModelsFor(providerID) {
+			mt := m.Type
+			if mt == "" {
+				mt = "llm"
+			}
+			if !typeSet[mt] {
+				continue
+			}
+			if h.disabledChecker != nil {
+				if disabled, err := h.disabledChecker.IsDisabled(providerID, m.ID); err != nil || disabled {
+					continue
+				}
+			}
+			resp.Data = append(resp.Data, schemas.ModelEntry{
+				ID:      m.ID,
+				Object:  "model",
+				OwnedBy: providerID,
+			})
+		}
+	}
+	sort.Slice(resp.Data, func(i, j int) bool {
+		return resp.Data[i].ID < resp.Data[j].ID
+	})
+
+	b, err := jsonMarshal(resp)
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetContentTypeBytes([]byte("text/plain"))
+		ctx.SetBodyString("internal error")
+		return
+	}
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetContentTypeBytes([]byte("application/json"))
+	ctx.SetBody(b)
+}
+
+// GetOrByKind dispatches GET /v1/models/{param}: if param is a known kind slug it
+// filters by kind (PAR-ROUTE-037); otherwise it looks up a model by ID.
+func (h *ModelsHandler) GetOrByKind(ctx *fasthttp.RequestCtx) {
+	param, ok := ctx.UserValue("param").(string)
+	if !ok || param == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "missing param", nil)
+		return
+	}
+	if _, isKind := kindSlugMap[param]; isKind {
+		ctx.SetUserValue("kind", param)
+		h.GetByKind(ctx)
+	} else {
+		ctx.SetUserValue("id", param)
+		h.Get(ctx)
+	}
+}
+
 // Get handles GET /v1/models/:id.
 func (h *ModelsHandler) Get(ctx *fasthttp.RequestCtx) {
 	id, ok := ctx.UserValue("id").(string)

@@ -305,3 +305,68 @@ func TestListModelsDeterministicOrder(t *testing.T) {
 		t.Errorf("model IDs are not sorted: %v", ids)
 	}
 }
+
+func TestModelsByKind(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+
+	tests := []struct {
+		kind        string
+		wantStatus  int
+		wantNonEmpty bool // if true, at least one entry expected
+		wantEmpty   bool  // valid kind but no catalog entries
+	}{
+		{kind: "image", wantStatus: 200, wantNonEmpty: true},
+		{kind: "tts", wantStatus: 200, wantNonEmpty: true},
+		{kind: "stt", wantStatus: 200, wantNonEmpty: true},
+		{kind: "embedding", wantStatus: 200, wantNonEmpty: true},
+		// image-to-text and web are valid kinds but have no catalog entries → empty list, not 404.
+		{kind: "image-to-text", wantStatus: 200, wantEmpty: true},
+		{kind: "web", wantStatus: 200, wantEmpty: true},
+		// Unknown kind → 404.
+		{kind: "unknown-kind", wantStatus: 404},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.kind, func(t *testing.T) {
+			var ctx fasthttp.RequestCtx
+			ctx.Request.Header.SetMethod(http.MethodGet)
+			ctx.Request.SetRequestURI("/v1/models/" + tt.kind)
+			ctx.SetUserValue("kind", tt.kind)
+			h.GetByKind(&ctx)
+
+			if ctx.Response.StatusCode() != tt.wantStatus {
+				t.Fatalf("status = %d, want %d", ctx.Response.StatusCode(), tt.wantStatus)
+			}
+			if tt.wantStatus != 200 {
+				return
+			}
+
+			var resp struct {
+				Object string `json:"object"`
+				Data   []struct {
+					ID      string `json:"id"`
+					OwnedBy string `json:"owned_by"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if resp.Object != "list" {
+				t.Errorf("object = %q, want list", resp.Object)
+			}
+			if tt.wantNonEmpty && len(resp.Data) == 0 {
+				t.Errorf("expected non-empty list for kind %q", tt.kind)
+			}
+			if tt.wantEmpty && len(resp.Data) != 0 {
+				t.Errorf("expected empty list for kind %q, got %d entries", tt.kind, len(resp.Data))
+			}
+			// All returned entries must match the requested kind's owned_by.
+			for _, m := range resp.Data {
+				if m.OwnedBy == "" {
+					t.Errorf("entry %q has empty owned_by", m.ID)
+				}
+			}
+		})
+	}
+}

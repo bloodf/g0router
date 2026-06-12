@@ -39,6 +39,17 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 		stream = s
 	}
 
+	// Bypass check: short-circuit for Claude CLI patterns without calling provider (PAR-ROUTE-034).
+	userAgent := string(ctx.Request.Header.UserAgent())
+	if chunks, bypassed, err := translation.HandleBypassRequest(body, model, userAgent, false, h.registry); bypassed {
+		if err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, "server_error", "bypass error", nil)
+			return
+		}
+		writeBypassResponse(ctx, chunks, stream)
+		return
+	}
+
 	translated, err := h.registry.TranslateRequest(translation.FormatClaude, translation.FormatOpenAI, model, body, stream, nil)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
@@ -65,6 +76,23 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
 		return
+	}
+
+	// Native passthrough (PAR-ROUTE-041): when the provider's native format matches
+	// the detected source format, skip translation and rebuild req from original body.
+	if nfp, ok := provider.(interface{ NativeFormat() string }); ok {
+		if nfp.NativeFormat() == translation.DetectRequestFormat(body) {
+			raw, _ := json.Marshal(body)
+			var nativeReq schemas.ChatRequest
+			if err := json.Unmarshal(raw, &nativeReq); err == nil {
+				req = nativeReq
+			}
+		}
+	}
+
+	// Thinking config override (PAR-ROUTE-042).
+	if tm, ok := provider.(interface{ ThinkingMode() string }); ok {
+		applyThinkingOverride(&req, tm.ThinkingMode())
 	}
 
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
