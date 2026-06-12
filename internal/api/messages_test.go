@@ -14,9 +14,11 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-// fakeMessagesResolver captures the request and returns a fixed response.
+// fakeMessagesResolver captures the minimal request passed to ResolveForModel and
+// stores a ref to the provider so tests can inspect ChatCompletion arguments.
 type fakeMessagesResolver struct {
 	captured    *schemas.ChatRequest
+	lastProv    *fakeMessagesProvider
 	response    *schemas.ChatResponse
 	streamCh    chan *schemas.StreamChunk
 	providerErr *schemas.ProviderError
@@ -27,13 +29,16 @@ func (f *fakeMessagesResolver) ResolveForModel(req *schemas.ChatRequest) (schema
 	if f.providerErr != nil {
 		return nil, schemas.Key{}, errors.New(f.providerErr.Message)
 	}
-	return &fakeMessagesProvider{response: f.response, streamCh: f.streamCh}, schemas.Key{}, nil
+	p := &fakeMessagesProvider{response: f.response, streamCh: f.streamCh}
+	f.lastProv = p
+	return p, schemas.Key{}, nil
 }
 
 type fakeMessagesProvider struct {
-	response   *schemas.ChatResponse
-	streamCh   chan *schemas.StreamChunk
-	chatCalled bool
+	response    *schemas.ChatResponse
+	streamCh    chan *schemas.StreamChunk
+	chatCalled  bool
+	capturedReq *schemas.ChatRequest
 }
 
 func (p *fakeMessagesProvider) GetProvider() schemas.ModelProvider { return schemas.ProviderOpenAI }
@@ -45,6 +50,7 @@ func (p *fakeMessagesProvider) ListModels(_ *schemas.GatewayContext, _ schemas.K
 
 func (p *fakeMessagesProvider) ChatCompletion(_ *schemas.GatewayContext, _ schemas.Key, req *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
 	p.chatCalled = true
+	p.capturedReq = req
 	return p.response, nil
 }
 
@@ -155,7 +161,12 @@ func TestMessagesHandlerTranslatesClaudeBody(t *testing.T) {
 	if fake.captured == nil {
 		t.Fatal("resolver was never called")
 	}
-	msgs := fake.captured.Messages
+	// After restructuring, ResolveForModel receives a minimal req (just model).
+	// Translation output is passed to ChatCompletion; check via lastProv.capturedReq.
+	if fake.lastProv == nil || fake.lastProv.capturedReq == nil {
+		t.Fatal("ChatCompletion not called")
+	}
+	msgs := fake.lastProv.capturedReq.Messages
 	if len(msgs) < 3 {
 		t.Fatalf("len(messages) = %d, want >= 3 (system + user + assistant + tool placeholder)", len(msgs))
 	}

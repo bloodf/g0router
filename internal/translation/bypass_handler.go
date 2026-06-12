@@ -13,12 +13,6 @@ var skipPatterns = []string{
 	"Please write a 5-10 word title for the following conversation:",
 }
 
-// DetectRequestFormat returns the request format (openai, claude, gemini, antigravity, openai-responses)
-// by inspecting the body structure. Ported from 9router provider.js:49-126.
-func DetectRequestFormat(body map[string]any) string {
-	return detectBypassSourceFormat(body)
-}
-
 // detectBypassSourceFormat detects request format from body structure.
 // Ported from 9router provider.js:49.
 func detectBypassSourceFormat(body map[string]any) string {

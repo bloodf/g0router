@@ -191,6 +191,53 @@ func (h *ModelsHandler) GetOrByKind(ctx *fasthttp.RequestCtx) {
 	}
 }
 
+// kindTestEndpoints maps model kind slugs to the API endpoint used for testing
+// that kind (PAR-ROUTE-038). Ported from 9router models/test/ping.js:pingModelByKind.
+var kindTestEndpoints = map[string]string{
+	"embedding":    "/v1/embeddings",
+	"image":        "/v1/images/generations",
+	"image-to-text": "/v1/images/generations",
+	"tts":          "/v1/audio/speech",
+	"stt":          "/v1/audio/transcriptions",
+	"web":          "/v1/chat/completions",
+	"llm":          "/v1/chat/completions",
+}
+
+// ModelTestRoute is the response body for GET /v1/models/test/{kind}.
+type ModelTestRoute struct {
+	Kind     string `json:"kind"`
+	Endpoint string `json:"endpoint"`
+	Method   string `json:"method"`
+}
+
+// GetTestByKind handles GET /v1/models/test/{kind} — returns the API endpoint
+// to use when pinging a model of the given kind (PAR-ROUTE-038).
+func (h *ModelsHandler) GetTestByKind(ctx *fasthttp.RequestCtx) {
+	kind, ok := ctx.UserValue("kind").(string)
+	if !ok || kind == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "missing kind", nil)
+		return
+	}
+
+	endpoint, valid := kindTestEndpoints[kind]
+	if !valid {
+		writeError(ctx, fasthttp.StatusNotFound, "not_found_error",
+			"unknown model kind: "+kind+". Supported: embedding, image, image-to-text, tts, stt, web, llm", nil)
+		return
+	}
+
+	b, err := jsonMarshal(ModelTestRoute{Kind: kind, Endpoint: endpoint, Method: "POST"})
+	if err != nil {
+		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+		ctx.SetContentTypeBytes([]byte("text/plain"))
+		ctx.SetBodyString("internal error")
+		return
+	}
+	ctx.SetStatusCode(fasthttp.StatusOK)
+	ctx.SetContentTypeBytes([]byte("application/json"))
+	ctx.SetBody(b)
+}
+
 // Get handles GET /v1/models/:id.
 func (h *ModelsHandler) Get(ctx *fasthttp.RequestCtx) {
 	id, ok := ctx.UserValue("id").(string)

@@ -370,3 +370,55 @@ func TestModelsByKind(t *testing.T) {
 		})
 	}
 }
+
+// TestModelTestRoutesByKind verifies PAR-ROUTE-038: GetTestByKind returns the correct
+// API endpoint for each model kind, and 404 for unknown kinds.
+func TestModelTestRoutesByKind(t *testing.T) {
+	h := &ModelsHandler{}
+
+	tests := []struct {
+		kind         string
+		wantEndpoint string
+		want404      bool
+	}{
+		{"embedding", "/v1/embeddings", false},
+		{"image", "/v1/images/generations", false},
+		{"image-to-text", "/v1/images/generations", false},
+		{"tts", "/v1/audio/speech", false},
+		{"stt", "/v1/audio/transcriptions", false},
+		{"web", "/v1/chat/completions", false},
+		{"llm", "/v1/chat/completions", false},
+		{"unknown-kind", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.kind, func(t *testing.T) {
+			var ctx fasthttp.RequestCtx
+			ctx.SetUserValue("kind", tt.kind)
+			h.GetTestByKind(&ctx)
+
+			if tt.want404 {
+				if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
+					t.Errorf("status = %d, want 404", ctx.Response.StatusCode())
+				}
+				return
+			}
+			if ctx.Response.StatusCode() != fasthttp.StatusOK {
+				t.Errorf("status = %d, want 200", ctx.Response.StatusCode())
+			}
+			var route ModelTestRoute
+			if err := json.Unmarshal(ctx.Response.Body(), &route); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			if route.Endpoint != tt.wantEndpoint {
+				t.Errorf("endpoint = %q, want %q", route.Endpoint, tt.wantEndpoint)
+			}
+			if route.Method != "POST" {
+				t.Errorf("method = %q, want POST", route.Method)
+			}
+			if route.Kind != tt.kind {
+				t.Errorf("kind = %q, want %q", route.Kind, tt.kind)
+			}
+		})
+	}
+}

@@ -50,45 +50,50 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	translated, err := h.registry.TranslateRequest(translation.FormatClaude, translation.FormatOpenAI, model, body, stream, nil)
+	// Resolve provider first so native-format detection can skip translation (PAR-ROUTE-041).
+	minReq := &schemas.ChatRequest{Model: model}
+	provider, key, err := h.router.ResolveForModel(minReq)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
-		return
-	}
-
-	b, err := json.Marshal(translated)
-	if err != nil {
-		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
-		ctx.SetContentTypeBytes([]byte("text/plain"))
-		ctx.SetBodyString("internal error")
 		return
 	}
 
 	var req schemas.ChatRequest
-	if err := json.Unmarshal(b, &req); err != nil {
-		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
-		return
-	}
 
-	translation.PreprocessChatRequest(&req)
-
-	provider, key, err := h.router.ResolveForModel(&req)
-	if err != nil {
-		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
-		return
-	}
-
-	// Native passthrough (PAR-ROUTE-041): when the provider's native format matches
-	// the detected source format, skip translation and rebuild req from original body.
+	// Native passthrough (PAR-ROUTE-041): when provider's native format matches the
+	// detected source format, skip translation entirely.
+	nativeSkip := false
 	if nfp, ok := provider.(interface{ NativeFormat() string }); ok {
-		if nfp.NativeFormat() == translation.DetectRequestFormat(body) {
+		if nfp.NativeFormat() == DetectFormat(body) {
 			raw, _ := json.Marshal(body)
-			var nativeReq schemas.ChatRequest
-			if err := json.Unmarshal(raw, &nativeReq); err == nil {
-				req = nativeReq
+			if err := json.Unmarshal(raw, &req); err == nil {
+				nativeSkip = true
 			}
 		}
 	}
+
+	if !nativeSkip {
+		translated, err := h.registry.TranslateRequest(translation.FormatClaude, translation.FormatOpenAI, model, body, stream, nil)
+		if err != nil {
+			writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
+			return
+		}
+
+		b, err := json.Marshal(translated)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+			ctx.SetContentTypeBytes([]byte("text/plain"))
+			ctx.SetBodyString("internal error")
+			return
+		}
+
+		if err := json.Unmarshal(b, &req); err != nil {
+			writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
+			return
+		}
+	}
+
+	translation.PreprocessChatRequest(&req)
 
 	// Thinking config override (PAR-ROUTE-042).
 	if tm, ok := provider.(interface{ ThinkingMode() string }); ok {
@@ -141,5 +146,3 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	ctx.SetContentTypeBytes([]byte("application/json"))
 	ctx.SetBody(out)
 }
-
-
