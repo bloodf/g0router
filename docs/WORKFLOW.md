@@ -6413,3 +6413,12 @@ swallowing + atomic mutex serialization test (cycle 2), precise retry-after subs
 accountStrategy key doesn't exist in frozen ref. Suite + go vet + go test -race GREEN.
 
 Next: w4-e (combos).
+
+### w4-e — Combo chains COMPLETE (2026-06-12)
+
+Plans_done: w4-e (PAR-ROUTE-001/002/003/004/011/024/046/047 + PAR-PR-648).
+Rows_flipped: PAR-ROUTE-001/002/003/004/011/024/046/047 MISSING→HAVE. PAR-PR-648 tracked in PARITY.md.
+Commits: 4e549c6 (store+engine+admin+models), followed by routes_admin wiring.
+Diff-gate: PENDING (cycle 1 not yet run).
+
+Next: w4-f (pipeline glue).

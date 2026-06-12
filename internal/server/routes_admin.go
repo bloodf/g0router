@@ -61,4 +61,9 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/models/disabled", h.RequireSession(h.GetDisabledModels))
 	r.POST("/api/models/disabled", h.RequireSession(h.PostDisabledModels))
 	r.DELETE("/api/models/disabled", h.RequireSession(h.DeleteDisabledModels))
+
+	r.GET("/api/combos", h.RequireSession(h.ListCombos))
+	r.POST("/api/combos", h.RequireSession(h.CreateCombo))
+	r.PUT("/api/combos/{name}", h.RequireSession(h.UpdateCombo))
+	r.DELETE("/api/combos/{name}", h.RequireSession(h.DeleteCombo))
 }
