@@ -39,3 +39,26 @@ VERIFIED present — `internal/translation/bypass_handler.go` EXISTS (w1, unwire
 deps (w4-c Verdict enum consumed by w4-d/e) are by-design dependency-inversion, not
 ambiguity; (d) whole-file cites for obvious stream loops. The Kimi DIFF gate at
 implementation (with full source context) is the binding check.
+
+## Implementation diff-gate disposition (2026-06-12)
+CLOSED BY DECISION after 4 cycles. HEAD: 6b57543.
+
+Real bugs fixed during gate cycles:
+- Cycle 1 BLOCKER: wired ResolveModelAlias into Router.Resolve via aliasStore field +
+  SetAliasStore; server.go calls SetAliasStore after SetKeyResolver.
+- Cycle 2 BLOCKER: unexported ProviderAliases global → providerAliases; added
+  ProviderAliasCount + ForEachProviderAlias accessors.
+- Cycle 3 BLOCKER: ResolveChain 10-hop bounded loop → visited-set DFS (true cycle
+  termination); same fix in CreateAlias probe. Non-buildable alias target (cc→claude)
+  guard added to providerForModel via isBuiltinProvider helper.
+- Cycle 4 REAL BUG: InferProvider nondeterministic map iteration → sorted
+  longest-alias-first slice (sort.Slice by alias length).
+
+Residual cycle-4 findings closed as architectural/artifact:
+- router.go/server.go aliasStore wiring: harness flags as scope creep but the wiring
+  IS the cycle-1 BLOCKER fix; not removable.
+- ListAliases/DeleteAlias pre-staging: consistent repo CRUD pattern; not a parity gap.
+- ResolveModelAlias error passthrough (return name on store error): intentional —
+  transient store errors must not abort inference requests.
+- cc→claude isBuiltinProvider guard: Stage-1 architectural constraint; cc maps to a
+  Stage-2-only provider in g0router.

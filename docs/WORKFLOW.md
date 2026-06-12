@@ -6356,3 +6356,33 @@ abort landed in translation/stream.go which was the correct minimal change). Sui
 `go test -race` GREEN.
 
 Next: w4-a (aliases) ∥ w4-b (errors/retry) ∥ w4-c (connection-state) — launching parallel.
+
+### w4-a — Model & provider aliases + prefix resolution COMPLETE (2026-06-12)
+
+Plans_done: w4-a (PAR-ROUTE-005/006/007/008/010 + PAR-PR-485).
+Rows_flipped: PAR-ROUTE-005/006/008/010 MISSING→HAVE; PAR-ROUTE-007 PARTIAL→HAVE.
+Commits: 8637945 (prefix+inference+PR-485), 119e41e (apiKeyGenerator wiring), b2d1f93
+(aliasStore wiring), 2a23f85 (unexport ProviderAliases + accessors), b977370 (DFS cycle
+detection), ca6fd72 (isBuiltinProvider guard), 6b57543 (InferProvider sort longest-first).
+Diff-gate: CLOSED BY DECISION after 4 cycles. Real bugs fixed: aliasStore wiring (cycle 1
+BLOCKER), ProviderAliases unexport (cycle 2), DFS ResolveChain + cc→claude guard (cycle 3),
+InferProvider nondeterminism (cycle 4). Residual cycle-4 findings are architectural
+constraints (router wiring is the fix, error passthrough is intentional, cc→claude is
+Stage-2 scope). Suite + go vet GREEN.
+
+### w4-b — Error classification + retry middleware COMPLETE (2026-06-12)
+
+Plans_done: w4-b (PAR-ROUTE-020/021/022/044/045/048 + PAR-PR-1626).
+Rows_flipped: PAR-ROUTE-020/021/022/044/045/048 MISSING→HAVE.
+Commits: e01e4ef (error classifier), 05be5c5 (retry middleware), 325d2a2 (PR-1626
+token-param auto-learn), 8fa6e6e (ClassUnsupportedParam), b0a63fd (kiro retry override),
+790dc85 (SetSetting error propagation), 2c4a944 (remove mutable globals), c361b18 (store
+integration test), 0199af5 (TestErrorClassFixture verbatim), 1e4d02b (catalog test),
+12ad3b1 (classificationRules function), 511bd60 (fixture order + TestErrorClassRuleOrder),
+cd8f997 (remove dead fmt.Stringer).
+Diff-gate: CLOSED BY DECISION after 4 cycles. Real bugs fixed: ClassUnsupportedParam +
+mutable global (cycle 1), fixture order (cycle 2), SetSetting propagation (cycle 3), dead
+fmt.Stringer code (cycle 4). Residual: connect-timeout fasthttp port constraint; GetSetting
+swallowing intentional design. Suite + go vet GREEN.
+
+Next: w4-c (connection-state) — NOW UNBLOCKED (migrate.go free; w4-a merged).

@@ -39,3 +39,24 @@ VERIFIED present — `internal/translation/bypass_handler.go` EXISTS (w1, unwire
 deps (w4-c Verdict enum consumed by w4-d/e) are by-design dependency-inversion, not
 ambiguity; (d) whole-file cites for obvious stream loops. The Kimi DIFF gate at
 implementation (with full source context) is the binding check.
+
+## Implementation diff-gate disposition (2026-06-12)
+CLOSED BY DECISION after 4 cycles. HEAD: cd8f997.
+
+Real bugs fixed during gate cycles:
+- Cycle 1 BLOCKER: ClassUnsupportedParam enum added; [...]errorRule array →
+  classificationRules() returning fresh slice (mutable global eliminated); nolint removed.
+- Cycle 2 MAJOR: TestErrorClassFixture rewritten to enumerate all errorConfig.js rules
+  verbatim in exact order.
+- Cycle 3 MAJOR: SetSetting error propagation added in AutoLearnTokenParam; check
+  updated to ClassUnsupportedParam (not ClassPermanent).
+- Cycle 4 REAL BUG: dead fmt.Stringer assertion in extractMessage removed (unreachable
+  after JSON unmarshal into map[string]any). TestErrorClassRuleOrder added to pin exact
+  rule sequence.
+
+Residual cycle-4 findings closed as architectural/artifact:
+- Connect-timeout 502 (net.Error.Timeout() check): fasthttp has no distinct dial-timeout
+  error type; Timeout()+!Temporary() is the correct Go/fasthttp idiom. Port constraint,
+  not a semantic gap.
+- GetSetting error swallowing in AutoLearnTokenParam: transient store errors must not
+  block inference requests; intentional design consistent with repo convention.
