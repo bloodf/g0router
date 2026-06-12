@@ -80,7 +80,7 @@ func (s *StatsService) dailyBuckets(now time.Time, bucketCount int) []Bucket {
 	buckets := make([]Bucket, bucketCount)
 	dayMap := make(map[string]map[string]any)
 
-	dayRows, err := s.reader.LoadDailyRange(bucketCount)
+	dayRows, err := s.reader.LoadDailyRange(bucketCount, now)
 	if err == nil {
 		for _, r := range dayRows {
 			var day map[string]any

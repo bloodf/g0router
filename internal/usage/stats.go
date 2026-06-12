@@ -10,7 +10,7 @@ import (
 
 // UsageReader supplies the store-level reads used by StatsService.
 type UsageReader interface {
-	LoadDailyRange(maxDays int) ([]*store.UsageDailyRow, error)
+	LoadDailyRange(maxDays int, now time.Time) ([]*store.UsageDailyRow, error)
 	RangeRequestLogs(sinceISO, untilISO string) ([]*store.RequestLogEntry, error)
 	ListRecentRequestLogs(limit int) ([]*store.RequestLogEntry, error)
 }
@@ -175,7 +175,7 @@ func (s *StatsService) Stats(period string) (Stats, error) {
 	} else {
 		periodDays := map[string]int{"7d": 7, "30d": 30, "60d": 60}
 		maxDays := periodDays[period]
-		dayRows, err := s.reader.LoadDailyRange(maxDays)
+		dayRows, err := s.reader.LoadDailyRange(maxDays, s.clock())
 		if err != nil {
 			return Stats{}, fmt.Errorf("load daily range: %w", err)
 		}
@@ -404,12 +404,11 @@ func (s *StatsService) fillTrackerFields(stats *Stats) {
 	stats.ErrorProvider = s.tracker.LastErrorProvider()
 
 	stats.Pending = make(map[string]int64)
+	active := make([]ActiveRequest, 0)
+	s.tracker.mu.Lock()
 	for modelKey, count := range s.tracker.byModel {
 		stats.Pending[modelKey] = count
 	}
-
-	active := make([]ActiveRequest, 0)
-	s.tracker.mu.Lock()
 	for connID, models := range s.tracker.byAccount {
 		account := ""
 		if s.names != nil {

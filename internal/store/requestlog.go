@@ -168,13 +168,13 @@ func (s *Store) ListRecentRequestLogs(limit int) ([]*RequestLogEntry, error) {
 }
 
 // LoadDailyRange returns usage_daily rows with date_key on or after the cutoff.
-// maxDays <= 0 returns all rows.
-func (s *Store) LoadDailyRange(maxDays int) ([]*UsageDailyRow, error) {
+// maxDays <= 0 returns all rows. The cutoff is computed from the injected now
+// so callers can pin the window deterministically (e.g. tests, time-travel).
+func (s *Store) LoadDailyRange(maxDays int, now time.Time) ([]*UsageDailyRow, error) {
 	var rows *sql.Rows
 	var err error
 	if maxDays > 0 {
-		now := time.Now().UTC()
-		cutoff := now.AddDate(0, 0, -(maxDays - 1)).Format("2006-01-02")
+		cutoff := now.UTC().AddDate(0, 0, -(maxDays - 1)).Format("2006-01-02")
 		rows, err = s.db.Query("SELECT date_key, data FROM usage_daily WHERE date_key >= ? ORDER BY date_key ASC", cutoff)
 	} else {
 		rows, err = s.db.Query("SELECT date_key, data FROM usage_daily ORDER BY date_key ASC")

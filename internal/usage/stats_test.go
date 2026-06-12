@@ -2,6 +2,7 @@ package usage
 
 import (
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,7 +44,7 @@ type fakeUsageReader struct {
 	logs  []*store.RequestLogEntry
 }
 
-func (f *fakeUsageReader) LoadDailyRange(maxDays int) ([]*store.UsageDailyRow, error) {
+func (f *fakeUsageReader) LoadDailyRange(maxDays int, now time.Time) ([]*store.UsageDailyRow, error) {
 	return f.daily, nil
 }
 
@@ -377,6 +378,38 @@ func TestStatsSeesSharedTracker(t *testing.T) {
 	if ar.Model != "claude-3-5-sonnet" || ar.Provider != "anthropic" || ar.Account != "Known Account" || ar.Count != 1 {
 		t.Errorf("ActiveRequests[0] = %+v, want model=claude-3-5-sonnet provider=anthropic account=Known Account count=1", ar)
 	}
+}
+
+func TestStatsTrackerConcurrent(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	tracker := NewTracker(func() time.Time { return now }, noOpTimerFactory, NewEvents())
+	ring := NewRing(10)
+	_ = ring.Init(func() ([]*store.RequestLogEntry, error) { return nil, nil })
+	names := &fakeNameSource{conn: map[string]string{"conn-1": "Main Account"}}
+	reader := &fakeUsageReader{}
+	svc := NewStatsService(reader, names, tracker, ring, func() time.Time { return now })
+
+	const writers = 8
+	const iters = 500
+
+	var wg sync.WaitGroup
+	wg.Add(writers)
+	for w := 0; w < writers; w++ {
+		go func(id int) {
+			defer wg.Done()
+			for i := 0; i < iters; i++ {
+				tracker.Start("gpt-4o", "openai", "conn-1")
+				tracker.End("gpt-4o", "openai", "conn-1", false)
+			}
+		}(w)
+	}
+
+	for i := 0; i < iters; i++ {
+		if _, err := svc.Stats("today"); err != nil {
+			t.Fatalf("Stats(today): %v", err)
+		}
+	}
+	wg.Wait()
 }
 
 func TestStatsDailyMalformedRow(t *testing.T) {

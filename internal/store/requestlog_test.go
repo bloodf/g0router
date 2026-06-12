@@ -229,6 +229,10 @@ func requireCounter(t *testing.T, m map[string]any, key string) map[string]any {
 func TestLoadDailyRange(t *testing.T) {
 	st := newTestStore(t)
 
+	// Pin now to a fixed instant so the cutoff is deterministic regardless of
+	// when the test runs (the previous time.Now() made this test date-dependent).
+	now := time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC)
+
 	// Insert 4 daily rows out of order.
 	rows := []struct {
 		dateKey string
@@ -246,7 +250,7 @@ func TestLoadDailyRange(t *testing.T) {
 	}
 
 	// maxDays=2 should include today and yesterday only (dateKey >= today-1).
-	got, err := st.LoadDailyRange(2)
+	got, err := st.LoadDailyRange(2, now)
 	if err != nil {
 		t.Fatalf("LoadDailyRange(2): %v", err)
 	}
@@ -258,7 +262,7 @@ func TestLoadDailyRange(t *testing.T) {
 	}
 
 	// nil equivalent: maxDays=0 returns all rows (caller uses zero to mean unlimited here).
-	got, err = st.LoadDailyRange(0)
+	got, err = st.LoadDailyRange(0, now)
 	if err != nil {
 		t.Fatalf("LoadDailyRange(0): %v", err)
 	}
