@@ -146,3 +146,31 @@ of the JS non-object check; RawMessage rows evidenced as exact parity
 (requestDetailsRepo.js:165-169 SELECTs only data; metadata embedded at :88-101).
 Residual MINOR (ID-format test) accepted: the implementer ports generateDetailId per
 the cited :56-61 evidence; writer persistence tests cover the behavior that matters.
+
+## Diff-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1: 4 REAL FIXED (fix-r1, 5fc0fe8: rune-safe
+preview bound, value Save signature, oldest-gone retention assertions,
+model/connectionId filter subtests) + 1 rebutted (KB×1024 IS the ref,
+requestDetailsRepo.js:27). Cycle-2: 1 REAL FIXED (fix-r2, c466c09: rune-safe 200-char
+preview per JS substring semantics) + KB finding re-rebutted (2nd occurrence of an
+already-rebutted finding — gate-stability artifact). Cycle-3 triage:
+- MAJOR HTML-escape divergence: REAL → FIXED as part of closure (fix-r3, 92323d0:
+  SetEscapeHTML(false) in TruncateField AND detailwriter prepareRow;
+  TestTruncateFieldNoHTMLEscape + TestWriterPreservesHTMLCharsInStoredData).
+- MAJOR nil slice → null: REAL → FIXED (fix-r3: make([]json.RawMessage, 0); empty
+  result sub-test).
+- MAJOR "sanitizer drops non-string header values": REBUTTED — in the Go port HTTP
+  headers are strings by construction (fasthttp header iteration yields strings; the
+  w5-f capture glue builds map[string]string); the JS spread's tolerance of
+  non-string values has no reachable Go counterpart. Unreachable-path critique.
+- MAJOR "batch-flush test uses fake store": REBUTTED as residual nit — the
+  persistence path is exercised against the REAL store by TestWriterRetention,
+  TestWriterTimerFlush, TestWriterDisabledDrops and TestWriterPreservesHTMLChars
+  InStoredData (newRealWriterStore); the batch-size TRIGGER test isolates timing
+  logic with a fake, a standard decomposition.
+Each cycle surfaced findings the prior cycles did not raise against unchanged code —
+the 3-cycle close-by-decision exists for exactly this non-convergence. Packages
+build/vet/test green (admin package excluded from the verification run: it holds
+another job's mid-edit w5-d code, unrelated). MERGED.
+Rows flip: PAR-USAGE-003 (write semantics complete), 024, 025, 026, 027, 028 → HAVE;
+PAR-AUTH-017, PAR-AUTH-018 → HAVE.

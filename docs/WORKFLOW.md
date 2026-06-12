@@ -6509,3 +6509,12 @@ cycle-3 (3 findings contradicted the frozen ref itself — bare-model byModel ke
 usageRepo.js:63, "unknown" provider segment :71/:75, global byModel zeroing on
 timeout :176-181 — all ported faithfully; 1 test nit covered by w5-d follow-up).
 Rows_flipped: PAR-USAGE-001/002/011/012/018/019/020/038 → HAVE (usage 16/0/24).
+
+## w5-c: MERGED (2026-06-12)
+Diff gate closed by decision after 3 cycles. Fix rounds: r1 5fc0fe8 (preview bound,
+value Save, retention/filter tests), r2 c466c09 (rune-safe preview, m3 worker),
+r3 92323d0 (SetEscapeHTML(false) JSON.stringify parity, never-nil query rows, m3).
+Rebutted: KB×1024 (ref :27, twice), non-string headers (unreachable in Go), batch-
+trigger fake-store nit. Non-convergent gate cycles documented in disposition.
+Rows_flipped: PAR-USAGE-003/024/025/026/027/028 → HAVE (usage 22/0/18);
+PAR-AUTH-017/018 → HAVE (auth 28/1/1).
