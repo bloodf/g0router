@@ -2,18 +2,25 @@
 
 PAR rows: PAR-USAGE-013, 014, 015, 016, 017, 021, 022, 023, 024 (route half — query
 landed in w5-c), 029, 030, 031, 039. NOT in scope: SSE stream (034/035 → w5-e),
-provider quota API (032/033 → w5-e), handler glue (→ w5-f), UI components (036/037 →
-W6).
+provider quota API (032/033 → w5-e), INFERENCE-pipeline usage capture
+(chat/messages/embeddings glue → w5-f — distinct from the ADMIN HTTP routes, which
+are this plan's explicit deliverable: every row above lists its route half), UI
+components (036/037 → W6).
 Frozen ref @ 827e5c3. Depends: w5-a + w5-b + w5-c merged. Serial: w5-e edits
 `internal/server/routes_admin.go` AFTER this plan merges.
 
 Ref route inventory (verified against frozen tree, `src/app/api/`):
-`/api/usage/stats` (stats), `/api/usage/chart` (chart), `/api/usage/request-logs`
-(getRecentLogs 200), `/api/usage/request-details` (filters+pagination, pageSize cap
-100), `/api/pricing` (GET/PATCH/DELETE). (`/api/usage/logs`, `/history`, `/providers`
-are sibling routes consumed by legacy UI panels; `request-logs` + `request-details`
-are the surfaces PAR-USAGE-023/024 and the W6 RequestLogger cite — the others carry
-no PAR row and are out of scope.)
+`/api/usage/stats`, `/api/usage/chart`, `/api/usage/request-logs` (getRecentLogs 200,
+`request-logs/route.js:4-13`), `/api/usage/logs` (IDENTICAL body — also
+getRecentLogs(200), `logs/route.js:4-12` — registered here as an alias to the same
+handler), `/api/usage/history` (bare getUsageStats() default period,
+`history/route.js:4-12` — alias to the stats handler with period="all"),
+`/api/usage/request-details` (filters+pagination, pageSize cap 100), `/api/pricing`
+(GET/PATCH/DELETE). EXCLUDED with evidence: `/api/usage/providers`
+(`providers/route.js:1-40` builds a provider-dropdown list for the RequestDetails UI
+panel from request-details rows — a UI filter helper with no PAR row; ships with the
+W6 UI wave that renders that panel); `/api/usage/{connectionId}` (PAR-USAGE-032/033
+→ w5-e).
 
 ## Tasks
 
@@ -26,8 +33,12 @@ no PAR row and are out of scope.)
    Key)", byEndpoint `endpoint|model|provider`; provider display names mapped through
    provider-node names); live path `usageRepo.js:531-614` (24h/today reads request_log
    rows, same key shapes, lastUsed = max timestamp); totals `usageRepo.js:367-376,616`
-   (totalRequests = Σ byProvider.requests; plus pending/activeRequests/recentRequests/
-   errorProvider from the w5-b tracker+ring).
+   (totalRequests = Σ byProvider.requests). The stats payload's
+   pending/activeRequests/recentRequests/errorProvider fields are PART OF
+   PAR-USAGE-015's cited evidence (the stats literal at `usageRepo.js:367-376`,
+   lines 372-375) — this plan CONSUMES them read-only through w5-b's existing
+   `Tracker` snapshot / `Ring` + `DedupeRecent` APIs; the PAR-USAGE-018/019
+   implementations remain w5-b's, untouched here.
    STEP (a): `TestUsageStatsDailyPath` (seed usage_daily 2 days + request_log overlay
    rows → 7d stats: totals, all five breakdowns' key shapes, provider display-name
    mapping) and `TestUsageStatsLivePath` (today/24h reads request_log only; cutoff =
@@ -110,9 +121,10 @@ no PAR row and are out of scope.)
    STEP (b): NEW `internal/admin/usage.go` + `internal/admin/pricing.go` handlers on
    `*Handlers` using the `{data, error}` envelope (`internal/admin/respond.go:10-17`)
    and snake_case JSON (AGENTS.md); register in `internal/server/routes_admin.go`
-   under `RequireSession`: GET `/api/usage/stats`, `/api/usage/chart`,
-   `/api/usage/request-logs`, `/api/usage/request-details`; GET+PATCH+DELETE
-   `/api/pricing`. Wire StatsService/Resolver construction in
+   under `RequireSession`: GET `/api/usage/stats` (+ alias `/api/usage/history`,
+   period fixed "all"), `/api/usage/chart`, `/api/usage/request-logs` (+ alias
+   `/api/usage/logs` — same handler, `logs/route.js:4-12` is byte-equivalent),
+   `/api/usage/request-details`; GET+PATCH+DELETE `/api/pricing`. Wire StatsService/Resolver construction in
    `internal/server/routes_admin.go`'s handler bootstrap (follow `NewAdminHandlers`,
    `routes_admin.go:15-23`).
 

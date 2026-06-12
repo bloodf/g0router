@@ -32,7 +32,11 @@ plan adds follow the inference precedent.)
    STEP (a): `TestSaveUsageTransactional` (save → request_log row present, usage_daily
    day JSON has requests=1 + correct byProvider/byModel sums, lifetime counter=1; second
    save same day → day accumulates, counter=2) and `TestSaveUsageRollsBackTogether`
-   (inject failure via closed tx / constraint → NO partial writes); run — fail.
+   with a DETERMINISTIC failure seam: the test drops the `kv` table
+   (`DROP TABLE kv`) before calling SaveUsage — the third write (lifetime counter
+   upsert) then fails inside the tx → assert SaveUsage returns an error AND
+   `SELECT COUNT(*) FROM request_log` = 0 AND `usage_daily` is empty (the first two
+   writes rolled back); run — fail.
    STEP (b): NEW `internal/store/requestlog.go`: `RequestLogEntry` struct (Timestamp
    ISO-8601 string, Provider, Model, ConnectionID, APIKey, Endpoint, PromptTokens,
    CompletionTokens int64, Cost float64, Status string, Tokens map[string]int64, Meta
@@ -130,6 +134,10 @@ plan adds follow the inference precedent.)
 ## Exclusive file ownership
 NEW (exact, deterministic): `internal/store/requestlog.go`(+test),
 `internal/usage/{recorder,recent,tracker,events,ring}.go`(+tests).
+w5-c's ownership is the binding cross-reference: `w5-c-observability.md`
+§Exclusive file ownership (plan-gate PASS 2026-06-12) lists
+`internal/store/requestdetails.go`, `internal/usage/{observability,detailwriter}.go`,
+`internal/logging/debug.go` — zero overlap with this plan's list.
 TOUCHES NO file owned by w5-c
 (`internal/store/requestdetails*.go`, `internal/usage/observability*.go`,
 `internal/logging/*`) — the two run concurrently.
@@ -146,3 +154,22 @@ TOUCHES NO file owned by w5-c
 getUsageStats/chart/logs readers (w5-d). Observability writer (w5-c). SSE emit
 consumption (w5-e — the tracker only EXPOSES the event seam). Handler wiring of
 Recorder/Tracker into chat/messages/embeddings (w5-f). Virtual keys (w5-g).
+
+## Plan-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1 findings FIXED (layering claim → binding
+precondition grep; event seam tied to in-range emit sites usageRepo.js:181/195/283 +
+exact Events API specified; store-import question settled by inference precedent
+combo.go:12/selection.go:11). Cycle-2 findings FIXED (update-emit anchored inside
+PAR-USAGE-011's evidence range 243-287; Events justified as the statsEmitter port
+declared at usageRepo.js:14-17 within owned files; ring.go made deterministic).
+Cycle-3 residual findings triaged:
+- MAJOR rollback-seam: REAL → FIXED in-plan (deterministic DROP TABLE kv seam; binary
+  assertions on request_log/usage_daily emptiness).
+- MAJOR w5-c ownership evidence: REAL → FIXED in-plan (binding cross-reference to
+  w5-c-observability.md §Exclusive file ownership, plan-gate PASS same day; zero
+  file overlap enumerated).
+- MINOR events scope: FALSE POSITIVE — emit("update") at :283 is inside
+  saveRequestUsage, the exact function PAR-USAGE-011 cites (243-287); an omission
+  would be an incomplete port. PAR-USAGE-034 (SSE consumer) remains w5-e.
+Kimi diff gate at implementation is the binding check. APPROVED BY DECISION for
+dispatch after w5-a merges.

@@ -137,3 +137,12 @@ HTTP routes serving these queries (w5-d). Wiring DetailWriter.Save/Close into
 handlers and server shutdown (w5-f wires Save call-sites; the server Close hook
 ships with w5-f's glue). Usage stats/charts/logs (w5-d). SSE (w5-e). The audit
 trail mentioned in `internal/logging/doc.go` (not a Wave-5 row).
+
+## Plan-gate disposition (cycle 3, Fable 5, 2026-06-12)
+PASS at cycle 3 (artifacts/w5-c-observability-plan-review.txt). Cycle-1/2 substantive
+findings FIXED: SaveRequestDetails signature carries maxRecords explicitly; NODE_ENV
+read literally (no invented env name); nil-map guard recorded as the complete Go port
+of the JS non-object check; RawMessage rows evidenced as exact parity
+(requestDetailsRepo.js:165-169 SELECTs only data; metadata embedded at :88-101).
+Residual MINOR (ID-format test) accepted: the implementer ports generateDetailId per
+the cited :56-61 evidence; writer persistence tests cover the behavior that matters.
