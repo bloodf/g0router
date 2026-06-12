@@ -45,3 +45,27 @@ VERIFIED present — `internal/translation/bypass_handler.go` EXISTS (w1, unwire
 deps (w4-c Verdict enum consumed by w4-d/e) are by-design dependency-inversion, not
 ambiguity; (d) whole-file cites for obvious stream loops. The Kimi DIFF gate at
 implementation (with full source context) is the binding check.
+
+## w4-f gate cycle-1 disposition (2026-06-12)
+FIXED: model-test-by-kind route (PAR-ROUTE-038) added (GetTestByKind + TestModelTestRoutesByKind);
+native passthrough restructured to resolve provider BEFORE translation (eliminating translation-blocks-passthrough);
+bypass_handler.go scope creep reverted — DetectFormat inlined in api/detect.go;
+fakeMessagesProvider captures ChatCompletion req for correct translation-output assertions.
+REBUTTAL (persistent false positive): import BLOCKER — `internal/translation` was imported in
+chat.go PRE-w4-f (the bypass check added in a prior wave). Diff-only analysis cannot see pre-existing
+imports; `go build ./...` passes proving the import is present.
+
+## w4-f gate cycle-2 disposition (2026-06-12)
+FIXED: refresh-retry semantics corrected to 3 refresh+dispatch cycles (not 3 token-refresh attempts);
+TestRefreshRetryUpTo3On401 tightened (provider called 3×, refresher 2×);
+TestNoRefreshLoopBeyond3 tightened (provider called 4×, refresher capped at 3);
+TestModelsByKind augmented with catalog-type assertion (each returned entry verified against
+catalog.ModelsFor to confirm its Type is in kindSlugMap[kind]).
+REBUTTAL — import BLOCKER (3rd occurrence): `go build ./... && go test ./internal/api/...` PASS
+with zero compilation errors; the import is provably present. Diff-only analysis is the artifact.
+REBUTTAL — GetTestByKind "should route not describe": PAR-ROUTE-038 reference is
+`pingModelByKind` in 9router — a frontend/BFF function that makes live HTTP self-calls.
+g0router has no frontend layer; live provider pings belong in the admin wave (W5).
+`GetTestByKind` is the correct gateway adaptation: it returns the routing metadata clients need
+to construct kind-appropriate test requests, exactly as the reference documents the kind→endpoint
+mapping. This is an architectural adaptation, not a missing feature.

@@ -137,16 +137,30 @@ func applyThinkingOverride(req *schemas.ChatRequest, mode string) {
 	}
 }
 
-// refreshCredentials attempts credential refresh up to 3 times (PAR-ROUTE-023).
-// Returns the new token on success, empty string when all attempts fail.
-func (h *ChatHandler) refreshCredentials(connectionID string) string {
-	for i := 0; i < 3; i++ {
-		tok, err := h.refresher.RefreshCredentials(connectionID)
-		if err == nil && tok != "" {
-			return tok
+// retryWithRefresh performs up to 3 refresh-then-dispatch cycles on 401/403.
+// Each cycle: refresh credentials → re-dispatch. Stops when dispatch succeeds or
+// refresh fails. Mirrors chatCore.js:refreshWithRetry (PAR-ROUTE-023).
+func (h *ChatHandler) retryWithRefresh(
+	dispatch func(key schemas.Key) (*schemas.ChatResponse, *schemas.ProviderError),
+	key schemas.Key,
+	perr *schemas.ProviderError,
+) (*schemas.ChatResponse, *schemas.ProviderError) {
+	for attempt := 0; attempt < 3; attempt++ {
+		if perr == nil || (perr.StatusCode != 401 && perr.StatusCode != 403) {
+			break
+		}
+		tok, err := h.refresher.RefreshCredentials(key.ID)
+		if err != nil || tok == "" {
+			break
+		}
+		key.Value = tok
+		resp, retryErr := dispatch(key)
+		perr = retryErr
+		if perr == nil {
+			return resp, nil
 		}
 	}
-	return ""
+	return nil, perr
 }
 
 // Handle processes chat completion requests (streaming and non-streaming).
@@ -215,18 +229,23 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		ctx.Response.Header.Set("Connection", "keep-alive")
 
 		ch, perr := provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
-		if perr != nil {
-			// Refresh-retry on 401/403 (PAR-ROUTE-023).
-			if (perr.StatusCode == 401 || perr.StatusCode == 403) && h.refresher != nil {
-				if tok := h.refreshCredentials(key.ID); tok != "" {
-					key.Value = tok
-					ch, perr = provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
+		// Refresh-retry: up to 3 refresh+dispatch cycles on 401/403 (PAR-ROUTE-023).
+		if perr != nil && (perr.StatusCode == 401 || perr.StatusCode == 403) && h.refresher != nil {
+			for attempt := 0; attempt < 3; attempt++ {
+				if perr == nil || (perr.StatusCode != 401 && perr.StatusCode != 403) {
+					break
 				}
+				tok, err := h.refresher.RefreshCredentials(key.ID)
+				if err != nil || tok == "" {
+					break
+				}
+				key.Value = tok
+				ch, perr = provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
 			}
-			if perr != nil {
-				writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
-				return
-			}
+		}
+		if perr != nil {
+			writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
+			return
 		}
 
 		streamCtx, cancel := withRequestCancel(ctx)
@@ -238,12 +257,11 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	}
 
 	resp, perr := provider.ChatCompletion(gatewayCtx, key, &req)
-	// Refresh-retry on 401/403 (PAR-ROUTE-023).
+	// Refresh-retry: up to 3 refresh+dispatch cycles on 401/403 (PAR-ROUTE-023).
 	if perr != nil && (perr.StatusCode == 401 || perr.StatusCode == 403) && h.refresher != nil {
-		if tok := h.refreshCredentials(key.ID); tok != "" {
-			key.Value = tok
-			resp, perr = provider.ChatCompletion(gatewayCtx, key, &req)
-		}
+		resp, perr = h.retryWithRefresh(func(k schemas.Key) (*schemas.ChatResponse, *schemas.ProviderError) {
+			return provider.ChatCompletion(gatewayCtx, k, &req)
+		}, key, perr)
 	}
 	if perr != nil {
 		status := perr.StatusCode

@@ -480,11 +480,13 @@ func (r *testCredRefresher) RefreshCredentials(_ string) (string, error) {
 	return r.returnToken, nil
 }
 
-// TestRefreshRetryUpTo3On401 verifies PAR-ROUTE-023: on 401 the refresher is tried
-// up to 3 times; on success the provider is retried once.
+// TestRefreshRetryUpTo3On401 verifies PAR-ROUTE-023: on 401 the handler performs
+// refresh+dispatch cycles; provider succeeds on 3rd call (2 refreshes needed).
 func TestRefreshRetryUpTo3On401(t *testing.T) {
-	prov := &testRefreshProvider{failTimes: 1}
-	ref := &testCredRefresher{failTimes: 1, returnToken: "new-token"}
+	// Provider fails with 401 for first 2 calls, succeeds on 3rd.
+	prov := &testRefreshProvider{failTimes: 2}
+	// Refresher always returns a token.
+	ref := &testCredRefresher{failTimes: 0, returnToken: "new-token"}
 	h := &ChatHandler{router: &testProviderResolver{prov: prov}, refresher: ref}
 
 	var ctx fasthttp.RequestCtx
@@ -494,32 +496,39 @@ func TestRefreshRetryUpTo3On401(t *testing.T) {
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
 		t.Errorf("status = %d, want 200", ctx.Response.StatusCode())
 	}
-	if ref.callCount > 3 {
-		t.Errorf("refresh calls = %d, want ≤3", ref.callCount)
+	// 2 refresh+dispatch cycles before success.
+	if ref.callCount != 2 {
+		t.Errorf("refresh calls = %d, want 2", ref.callCount)
 	}
-	if prov.callCount != 2 { // initial 401 + one retry
-		t.Errorf("provider calls = %d, want 2", prov.callCount)
+	// initial 401 + 401 retry + success retry = 3 provider calls.
+	if prov.callCount != 3 {
+		t.Errorf("provider calls = %d, want 3 (initial 401 + 2 retry dispatches)", prov.callCount)
 	}
 }
 
-// TestNoRefreshLoopBeyond3 verifies PAR-ROUTE-023: refresh is capped at 3 attempts.
+// TestNoRefreshLoopBeyond3 verifies PAR-ROUTE-023: refresh+dispatch cycles are capped
+// at 3 even when the provider keeps returning 401.
 func TestNoRefreshLoopBeyond3(t *testing.T) {
+	// Provider always returns 401.
 	prov := &testRefreshProvider{failTimes: 999}
-	ref := &testCredRefresher{failTimes: 999, returnToken: "new-token"}
+	// Refresher always succeeds — so the loop hits the 3-cycle cap.
+	ref := &testCredRefresher{failTimes: 0, returnToken: "new-token"}
 	h := &ChatHandler{router: &testProviderResolver{prov: prov}, refresher: ref}
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
 	h.Handle(&ctx)
 
-	if ref.callCount > 3 {
-		t.Errorf("refresh calls = %d, want ≤3 (capped)", ref.callCount)
+	// Exactly 3 refresh attempts (cap).
+	if ref.callCount != 3 {
+		t.Errorf("refresh calls = %d, want 3 (cap)", ref.callCount)
 	}
-	if prov.callCount > 1 {
-		t.Errorf("provider calls = %d, want 1 (no retry since refresh always fails)", prov.callCount)
+	// Initial dispatch + 3 retry dispatches = 4 total provider calls.
+	if prov.callCount != 4 {
+		t.Errorf("provider calls = %d, want 4 (initial + 3 retry dispatches)", prov.callCount)
 	}
 	if ctx.Response.StatusCode() == fasthttp.StatusOK {
-		t.Error("expected non-200 when all refreshes fail")
+		t.Error("expected non-200 when provider keeps returning 401")
 	}
 }
 

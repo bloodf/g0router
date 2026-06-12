@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/translation"
 	"github.com/valyala/fasthttp"
 )
@@ -361,10 +362,36 @@ func TestModelsByKind(t *testing.T) {
 			if tt.wantEmpty && len(resp.Data) != 0 {
 				t.Errorf("expected empty list for kind %q, got %d entries", tt.kind, len(resp.Data))
 			}
-			// All returned entries must match the requested kind's owned_by.
+			// Each returned entry must have a non-empty provider and a catalog Type
+			// that matches the requested kind's type set (PAR-ROUTE-037).
+			wantTypes := kindSlugMap[tt.kind]
+			typeSet := make(map[string]bool, len(wantTypes))
+			for _, typ := range wantTypes {
+				typeSet[typ] = true
+			}
 			for _, m := range resp.Data {
 				if m.OwnedBy == "" {
 					t.Errorf("entry %q has empty owned_by", m.ID)
+				}
+				if len(wantTypes) > 0 {
+					// Look up this model in the catalog to verify its type.
+					found := false
+					for _, cm := range catalog.ModelsFor(m.OwnedBy) {
+						if cm.ID == m.ID {
+							actualType := cm.Type
+							if actualType == "" {
+								actualType = "llm"
+							}
+							if !typeSet[actualType] {
+								t.Errorf("model %q (provider=%q) has type %q, not in %v", m.ID, m.OwnedBy, actualType, wantTypes)
+							}
+							found = true
+							break
+						}
+					}
+					if !found {
+						t.Errorf("model %q (provider=%q) not found in catalog", m.ID, m.OwnedBy)
+					}
 				}
 			}
 		})
