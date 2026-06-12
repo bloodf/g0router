@@ -185,3 +185,30 @@ queries added; method-explicit pricing-route acceptance). Cycle-3 residual triag
 - MAJOR missing named tests: REAL → FIXED (complete 18-test list in acceptance).
 Kimi diff gate at implementation is the binding check. APPROVED BY DECISION for
 dispatch after w5-b + w5-c merge.
+
+## Diff-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1: 4 REAL FIXED (fix-r1, 2530523: live
+token/cost aggregation in all breakdowns, shared Tracker/Ring injection via
+UsageDeps — single construction in internal/server, PATCH/DELETE return user-only
+pricing, panic-safe checked daily parsing). Cycle-2: 2 REAL FIXED (fix-r2, a33337b:
+tracker mutex covers the byModel read, LoadDailyRange takes injected now) + 1
+rebutted (stream/{connectionId} route lines blame to a6f2f12, w5-e's gated commit —
+range pollution). Cycle-3 residual triage — all four disproven against live tree/ref:
+- BLOCKER "task 7 skipped, routes absent": FALSE POSITIVE — artifact of THIS gate
+  run's path scope (routes_admin.go was excluded to avoid the cycle-2 pollution);
+  the routes exist and the acceptance greps PASS live (5 usage routes; GET/PATCH/
+  DELETE /api/pricing = 1/1/1; registered by 34a4f0d).
+- MAJOR "daily byAccount keyed by connection ID is wrong": FALSE POSITIVE — the REF
+  keys the DAILY blob's byAccount by connectionId (`usageRepo.js:66-68`) and builds
+  the display key `model (provider - accountName)` at READ time (`:455-462`).
+  Implementation matches both halves.
+- MAJOR "reset tests contradict merged defaults": FALSE POSITIVE — canonical
+  PROVIDER_PRICING contains exactly ONE provider ("gh"); the test's
+  "openai"/"anthropic" providers exist in Merged() only as user overrides, so
+  asserting their disappearance after Reset is the correct semantics.
+- MAJOR "validPricingFields mutable global": REBUTTED — immutable lookup table,
+  never written post-init; established repo pattern (pricingdata tables, catalog
+  aliases, errorclass rules, authExpiredPatterns precedent in w5-e disposition).
+Full gates green post-fix-r2 (build/vet/test/-race verified live). MERGED.
+Rows flip: PAR-USAGE-013/014/015/016/017/021/022/023/029/030/031/039 → HAVE
+(024's route half also delivered; row already HAVE since w5-c).

@@ -6529,3 +6529,14 @@ Rows_flipped: PAR-USAGE-032 → PARTIAL (Stage-1 half), 033/034/035 → HAVE
 (usage 25/1/14).
 Incident: m3 fix-r2 run checked out kimi's mid-edit w5-d files to verify — kimi
 recovered autonomously; absolute checkout prohibition added to all worker prompts.
+
+## w5-d: MERGED (2026-06-12)
+Diff gate closed by decision after 3 cycles. Fix rounds: r1 2530523 (live token/cost
+aggregation — REAL blocker: today/24h stats showed zero tokens/cost; shared
+Tracker/Ring single-construction; user-pricing returns; panic-safe daily parse),
+r2 a33337b (tracker lock placement — REAL race on byModel; injected LoadDailyRange
+clock). Cycle-3: all four findings disproven live (routes exist — gate scope
+artifact; byAccount daily keying is ref-verbatim :66-68/:455-462; canonical pricing
+has only gh; immutable fields table).
+Rows_flipped: PAR-USAGE-013-017/021-023/029-031/039 → HAVE (usage 37/1/2 —
+remaining: 032 PARTIAL Stage-1, 036/037 UI → W6).
