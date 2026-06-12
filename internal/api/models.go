@@ -20,11 +20,30 @@ type ComboLister interface {
 	ListComboNames() ([]string, error)
 }
 
+// CustomModel is a user-defined model read from the customModels setting.
+type CustomModel struct {
+	ID       string
+	Provider string
+	Type     string
+}
+
+// CustomModelLister returns custom models for /v1/models merging (PAR-ROUTE-057).
+type CustomModelLister interface {
+	ListCustomModels() ([]CustomModel, error)
+}
+
+// AliasModelLister returns alias names for /v1/models merging (PAR-ROUTE-057).
+type AliasModelLister interface {
+	ListAliasNames() ([]string, error)
+}
+
 // ModelsHandler handles GET /v1/models and GET /v1/models/:id.
 type ModelsHandler struct {
-	router          *inference.Router
-	disabledChecker DisabledChecker
-	comboLister     ComboLister
+	router            *inference.Router
+	disabledChecker   DisabledChecker
+	comboLister       ComboLister
+	customModelLister CustomModelLister
+	aliasModelLister  AliasModelLister
 }
 
 // NewModelsHandler creates a models handler.
@@ -40,6 +59,16 @@ func (h *ModelsHandler) SetDisabledChecker(dc DisabledChecker) {
 // SetComboLister wires a combo lister so combo names appear first in /v1/models (PAR-ROUTE-047).
 func (h *ModelsHandler) SetComboLister(cl ComboLister) {
 	h.comboLister = cl
+}
+
+// SetCustomModelLister wires a custom-model lister for /v1/models (PAR-ROUTE-057).
+func (h *ModelsHandler) SetCustomModelLister(l CustomModelLister) {
+	h.customModelLister = l
+}
+
+// SetAliasModelLister wires an alias lister for /v1/models (PAR-ROUTE-057).
+func (h *ModelsHandler) SetAliasModelLister(l AliasModelLister) {
+	h.aliasModelLister = l
 }
 
 // List handles GET /v1/models.
@@ -63,11 +92,18 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 			})
 		}
 	}
-	providerStart := len(resp.Data)
+	seen := make(map[string]bool)
+	for _, m := range resp.Data {
+		seen[m.ID] = true
+	}
 
 	// Aggregate models from all Stage-1 provider catalogs, skipping disabled ones.
+	var catalogEntries []schemas.ModelEntry
 	for providerID := range catalog.Providers {
 		for _, m := range catalog.ModelsFor(providerID) {
+			if m.ID == "" || seen[m.ID] {
+				continue
+			}
 			if h.disabledChecker != nil {
 				disabled, err := h.disabledChecker.IsDisabled(providerID, m.ID)
 				if err != nil {
@@ -78,7 +114,8 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 					continue
 				}
 			}
-			resp.Data = append(resp.Data, schemas.ModelEntry{
+			seen[m.ID] = true
+			catalogEntries = append(catalogEntries, schemas.ModelEntry{
 				ID:      m.ID,
 				Object:  "model",
 				OwnedBy: providerID,
@@ -86,10 +123,55 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 		}
 	}
 
-	// Sort only the provider-model section; combo entries keep their list order.
-	sort.Slice(resp.Data[providerStart:], func(i, j int) bool {
-		return resp.Data[providerStart+i].ID < resp.Data[providerStart+j].ID
+	// Sort the provider-model section; combo entries keep their list order.
+	sort.Slice(catalogEntries, func(i, j int) bool {
+		return catalogEntries[i].ID < catalogEntries[j].ID
 	})
+	resp.Data = append(resp.Data, catalogEntries...)
+
+	// Merge custom models (PAR-ROUTE-057). Order follows route.js:358:
+	// catalog IDs are seeded into the seen set first, so colliding custom IDs are skipped.
+	if h.customModelLister != nil {
+		customModels, err := h.customModelLister.ListCustomModels()
+		if err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, "server_error", "failed to list custom models", nil)
+			return
+		}
+		for _, m := range customModels {
+			if m.ID == "" || seen[m.ID] {
+				continue
+			}
+			if m.Type != "" && m.Type != "llm" {
+				continue
+			}
+			seen[m.ID] = true
+			resp.Data = append(resp.Data, schemas.ModelEntry{
+				ID:      m.ID,
+				Object:  "model",
+				OwnedBy: m.Provider,
+			})
+		}
+	}
+
+	// Merge alias names (PAR-ROUTE-057). Alias entries are appended after custom entries.
+	if h.aliasModelLister != nil {
+		aliasNames, err := h.aliasModelLister.ListAliasNames()
+		if err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, "server_error", "failed to list alias models", nil)
+			return
+		}
+		for _, name := range aliasNames {
+			if name == "" || seen[name] {
+				continue
+			}
+			seen[name] = true
+			resp.Data = append(resp.Data, schemas.ModelEntry{
+				ID:      name,
+				Object:  "model",
+				OwnedBy: "alias",
+			})
+		}
+	}
 
 	b, err := jsonMarshal(resp)
 	if err != nil {

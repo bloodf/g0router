@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/inference"
@@ -233,6 +234,26 @@ func (f *fakeComboLister) ListComboNames() ([]string, error) {
 	return f.names, nil
 }
 
+// fakeCustomModelLister implements CustomModelLister for testing.
+type fakeCustomModelLister struct {
+	models []CustomModel
+	err    error
+}
+
+func (f *fakeCustomModelLister) ListCustomModels() ([]CustomModel, error) {
+	return f.models, f.err
+}
+
+// fakeAliasModelLister implements AliasModelLister for testing.
+type fakeAliasModelLister struct {
+	names []string
+	err   error
+}
+
+func (f *fakeAliasModelLister) ListAliasNames() ([]string, error) {
+	return f.names, f.err
+}
+
 func TestModelsListCombosFirst(t *testing.T) {
 	router := inference.NewRouter(translation.NewRegistry())
 	h := NewModelsHandler(router)
@@ -447,5 +468,207 @@ func TestModelTestRoutesByKind(t *testing.T) {
 				t.Errorf("kind = %q, want %q", route.Kind, tt.kind)
 			}
 		})
+	}
+}
+
+// TestModelsList_MergesCustomModels verifies PAR-ROUTE-057: a custom model is
+// appended after the catalog section with owned_by set to its provider field.
+// Ref order follows route.js:358 (catalog IDs first, then custom IDs).
+func TestModelsList_MergesCustomModels(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetCustomModelLister(&fakeCustomModelLister{
+		models: []CustomModel{{ID: "my-custom", Provider: "openai", Type: "llm"}},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	found := false
+	catalogIdx := -1
+	customIdx := -1
+	for i, m := range resp.Data {
+		if m.ID == "my-custom" {
+			found = true
+			customIdx = i
+			if m.OwnedBy != "openai" {
+				t.Errorf("my-custom owned_by = %q, want openai (route.js:318-321)", m.OwnedBy)
+			}
+		}
+		if m.ID == "gpt-4o" && catalogIdx < 0 {
+			catalogIdx = i
+		}
+	}
+	if !found {
+		t.Fatal("my-custom not found in response")
+	}
+	if catalogIdx >= 0 && customIdx <= catalogIdx {
+		t.Errorf("custom position %d not after catalog %d (route.js:358)", customIdx, catalogIdx)
+	}
+}
+
+// TestModelsList_MergesAliasModels verifies PAR-ROUTE-057: an alias name is
+// exposed as a model entry with owned_by "alias", positioned after custom entries.
+func TestModelsList_MergesAliasModels(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetAliasModelLister(&fakeAliasModelLister{
+		names: []string{"fast"},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	found := false
+	for _, m := range resp.Data {
+		if m.ID == "fast" {
+			found = true
+			if m.OwnedBy != "alias" {
+				t.Errorf("fast owned_by = %q, want alias", m.OwnedBy)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("alias 'fast' not found")
+	}
+}
+
+// TestModelsList_DedupCustomVsCatalog verifies PAR-ROUTE-057 dedup direction:
+// a custom ID that collides with a catalog ID is skipped because the seen set is
+// seeded with catalog IDs first (route.js:358 Set([...modelIds, ...customModelIds, ...aliasModelIds])).
+func TestModelsList_DedupCustomVsCatalog(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetCustomModelLister(&fakeCustomModelLister{
+		models: []CustomModel{{ID: "deepseek-chat", Provider: "openai", Type: "llm"}},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	count := 0
+	var survivor string
+	for _, m := range resp.Data {
+		if m.ID == "deepseek-chat" {
+			count++
+			survivor = m.OwnedBy
+		}
+	}
+	if count != 1 {
+		t.Fatalf("deepseek-chat appears %d times, want 1", count)
+	}
+	if survivor != "deepseek" {
+		t.Errorf("survivor owned_by = %q, want deepseek (catalog wins per route.js:358)", survivor)
+	}
+}
+
+// TestModelsList_CustomListerError verifies that a failing custom lister returns
+// a 500 server_error, matching the combo-lister error path.
+func TestModelsList_CustomListerError(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetCustomModelLister(&fakeCustomModelLister{
+		err: errors.New("custom lister failed"),
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "server_error") {
+		t.Errorf("body = %q, want server_error envelope", body)
+	}
+}
+
+// TestModelsList_NilListersUnchanged verifies that when no custom/alias listers
+// are wired the response contains only combos and catalog models.
+func TestModelsList_NilListersUnchanged(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	for _, m := range resp.Data {
+		if m.OwnedBy == "alias" {
+			t.Errorf("unexpected alias entry %q with no alias lister", m.ID)
+		}
+	}
+
+	// Spot-check that a known catalog model is still present.
+	found := false
+	for _, m := range resp.Data {
+		if m.ID == "deepseek-chat" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Error("deepseek-chat missing from catalog-only response")
 	}
 }
