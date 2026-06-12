@@ -28,10 +28,14 @@ the utility").
 2. **Header sanitizer (PAR-USAGE-027 = PAR-AUTH-017)** — evidence:
    `requestDetailsRepo.js:46-54`: case-insensitive SUBSTRING match against
    [authorization, x-api-key, cookie, token, api-key]; matching keys DELETED (not
-   masked); non-map input → empty map.
+   masked). The ref's `!headers || typeof !== "object" → {}` guard (`:47`) is a
+   dynamic-typing check whose only Go-reachable case is the nil map — Go's type
+   system makes "non-map input" unrepresentable for a `map[string]string` parameter,
+   so nil→empty IS the complete port of that guard (recorded, not dropped).
    STEP (a): table-driven `TestSanitizeHeaders` (Authorization, X-Api-Key, Cookie,
    X-Auth-Token, api-key variants removed; Content-Type kept; substring semantics:
-   `x-csrf-token` removed because it contains "token"; nil → empty) — fails.
+   `x-csrf-token` removed because it contains "token"; nil → empty non-nil map) —
+   fails.
    STEP (b): `SanitizeHeaders(map[string]string) map[string]string` in
    `internal/usage/observability.go` (pure).
 
@@ -80,8 +84,12 @@ the utility").
    combos; page 2 of pageSize 2 → correct slice + pagination math) and
    `TestRequestDetailByID` — fail.
    STEP (b): in `internal/store/requestdetails.go`: `RequestDetailsFilter` struct,
-   `(s *Store) QueryRequestDetails(f) (rows, Pagination, error)` (rows = decoded
-   `data` blobs as `[]json.RawMessage`, DESC by timestamp),
+   `(s *Store) QueryRequestDetails(f) (rows, Pagination, error)` (rows =
+   `[]json.RawMessage` of the `data` blobs, DESC by timestamp — EXACT parity: the ref
+   query SELECTs ONLY `data` and maps `parseJson(r.data)` with no column metadata
+   (`requestDetailsRepo.js:165-169`), and no metadata is lost because flush writes
+   id/provider/model/connectionId/timestamp/status INTO the data record itself
+   (`requestDetailsRepo.js:88-101`)),
    `(s *Store) GetRequestDetailByID(id string) (json.RawMessage, error)` — not-found
    returns `(nil, nil)` (exact port of `requestDetailsRepo.js:177-181`
    `row ? parse : null`; missing is not an error, matching the
@@ -90,18 +98,16 @@ the utility").
 
 6. **Debug log production gate (PAR-AUTH-018)** — evidence: `debugLog.js:1-15`:
    `isDev = NODE_ENV !== "production"`; `dbg(tag,msg)` no-ops in production; output
-   format `[HH:MM:SS] 🐛 [DBG:tag] msg`. PLANNER DECISION recorded HERE (Fable 5,
-   2026-06-12, this plan is the decision artifact — same mechanism as w4-pre's
-   plan-explicit decisions): the ref's gate variable `NODE_ENV` (`debugLog.js:3`) is a
-   Node.js runtime convention with no Go equivalent; the Go port gates on
-   `G0ROUTER_ENV != "production"`, preserving the ref's exact SEMANTICS (default =
-   dev/enabled; only the literal value "production" disables). Constructor-injected
-   getenv — no init(), no global mutable state; package `internal/logging` (currently
-   a placeholder — `internal/logging/doc.go` says request-log/audit arrive later;
-   this plan adds ONLY the debug gate, not the audit trail).
-   STEP (a): `TestDebugLogProductionGate` (production env → writer receives nothing;
-   dev → tagged line written; format contains `[DBG:tag]`) — fails (placeholder
-   package).
+   format `[HH:MM:SS] 🐛 [DBG:tag] msg`. The Go port gates on the LITERAL same
+   variable the ref reads — `NODE_ENV != "production"` (`debugLog.js:3`) — zero
+   adaptation, zero invented names; operators set the identical env var either way.
+   Constructor-injected getenv — no init(), no global mutable state; package
+   `internal/logging` (currently a placeholder — `internal/logging/doc.go` says
+   request-log/audit arrive later; this plan adds ONLY the debug gate, not the audit
+   trail).
+   STEP (a): `TestDebugLogProductionGate` (getenv("NODE_ENV")="production" → writer
+   receives nothing; empty/other → tagged line written; format contains `[DBG:tag]`)
+   — fails (placeholder package).
    STEP (b): `internal/logging/debug.go`: `Debug struct{enabled bool, out io.Writer,
    clock}` + `NewDebug(getenv func(string) string, out io.Writer) *Debug` +
    `(d *Debug) Logf(tag, format string, args ...any)`.

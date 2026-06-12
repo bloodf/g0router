@@ -60,7 +60,11 @@ plan adds follow the inference precedent.)
    timestamp defaulted, cost computed from provider+model+tokens via pricing
    resolution, prompt/completion extracted via synonym normalization
    (`usageRepo.js:121-122` ports as w5-a `NormalizeTokens`). Emits the "update" event
-   after a successful save (`usageRepo.js:283` `statsEmitter.emit("update")`).
+   after a successful save — this is INSIDE PAR-USAGE-011's cited port range:
+   the row's evidence is `usageRepo.js:243-287` (`saveRequestUsage`), and line 283
+   `statsEmitter.emit("update")` is part of that function's behavior; omitting it
+   would be an incomplete port of the row w5-b owns. (PAR-USAGE-034, out of scope
+   here, is the SSE CONSUMER of this event — w5-e.)
    STEP (a): `TestRecorderComputesCost` (fake UsageStore capturing the entry; Recorder
    over w5-a Resolver with known model pricing → entry.Cost matches golden value;
    missing pricing → Cost 0; timestamp filled when empty) and `TestRecorderEmitsUpdate`
@@ -94,10 +98,13 @@ plan adds follow the inference precedent.)
    `TestTrackerErrorProvider` (10s window via injected clock), `TestTrackerEmitsPending`
    (one callback invocation kind "pending" per Start/End), `TestTrackerConcurrent`
    (parallel Start/End under -race); run — fail.
-   STEP (b): NEW `internal/usage/events.go`: `Events` — mutex-guarded callback
-   registry, EXACTLY this API: `(e *Events) OnEvent(fn func(kind string))` +
-   `(e *Events) Emit(kind string)` (synchronous fan-out; kinds used: "pending",
-   "update" — the two the ref emits). NEW `internal/usage/tracker.go`: `Tracker`
+   STEP (b): NEW `internal/usage/events.go`: `Events` — the Go translation of the
+   ref's `statsEmitter` EventEmitter, which is itself part of the files/rows w5-b
+   ports (`usageRepo.js:14-17` declares it; every emit site lies inside w5-b's cited
+   ranges: :181,:195 in PAR-USAGE-018's 153-196, :283 in PAR-USAGE-011's 243-287).
+   Mutex-guarded callback registry, EXACTLY this API:
+   `(e *Events) OnEvent(fn func(kind string))` + `(e *Events) Emit(kind string)`
+   (synchronous fan-out; kinds used: "pending", "update" — the two the ref emits). NEW `internal/usage/tracker.go`: `Tracker`
    (mutex-guarded maps; injected `clock func() time.Time` + `timerFactory
    func(time.Duration, func()) (stop func())` — production wraps `time.AfterFunc`;
    holds *Events and emits "pending"). No globals, no init().
@@ -108,7 +115,7 @@ plan adds follow the inference precedent.)
    STEP (a): `TestRingInitOnceFromStore` (fake last-N lister called exactly once; later
    pushes append; cap 50), `TestConnNameCacheTTL` (injected clock: within TTL no
    re-list; after TTL re-lists; fallback chain name→email→id); run — fail.
-   STEP (b): in `internal/usage/tracker.go` (or `ring.go`): `Ring` with
+   STEP (b): in NEW `internal/usage/ring.go` (deterministic — not optional): `Ring` with
    `Init(lister)` / `Push` / `Snapshot`; `ConnNameCache{lister, ttl, clock}` with
    `Get() map[string]string`. Store side: `(s *Store) ListRecentRequestLogs(limit int)
    ([]*RequestLogEntry, error)` (ORDER BY id DESC LIMIT ?) in requestlog.go —
@@ -121,9 +128,9 @@ plan adds follow the inference precedent.)
 - `grep -rh 'bloodf/g0router' internal/store/*.go | grep -v _test | wc -l` outputs `0` (store leaf invariant — evidence for §Layering decision; preserved by this plan).
 
 ## Exclusive file ownership
-NEW: `internal/store/requestlog.go`(+test),
-`internal/usage/{recorder,recent,tracker,events}.go`
-(+tests; `ring.go` optional split). TOUCHES NO file owned by w5-c
+NEW (exact, deterministic): `internal/store/requestlog.go`(+test),
+`internal/usage/{recorder,recent,tracker,events,ring}.go`(+tests).
+TOUCHES NO file owned by w5-c
 (`internal/store/requestdetails*.go`, `internal/usage/observability*.go`,
 `internal/logging/*`) — the two run concurrently.
 
