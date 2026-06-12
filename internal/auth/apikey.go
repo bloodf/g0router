@@ -2,10 +2,12 @@ package auth
 
 import (
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +15,10 @@ import (
 
 	"github.com/valyala/fasthttp"
 )
+
+// randReader is a seam for injecting crypto/rand failures in tests that hit
+// randomUUID (machine-id fallback).
+var randReader io.Reader = rand.Reader
 
 var (
 	newKeyRe    = regexp.MustCompile(`^sk-[0-9a-f]{16}-[a-z0-9]{6}-[0-9a-f]{8}$`)
@@ -153,7 +159,10 @@ func loadRawMachineID(dataDir string) (string, error) {
 
 	raw, err := osMachineID()
 	if err != nil {
-		raw = randomUUID()
+		raw, err = randomUUID()
+		if err != nil {
+			return "", fmt.Errorf("generate fallback machine id: %w", err)
+		}
 	}
 
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
@@ -180,14 +189,12 @@ func osMachineID() (string, error) {
 }
 
 // randomUUID returns a random UUID string.
-func randomUUID() string {
+func randomUUID() (string, error) {
 	b := make([]byte, 16)
-	if _, err := randRead(b); err != nil {
-		// crypto/rand failing is unrecoverable; this path should not be reached
-		// in normal operation. Return a deterministic placeholder to avoid panic.
-		return "0000000000000000"
+	if _, err := io.ReadFull(randReader, b); err != nil {
+		return "", fmt.Errorf("read random bytes: %w", err)
 	}
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }
 
 // APIKeyLookup resolves a raw API key to its machine identifier and active

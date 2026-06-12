@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -219,5 +221,43 @@ func TestMachineIDStable(t *testing.T) {
 	}
 	if id1 != id2 {
 		t.Fatalf("MachineID not stable: %q vs %q", id1, id2)
+	}
+}
+
+// TestKeyIDGenerationNoPlaceholder verifies that randomUUID returns an error
+// instead of minting the deterministic placeholder when crypto/rand fails.
+func TestKeyIDGenerationNoPlaceholder(t *testing.T) {
+	prev := randReader
+	t.Cleanup(func() { randReader = prev })
+
+	randReader = &failingReader{}
+	_, err := randomUUID()
+	if err == nil {
+		t.Fatal("randomUUID: want error with failing rand reader")
+	}
+}
+
+// failingReader always returns an error so tests can exercise rand failures.
+type failingReader struct{}
+
+func (f *failingReader) Read(p []byte) (int, error) {
+	return 0, errors.New("simulated rand failure")
+}
+
+// TestGenerateAPIKeyNoPlaceholder verifies that a broken rand reader during
+// key ID generation returns an error and never produces the placeholder UUID.
+func TestGenerateAPIKeyNoPlaceholder(t *testing.T) {
+	prev := randRead
+	t.Cleanup(func() { randRead = prev })
+
+	randRead = func(b []byte) (int, error) {
+		return 0, errors.New("simulated rand failure")
+	}
+	key, keyID, err := GenerateAPIKey("deadbeefdeadbeef")
+	if err == nil {
+		t.Fatalf("GenerateAPIKey: want error, got key=%q keyID=%q", key, keyID)
+	}
+	if strings.Contains(key, "0000000000000000") || strings.Contains(keyID, "0000000000000000") {
+		t.Errorf("output contains placeholder UUID: key=%q keyID=%q", key, keyID)
 	}
 }
