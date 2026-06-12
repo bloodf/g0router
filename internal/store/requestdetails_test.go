@@ -2,6 +2,7 @@ package store
 
 import (
 	"encoding/json"
+	"sort"
 	"testing"
 )
 
@@ -157,6 +158,42 @@ func TestRequestDetailsQuery(t *testing.T) {
 			t.Errorf("len(rows) = %d, want 3", len(rows))
 		}
 	})
+
+	t.Run("filter by model", func(t *testing.T) {
+		rows, pg, err := st.QueryRequestDetails(RequestDetailsFilter{Model: "gpt-4o"})
+		if err != nil {
+			t.Fatalf("QueryRequestDetails: %v", err)
+		}
+		if len(rows) != 3 {
+			t.Errorf("len(rows) = %d, want 3", len(rows))
+		}
+		if pg.TotalItems != 3 {
+			t.Errorf("TotalItems = %d, want 3", pg.TotalItems)
+		}
+		got := rowIDs(t, rows)
+		want := []string{"d1", "d5", "d6"}
+		if !sliceEqual(got, want) {
+			t.Errorf("ids = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("filter by connectionId", func(t *testing.T) {
+		rows, pg, err := st.QueryRequestDetails(RequestDetailsFilter{ConnectionID: "conn-2"})
+		if err != nil {
+			t.Fatalf("QueryRequestDetails: %v", err)
+		}
+		if len(rows) != 2 {
+			t.Errorf("len(rows) = %d, want 2", len(rows))
+		}
+		if pg.TotalItems != 2 {
+			t.Errorf("TotalItems = %d, want 2", pg.TotalItems)
+		}
+		got := rowIDs(t, rows)
+		want := []string{"d3", "d4"}
+		if !sliceEqual(got, want) {
+			t.Errorf("ids = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestRequestDetailByID(t *testing.T) {
@@ -187,5 +224,38 @@ func TestRequestDetailByID(t *testing.T) {
 	if missing != nil {
 		t.Errorf("missing = %s, want nil", string(missing))
 	}
+}
+
+func rowIDs(t *testing.T, rows []json.RawMessage) []string {
+	t.Helper()
+	var ids []string
+	for _, r := range rows {
+		var data map[string]any
+		if err := json.Unmarshal(r, &data); err != nil {
+			t.Fatalf("unmarshal row: %v", err)
+		}
+		id, ok := data["id"].(string)
+		if !ok {
+			t.Fatalf("id type = %T, want string", data["id"])
+		}
+		ids = append(ids, id)
+	}
+	return ids
+}
+
+func sliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	aCopy := append([]string(nil), a...)
+	bCopy := append([]string(nil), b...)
+	sort.Strings(aCopy)
+	sort.Strings(bCopy)
+	for i := range aCopy {
+		if aCopy[i] != bCopy[i] {
+			return false
+		}
+	}
+	return true
 }
 

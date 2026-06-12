@@ -42,7 +42,7 @@ type DetailWriter struct {
 	randRead     func([]byte) (int, error)
 
 	mu         sync.Mutex
-	buffer     []*RequestDetail
+	buffer     []RequestDetail
 	stopTimer  func()
 	closed     bool
 }
@@ -68,7 +68,7 @@ func NewDetailWriter(store DetailStore, config *ObsConfigLoader, clock func() ti
 }
 
 // Save buffers a detail. It flushes immediately when the batch threshold is reached.
-func (w *DetailWriter) Save(detail *RequestDetail) error {
+func (w *DetailWriter) Save(detail RequestDetail) error {
 	cfg := w.config.Load()
 	if !cfg.Enabled {
 		return nil
@@ -142,7 +142,7 @@ func (w *DetailWriter) flushLocked(cfg ObsConfig) error {
 	return nil
 }
 
-func (w *DetailWriter) prepareRow(d *RequestDetail, cfg ObsConfig) (*store.RequestDetailRow, error) {
+func (w *DetailWriter) prepareRow(d RequestDetail, cfg ObsConfig) (*store.RequestDetailRow, error) {
 	timestamp := d.Timestamp
 	if timestamp == "" {
 		timestamp = w.clock().UTC().Format("2006-01-02T15:04:05.000Z07:00")

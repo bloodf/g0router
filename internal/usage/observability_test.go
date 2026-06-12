@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -251,5 +252,29 @@ func TestTruncateField(t *testing.T) {
 	}
 	if len(preview) != 200 {
 		t.Errorf("preview len = %d, want 200", len(preview))
+	}
+}
+
+func TestTruncateFieldShortOversize(t *testing.T) {
+	value := map[string]any{"data": strings.Repeat("a", 30)}
+	got := TruncateField(value, 10)
+
+	marker, ok := got.(map[string]any)
+	if !ok {
+		t.Fatalf("type = %T, want map[string]any", got)
+	}
+	if marker["_truncated"] != true {
+		t.Errorf("_truncated = %v, want true", marker["_truncated"])
+	}
+	originalJSON, _ := json.Marshal(value)
+	if marker["_originalSize"] != len(originalJSON) {
+		t.Errorf("_originalSize = %v, want %d", marker["_originalSize"], len(originalJSON))
+	}
+	preview, ok := marker["_preview"].(string)
+	if !ok {
+		t.Fatalf("_preview type = %T, want string", marker["_preview"])
+	}
+	if preview != string(originalJSON) {
+		t.Errorf("preview = %q, want full JSON %q", preview, originalJSON)
 	}
 }

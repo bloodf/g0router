@@ -159,9 +159,13 @@ func TruncateField(v any, maxSize int) any {
 	if len(str) <= maxSize {
 		return v
 	}
+	previewLen := len(str)
+	if previewLen > 200 {
+		previewLen = 200
+	}
 	return map[string]any{
 		"_truncated":    true,
 		"_originalSize": len(str),
-		"_preview":      string(str[:200]),
+		"_preview":      string(str[:previewLen]),
 	}
 }

@@ -85,12 +85,25 @@ func newRealWriterStore(t *testing.T) *store.Store {
 	return st
 }
 
+func TestWriterSaveAcceptsValue(t *testing.T) {
+	st, loader, clock, tf, _, _ := newTestWriterDeps()
+	loader.settings = &fakeSettingsReader{values: map[string]string{"observabilityBatchSize": "1"}}
+	w := NewDetailWriter(st, loader, clock, tf, rand.Read)
+
+	if err := w.Save(RequestDetail{Model: "gpt-4o"}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if st.count() != 1 {
+		t.Fatalf("count = %d, want 1", st.count())
+	}
+}
+
 func TestWriterFlushAtBatchSize(t *testing.T) {
 	st, loader, clock, tf, timers, _ := newTestWriterDeps()
 	loader.settings = &fakeSettingsReader{values: map[string]string{"observabilityBatchSize": "2"}}
 	w := NewDetailWriter(st, loader, clock, tf, rand.Read)
 
-	if err := w.Save(&RequestDetail{Model: "gpt-4o"}); err != nil {
+	if err := w.Save(RequestDetail{Model: "gpt-4o"}); err != nil {
 		t.Fatalf("Save first: %v", err)
 	}
 	if st.count() != 0 {
@@ -100,7 +113,7 @@ func TestWriterFlushAtBatchSize(t *testing.T) {
 		t.Fatalf("timers = %d, want 1", len(*timers))
 	}
 
-	if err := w.Save(&RequestDetail{Model: "claude-3"}); err != nil {
+	if err := w.Save(RequestDetail{Model: "claude-3"}); err != nil {
 		t.Fatalf("Save second: %v", err)
 	}
 	if st.count() != 2 {
@@ -115,7 +128,7 @@ func TestWriterTimerFlush(t *testing.T) {
 	st, loader, clock, tf, _, fireLast := newTestWriterDeps()
 	w := NewDetailWriter(st, loader, clock, tf, rand.Read)
 
-	if err := w.Save(&RequestDetail{Model: "gpt-4o"}); err != nil {
+	if err := w.Save(RequestDetail{Model: "gpt-4o"}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	if st.count() != 0 {
@@ -136,10 +149,16 @@ func TestWriterRetention(t *testing.T) {
 		"observabilityFlushIntervalMs": "1000",
 	}}
 	loader := NewObsConfigLoader(s, func(string) string { return "" }, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) })
-	w := NewDetailWriter(st, loader, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) }, nil, rand.Read)
+	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	clock := func() time.Time {
+		t := now
+		now = now.Add(time.Second)
+		return t
+	}
+	w := NewDetailWriter(st, loader, clock, nil, rand.Read)
 
 	for i := 0; i < 5; i++ {
-		if err := w.Save(&RequestDetail{Model: "gpt-4o"}); err != nil {
+		if err := w.Save(RequestDetail{Model: "gpt-4o"}); err != nil {
 			t.Fatalf("Save %d: %v", i, err)
 		}
 	}
@@ -151,6 +170,33 @@ func TestWriterRetention(t *testing.T) {
 	if len(rows) != 3 {
 		t.Fatalf("len(rows) = %d, want 3", len(rows))
 	}
+
+	present := make(map[string]bool)
+	for _, r := range rows {
+		var data map[string]any
+		if err := json.Unmarshal(r, &data); err != nil {
+			t.Fatalf("unmarshal row: %v", err)
+		}
+		ts, ok := data["timestamp"].(string)
+		if !ok {
+			t.Fatalf("timestamp type = %T, want string", data["timestamp"])
+		}
+		present[ts] = true
+	}
+
+	base := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
+	for i := 0; i < 2; i++ {
+		ts := base.Add(time.Duration(i) * time.Second).UTC().Format("2006-01-02T15:04:05.000Z07:00")
+		if present[ts] {
+			t.Errorf("oldest timestamp %s should be absent", ts)
+		}
+	}
+	for i := 2; i < 5; i++ {
+		ts := base.Add(time.Duration(i) * time.Second).UTC().Format("2006-01-02T15:04:05.000Z07:00")
+		if !present[ts] {
+			t.Errorf("newest timestamp %s should be present", ts)
+		}
+	}
 }
 
 func TestWriterDisabledDrops(t *testing.T) {
@@ -159,7 +205,7 @@ func TestWriterDisabledDrops(t *testing.T) {
 	loader := NewObsConfigLoader(s, func(string) string { return "" }, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) })
 	w := NewDetailWriter(st, loader, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) }, nil, rand.Read)
 
-	if err := w.Save(&RequestDetail{Model: "gpt-4o"}); err != nil {
+	if err := w.Save(RequestDetail{Model: "gpt-4o"}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	if err := w.Close(); err != nil {
@@ -181,7 +227,7 @@ func TestWriterCloseFlushes(t *testing.T) {
 	loader := NewObsConfigLoader(s, func(string) string { return "" }, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) })
 	w := NewDetailWriter(st, loader, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) }, nil, rand.Read)
 
-	if err := w.Save(&RequestDetail{Model: "gpt-4o"}); err != nil {
+	if err := w.Save(RequestDetail{Model: "gpt-4o"}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	if err := w.Close(); err != nil {
@@ -208,7 +254,7 @@ func TestWriterConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := w.Save(&RequestDetail{Model: "gpt-4o"}); err != nil {
+			if err := w.Save(RequestDetail{Model: "gpt-4o"}); err != nil {
 				t.Errorf("Save: %v", err)
 			}
 		}()
@@ -237,7 +283,7 @@ func TestWriterSanitizesAndTruncates(t *testing.T) {
 	w := NewDetailWriter(st, loader, func() time.Time { return time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC) }, nil, rand.Read)
 
 	big := strings.Repeat("a", 2000)
-	if err := w.Save(&RequestDetail{
+	if err := w.Save(RequestDetail{
 		Model:    "gpt-4o",
 		Response: map[string]any{"body": big},
 		Request:  map[string]any{"headers": map[string]string{"Authorization": "secret", "Content-Type": "json"}},
@@ -276,7 +322,7 @@ func TestWriterFlushErrorPropagates(t *testing.T) {
 	st.err = errors.New("flush failed")
 	w := NewDetailWriter(st, loader, clock, tf, rand.Read)
 
-	if err := w.Save(&RequestDetail{Model: "gpt-4o"}); err == nil {
+	if err := w.Save(RequestDetail{Model: "gpt-4o"}); err == nil {
 		t.Fatal("expected flush error")
 	}
 }
