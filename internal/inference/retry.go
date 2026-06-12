@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"time"
@@ -195,7 +196,9 @@ func AutoLearnTokenParam(
 		return status2, respBody2, err2
 	}
 	if status2 >= 200 && status2 < 300 {
-		_ = settings.SetSetting(key, switchedTo)
+		if err := settings.SetSetting(key, switchedTo); err != nil {
+			return status2, respBody2, fmt.Errorf("persist learned token param: %w", err)
+		}
 	}
 	return status2, respBody2, nil
 }

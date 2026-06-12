@@ -290,7 +290,9 @@ func TestTokenParamAutoLearnNoMismatch(t *testing.T) {
 }
 
 type fakeSettings struct {
-	data map[string]string
+	data      map[string]string
+	setErr    error
+	setCalled int
 }
 
 func (f *fakeSettings) GetSetting(key string) (string, error) {
@@ -302,6 +304,33 @@ func (f *fakeSettings) GetSetting(key string) (string, error) {
 }
 
 func (f *fakeSettings) SetSetting(key, value string) error {
+	f.setCalled++
+	if f.setErr != nil {
+		return f.setErr
+	}
 	f.data[key] = value
 	return nil
+}
+
+func TestTokenParamAutoLearnPersistError(t *testing.T) {
+	settings := &fakeSettings{data: make(map[string]string), setErr: errors.New("disk full")}
+	body := map[string]any{"max_tokens": 100}
+
+	call := func(b map[string]any) (int, []byte, error) {
+		if _, ok := b["max_tokens"]; ok {
+			return 400, []byte(`{"error":{"message":"unsupported parameter: max_tokens"}}`), nil
+		}
+		return 200, []byte(`{"ok":true}`), nil
+	}
+
+	status, _, err := AutoLearnTokenParam(context.Background(), "p", "m", body, settings, call)
+	if err == nil {
+		t.Fatal("expected persistence error, got nil")
+	}
+	if status != 200 {
+		t.Errorf("status=%d, want 200 (upstream succeeded)", status)
+	}
+	if !errors.Is(err, settings.setErr) {
+		t.Errorf("err=%v, want wrapped disk full", err)
+	}
 }
