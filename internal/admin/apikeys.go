@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
@@ -57,18 +56,7 @@ func (h *Handlers) CreateAPIKey(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	machineID, err := auth.MachineID(h.store.DataDir(), "")
-	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, "derive machine id")
-		return
-	}
-	key, _, err := auth.GenerateAPIKey(machineID)
-	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, "generate api key")
-		return
-	}
-
-	rec, err := h.store.CreateAPIKey(req.Name, key, machineID)
+	rec, err := h.store.CreateAPIKey(req.Name)
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, "create api key")
 		return

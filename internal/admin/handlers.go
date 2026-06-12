@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"fmt"
+
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/store"
 )
@@ -19,6 +21,19 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 	if flows == nil {
 		flows = map[string]*auth.OAuthFlow{}
 	}
+	// Wire auth-derived key generation into the store to keep the store
+	// package free of the auth→store import cycle.
+	st.SetAPIKeyGenerator(func(dataDir string) (string, string, error) {
+		machineID, err := auth.MachineID(dataDir, "")
+		if err != nil {
+			return "", "", fmt.Errorf("derive machine id: %w", err)
+		}
+		key, _, err := auth.GenerateAPIKey(machineID)
+		if err != nil {
+			return "", "", fmt.Errorf("generate api key: %w", err)
+		}
+		return key, machineID, nil
+	})
 	return &Handlers{store: st, sessions: sessions, flows: flows, limiter: auth.NewLoginLimiter()}
 }
 

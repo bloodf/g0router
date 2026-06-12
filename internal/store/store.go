@@ -15,8 +15,9 @@ var ErrNotFound = errors.New("store: not found")
 
 // Store wraps the SQLite database and the at-rest cipher for secret columns.
 type Store struct {
-	db     *sql.DB
-	cipher *Cipher
+	db              *sql.DB
+	cipher          *Cipher
+	apiKeyGenerator apiKeyGenerator
 }
 
 // Open opens (or creates) the SQLite database at path, enables WAL mode,
@@ -50,7 +51,7 @@ func Open(path string, secret []byte) (*Store, error) {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
-	return &Store{db: db, cipher: cipher}, nil
+	return &Store{db: db, cipher: cipher, apiKeyGenerator: defaultAPIKeyGenerator}, nil
 }
 
 // Close closes the underlying database.
