@@ -31,7 +31,7 @@ func (s *Store) CreateAlias(name, target string) error {
 	// existing chain. If we reach name, the new alias would close a cycle.
 	seen := make(map[string]bool)
 	cur := target
-	for i := 0; i < 10; i++ {
+	for {
 		if cur == name {
 			return fmt.Errorf("alias %q -> %q would create a cycle", name, target)
 		}
@@ -99,27 +99,27 @@ func (s *Store) DeleteAlias(name string) error {
 	return nil
 }
 
-// ResolveChain follows alias chains up to 10 hops and returns the final name.
+// ResolveChain follows alias chains and returns the final name.
 // If the chain ends at an unknown name, that name is returned unchanged.
 func (s *Store) ResolveChain(name string) (string, error) {
-	cur := name
 	seen := make(map[string]bool)
-	for i := 0; i < 10; i++ {
+	cur := name
+	for {
 		if seen[cur] {
+			// Cycle in stored data (should not happen after valid writes). Return current.
 			return cur, nil
 		}
 		seen[cur] = true
 		var target string
-		err := s.db.QueryRow("SELECT target FROM model_aliases WHERE name = ?", cur).Scan(&target)
+		err := s.db.QueryRow(`SELECT target FROM model_aliases WHERE name = ?`, cur).Scan(&target)
 		if errors.Is(err, sql.ErrNoRows) {
 			return cur, nil
 		}
 		if err != nil {
-			return "", fmt.Errorf("resolve alias %s: %w", cur, err)
+			return "", fmt.Errorf("resolve chain %q: %w", name, err)
 		}
 		cur = target
 	}
-	return cur, nil
 }
 
 func scanAlias(row interface {

@@ -43,6 +43,27 @@ func TestAliasCycleRejectedOnWrite(t *testing.T) {
 	}
 }
 
+func TestAliasCycleRejectedLongChain(t *testing.T) {
+	st := newTestStore(t)
+
+	// Build a chain A -> B -> C -> ... -> K (10 aliases, 11 nodes).
+	names := []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"}
+	for i := 0; i < len(names)-1; i++ {
+		if err := st.CreateAlias(names[i], names[i+1]); err != nil {
+			t.Fatalf("CreateAlias %s->%s: %v", names[i], names[i+1], err)
+		}
+	}
+
+	// Closing K -> A must be rejected even though the cycle is longer than 10 hops.
+	err := st.CreateAlias("K", "A")
+	if err == nil {
+		t.Fatal("CreateAlias K->A should reject cycle")
+	}
+	if !strings.Contains(err.Error(), "cycle") {
+		t.Errorf("CreateAlias K->A error = %v, want error containing 'cycle'", err)
+	}
+}
+
 func TestAliasMissingPassthrough(t *testing.T) {
 	st := newTestStore(t)
 

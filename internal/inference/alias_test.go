@@ -18,9 +18,9 @@ func (f *fakeAliasStore) CreateAlias(name, target string) error {
 func (f *fakeAliasStore) ResolveChain(name string) (string, error) {
 	seen := make(map[string]bool)
 	cur := name
-	for i := 0; i < 10; i++ {
+	for {
 		if seen[cur] {
-			return "", nil
+			return cur, nil
 		}
 		seen[cur] = true
 		next, ok := f.aliases[cur]
@@ -29,7 +29,6 @@ func (f *fakeAliasStore) ResolveChain(name string) (string, error) {
 		}
 		cur = next
 	}
-	return cur, nil
 }
 
 func TestResolveModelAliasChain(t *testing.T) {

@@ -35,26 +35,14 @@ func CreateAlias(st AliasStore, name, target string) error {
 		return fmt.Errorf("alias %q would create a cycle (self-loop)", name)
 	}
 
-	// DFS cycle detection at write time: starting from target, follow the
-	// existing chain. If we reach name, the new alias would close a cycle.
-	seen := make(map[string]bool)
-	cur := target
-	for i := 0; i < 10; i++ {
-		if cur == name {
-			return fmt.Errorf("alias %q -> %q would create a cycle", name, target)
-		}
-		if seen[cur] {
-			break
-		}
-		seen[cur] = true
-		next, err := st.ResolveChain(cur)
-		if err != nil {
-			return fmt.Errorf("cycle check for %q: %w", name, err)
-		}
-		if next == cur {
-			break
-		}
-		cur = next
+	// Cycle detection: if following the existing chain from target ever reaches name,
+	// adding name→target would close a cycle.
+	resolved, err := st.ResolveChain(target)
+	if err != nil {
+		return fmt.Errorf("cycle check for %q: %w", name, err)
+	}
+	if resolved == name {
+		return fmt.Errorf("alias %q -> %q would create a cycle", name, target)
 	}
 
 	if err := st.CreateAlias(name, target); err != nil {
