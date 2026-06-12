@@ -1,11 +1,26 @@
 package usage
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
+	"net/http"
 	"reflect"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/bloodf/g0router/internal/store"
+)
+
+var numericRegexp = regexp.MustCompile(`^\d+$`)
+
+const (
+	defaultClaudeBaseURL = "https://api.anthropic.com"
+	defaultGeminiBaseURL = "https://cloudcode-pa.googleapis.com"
+	anthropicAPIVersion  = "2023-06-01"
 )
 
 // StatsMap returns the Stats result for the given period as a JSON-shaped map.
@@ -73,11 +88,353 @@ func (e *Events) OffEvent(fn func(kind string)) {
 
 // FetchProviderUsage returns usage/quota data for a single provider connection.
 // Stage-1 supports anthropic (Claude) and gemini; all other providers return a
-// fallback message.
-func FetchProviderUsage(providerType string, conn *store.Connection, client interface{}) (map[string]any, error) {
-	_ = conn
-	_ = client
+// fallback message. The optional baseURL parameter is a test seam.
+func FetchProviderUsage(providerType string, conn *store.Connection, client *http.Client, baseURL ...string) (map[string]any, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	switch providerType {
+	case "anthropic":
+		return fetchClaudeUsage(conn.AccessToken, client, firstBaseURL(baseURL, defaultClaudeBaseURL))
+	case "gemini":
+		return fetchGeminiUsage(conn.AccessToken, conn.Metadata, client, firstBaseURL(baseURL, defaultGeminiBaseURL))
+	default:
+		return map[string]any{
+			"message": fmt.Sprintf("Usage API not implemented for %s", providerType),
+		}, nil
+	}
+}
+
+func firstBaseURL(provided []string, fallback string) string {
+	if len(provided) > 0 && provided[0] != "" {
+		return provided[0]
+	}
+	return fallback
+}
+
+// fetchClaudeUsage mirrors the ref's getClaudeUsage: try the OAuth usage
+// endpoint first, then fall back to the legacy settings/org endpoint chain.
+func fetchClaudeUsage(accessToken string, client *http.Client, baseURL string) (map[string]any, error) {
+	if baseURL == "" {
+		baseURL = defaultClaudeBaseURL
+	}
+	baseURL = strings.TrimSuffix(baseURL, "/")
+
+	primaryURL := baseURL + "/api/oauth/usage"
+	req, err := http.NewRequest(http.MethodGet, primaryURL, nil)
+	if err != nil {
+		return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+	}
+	setClaudeHeaders(req, accessToken)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		var data map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+			return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+		}
+		quotas := map[string]any{}
+		if fh, ok := data["five_hour"].(map[string]any); ok && hasUtilization(fh) {
+			quotas["session (5h)"] = createClaudeQuotaObject(fh)
+		}
+		if sd, ok := data["seven_day"].(map[string]any); ok && hasUtilization(sd) {
+			quotas["weekly (7d)"] = createClaudeQuotaObject(sd)
+		}
+		for key, value := range data {
+			if !strings.HasPrefix(key, "seven_day_") || key == "seven_day" {
+				continue
+			}
+			if window, ok := value.(map[string]any); ok && hasUtilization(window) {
+				model := strings.TrimPrefix(key, "seven_day_")
+				quotas[fmt.Sprintf("weekly %s (7d)", model)] = createClaudeQuotaObject(window)
+			}
+		}
+		return map[string]any{
+			"plan":        "Claude Code",
+			"extra_usage": data["extra_usage"],
+			"quotas":      quotas,
+		}, nil
+	}
+
+	// Fallback: legacy settings + org usage endpoint.
+	settingsURL := baseURL + "/v1/settings"
+	settingsReq, err := http.NewRequest(http.MethodGet, settingsURL, nil)
+	if err != nil {
+		return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+	}
+	setClaudeHeaders(settingsReq, accessToken)
+
+	settingsResp, err := client.Do(settingsReq)
+	if err != nil {
+		return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+	}
+	defer settingsResp.Body.Close()
+
+	if settingsResp.StatusCode != http.StatusOK {
+		return map[string]any{"message": "Claude connected. Usage API requires admin permissions."}, nil
+	}
+
+	var settings map[string]any
+	if err := json.NewDecoder(settingsResp.Body).Decode(&settings); err != nil {
+		return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+	}
+
+	orgID, _ := settings["organization_id"].(string)
+	plan, _ := settings["plan"].(string)
+	orgName, _ := settings["organization_name"].(string)
+	if plan == "" {
+		plan = "Unknown"
+	}
+
+	if orgID != "" {
+		usageURL := fmt.Sprintf("%s/v1/organizations/%s/usage", baseURL, orgID)
+		usageReq, err := http.NewRequest(http.MethodGet, usageURL, nil)
+		if err != nil {
+			return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+		}
+		setClaudeHeaders(usageReq, accessToken)
+
+		usageResp, err := client.Do(usageReq)
+		if err != nil {
+			return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+		}
+		defer usageResp.Body.Close()
+
+		if usageResp.StatusCode == http.StatusOK {
+			var usageData map[string]any
+			if err := json.NewDecoder(usageResp.Body).Decode(&usageData); err != nil {
+				return map[string]any{"message": fmt.Sprintf("Claude connected. Unable to fetch usage: %v", err)}, nil
+			}
+			return map[string]any{
+				"plan":         plan,
+				"organization": orgName,
+				"quotas":       usageData,
+			}, nil
+		}
+	}
+
 	return map[string]any{
-		"message": fmt.Sprintf("Usage API not implemented for %s", providerType),
+		"plan":         plan,
+		"organization": orgName,
+		"message":      "Claude connected. Usage details require admin access.",
 	}, nil
+}
+
+func setClaudeHeaders(req *http.Request, token string) {
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("anthropic-version", anthropicAPIVersion)
+	if strings.Contains(req.URL.Path, "/api/oauth/usage") {
+		req.Header.Set("anthropic-beta", "oauth-2025-04-20")
+	}
+}
+
+func hasUtilization(window map[string]any) bool {
+	_, ok := window["utilization"].(float64)
+	return ok
+}
+
+func createClaudeQuotaObject(window map[string]any) map[string]any {
+	used := window["utilization"].(float64)
+	remaining := math.Max(0, 100-used)
+	return map[string]any{
+		"used":                used,
+		"total":               float64(100),
+		"remaining":           remaining,
+		"remainingPercentage": remaining,
+		"resetAt":             parseResetTime(window["resets_at"]),
+		"unlimited":           false,
+	}
+}
+
+// fetchGeminiUsage mirrors the ref's getGeminiUsage: resolve a Cloud project id
+// (prefer connection metadata, else loadCodeAssist) and call retrieveUserQuota.
+func fetchGeminiUsage(accessToken, metadata string, client *http.Client, baseURL string) (map[string]any, error) {
+	if baseURL == "" {
+		baseURL = defaultGeminiBaseURL
+	}
+	baseURL = strings.TrimSuffix(baseURL, "/")
+
+	if accessToken == "" {
+		return map[string]any{
+			"plan":    "Free",
+			"message": "Gemini CLI access token not available.",
+		}, nil
+	}
+
+	projectID := projectIDFromMetadata(metadata)
+	plan := "Free"
+
+	if projectID == "" {
+		sub, err := fetchGeminiSubscriptionInfo(accessToken, client, baseURL)
+		if err == nil && sub != nil {
+			projectID = sub.projectID
+			if sub.plan != "" {
+				plan = sub.plan
+			}
+		}
+	}
+
+	if projectID == "" {
+		return map[string]any{
+			"plan":    plan,
+			"message": "Gemini CLI project ID not available. Reconnect Gemini CLI, or configure a Google Cloud project with Gemini Code Assist access before checking quota.",
+		}, nil
+	}
+
+	quotaURL := baseURL + "/v1internal:retrieveUserQuota"
+	body, _ := json.Marshal(map[string]any{"project": projectID})
+	req, err := http.NewRequest(http.MethodPost, quotaURL, bytes.NewReader(body))
+	if err != nil {
+		return map[string]any{"message": fmt.Sprintf("Gemini CLI error: %v", err)}, nil
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return map[string]any{"message": fmt.Sprintf("Gemini CLI error: %v", err)}, nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return map[string]any{
+			"plan":    plan,
+			"message": fmt.Sprintf("Gemini CLI quota error (%d).", resp.StatusCode),
+		}, nil
+	}
+
+	var data map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return map[string]any{"message": fmt.Sprintf("Gemini CLI error: %v", err)}, nil
+	}
+
+	quotas := map[string]any{}
+	buckets, _ := data["buckets"].([]any)
+	for _, b := range buckets {
+		bucket, ok := b.(map[string]any)
+		if !ok {
+			continue
+		}
+		modelID, _ := bucket["modelId"].(string)
+		if modelID == "" {
+			continue
+		}
+		frac, ok := bucket["remainingFraction"].(float64)
+		if !ok {
+			continue
+		}
+		total := float64(1000)
+		remaining := math.Round(total * frac)
+		used := math.Max(0, total-remaining)
+		quotas[modelID] = map[string]any{
+			"used":                used,
+			"total":               total,
+			"resetAt":             parseResetTime(bucket["resetTime"]),
+			"remainingPercentage": frac * 100,
+			"unlimited":           false,
+		}
+	}
+
+	return map[string]any{"plan": plan, "quotas": quotas}, nil
+}
+
+type geminiSubscription struct {
+	projectID string
+	plan      string
+}
+
+func fetchGeminiSubscriptionInfo(accessToken string, client *http.Client, baseURL string) (*geminiSubscription, error) {
+	url := baseURL + "/v1internal:loadCodeAssist"
+	body, _ := json.Marshal(map[string]any{"metadata": map[string]any{}})
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("loadCodeAssist status %d", resp.StatusCode)
+	}
+
+	var data map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+
+	project := normalizeCloudCodeProjectID(data["cloudaicompanionProject"])
+	plan := ""
+	if tier, ok := data["currentTier"].(map[string]any); ok {
+		plan, _ = tier["name"].(string)
+	}
+	if project == "" {
+		return nil, fmt.Errorf("no project")
+	}
+	return &geminiSubscription{projectID: project, plan: plan}, nil
+}
+
+func projectIDFromMetadata(metadata string) string {
+	if metadata == "" {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(metadata), &m); err != nil {
+		return ""
+	}
+	return normalizeCloudCodeProjectID(m["projectId"])
+}
+
+func normalizeCloudCodeProjectID(v any) string {
+	switch p := v.(type) {
+	case string:
+		return strings.TrimSpace(p)
+	case map[string]any:
+		if id, ok := p["id"].(string); ok {
+			return strings.TrimSpace(id)
+		}
+	}
+	return ""
+}
+
+func parseResetTime(v any) any {
+	if v == nil {
+		return nil
+	}
+	switch r := v.(type) {
+	case float64:
+		ts := int64(r)
+		if r < 1e12 {
+			ts = ts * 1000
+		}
+		return time.UnixMilli(ts).UTC().Format(time.RFC3339)
+	case string:
+		if strings.TrimSpace(r) == "" {
+			return nil
+		}
+		if numericRegexp.MatchString(r) {
+			n, _ := strconv.ParseInt(r, 10, 64)
+			if n < 1e12 {
+				n = n * 1000
+			}
+			return time.UnixMilli(n).UTC().Format(time.RFC3339)
+		}
+		if t, err := time.Parse(time.RFC3339, r); err == nil {
+			return t.UTC().Format(time.RFC3339)
+		}
+		if t, err := time.Parse(time.RFC1123, r); err == nil {
+			return t.UTC().Format(time.RFC3339)
+		}
+	}
+	return nil
 }
