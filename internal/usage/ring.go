@@ -37,6 +37,10 @@ func (r *Ring) Init(lister func() ([]*store.RequestLogEntry, error)) error {
 		for i := len(items) - 1; i >= 0; i-- {
 			r.items = append(r.items, items[i])
 		}
+		// Cap enforcement: keep only the newest items.
+		if len(r.items) > r.cap {
+			r.items = r.items[len(r.items)-r.cap:]
+		}
 	})
 	return r.initErr
 }

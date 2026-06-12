@@ -144,6 +144,34 @@ func TestTrackerEmitsPending(t *testing.T) {
 	}
 }
 
+func TestTrackerEmitReentrant(t *testing.T) {
+	tr, _, _, fireLast := newTestTracker()
+	events := NewEvents()
+	tr.events = events
+
+	// Callback re-enters the tracker by reading its state.
+	events.OnEvent(func(kind string) {
+		_ = tr.ByModelCount("gpt-4o (openai)")
+		_ = tr.ByAccountCount("conn-1", "gpt-4o (openai)")
+	})
+
+	done := make(chan struct{})
+	go func() {
+		tr.Start("gpt-4o", "openai", "conn-1")
+		tr.End("gpt-4o", "openai", "conn-1", false)
+		tr.Start("gpt-4o", "openai", "conn-1")
+		fireLast()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// ok
+	case <-time.After(time.Second):
+		t.Fatal("Start/End/timeout deadlocked with reentrant callback")
+	}
+}
+
 func TestTrackerConcurrent(t *testing.T) {
 	tr, _, _, _ := newTestTracker()
 	var wg sync.WaitGroup

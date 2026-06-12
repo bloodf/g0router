@@ -133,13 +133,20 @@ func (s *Store) ListRecentRequestLogs(limit int) ([]*RequestLogEntry, error) {
 	var out []*RequestLogEntry
 	for rows.Next() {
 		var e RequestLogEntry
+		var provider, model, connectionID, apiKey, endpoint, status sql.NullString
 		var tokensJSON, metaJSON string
 		if err := rows.Scan(
-			&e.Timestamp, &e.Provider, &e.Model, &e.ConnectionID, &e.APIKey, &e.Endpoint,
-			&e.PromptTokens, &e.CompletionTokens, &e.Cost, &e.Status, &tokensJSON, &metaJSON,
+			&e.Timestamp, &provider, &model, &connectionID, &apiKey, &endpoint,
+			&e.PromptTokens, &e.CompletionTokens, &e.Cost, &status, &tokensJSON, &metaJSON,
 		); err != nil {
 			return nil, fmt.Errorf("scan request log: %w", err)
 		}
+		e.Provider = provider.String
+		e.Model = model.String
+		e.ConnectionID = connectionID.String
+		e.APIKey = apiKey.String
+		e.Endpoint = endpoint.String
+		e.Status = status.String
 		if tokensJSON != "" {
 			_ = json.Unmarshal([]byte(tokensJSON), &e.Tokens)
 		}

@@ -41,7 +41,6 @@ func NewTracker(clock func() time.Time, timerFactory func(time.Duration, func())
 // Start increments the pending count for the given model/provider/connection.
 func (t *Tracker) Start(model, provider, connectionID string) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	modelKey := t.modelKey(model, provider)
 	t.byModel[modelKey] = t.byModel[modelKey] + 1
@@ -61,6 +60,7 @@ func (t *Tracker) Start(model, provider, connectionID string) {
 		t.zeroOnTimeout(modelKey, connectionID)
 	})
 
+	t.mu.Unlock()
 	t.events.Emit("pending")
 }
 
@@ -68,7 +68,6 @@ func (t *Tracker) Start(model, provider, connectionID string) {
 // the lastErrorProvider is recorded (lowercased) for a 10s window.
 func (t *Tracker) End(model, provider, connectionID string, error bool) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	modelKey := t.modelKey(model, provider)
 	t.byModel[modelKey] = max(0, t.byModel[modelKey]-1)
@@ -99,12 +98,12 @@ func (t *Tracker) End(model, provider, connectionID string, error bool) {
 		t.lastErrorAt = t.clock()
 	}
 
+	t.mu.Unlock()
 	t.events.Emit("pending")
 }
 
 func (t *Tracker) zeroOnTimeout(modelKey, connectionID string) {
 	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	delete(t.timers, t.timerKey(connectionID, modelKey))
 
@@ -125,6 +124,7 @@ func (t *Tracker) zeroOnTimeout(modelKey, connectionID string) {
 		}
 	}
 
+	t.mu.Unlock()
 	t.events.Emit("pending")
 }
 

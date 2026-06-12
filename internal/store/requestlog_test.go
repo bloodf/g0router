@@ -135,6 +135,37 @@ func TestSaveUsageTransactional(t *testing.T) {
 	}
 }
 
+func TestListRecentRequestLogsNullColumns(t *testing.T) {
+	st := newTestStore(t)
+
+	// Insert a row directly so that nullable TEXT columns are NULL, simulating
+	// rows imported from a 9router database.
+	if _, err := st.DB().Exec(
+		`INSERT INTO request_log (
+			timestamp, provider, model, connection_id, api_key, endpoint,
+			prompt_tokens, completion_tokens, cost, status, tokens, meta
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"2026-06-12T10:00:00Z", nil, nil, nil, nil, nil, 1, 2, 0.1, nil, "{}", "{}",
+	); err != nil {
+		t.Fatalf("insert null row: %v", err)
+	}
+
+	logs, err := st.ListRecentRequestLogs(10)
+	if err != nil {
+		t.Fatalf("ListRecentRequestLogs: %v", err)
+	}
+	if len(logs) != 1 {
+		t.Fatalf("len(logs) = %d, want 1", len(logs))
+	}
+	e := logs[0]
+	if e.Provider != "" || e.Model != "" || e.ConnectionID != "" || e.APIKey != "" || e.Endpoint != "" || e.Status != "" {
+		t.Errorf("nullable columns = %+v, want empty strings", e)
+	}
+	if e.PromptTokens != 1 || e.CompletionTokens != 2 || e.Cost != 0.1 {
+		t.Errorf("numeric columns = %+v, want 1/2/0.1", e)
+	}
+}
+
 func TestSaveUsageRollsBackTogether(t *testing.T) {
 	st := newTestStore(t)
 
@@ -172,28 +203,41 @@ func TestSaveUsageRollsBackTogether(t *testing.T) {
 	}
 }
 
-func TestAggregateEntryToDay(t *testing.T) {
-	day := map[string]any{
-		"requests":           0,
-		"promptTokens":       0,
-		"completionTokens":   0,
-		"cost":               0.0,
-		"byProvider":         map[string]any{},
-		"byModel":            map[string]any{},
-		"byAccount":          map[string]any{},
-		"byApiKey":           map[string]any{},
-		"byEndpoint":         map[string]any{},
+func freshDay() map[string]any {
+	return map[string]any{
+		"requests":         0,
+		"promptTokens":     0,
+		"completionTokens": 0,
+		"cost":             0.0,
+		"byProvider":       map[string]any{},
+		"byModel":          map[string]any{},
+		"byAccount":        map[string]any{},
+		"byApiKey":         map[string]any{},
+		"byEndpoint":       map[string]any{},
 	}
+}
 
+func requireCounter(t *testing.T, m map[string]any, key string) map[string]any {
+	t.Helper()
+	c, ok := m[key].(map[string]any)
+	if !ok {
+		t.Fatalf("counter %q missing or wrong type", key)
+	}
+	return c
+}
+
+func TestAggregateEntryToDay(t *testing.T) {
+	// Full entry: exact key shapes and meta preservation.
+	day := freshDay()
 	aggregateEntryToDay(day, &RequestLogEntry{
-		Provider:       "anthropic",
-		Model:          "claude-sonnet-4",
-		ConnectionID:   "conn-a",
-		APIKey:         "ak",
-		Endpoint:       "/messages",
-		PromptTokens:   10,
+		Provider:         "anthropic",
+		Model:            "claude-sonnet-4",
+		ConnectionID:     "conn-a",
+		APIKey:           "ak",
+		Endpoint:         "/messages",
+		PromptTokens:     10,
 		CompletionTokens: 20,
-		Cost:           0.123,
+		Cost:             0.123,
 	})
 
 	if got := day["requests"].(float64); got != 1 {
@@ -209,13 +253,60 @@ func TestAggregateEntryToDay(t *testing.T) {
 		t.Errorf("cost = %v, want 0.123", got)
 	}
 
+	byProvider := day["byProvider"].(map[string]any)
+	if _, ok := byProvider["anthropic"]; !ok {
+		t.Errorf("expected byProvider key anthropic")
+	}
+
+	byModel := day["byModel"].(map[string]any)
+	modelEntry := requireCounter(t, byModel, "claude-sonnet-4|anthropic")
+	if modelEntry["rawModel"] != "claude-sonnet-4" {
+		t.Errorf("byModel meta rawModel = %v, want claude-sonnet-4", modelEntry["rawModel"])
+	}
+	if modelEntry["provider"] != "anthropic" {
+		t.Errorf("byModel meta provider = %v, want anthropic", modelEntry["provider"])
+	}
+
+	byAccount := day["byAccount"].(map[string]any)
+	accountEntry := requireCounter(t, byAccount, "conn-a")
+	if accountEntry["rawModel"] != "claude-sonnet-4" {
+		t.Errorf("byAccount meta rawModel = %v, want claude-sonnet-4", accountEntry["rawModel"])
+	}
+	if accountEntry["provider"] != "anthropic" {
+		t.Errorf("byAccount meta provider = %v, want anthropic", accountEntry["provider"])
+	}
+
+	byApiKey := day["byApiKey"].(map[string]any)
+	apiKeyEntry := requireCounter(t, byApiKey, "ak|claude-sonnet-4|anthropic")
+	if apiKeyEntry["rawModel"] != "claude-sonnet-4" {
+		t.Errorf("byApiKey meta rawModel = %v, want claude-sonnet-4", apiKeyEntry["rawModel"])
+	}
+	if apiKeyEntry["provider"] != "anthropic" {
+		t.Errorf("byApiKey meta provider = %v, want anthropic", apiKeyEntry["provider"])
+	}
+	if apiKeyEntry["apiKey"] != "ak" {
+		t.Errorf("byApiKey meta apiKey = %v, want ak", apiKeyEntry["apiKey"])
+	}
+
+	byEndpoint := day["byEndpoint"].(map[string]any)
+	endpointEntry := requireCounter(t, byEndpoint, "/messages|claude-sonnet-4|anthropic")
+	if endpointEntry["endpoint"] != "/messages" {
+		t.Errorf("byEndpoint meta endpoint = %v, want /messages", endpointEntry["endpoint"])
+	}
+	if endpointEntry["rawModel"] != "claude-sonnet-4" {
+		t.Errorf("byEndpoint meta rawModel = %v, want claude-sonnet-4", endpointEntry["rawModel"])
+	}
+	if endpointEntry["provider"] != "anthropic" {
+		t.Errorf("byEndpoint meta provider = %v, want anthropic", endpointEntry["provider"])
+	}
+
 	// Second entry accumulates.
 	aggregateEntryToDay(day, &RequestLogEntry{
-		Provider:       "anthropic",
-		Model:          "claude-sonnet-4",
-		PromptTokens:   5,
+		Provider:         "anthropic",
+		Model:            "claude-sonnet-4",
+		PromptTokens:     5,
 		CompletionTokens: 5,
-		Cost:           0.1,
+		Cost:             0.1,
 	})
 	if got := day["requests"].(float64); got != 2 {
 		t.Errorf("requests after second = %v, want 2", got)
@@ -224,36 +315,64 @@ func TestAggregateEntryToDay(t *testing.T) {
 		t.Errorf("promptTokens after second = %v, want 15", got)
 	}
 
-	// Missing provider falls back to model-only key.
-	byModel := day["byModel"].(map[string]any)
-	if _, ok := byModel["claude-sonnet-4|anthropic"]; !ok {
-		t.Errorf("expected byModel key claude-sonnet-4|anthropic")
+	// (a) Entry without provider: byModel key is bare model; byApiKey/byEndpoint use
+	// "unknown" provider segment; no byProvider entry.
+	dayNoProvider := freshDay()
+	aggregateEntryToDay(dayNoProvider, &RequestLogEntry{
+		Model:            "gpt-4o",
+		APIKey:           "k",
+		Endpoint:         "/v1",
+		PromptTokens:     1,
+		CompletionTokens: 2,
+		Cost:             0.05,
+	})
+	if _, ok := dayNoProvider["byProvider"].(map[string]any)["unknown"]; ok {
+		t.Errorf("byProvider should not contain a fallback key for missing provider")
 	}
+	byModel = dayNoProvider["byModel"].(map[string]any)
+	if _, ok := byModel["gpt-4o"]; !ok {
+		t.Errorf("expected bare byModel key gpt-4o")
+	}
+	if _, ok := byModel["gpt-4o|unknown"]; ok {
+		t.Errorf("byModel key must not add provider suffix when provider is missing")
+	}
+	byApiKey = dayNoProvider["byApiKey"].(map[string]any)
+	requireCounter(t, byApiKey, "k|gpt-4o|unknown")
+	byEndpoint = dayNoProvider["byEndpoint"].(map[string]any)
+	requireCounter(t, byEndpoint, "/v1|gpt-4o|unknown")
 
-	// Missing apiKey uses local-no-key fallback.
-	day2 := map[string]any{
-		"requests":           0,
-		"promptTokens":       0,
-		"completionTokens":   0,
-		"cost":               0.0,
-		"byProvider":         map[string]any{},
-		"byModel":            map[string]any{},
-		"byAccount":          map[string]any{},
-		"byApiKey":           map[string]any{},
-		"byEndpoint":         map[string]any{},
-	}
-	aggregateEntryToDay(day2, &RequestLogEntry{
-		Provider:       "openai",
-		Model:          "gpt-4o",
-		PromptTokens:   1,
+	// (b) Entry without connectionId: no byAccount entry.
+	dayNoConn := freshDay()
+	aggregateEntryToDay(dayNoConn, &RequestLogEntry{
+		Provider:         "openai",
+		Model:            "gpt-4o",
+		APIKey:           "k",
+		Endpoint:         "/v1",
+		PromptTokens:     1,
 		CompletionTokens: 2,
 	})
-	byApiKey := day2["byApiKey"].(map[string]any)
-	if _, ok := byApiKey["local-no-key|gpt-4o|openai"]; !ok {
-		t.Errorf("expected byApiKey local-no-key fallback")
+	byAccount = dayNoConn["byAccount"].(map[string]any)
+	if len(byAccount) != 0 {
+		t.Errorf("byAccount = %v, want empty when connectionId is missing", byAccount)
 	}
-	byEndpoint := day2["byEndpoint"].(map[string]any)
-	if _, ok := byEndpoint["Unknown|gpt-4o|openai"]; !ok {
-		t.Errorf("expected byEndpoint Unknown fallback")
+
+	// (c) Entry without apiKey: byApiKey uses local-no-key fallback; endpoint uses
+	// Unknown fallback.
+	dayNoKey := freshDay()
+	aggregateEntryToDay(dayNoKey, &RequestLogEntry{
+		Provider:         "openai",
+		Model:            "gpt-4o",
+		PromptTokens:     1,
+		CompletionTokens: 2,
+	})
+	byApiKey = dayNoKey["byApiKey"].(map[string]any)
+	apiKeyEntry = requireCounter(t, byApiKey, "local-no-key|gpt-4o|openai")
+	if apiKeyEntry["apiKey"] != "" {
+		t.Errorf("byApiKey meta apiKey = %v, want empty", apiKeyEntry["apiKey"])
+	}
+	byEndpoint = dayNoKey["byEndpoint"].(map[string]any)
+	endpointEntry = requireCounter(t, byEndpoint, "Unknown|gpt-4o|openai")
+	if endpointEntry["endpoint"] != "Unknown" {
+		t.Errorf("byEndpoint meta endpoint = %v, want Unknown", endpointEntry["endpoint"])
 	}
 }

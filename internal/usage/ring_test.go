@@ -58,6 +58,33 @@ func TestRingInitOnceFromStore(t *testing.T) {
 	}
 }
 
+func TestRingInitEnforcesCap(t *testing.T) {
+	lister := func(limit int) ([]*store.RequestLogEntry, error) {
+		// Newest-first order, mirroring ORDER BY id DESC.
+		return []*store.RequestLogEntry{
+			{Timestamp: "2026-06-12T10:04:00Z", Model: "e"},
+			{Timestamp: "2026-06-12T10:03:00Z", Model: "d"},
+			{Timestamp: "2026-06-12T10:02:00Z", Model: "c"},
+			{Timestamp: "2026-06-12T10:01:00Z", Model: "b"},
+			{Timestamp: "2026-06-12T10:00:00Z", Model: "a"},
+		}, nil
+	}
+
+	ring := NewRing(3)
+	if err := ring.Init(func() ([]*store.RequestLogEntry, error) { return lister(3) }); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+
+	snap := ring.Snapshot()
+	if len(snap) != 3 {
+		t.Fatalf("snapshot len = %d, want 3", len(snap))
+	}
+	// After reversing to oldest-first and truncating to cap, keep the 3 newest.
+	if snap[0].Model != "c" || snap[1].Model != "d" || snap[2].Model != "e" {
+		t.Errorf("models = %v, want [c d e]", []string{snap[0].Model, snap[1].Model, snap[2].Model})
+	}
+}
+
 func TestConnNameCacheTTL(t *testing.T) {
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
 	calls := 0
