@@ -100,6 +100,89 @@ func TestVKGateUnknownKeyDenied(t *testing.T) {
 	}
 }
 
+// TestVKGateAllow is the direct table-driven gate test (Fix 4): it pins every
+// major AllowVK branch without going through a handler.
+func TestVKGateAllow(t *testing.T) {
+	activeOpenAI := &VKInfo{
+		Key: "vk-active-openai",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+		},
+		IsActive: true,
+	}
+	inactive := &VKInfo{
+		Key: "vk-inactive",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{}},
+		},
+		IsActive: false,
+	}
+	resolver := newFakeVKResolver()
+	resolver.set(activeOpenAI.Key, activeOpenAI)
+	resolver.set(inactive.Key, inactive)
+
+	t.Run("absent header allow", func(t *testing.T) {
+		gate := NewVKGate(resolver, nil)
+		ok, status, _ := gate.AllowVK("", "gpt-4o", "openai")
+		if !ok {
+			t.Fatalf("empty key should allow: status=%d", status)
+		}
+	})
+
+	t.Run("nil gate allow", func(t *testing.T) {
+		var gate *VKGate
+		ok, status, _ := gate.AllowVK("vk-active-openai", "gpt-4o", "openai")
+		if !ok {
+			t.Fatalf("nil gate should allow: status=%d", status)
+		}
+	})
+
+	t.Run("unknown key deny 401", func(t *testing.T) {
+		gate := NewVKGate(resolver, nil)
+		ok, status, reason := gate.AllowVK("g0vk-missing", "gpt-4o", "openai")
+		if ok || status != 401 || reason != "unknown virtual key" {
+			t.Fatalf("unknown key: got ok=%v status=%d reason=%q", ok, status, reason)
+		}
+	})
+
+	t.Run("inactive deny 403", func(t *testing.T) {
+		gate := NewVKGate(resolver, nil)
+		ok, status, reason := gate.AllowVK(inactive.Key, "gpt-4o", "openai")
+		if ok || status != 403 || reason != "virtual key inactive" {
+			t.Fatalf("inactive: got ok=%v status=%d reason=%q", ok, status, reason)
+		}
+	})
+
+	t.Run("resolver error deny 500", func(t *testing.T) {
+		gate := NewVKGate(errVKResolver{}, nil)
+		ok, status, reason := gate.AllowVK("vk-any", "gpt-4o", "openai")
+		if ok || status != 500 || reason != "virtual key lookup failed" {
+			t.Fatalf("resolver error: got ok=%v status=%d reason=%q", ok, status, reason)
+		}
+	})
+
+	t.Run("model/provider mismatch deny 403", func(t *testing.T) {
+		gate := NewVKGate(resolver, nil)
+		ok, status, reason := gate.AllowVK(activeOpenAI.Key, "gpt-4o", "anthropic")
+		if ok || status != 403 || reason != "provider/model not allowed for virtual key" {
+			t.Fatalf("provider mismatch: got ok=%v status=%d reason=%q", ok, status, reason)
+		}
+	})
+
+	t.Run("quota deny 429", func(t *testing.T) {
+		quota := newFakeVKQuotaChecker(struct {
+			ok     bool
+			status int
+			reason string
+		}{ok: false, status: 429, reason: "budget exhausted"})
+		gate := NewVKGate(resolver, quota)
+		ok, status, reason := gate.AllowVK(activeOpenAI.Key, "gpt-4o", "openai")
+		if ok || status != 429 || reason != "budget exhausted" {
+			t.Fatalf("quota deny: got ok=%v status=%d reason=%q", ok, status, reason)
+		}
+	})
+}
+
 // TestVKGateProviderConfigEnforced verifies Fix 2: the gate checks the resolved
 // provider against the VK's provider configs and the model against the config's
 // AllowedModels (empty list means any model for that provider).
