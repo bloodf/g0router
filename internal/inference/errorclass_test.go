@@ -96,10 +96,12 @@ func TestErrorClassFixture(t *testing.T) {
 		body      string
 		wantClass ErrorClass
 	}{
-		// Text-based rules from errorConfig.js:59-68 (checked first, order = priority).
+		// Text-based rules in exact implementation order (errorConfig.js:59-68 + g0router
+		// PR-1626 "unsupported" rule inserted at position 4, before "rate limit").
 		{"no_credentials", 200, `{"error":"no credentials"}`, ClassAuthError},
 		{"request_not_allowed", 200, `{"error":"request not allowed"}`, ClassAuthError},
 		{"improperly_formed_request", 200, `{"error":"improperly formed request"}`, ClassPermanent},
+		{"unsupported_param", 200, `{"error":"unsupported parameter: max_tokens"}`, ClassUnsupportedParam},
 		{"rate_limit", 200, `{"error":"rate limit"}`, ClassRateLimit},
 		{"too_many_requests", 200, `{"error":"too many requests"}`, ClassRateLimit},
 		{"quota_exceeded", 200, `{"error":"quota exceeded"}`, ClassRateLimit},
@@ -112,9 +114,6 @@ func TestErrorClassFixture(t *testing.T) {
 		{"status_403", 403, `{}`, ClassAuthError},
 		{"status_404", 404, `{}`, ClassPermanent},
 		{"status_429", 429, `{}`, ClassRateLimit},
-
-		// g0router-specific text rule for PR-1626 token-parameter auto-learning.
-		{"unsupported_param", 200, `{"error":"unsupported parameter: max_tokens"}`, ClassUnsupportedParam},
 	}
 
 	for _, tc := range cases {
@@ -124,6 +123,42 @@ func TestErrorClassFixture(t *testing.T) {
 				t.Errorf("Classify(%d, %q).Class = %v, want %v", tc.status, tc.body, got.Class, tc.wantClass)
 			}
 		})
+	}
+}
+
+// TestErrorClassRuleOrder pins the exact sequence of rules returned by classificationRules,
+// so any reordering of the rule table is caught immediately.
+func TestErrorClassRuleOrder(t *testing.T) {
+	wantOrder := []struct {
+		text   string
+		status int
+		class  ErrorClass
+	}{
+		{"no credentials", 0, ClassAuthError},
+		{"request not allowed", 0, ClassAuthError},
+		{"improperly formed request", 0, ClassPermanent},
+		{"unsupported", 0, ClassUnsupportedParam},
+		{"rate limit", 0, ClassRateLimit},
+		{"too many requests", 0, ClassRateLimit},
+		{"quota exceeded", 0, ClassRateLimit},
+		{"capacity", 0, ClassRateLimit},
+		{"overloaded", 0, ClassRateLimit},
+		{"", 401, ClassAuthError},
+		{"", 402, ClassAuthError},
+		{"", 403, ClassAuthError},
+		{"", 404, ClassPermanent},
+		{"", 429, ClassRateLimit},
+	}
+	rules := classificationRules()
+	if len(rules) != len(wantOrder) {
+		t.Fatalf("classificationRules() has %d rules, want %d", len(rules), len(wantOrder))
+	}
+	for i, want := range wantOrder {
+		got := rules[i]
+		if got.text != want.text || got.status != want.status || got.class != want.class {
+			t.Errorf("rule[%d]: got {text:%q status:%d class:%v}, want {text:%q status:%d class:%v}",
+				i, got.text, got.status, got.class, want.text, want.status, want.class)
+		}
 	}
 }
 
