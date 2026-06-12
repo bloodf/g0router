@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/admin"
+	"github.com/bloodf/g0router/internal/api"
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -20,6 +22,10 @@ import (
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
 )
+
+// Compile-time proof that the production credential resolver satisfies the
+// handler dependency (w5-pre Finding-3).
+var _ api.CredentialRefresher = (*auth.CredentialResolver)(nil)
 
 // fakeResolver is a test seam for KeyResolver.
 type fakeResolver struct{ key schemas.Key }
@@ -365,5 +371,87 @@ func TestServerFlowsIncludeGeminiXai(t *testing.T) {
 		if strings.Contains(body, "provider not supported") {
 			t.Errorf("%s: body contains 'provider not supported'", provider)
 		}
+	}
+}
+
+// TestProductionComboDispatcherBridges builds the exact construction chain
+// from server.New and asserts that newComboDispatcher correctly adapts the
+// inference.ComboEngine to the api.ComboDispatcher interface.
+func TestProductionComboDispatcherBridges(t *testing.T) {
+	st := newTestStore(t)
+
+	// The account runner resolves "m1"/"m2" to the "openai" provider, so the
+	// seeded connection must carry that provider id. Seed the provider directly
+	// so its id is deterministic.
+	now := time.Now().Unix()
+	if _, err := st.DB().Exec(
+		"INSERT INTO providers (id, name, type, base_url, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		"openai", "OpenAI", "openai", "", 1, now, now,
+	); err != nil {
+		t.Fatalf("insert provider: %v", err)
+	}
+	if err := st.SetSetting("providerStrategies", `{"openai":{"fallbackStrategy":"fill-first"}}`); err != nil {
+		t.Fatalf("SetSetting providerStrategies: %v", err)
+	}
+
+	conn := &store.Connection{
+		ProviderID: "openai",
+		Name:       "main",
+		Kind:       "api_key",
+		Secret:     "sk-secret",
+	}
+	if err := st.CreateConnection(conn); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	if err := st.CreateCombo(&store.Combo{Name: "best", Models: []string{"m1", "m2"}}); err != nil {
+		t.Fatalf("CreateCombo: %v", err)
+	}
+
+	// Exact chain constructed by server.New.
+	cd := inference.NewCooldownEngine(st, time.Now)
+	sel := inference.NewSelectionEngine(st, st, cd, time.Now)
+	runner := inference.NewAccountRunner(sel)
+	comboEngine := inference.NewComboEngine(st, st, runner, time.Now, func(time.Duration) {})
+	disp := newComboDispatcher(st, comboEngine)
+
+	// (a) Combo identity.
+	if !disp.IsCombo("best") {
+		t.Error("IsCombo(best) = false, want true")
+	}
+	if disp.IsCombo("m1") {
+		t.Error("IsCombo(m1) = true, want false")
+	}
+
+	// (b) ExecuteCombo invokes fn with the seeded connection's ID and credential.
+	var gotConnID, gotCredential string
+	if err := disp.ExecuteCombo("best", func(model, connID, credential string) (inference.Verdict, error) {
+		gotConnID = connID
+		gotCredential = credential
+		return inference.VerdictUnknown, nil
+	}); err != nil {
+		t.Fatalf("ExecuteCombo best: %v", err)
+	}
+	if gotConnID != conn.ID {
+		t.Errorf("fn connID = %q, want %q", gotConnID, conn.ID)
+	}
+	if gotCredential == "" {
+		t.Error("fn credential empty, want non-empty")
+	}
+
+	// (c) A quota-style verdict error for m1 falls through to m2.
+	var seenModels []string
+	err := disp.ExecuteCombo("best", func(model, connID, credential string) (inference.Verdict, error) {
+		seenModels = append(seenModels, model)
+		if model == "m1" {
+			return inference.VerdictRateLimit, errors.New("rate limited")
+		}
+		return inference.VerdictUnknown, nil
+	})
+	if err != nil {
+		t.Fatalf("ExecuteCombo fallback: %v", err)
+	}
+	if len(seenModels) != 2 || seenModels[0] != "m1" || seenModels[1] != "m2" {
+		t.Errorf("seenModels = %v, want [m1 m2]", seenModels)
 	}
 }
