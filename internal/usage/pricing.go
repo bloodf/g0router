@@ -156,6 +156,23 @@ func (r *Resolver) Invalidate() {
 	r.mu.Unlock()
 }
 
+// UserPricing returns the raw user overrides from the store without merging
+// canonical defaults. This matches pricingRepo.js updatePricing/resetPricing which
+// return getUserPricing().
+func (r *Resolver) UserPricing() (map[string]map[string]map[string]float64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	user, err := r.store.UserPricing()
+	if err != nil {
+		return nil, fmt.Errorf("user pricing: %w", err)
+	}
+	if user == nil {
+		user = make(map[string]map[string]map[string]float64)
+	}
+	return user, nil
+}
+
 // Update merges the supplied provider→model→rates data into the existing user
 // pricing overrides and invalidates the cache.
 func (r *Resolver) Update(updates map[string]map[string]map[string]float64) error {

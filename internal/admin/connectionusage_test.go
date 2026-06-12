@@ -15,7 +15,7 @@ func TestConnectionUsageRoute404(t *testing.T) {
 	token := loginToken(t, env)
 	authHeader := map[string]string{"Authorization": "Bearer " + token}
 
-	stats, resolver := BuildUsageServices(env.store)
+	stats, resolver := BuildUsageServices(env.store, UsageDeps{})
 	env.handlers.SetUsageServices(stats, resolver)
 
 	r := httprouter.New()

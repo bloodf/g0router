@@ -279,10 +279,10 @@ func TestUsageStatsLivePath(t *testing.T) {
 	svc, reader, _ := newTestStatsService(now)
 
 	reader.logs = []*store.RequestLogEntry{
-		{Timestamp: "2026-06-11T23:59:59Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 1, CompletionTokens: 1, Cost: 0.01},
-		{Timestamp: "2026-06-12T00:00:00Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 2, CompletionTokens: 2, Cost: 0.02},
-		{Timestamp: "2026-06-12T11:59:59Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 3, CompletionTokens: 3, Cost: 0.03},
-		{Timestamp: "2026-06-12T12:00:00Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 4, CompletionTokens: 4, Cost: 0.04},
+		{Timestamp: "2026-06-11T23:59:59Z", Provider: "openai", Model: "gpt-4o", ConnectionID: "conn-1", APIKey: "key-1", Endpoint: "/chat/completions", PromptTokens: 1, CompletionTokens: 1, Cost: 0.01},
+		{Timestamp: "2026-06-12T00:00:00Z", Provider: "openai", Model: "gpt-4o", ConnectionID: "conn-1", APIKey: "key-1", Endpoint: "/chat/completions", PromptTokens: 2, CompletionTokens: 2, Cost: 0.02},
+		{Timestamp: "2026-06-12T11:59:59Z", Provider: "openai", Model: "gpt-4o", ConnectionID: "conn-1", APIKey: "key-1", Endpoint: "/chat/completions", PromptTokens: 3, CompletionTokens: 3, Cost: 0.03},
+		{Timestamp: "2026-06-12T12:00:00Z", Provider: "openai", Model: "gpt-4o", ConnectionID: "conn-1", APIKey: "key-1", Endpoint: "/chat/completions", PromptTokens: 4, CompletionTokens: 4, Cost: 0.04},
 	}
 
 	// today should include rows from start of day (00:00:00) up to now (12:00:00).
@@ -301,5 +301,117 @@ func TestUsageStatsLivePath(t *testing.T) {
 	}
 	if stats.TotalRequests != 4 {
 		t.Errorf("24h TotalRequests = %v, want 4", stats.TotalRequests)
+	}
+
+	// Live aggregation must mirror usageRepo.js:546-613 and add prompt/completion
+	// tokens and cost into every breakdown dimension, not just request counts.
+	if stats.TotalPromptTokens != 10 {
+		t.Errorf("24h TotalPromptTokens = %v, want 10", stats.TotalPromptTokens)
+	}
+	if stats.TotalCompletionTokens != 10 {
+		t.Errorf("24h TotalCompletionTokens = %v, want 10", stats.TotalCompletionTokens)
+	}
+	if stats.TotalCost != 0.1 {
+		t.Errorf("24h TotalCost = %v, want 0.1", stats.TotalCost)
+	}
+
+	ps := stats.ByProvider["openai"]
+	if ps == nil {
+		t.Fatal("ByProvider['openai'] missing")
+	}
+	if ps.Requests != 4 || ps.PromptTokens != 10 || ps.CompletionTokens != 10 || ps.Cost != 0.1 {
+		t.Errorf("ByProvider['openai'] = %+v, want requests=4 promptTokens=10 completionTokens=10 cost=0.1", ps)
+	}
+
+	ms := stats.ByModel["gpt-4o (openai)"]
+	if ms == nil {
+		t.Fatal("ByModel['gpt-4o (openai)'] missing")
+	}
+	if ms.Requests != 4 || ms.PromptTokens != 10 || ms.CompletionTokens != 10 || ms.Cost != 0.1 {
+		t.Errorf("ByModel['gpt-4o (openai)'] = %+v, want requests=4 promptTokens=10 completionTokens=10 cost=0.1", ms)
+	}
+
+	as := stats.ByAccount["gpt-4o (openai - Main Account)"]
+	if as == nil {
+		t.Fatal("ByAccount['gpt-4o (openai - Main Account)'] missing")
+	}
+	if as.Requests != 4 || as.PromptTokens != 10 || as.CompletionTokens != 10 || as.Cost != 0.1 {
+		t.Errorf("ByAccount['gpt-4o (openai - Main Account)'] = %+v, want requests=4 promptTokens=10 completionTokens=10 cost=0.1", as)
+	}
+
+	ks := stats.ByAPIKey["key-1|gpt-4o|openai"]
+	if ks == nil {
+		t.Fatal("ByAPIKey['key-1|gpt-4o|openai'] missing")
+	}
+	if ks.Requests != 4 || ks.PromptTokens != 10 || ks.CompletionTokens != 10 || ks.Cost != 0.1 {
+		t.Errorf("ByAPIKey['key-1|gpt-4o|openai'] = %+v, want requests=4 promptTokens=10 completionTokens=10 cost=0.1", ks)
+	}
+
+	es := stats.ByEndpoint["/chat/completions|gpt-4o|openai"]
+	if es == nil {
+		t.Fatal("ByEndpoint['/chat/completions|gpt-4o|openai'] missing")
+	}
+	if es.Requests != 4 || es.PromptTokens != 10 || es.CompletionTokens != 10 || es.Cost != 0.1 {
+		t.Errorf("ByEndpoint['/chat/completions|gpt-4o|openai'] = %+v, want requests=4 promptTokens=10 completionTokens=10 cost=0.1", es)
+	}
+}
+
+func TestStatsSeesSharedTracker(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	tracker := NewTracker(func() time.Time { return now }, noOpTimerFactory, NewEvents())
+	ring := NewRing(10)
+	_ = ring.Init(func() ([]*store.RequestLogEntry, error) { return nil, nil })
+	names := &fakeNameSource{conn: map[string]string{"conn-known": "Known Account"}}
+	svc := NewStatsService(&fakeUsageReader{}, names, tracker, ring, func() time.Time { return now })
+
+	tracker.Start("claude-3-5-sonnet", "anthropic", "conn-known")
+
+	stats, err := svc.Stats("today")
+	if err != nil {
+		t.Fatalf("Stats(today): %v", err)
+	}
+	if len(stats.ActiveRequests) != 1 {
+		t.Fatalf("ActiveRequests len = %d, want 1: %v", len(stats.ActiveRequests), stats.ActiveRequests)
+	}
+	ar := stats.ActiveRequests[0]
+	if ar.Model != "claude-3-5-sonnet" || ar.Provider != "anthropic" || ar.Account != "Known Account" || ar.Count != 1 {
+		t.Errorf("ActiveRequests[0] = %+v, want model=claude-3-5-sonnet provider=anthropic account=Known Account count=1", ar)
+	}
+}
+
+func TestStatsDailyMalformedRow(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	svc, reader, _ := newTestStatsService(now)
+
+	day := map[string]any{
+		"requests":         1,
+		"promptTokens":     10,
+		"completionTokens": 5,
+		"cost":             0.1,
+		"byProvider":       map[string]any{"openai": map[string]any{"requests": 1, "promptTokens": 10, "completionTokens": 5, "cost": 0.1}},
+		"byModel":          map[string]any{"gpt-4o|openai": map[string]any{"requests": 1, "promptTokens": 10, "completionTokens": 5, "cost": 0.1, "rawModel": "gpt-4o", "provider": "openai"}},
+		"byAccount":        42,
+	}
+	b, _ := json.Marshal(day)
+	reader.daily = []*store.UsageDailyRow{{DateKey: "2026-06-12", Data: string(b)}}
+
+	stats, err := svc.Stats("7d")
+	if err != nil {
+		t.Fatalf("Stats(7d): %v", err)
+	}
+	if stats.TotalRequests != 1 {
+		t.Errorf("TotalRequests = %v, want 1", stats.TotalRequests)
+	}
+	if stats.TotalPromptTokens != 10 {
+		t.Errorf("TotalPromptTokens = %v, want 10", stats.TotalPromptTokens)
+	}
+	if len(stats.ByProvider) != 1 {
+		t.Errorf("ByProvider = %v, want 1 entry", stats.ByProvider)
+	}
+	if len(stats.ByModel) != 1 {
+		t.Errorf("ByModel = %v, want 1 entry", stats.ByModel)
+	}
+	if len(stats.ByAccount) != 0 {
+		t.Errorf("ByAccount = %v, want empty (malformed section skipped)", stats.ByAccount)
 	}
 }

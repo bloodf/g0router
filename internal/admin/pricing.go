@@ -44,12 +44,12 @@ func (h *Handlers) PatchPricing(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	pricing, err := h.resolver.Merged()
+	pricing, err := h.resolver.UserPricing()
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, "pricing")
 		return
 	}
-	writeData(ctx, fasthttp.StatusOK, pricingToSnakeCase(pricing))
+	writeData(ctx, fasthttp.StatusOK, pricing)
 }
 
 // DeletePricing handles DELETE /api/pricing.
@@ -68,12 +68,12 @@ func (h *Handlers) DeletePricing(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	pricing, err := h.resolver.Merged()
+	pricing, err := h.resolver.UserPricing()
 	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, "pricing")
 		return
 	}
-	writeData(ctx, fasthttp.StatusOK, pricingToSnakeCase(pricing))
+	writeData(ctx, fasthttp.StatusOK, pricing)
 }
 
 func pricingToSnakeCase(pricing map[string]map[string]usage.Pricing) map[string]map[string]map[string]float64 {

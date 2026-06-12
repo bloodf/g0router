@@ -47,6 +47,10 @@ func TestPricingPatchValidation(t *testing.T) {
 	if gpt4o["input"] != 1.5 || gpt4o["output"] != 2.5 {
 		t.Errorf("gpt-4o pricing = %v, want input=1.5 output=2.5", gpt4o)
 	}
+	// Response must contain ONLY user overrides, not merged canonical defaults.
+	if _, ok := openai["gpt-3.5-turbo"]; ok {
+		t.Errorf("PATCH response contains canonical default gpt-3.5-turbo; expected user overrides only: %v", openai)
+	}
 }
 
 func TestPricingDelete(t *testing.T) {

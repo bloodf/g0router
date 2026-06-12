@@ -213,56 +213,72 @@ func (s *StatsService) aggregateDaily(stats *Stats, rows []*store.UsageDailyRow)
 		stats.TotalCompletionTokens += int64(toFloat64(day["completionTokens"]))
 		stats.TotalCost += toFloat64(day["cost"])
 
-		for prov, v := range day["byProvider"].(map[string]any) {
-			addCounterToProvider(stats.ByProvider, prov, v.(map[string]any))
-		}
-
-		for _, v := range day["byModel"].(map[string]any) {
-			m := v.(map[string]any)
-			rawModel := stringValue(m, "rawModel")
-			provider := stringValue(m, "provider")
-			statsKey := modelStatsKey(rawModel, provider)
-			lastUsed := row.DateKey
-			s.addOrUpdateModel(stats.ByModel, statsKey, m, rawModel, provider, lastUsed)
-		}
-
-		for connID, v := range day["byAccount"].(map[string]any) {
-			a := v.(map[string]any)
-			rawModel := stringValue(a, "rawModel")
-			provider := stringValue(a, "provider")
-			accountName := s.names.ConnectionName(connID)
-			if accountName == "" {
-				accountName = accountFallback(connID)
+		if byProvider, ok := day["byProvider"].(map[string]any); ok {
+			for prov, v := range byProvider {
+				if provMap, ok := v.(map[string]any); ok {
+					addCounterToProvider(stats.ByProvider, prov, provMap)
+				}
 			}
-			statsKey := accountStatsKey(rawModel, provider, accountName)
-			lastUsed := row.DateKey
-			s.addOrUpdateAccount(stats.ByAccount, statsKey, a, rawModel, provider, connID, accountName, lastUsed)
 		}
 
-		for key, v := range day["byApiKey"].(map[string]any) {
-			ak := v.(map[string]any)
-			rawModel := stringValue(ak, "rawModel")
-			provider := stringValue(ak, "provider")
-			apiKeyVal := stringValue(ak, "apiKey")
-			keyName := s.names.APIKeyName(apiKeyVal)
-			if keyName == "" {
-				keyName = apiKeyNameFallback(apiKeyVal)
+		if byModel, ok := day["byModel"].(map[string]any); ok {
+			for _, v := range byModel {
+				if m, ok := v.(map[string]any); ok {
+					rawModel := stringValue(m, "rawModel")
+					provider := stringValue(m, "provider")
+					statsKey := modelStatsKey(rawModel, provider)
+					lastUsed := row.DateKey
+					s.addOrUpdateModel(stats.ByModel, statsKey, m, rawModel, provider, lastUsed, 0, 0, 0)
+				}
 			}
-			apiKeyKey := apiKeyVal
-			if apiKeyKey == "" {
-				apiKeyKey = "local-no-key"
-			}
-			lastUsed := row.DateKey
-			s.addOrUpdateAPIKey(stats.ByAPIKey, key, ak, rawModel, provider, apiKeyVal, keyName, apiKeyKey, lastUsed)
 		}
 
-		for key, v := range day["byEndpoint"].(map[string]any) {
-			ep := v.(map[string]any)
-			endpoint := stringValue(ep, "endpoint")
-			rawModel := stringValue(ep, "rawModel")
-			provider := stringValue(ep, "provider")
-			lastUsed := row.DateKey
-			s.addOrUpdateEndpoint(stats.ByEndpoint, key, ep, endpoint, rawModel, provider, lastUsed)
+		if byAccount, ok := day["byAccount"].(map[string]any); ok {
+			for connID, v := range byAccount {
+				if a, ok := v.(map[string]any); ok {
+					rawModel := stringValue(a, "rawModel")
+					provider := stringValue(a, "provider")
+					accountName := s.names.ConnectionName(connID)
+					if accountName == "" {
+						accountName = accountFallback(connID)
+					}
+					statsKey := accountStatsKey(rawModel, provider, accountName)
+					lastUsed := row.DateKey
+					s.addOrUpdateAccount(stats.ByAccount, statsKey, a, rawModel, provider, connID, accountName, lastUsed, 0, 0, 0)
+				}
+			}
+		}
+
+		if byApiKey, ok := day["byApiKey"].(map[string]any); ok {
+			for key, v := range byApiKey {
+				if ak, ok := v.(map[string]any); ok {
+					rawModel := stringValue(ak, "rawModel")
+					provider := stringValue(ak, "provider")
+					apiKeyVal := stringValue(ak, "apiKey")
+					keyName := s.names.APIKeyName(apiKeyVal)
+					if keyName == "" {
+						keyName = apiKeyNameFallback(apiKeyVal)
+					}
+					apiKeyKey := apiKeyVal
+					if apiKeyKey == "" {
+						apiKeyKey = "local-no-key"
+					}
+					lastUsed := row.DateKey
+					s.addOrUpdateAPIKey(stats.ByAPIKey, key, ak, rawModel, provider, apiKeyVal, keyName, apiKeyKey, lastUsed, 0, 0, 0)
+				}
+			}
+		}
+
+		if byEndpoint, ok := day["byEndpoint"].(map[string]any); ok {
+			for key, v := range byEndpoint {
+				if ep, ok := v.(map[string]any); ok {
+					endpoint := stringValue(ep, "endpoint")
+					rawModel := stringValue(ep, "rawModel")
+					provider := stringValue(ep, "provider")
+					lastUsed := row.DateKey
+					s.addOrUpdateEndpoint(stats.ByEndpoint, key, ep, endpoint, rawModel, provider, lastUsed, 0, 0, 0)
+				}
+			}
 		}
 	}
 }
@@ -276,10 +292,10 @@ func (s *StatsService) aggregateLive(stats *Stats, rows []*store.RequestLogEntry
 		provider := r.Provider
 		providerDisplay := s.names.ProviderName(provider)
 
-		addToProvider(stats.ByProvider, provider)
+		addToProvider(stats.ByProvider, provider, r.PromptTokens, r.CompletionTokens, r.Cost)
 
 		modelKey := modelStatsKey(r.Model, provider)
-		s.addOrUpdateModel(stats.ByModel, modelKey, nil, r.Model, providerDisplay, r.Timestamp)
+		s.addOrUpdateModel(stats.ByModel, modelKey, nil, r.Model, providerDisplay, r.Timestamp, r.PromptTokens, r.CompletionTokens, r.Cost)
 
 		if r.ConnectionID != "" {
 			accountName := s.names.ConnectionName(r.ConnectionID)
@@ -287,7 +303,7 @@ func (s *StatsService) aggregateLive(stats *Stats, rows []*store.RequestLogEntry
 				accountName = accountFallback(r.ConnectionID)
 			}
 			accountKey := accountStatsKey(r.Model, provider, accountName)
-			s.addOrUpdateAccount(stats.ByAccount, accountKey, nil, r.Model, providerDisplay, r.ConnectionID, accountName, r.Timestamp)
+			s.addOrUpdateAccount(stats.ByAccount, accountKey, nil, r.Model, providerDisplay, r.ConnectionID, accountName, r.Timestamp, r.PromptTokens, r.CompletionTokens, r.Cost)
 		}
 
 		apiKeyVal := r.APIKey
@@ -297,10 +313,10 @@ func (s *StatsService) aggregateLive(stats *Stats, rows []*store.RequestLogEntry
 				keyName = apiKeyNameFallback(apiKeyVal)
 			}
 			akKey := fmt.Sprintf("%s|%s|%s", apiKeyVal, r.Model, providerOrUnknown(provider))
-			s.addOrUpdateAPIKey(stats.ByAPIKey, akKey, nil, r.Model, providerDisplay, apiKeyVal, keyName, apiKeyVal, r.Timestamp)
+			s.addOrUpdateAPIKey(stats.ByAPIKey, akKey, nil, r.Model, providerDisplay, apiKeyVal, keyName, apiKeyVal, r.Timestamp, r.PromptTokens, r.CompletionTokens, r.Cost)
 		} else {
 			keyName := "Local (No API Key)"
-			s.addOrUpdateAPIKey(stats.ByAPIKey, "local-no-key", nil, r.Model, providerDisplay, "", keyName, "local-no-key", r.Timestamp)
+			s.addOrUpdateAPIKey(stats.ByAPIKey, "local-no-key", nil, r.Model, providerDisplay, "", keyName, "local-no-key", r.Timestamp, r.PromptTokens, r.CompletionTokens, r.Cost)
 		}
 
 		endpoint := r.Endpoint
@@ -308,7 +324,7 @@ func (s *StatsService) aggregateLive(stats *Stats, rows []*store.RequestLogEntry
 			endpoint = "Unknown"
 		}
 		epKey := fmt.Sprintf("%s|%s|%s", endpoint, r.Model, providerOrUnknown(provider))
-		s.addOrUpdateEndpoint(stats.ByEndpoint, epKey, nil, endpoint, r.Model, providerDisplay, r.Timestamp)
+		s.addOrUpdateEndpoint(stats.ByEndpoint, epKey, nil, endpoint, r.Model, providerDisplay, r.Timestamp, r.PromptTokens, r.CompletionTokens, r.Cost)
 	}
 }
 
@@ -386,6 +402,37 @@ func (s *StatsService) fillTrackerFields(stats *Stats) {
 		return
 	}
 	stats.ErrorProvider = s.tracker.LastErrorProvider()
+
+	stats.Pending = make(map[string]int64)
+	for modelKey, count := range s.tracker.byModel {
+		stats.Pending[modelKey] = count
+	}
+
+	active := make([]ActiveRequest, 0)
+	s.tracker.mu.Lock()
+	for connID, models := range s.tracker.byAccount {
+		account := ""
+		if s.names != nil {
+			account = s.names.ConnectionName(connID)
+		}
+		if account == "" {
+			account = accountFallback(connID)
+		}
+		for modelKey, count := range models {
+			if count <= 0 {
+				continue
+			}
+			model, provider := parseModelProvider(modelKey)
+			active = append(active, ActiveRequest{
+				Model:    model,
+				Provider: provider,
+				Account:  account,
+				Count:    count,
+			})
+		}
+	}
+	s.tracker.mu.Unlock()
+	stats.ActiveRequests = active
 }
 
 func (s *StatsService) fillRecentRequests(stats *Stats) {
@@ -419,16 +466,19 @@ func addCounterToProvider(target map[string]*ProviderStat, key string, src map[s
 	p.Cost += toFloat64(src["cost"])
 }
 
-func addToProvider(target map[string]*ProviderStat, provider string) {
+func addToProvider(target map[string]*ProviderStat, provider string, promptTokens, completionTokens int64, cost float64) {
 	p := target[provider]
 	if p == nil {
 		p = &ProviderStat{}
 		target[provider] = p
 	}
-	p.Requests++
+p.Requests++
+	p.PromptTokens += promptTokens
+	p.CompletionTokens += completionTokens
+	p.Cost += cost
 }
 
-func (s *StatsService) addOrUpdateModel(target map[string]*ModelStat, key string, src map[string]any, rawModel, provider, lastUsed string) {
+func (s *StatsService) addOrUpdateModel(target map[string]*ModelStat, key string, src map[string]any, rawModel, provider, lastUsed string, livePrompt, liveCompletion int64, liveCost float64) {
 	m := target[key]
 	if m == nil {
 		m = &ModelStat{RawModel: rawModel, Provider: s.names.ProviderName(provider), LastUsed: lastUsed}
@@ -441,13 +491,16 @@ func (s *StatsService) addOrUpdateModel(target map[string]*ModelStat, key string
 		m.Cost += toFloat64(src["cost"])
 	} else {
 		m.Requests++
+		m.PromptTokens += livePrompt
+		m.CompletionTokens += liveCompletion
+		m.Cost += liveCost
 	}
 	if lastUsed > m.LastUsed {
 		m.LastUsed = lastUsed
 	}
 }
 
-func (s *StatsService) addOrUpdateAccount(target map[string]*AccountStat, key string, src map[string]any, rawModel, provider, connectionID, accountName, lastUsed string) {
+func (s *StatsService) addOrUpdateAccount(target map[string]*AccountStat, key string, src map[string]any, rawModel, provider, connectionID, accountName, lastUsed string, livePrompt, liveCompletion int64, liveCost float64) {
 	a := target[key]
 	if a == nil {
 		a = &AccountStat{
@@ -466,13 +519,16 @@ func (s *StatsService) addOrUpdateAccount(target map[string]*AccountStat, key st
 		a.Cost += toFloat64(src["cost"])
 	} else {
 		a.Requests++
+		a.PromptTokens += livePrompt
+		a.CompletionTokens += liveCompletion
+		a.Cost += liveCost
 	}
 	if lastUsed > a.LastUsed {
 		a.LastUsed = lastUsed
 	}
 }
 
-func (s *StatsService) addOrUpdateAPIKey(target map[string]*APIKeyStat, key string, src map[string]any, rawModel, provider, apiKey, keyName, apiKeyKey, lastUsed string) {
+func (s *StatsService) addOrUpdateAPIKey(target map[string]*APIKeyStat, key string, src map[string]any, rawModel, provider, apiKey, keyName, apiKeyKey, lastUsed string, livePrompt, liveCompletion int64, liveCost float64) {
 	k := target[key]
 	if k == nil {
 		k = &APIKeyStat{
@@ -492,13 +548,16 @@ func (s *StatsService) addOrUpdateAPIKey(target map[string]*APIKeyStat, key stri
 		k.Cost += toFloat64(src["cost"])
 	} else {
 		k.Requests++
+		k.PromptTokens += livePrompt
+		k.CompletionTokens += liveCompletion
+		k.Cost += liveCost
 	}
 	if lastUsed > k.LastUsed {
 		k.LastUsed = lastUsed
 	}
 }
 
-func (s *StatsService) addOrUpdateEndpoint(target map[string]*EndpointStat, key string, src map[string]any, endpoint, rawModel, provider, lastUsed string) {
+func (s *StatsService) addOrUpdateEndpoint(target map[string]*EndpointStat, key string, src map[string]any, endpoint, rawModel, provider, lastUsed string, livePrompt, liveCompletion int64, liveCost float64) {
 	e := target[key]
 	if e == nil {
 		e = &EndpointStat{
@@ -516,6 +575,9 @@ func (s *StatsService) addOrUpdateEndpoint(target map[string]*EndpointStat, key 
 		e.Cost += toFloat64(src["cost"])
 	} else {
 		e.Requests++
+		e.PromptTokens += livePrompt
+		e.CompletionTokens += liveCompletion
+		e.Cost += liveCost
 	}
 	if lastUsed > e.LastUsed {
 		e.LastUsed = lastUsed
