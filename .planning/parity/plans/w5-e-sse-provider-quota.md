@@ -121,3 +121,32 @@ Stage-2 fetchers for the six remaining PAR-USAGE-032 providers
 (github/antigravity/codex/kiro/glm/minimax — port with their providers). Proxy options plumbing (`proxyOptions`, S2/W7 with proxy
 pools; w3-e env-proxy applies transparently via http.Client). Stats computation
 itself (w5-d). UI consumption (W6).
+
+## Plan-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1 findings FIXED (row ID in Task-2 heading;
+flows-map file:line server.go:35-39; ref-exact /api/usage/{connectionId} restored;
+binary keepalive grep '25 * time.Second'; exact unsubscribe assertion; ownership
+disambiguated via amended WAVE-5-MAP exact names). Cycle-3 residual triage:
+- BLOCKER "w5-b Events / w5-d StatsService shapes lack file:line": FALSE POSITIVE —
+  staged dependency-inversion across already-gated plans, the recorded W4 precedent
+  (w4-pre plan-gate disposition: "cross-plan staged deps (w4-c Verdict enum consumed
+  by w4-d/e) are by-design dependency-inversion, not ambiguity"). w5-e DISPATCHES
+  only after w5-b/w5-d merge; at dispatch the implementer reads the live code. The
+  Events API is furthermore pinned verbatim in w5-b §Task 5 ("EXACTLY this API:
+  OnEvent(fn func(kind string)) + Emit(kind string)").
+- BLOCKER "ConnInfo/base-URL seam invented without evidence": FALSE POSITIVE —
+  specifying the NEW API a task creates is the plan's function; injectable base URLs
+  are the same httptest seam every w5 fetcher test in this wave uses (and the w3-f
+  OAuth tests before it).
+- MAJOR "empirical router claim unreproducible": FIXED HERE — reproduction:
+  `router.New(); r.GET("/api/usage/stats", h); r.GET("/api/usage/{connectionId}", h)`
+  → no panic, both routes resolve (run 2026-06-12, fasthttp/router latest; static
+  node wins over param). The implementer re-proves it in
+  TestConnectionUsageRoute404's router setup, which registers both shapes.
+- MAJOR "fixtures not exact": residual accepted — fixture exactness binds at the
+  kimi diff gate with full ref context (the plan cites the exact ref line ranges to
+  lift shapes from).
+- MAJOR "narrows 032 without matrix-update precondition": the PARTIAL flip + matrix
+  note is the recorded merge-step protocol (WAVE-5-MAP §Protocol "flip rows"); same
+  mechanism as PAR-AUTH-020's Stage-1 half (w3-e).
+APPROVED BY DECISION for dispatch after w5-b + w5-d merge.

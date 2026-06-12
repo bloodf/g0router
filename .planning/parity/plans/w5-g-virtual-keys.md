@@ -61,8 +61,13 @@ Runs LAST in Wave 5, ALONE.
    403 envelope), `TestChatVKQuotaDenied` (exhausted vk → 429 envelope, provider
    never called), `TestChatNoVKHeaderUnchanged` (no header → existing path
    untouched) — fail.
-   STEP (b): VK enforcement on ALL FOUR inference endpoints (PAR-ROUTE-030 names no
-   endpoint subset; the header gate applies wherever inference dispatches):
+   STEP (b): VK enforcement on ALL FOUR inference endpoints — endpoint breadth was
+   mandated by this plan's OWN cycle-1 gate finding (verbatim: "Task 3 narrows
+   `x-g0-vk` routing to `internal/api/chat.go` only, while PAR-ROUTE-030 states
+   header routing generally; the 'Messages/responses/embeddings' deferral is an
+   unsupported scope cut" — artifacts/w5-g-virtual-keys-plan-review.txt, cycle 1);
+   PAR-ROUTE-030 names no endpoint subset, so the gate applies wherever inference
+   dispatches:
    `internal/api/vk.go` (NEW) holds the shared `VKGate` helper + `VKResolver`
    interface (api imports neither store nor governance — seam precedent
    `internal/api/models.go:17-19`, mandated by `AGENTS.md:24` layering):

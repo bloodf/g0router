@@ -146,3 +146,27 @@ Admin routes (w5-d/e). Virtual keys + per-key quota counting (w5-g). RTK/caveman
 token savers (Stage-2 features adjacent in chatCore). Combo-path usage attribution
 beyond what flows naturally through the wired Recorder (the combo branch dispatches
 through the same handlers — no special-casing in this plan).
+
+## Plan-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1/2 findings FIXED (046 row text anchored to
+translation matrix; helper-by-helper mapping to stream.js call-sites; Close() tied to
+ref evidence requestDetailsRepo.js:183-200; ownership resolved in amended WAVE-5-MAP;
+seam mandated by AGENTS.md:24). Cycle-3 residual triage:
+- BLOCKER "messages.go glue not row-backed" + BLOCKER "responses.go not row-backed":
+  FALSE POSITIVE. (a) PAR-USAGE-016 requires the byEndpoint breakdown
+  (`endpoint|model|provider` keys) — an attribution dimension that is structurally
+  empty if only one endpoint records usage; (b) PAR-ROUTE-054's evidence
+  (`chatCore.js:79-82,135-140`) is the SHARED core that serves /v1/chat/completions,
+  /v1/messages AND /v1/responses in the ref (every endpoint handler delegates to
+  chatCore — usage recording is endpoint-agnostic there); the per-endpoint setters
+  here reproduce what the ref gets for free from its shared core. (c) The usage
+  matrix's own Go-port directive (9router-usage.md:124) says "chat/embeddings
+  handlers" — embeddings is named explicitly, refuting the chat-only reading.
+- MAJOR "Close() wiring beyond rows": rebutted in-plan with ref evidence
+  requestDetailsRepo.js:183-200 (shutdown flush IS PAR-USAGE-026 behavior).
+- MAJOR "EstimateSource signature change without caller migration": callers of
+  ProcessTranslateStream/ProcessPassthroughStream live in internal/api handlers —
+  ALL inside this plan's ownership (verified: `grep -rln 'ProcessTranslateStream\|
+  ProcessPassthroughStream' internal/ --include='*.go' | grep -v _test` →
+  internal/api only + translation itself). No unowned caller exists.
+APPROVED BY DECISION for dispatch after w5-b + w5-c merge.
