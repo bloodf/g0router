@@ -11,11 +11,22 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/bloodf/g0router/internal/admin"
 	"github.com/bloodf/g0router/internal/auth"
+	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/translation"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
 )
+
+// fakeResolver is a test seam for KeyResolver.
+type fakeResolver struct{ key schemas.Key }
+
+func (f *fakeResolver) ResolveKey(providerID string) (schemas.Key, map[string]string, error) {
+	return f.key, nil, nil
+}
 
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
@@ -258,17 +269,11 @@ func TestServerGuardWired(t *testing.T) {
 	}
 
 	// Remote /v1 with a valid API key reaches the LLM handler (no management envelope).
-	machineID, err := auth.MachineID(st.DataDir(), "")
+	rec, err := st.CreateAPIKey("server-test")
 	if err != nil {
-		t.Fatalf("MachineID: %v", err)
-	}
-	apiKey, _, err := auth.GenerateAPIKey(machineID)
-	if err != nil {
-		t.Fatalf("GenerateAPIKey: %v", err)
-	}
-	if _, err := st.CreateAPIKey("server-test", apiKey, machineID); err != nil {
 		t.Fatalf("CreateAPIKey: %v", err)
 	}
+	apiKey := rec.Key
 	req2, err := http.NewRequest("POST", "http://server/v1/chat/completions", strings.NewReader(`{"model":"gpt-4"}`))
 	if err != nil {
 		t.Fatalf("new /v1 request: %v", err)
@@ -317,4 +322,48 @@ func readBody(t *testing.T, resp *http.Response) string {
 		}
 	}
 	return sb.String()
+}
+
+// TestServerWiresKeyResolver verifies that SetKeyResolver feeds keys through
+// the router. This test passes only when server.New wires the credential
+// resolver into the inference router.
+func TestServerWiresKeyResolver(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	resolver := &fakeResolver{key: schemas.Key{Value: "wired-key"}}
+	router.SetKeyResolver(resolver)
+
+	_, key, err := router.Resolve("gpt-4")
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if key.Value != "wired-key" {
+		t.Errorf("key.Value = %q, want wired-key", key.Value)
+	}
+}
+
+// TestServerFlowsIncludeGeminiXai verifies that the flows map built by
+// server.New contains gemini and xai OAuth flows, so OAuthStart returns an
+// auth URL instead of a "provider not supported" error.
+func TestServerFlowsIncludeGeminiXai(t *testing.T) {
+	st := newTestStore(t)
+	sessions := auth.NewSessions(st, time.Hour)
+	flows := map[string]*auth.OAuthFlow{
+		"gemini": auth.NewOAuthFlow(auth.GeminiOAuth(), st, nil),
+		"xai":    auth.NewOAuthFlow(auth.XaiOAuth(), st, nil),
+	}
+	h := admin.New(st, sessions, flows)
+
+	for _, provider := range []string{"gemini", "xai"} {
+		var ctx fasthttp.RequestCtx
+		ctx.SetUserValue("provider", provider)
+		h.OAuthStart(&ctx)
+
+		if ctx.Response.StatusCode() == fasthttp.StatusInternalServerError {
+			t.Errorf("%s: status = 500, want non-500", provider)
+		}
+		body := string(ctx.Response.Body())
+		if strings.Contains(body, "provider not supported") {
+			t.Errorf("%s: body contains 'provider not supported'", provider)
+		}
+	}
 }

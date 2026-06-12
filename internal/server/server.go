@@ -35,7 +35,10 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 		sessions := auth.NewSessions(st, sessionTTL)
 		flows := map[string]*auth.OAuthFlow{
 			"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
+			"gemini":    auth.NewOAuthFlow(auth.GeminiOAuth(), st, nil),
+			"xai":       auth.NewOAuthFlow(auth.XaiOAuth(), st, nil),
 		}
+		infRouter.SetKeyResolver(auth.NewCredentialResolver(st, flows))
 		RegisterAdminRoutes(r, admin.New(st, sessions, flows))
 		guard = (&Guard{
 			Sessions:          sessions,
