@@ -42,6 +42,7 @@ func NewWithShutdown(uiFS fs.FS, st *store.Store, allowedOrigins []string) *Serv
 	var recorder api.UsageRecorder
 	var tracker api.PendingTracker
 	var detail api.DetailCapture
+	var usageDeps admin.UsageDeps
 	if st != nil {
 		flows = map[string]*auth.OAuthFlow{
 			"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
@@ -68,13 +69,20 @@ func NewWithShutdown(uiFS fs.FS, st *store.Store, allowedOrigins []string) *Serv
 			t := time.AfterFunc(d, fn)
 			return func() { t.Stop() }
 		}
+		usageTracker := usage.NewTracker(clock, timerFactory, events)
+		usageRing := usage.NewRing(50)
+		usageDeps = admin.UsageDeps{
+			Events:  events,
+			Tracker: usageTracker,
+			Ring:    usageRing,
+		}
 		recorder = newUsageRecorderAdapter(usage.NewRecorder(
 			usage.NewResolver(st, func() int64 { return clock().UnixNano() }),
 			st,
 			clock,
 			events,
 		))
-		tracker = newPendingTrackerAdapter(usage.NewTracker(clock, timerFactory, events))
+		tracker = newPendingTrackerAdapter(usageTracker)
 		detail = newDetailCaptureAdapter(usage.NewDetailWriter(
 			st,
 			usage.NewObsConfigLoader(st, func(string) string { return "" }, clock),
@@ -93,7 +101,7 @@ func NewWithShutdown(uiFS fs.FS, st *store.Store, allowedOrigins []string) *Serv
 	}
 	if st != nil {
 		sessions := auth.NewSessions(st, sessionTTL)
-		RegisterAdminRoutes(r, admin.New(st, sessions, flows))
+		RegisterAdminRoutes(r, NewAdminHandlers(st, usageDeps))
 		guard = (&Guard{
 			Sessions:          sessions,
 			Settings:          st,

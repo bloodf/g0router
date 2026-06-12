@@ -14,13 +14,15 @@ const sessionTTL = 7 * 24 * time.Hour
 
 // NewAdminHandlers builds the management handler set from the store with
 // the default session TTL and production OAuth flows.
-func NewAdminHandlers(st *store.Store) *admin.Handlers {
+// deps supplies the shared usage events/tracker/ring that the OpenAI-compatible
+// API handlers also consume; admin stats must observe the same live instances.
+func NewAdminHandlers(st *store.Store, deps admin.UsageDeps) *admin.Handlers {
 	sessions := auth.NewSessions(st, sessionTTL)
 	flows := map[string]*auth.OAuthFlow{
 		"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
 	}
 	h := admin.New(st, sessions, flows)
-	stats, resolver := admin.BuildUsageServices(st)
+	stats, resolver := admin.BuildUsageServices(st, deps)
 	h.SetUsageServices(stats, resolver)
 	return h
 }

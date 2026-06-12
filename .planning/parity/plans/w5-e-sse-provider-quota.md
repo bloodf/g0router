@@ -150,3 +150,31 @@ disambiguated via amended WAVE-5-MAP exact names). Cycle-3 residual triage:
   note is the recorded merge-step protocol (WAVE-5-MAP §Protocol "flip rows"); same
   mechanism as PAR-AUTH-020's Stage-1 half (w3-e).
 APPROVED BY DECISION for dispatch after w5-b + w5-d merge.
+
+## Diff-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1: 4 REAL FIXED (fix-r1, 9439a74:
+snake_case quota keys per AGENTS.md:26 over ref camelCase, live active_requests
+snapshot from tracker state, route-coexistence proof in test, wrapped fetcher
+errors). Cycle-2: BLOCKER REAL FIXED (fix-r2, 884acd9: connection-scoped refresh —
+ResolveKey(provider.ID) replaced with the requested connection's own credentials +
+RefreshCredentials(conn.ID); two-connection wrong-token test) + retry-count
+assertion added; 2 rebutted (conn.Metadata IS providerSpecificData per w3-f
+plumbing; authExpiredPatterns is an immutable table like pricingdata/aliases).
+Cycle-3 residual triage:
+- BLOCKER "Refresher seam cannot force refresh": FALSE POSITIVE —
+  `auth.CredentialResolver.RefreshCredentials(connectionID)` is force BY
+  CONSTRUCTION: w5-pre Task 1 specified and implemented it as an UNCONDITIONAL
+  doRefresh ("force; not gated on shouldRefresh — the caller has already seen a
+  401/403"). The auth-expired retry path calling it IS the forced refresh + retry
+  exactly once (PAR-USAGE-033).
+- MAJOR "fake refresher stronger than production": decomposition at the seam — the
+  production force semantics are covered by TestRefreshCredentialsByConnectionID
+  (w5-pre, auth layer); the route test proves call-count + retry wiring. Same
+  decomposition pattern recorded in the w5-pre diff-gate disposition.
+- MAJOR "keepalive must inject a ticker": FALSE POSITIVE per the plan's own text —
+  the plan specified "keepalive interval as a struct field with production value
+  25 * time.Second, test-injected smaller" (interval injection, not a ticker
+  factory). The implementation follows the plan verbatim.
+MERGED. Rows flip: PAR-USAGE-032 → PARTIAL (Stage-1 half: dispatcher + claude +
+gemini fetchers; gh/antigravity/codex/kiro/glm/minimax with their Stage-2
+providers), PAR-USAGE-033/034/035 → HAVE.

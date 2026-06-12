@@ -71,19 +71,29 @@ func realTimerFactory(d time.Duration, fn func()) func() {
 	return func() { t.Stop() }
 }
 
+// UsageDeps carries the shared usage-side dependencies constructed once in
+// internal/server and reused for both the OpenAI-compatible API handlers and
+// the admin bootstrap.
+type UsageDeps struct {
+	Events  *usage.Events
+	Tracker *usage.Tracker
+	Ring    *usage.Ring
+}
+
 // BuildUsageServices constructs the production StatsService and pricing Resolver.
-func BuildUsageServices(st *store.Store) (*usage.StatsService, *usage.Resolver) {
+// The shared events/tracker/ring are injected by the caller so admin stats see
+// the same live traffic as the API handlers.
+func BuildUsageServices(st *store.Store, deps UsageDeps) (*usage.StatsService, *usage.Resolver) {
 	resolver := usage.NewResolver(st, func() int64 { return time.Now().UnixMilli() })
 
-	events := usage.NewEvents()
-	tracker := usage.NewTracker(func() time.Time { return time.Now() }, realTimerFactory, events)
-	ring := usage.NewRing(50)
-	_ = ring.Init(func() ([]*store.RequestLogEntry, error) { return st.ListRecentRequestLogs(50) })
+	if deps.Ring != nil {
+		_ = deps.Ring.Init(func() ([]*store.RequestLogEntry, error) { return st.ListRecentRequestLogs(50) })
+	}
 
 	connCache := usage.NewConnNameCache(connInfoLister(st), 30*time.Second, func() time.Time { return time.Now() })
 	nameSrc := &adminNameSource{connCache: connCache, store: st}
 
-	stats := usage.NewStatsService(st, nameSrc, tracker, ring, func() time.Time { return time.Now() })
+	stats := usage.NewStatsService(st, nameSrc, deps.Tracker, deps.Ring, func() time.Time { return time.Now() })
 	return stats, resolver
 }
 

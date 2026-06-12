@@ -8,7 +8,7 @@ import (
 
 func wireUsageServices(t *testing.T, env *testEnv) {
 	t.Helper()
-	stats, resolver := BuildUsageServices(env.store)
+	stats, resolver := BuildUsageServices(env.store, UsageDeps{})
 	env.handlers.SetUsageServices(stats, resolver)
 }
 
@@ -79,7 +79,7 @@ func TestUsageChartAndLogsRoutes(t *testing.T) {
 
 func TestBuildUsageServices(t *testing.T) {
 	env := newTestEnv(t)
-	stats, resolver := BuildUsageServices(env.store)
+	stats, resolver := BuildUsageServices(env.store, UsageDeps{})
 	if stats == nil {
 		t.Fatal("BuildUsageServices returned nil StatsService")
 	}

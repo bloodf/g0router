@@ -6518,3 +6518,14 @@ Rebutted: KB×1024 (ref :27, twice), non-string headers (unreachable in Go), bat
 trigger fake-store nit. Non-convergent gate cycles documented in disposition.
 Rows_flipped: PAR-USAGE-003/024/025/026/027/028 → HAVE (usage 22/0/18);
 PAR-AUTH-017/018 → HAVE (auth 28/1/1).
+
+## w5-e: MERGED (2026-06-12)
+Diff gate closed by decision after 3 cycles. Fix rounds: r1 9439a74 (snake_case
+keys, live snapshot, coexistence proof, wrapped errors), r2 884acd9 (connection-
+scoped refresh — REAL blocker: provider-scoped ResolveKey could leak another
+connection's token). Cycle-3 rebuttals: force-by-construction refresher, seam
+decomposition, plan-specified interval injection.
+Rows_flipped: PAR-USAGE-032 → PARTIAL (Stage-1 half), 033/034/035 → HAVE
+(usage 25/1/14).
+Incident: m3 fix-r2 run checked out kimi's mid-edit w5-d files to verify — kimi
+recovered autonomously; absolute checkout prohibition added to all worker prompts.
