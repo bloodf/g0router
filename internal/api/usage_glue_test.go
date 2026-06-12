@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 
@@ -327,36 +328,102 @@ func TestChatRecordsErrorStatus(t *testing.T) {
 // TestChatCapturesRequestDetail: fake DetailWriter receives sanitized capture
 // on success AND error paths.
 func TestChatCapturesRequestDetail(t *testing.T) {
-	rec := &recordingProvider{
-		providerName: "openai",
-		connectionID: "conn-1",
-		response: &schemas.ChatResponse{
-			ID:    "r1",
-			Model: "gpt-4",
-			Usage: &schemas.Usage{PromptTokens: 1, CompletionTokens: 1},
-		},
-	}
-	resolver := &recordingResolver{providers: map[string]schemas.Provider{"gpt-4": rec}}
-	detail := &fakeDetailCapture{}
-	h := &ChatHandler{router: resolver}
-	h.SetDetailCapture(detail)
+	t.Run("success", func(t *testing.T) {
+		rec := &recordingProvider{
+			providerName: "openai",
+			connectionID: "conn-1",
+			response: &schemas.ChatResponse{
+				ID:    "r1",
+				Model: "gpt-4",
+				Usage: &schemas.Usage{PromptTokens: 1, CompletionTokens: 1},
+			},
+		}
+		resolver := &recordingResolver{providers: map[string]schemas.Provider{"gpt-4": rec}}
+		detail := &fakeDetailCapture{}
+		h := &ChatHandler{router: resolver}
+		h.SetDetailCapture(detail)
 
-	var ctx fasthttp.RequestCtx
-	ctx.Request.Header.SetMethod(http.MethodPost)
-	ctx.Request.SetRequestURI("/v1/chat/completions")
-	ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
-	h.Handle(&ctx)
+		var ctx fasthttp.RequestCtx
+		ctx.Request.Header.SetMethod(http.MethodPost)
+		ctx.Request.SetRequestURI("/v1/chat/completions")
+		ctx.Request.Header.Set("Authorization", "Bearer sk-secret")
+		ctx.Request.Header.Set("X-Request-ID", "req-42")
+		ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
+		h.Handle(&ctx)
 
-	captures := detail.snapshot()
-	if len(captures) != 1 {
-		t.Fatalf("detail captures = %d, want 1", len(captures))
+		captures := detail.snapshot()
+		if len(captures) != 1 {
+			t.Fatalf("detail captures = %d, want 1", len(captures))
+		}
+		c := captures[0]
+		if c.Provider != "openai" || c.Model != "gpt-4" {
+			t.Errorf("capture attribution = (%q, %q), want (openai, gpt-4)", c.Provider, c.Model)
+		}
+		if c.Status != "success" {
+			t.Errorf("capture.Status = %q, want success", c.Status)
+		}
+		assertSanitizedRequestHeaders(t, c.Request)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		rec := &recordingProvider{
+			providerName: "openai",
+			connectionID: "conn-1",
+			chatErr:      &schemas.ProviderError{StatusCode: 502, Message: "bad gateway", Type: "upstream_error"},
+		}
+		resolver := &recordingResolver{providers: map[string]schemas.Provider{"gpt-4": rec}}
+		detail := &fakeDetailCapture{}
+		h := &ChatHandler{router: resolver}
+		h.SetDetailCapture(detail)
+
+		var ctx fasthttp.RequestCtx
+		ctx.Request.Header.SetMethod(http.MethodPost)
+		ctx.Request.SetRequestURI("/v1/chat/completions")
+		ctx.Request.Header.Set("Authorization", "Bearer sk-secret")
+		ctx.Request.Header.Set("X-Request-ID", "req-43")
+		ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
+		h.Handle(&ctx)
+
+		captures := detail.snapshot()
+		if len(captures) != 1 {
+			t.Fatalf("detail captures = %d, want 1", len(captures))
+		}
+		c := captures[0]
+		if c.Status == "success" {
+			t.Errorf("capture.Status = %q, want non-success for provider error", c.Status)
+		}
+		assertSanitizedRequestHeaders(t, c.Request)
+	})
+}
+
+// assertSanitizedRequestHeaders verifies that a captured request detail includes
+// non-sensitive headers and has had the Authorization header removed.
+func assertSanitizedRequestHeaders(t *testing.T, req any) {
+	t.Helper()
+	reqMap, ok := req.(map[string]any)
+	if !ok {
+		t.Fatalf("capture.Request = %T, want map[string]any", req)
 	}
-	c := captures[0]
-	if c.Provider != "openai" || c.Model != "gpt-4" {
-		t.Errorf("capture attribution = (%q, %q), want (openai, gpt-4)", c.Provider, c.Model)
+	headersAny, ok := reqMap["headers"]
+	if !ok {
+		t.Fatalf("capture.Request missing headers field: %+v", reqMap)
 	}
-	if c.Status != "success" {
-		t.Errorf("capture.Status = %q, want success", c.Status)
+	headers, ok := headersAny.(map[string]string)
+	if !ok {
+		t.Fatalf("capture.Request headers = %T, want map[string]string", headersAny)
+	}
+	if _, ok := headers["Authorization"]; ok {
+		t.Errorf("Authorization header was not sanitized from captured request")
+	}
+	found := false
+	for k := range headers {
+		if strings.EqualFold(k, "X-Request-ID") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("X-Request-ID header missing from captured request: %+v", headers)
 	}
 }
 

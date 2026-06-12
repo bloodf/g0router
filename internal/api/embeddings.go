@@ -42,8 +42,12 @@ func (h *EmbeddingsHandler) SetDetailCapture(d DetailCapture) { h.detailCapture 
 
 // Handle processes embedding requests.
 func (h *EmbeddingsHandler) Handle(ctx *fasthttp.RequestCtx) {
+	raw := ctx.PostBody()
+	headers := requestHeadersFromCtx(ctx)
+	g := h.recordGlue()
+
 	var req schemas.EmbeddingRequest
-	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+	if err := json.Unmarshal(raw, &req); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "invalid JSON body", nil)
 		return
 	}
@@ -64,7 +68,7 @@ func (h *EmbeddingsHandler) Handle(ctx *fasthttp.RequestCtx) {
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
 	resp, perr := provider.Embedding(gatewayCtx, key, &req)
 	if perr != nil {
-		h.recordError(req.Model, key.Provider, key.ID, perr)
+		g.recordError("/v1/embeddings", req.Model, key.Provider, key.ID, raw, headers, perr)
 		status := perr.StatusCode
 		if status == 0 {
 			status = fasthttp.StatusBadGateway
@@ -75,7 +79,7 @@ func (h *EmbeddingsHandler) Handle(ctx *fasthttp.RequestCtx) {
 
 	b, err := jsonMarshal(resp)
 	if err != nil {
-		h.recordError(req.Model, key.Provider, key.ID, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
+		g.recordError("/v1/embeddings", req.Model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		ctx.SetContentTypeBytes([]byte("text/plain"))
 		ctx.SetBodyString("internal error")
@@ -85,71 +89,15 @@ func (h *EmbeddingsHandler) Handle(ctx *fasthttp.RequestCtx) {
 	ctx.SetContentTypeBytes([]byte("application/json"))
 	ctx.SetBody(b)
 
-	h.recordNonStream(req.Model, key.Provider, key.ID, resp)
-}
-
-// recordError / recordNonStream handle the usage glue (PAR-ROUTE-054,
-// PAR-USAGE-018/026). The Embeddings endpoint is non-stream only.
-func (h *EmbeddingsHandler) recordError(model, provider, connID string, perr *schemas.ProviderError) {
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, true)
-	}
-	statusCode := perr.StatusCode
-	if statusCode == 0 {
-		statusCode = 502
-	}
-	statusLabel := fmt.Sprintf("%d", statusCode)
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(&UsageEntry{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Endpoint:     "/v1/embeddings",
-			Status:       "error",
-			Tokens:       map[string]int64{},
-		})
-	}
-	if h.detailCapture != nil {
-		_ = h.detailCapture.Save(RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       "error",
-			Response:     map[string]any{"error": map[string]any{"message": perr.Message, "status": statusLabel}},
-		})
-	}
-}
-
-func (h *EmbeddingsHandler) recordNonStream(model, provider, connID string, resp *schemas.EmbeddingResponse) {
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, false)
-	}
-	entry := &UsageEntry{
-		Provider:     provider,
-		Model:        model,
-		ConnectionID: connID,
-		Endpoint:     "/v1/embeddings",
-		Status:       "ok",
-	}
+	var pt, ct int64
 	if resp.Usage != nil {
-		entry.PromptTokens = int64(resp.Usage.PromptTokens)
-		entry.CompletionTokens = int64(resp.Usage.CompletionTokens)
-		entry.Tokens = map[string]int64{
-			"prompt_tokens":     entry.PromptTokens,
-			"completion_tokens": entry.CompletionTokens,
-		}
+		pt = int64(resp.Usage.PromptTokens)
+		ct = int64(resp.Usage.CompletionTokens)
 	}
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(entry)
-	}
-	if h.detailCapture != nil {
-		_ = h.detailCapture.Save(RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       "success",
-			Tokens:       entry.Tokens,
-			Response:     resp,
-		})
-	}
+	g.recordNonStream("/v1/embeddings", req.Model, key.Provider, key.ID, raw, headers, pt, ct, resp)
+}
+
+// recordGlue assembles the shared usage-recording dependencies for this handler.
+func (h *EmbeddingsHandler) recordGlue() recordGlue {
+	return recordGlue{recorder: h.usageRecorder, tracker: h.pendingTracker, detail: h.detailCapture}
 }

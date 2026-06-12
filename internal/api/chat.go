@@ -380,6 +380,9 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	// EstimateSource for stream-time usage estimation (PAR-TRANS-046 usage clause).
 	src := &translation.EstimateSource{Body: bodyMap, Format: translation.FormatOpenAI}
 
+	g := h.recordGlue()
+	headers := requestHeadersFromCtx(ctx)
+
 	if useStream {
 		ctx.SetContentTypeBytes([]byte("text/event-stream"))
 		ctx.Response.Header.Set("Cache-Control", "no-cache")
@@ -401,7 +404,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 			}
 		}
 		if perr != nil {
-			h.recordError(ctx, req.Model, key.Provider, key.ID, perr)
+			g.recordError("/v1/chat/completions", req.Model, key.Provider, key.ID, raw, headers, perr)
 			writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
 			return
 		}
@@ -412,7 +415,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		if sErr != nil {
 			log.Printf("chat stream error: %v", sErr)
 		}
-		h.recordStream(ctx, req.Model, key.Provider, key.ID, summary, sErr)
+		g.recordStream("/v1/chat/completions", req.Model, key.Provider, key.ID, raw, headers, summary, sErr)
 		return
 	}
 
@@ -424,7 +427,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		}, key, perr)
 	}
 	if perr != nil {
-		h.recordError(ctx, req.Model, key.Provider, key.ID, perr)
+		g.recordError("/v1/chat/completions", req.Model, key.Provider, key.ID, raw, headers, perr)
 		status := perr.StatusCode
 		if status == 0 {
 			status = fasthttp.StatusBadGateway
@@ -435,7 +438,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 
 	b, err := jsonMarshal(resp)
 	if err != nil {
-		h.recordError(ctx, req.Model, key.Provider, key.ID, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
+		g.recordError("/v1/chat/completions", req.Model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		ctx.SetContentTypeBytes([]byte("text/plain"))
 		ctx.SetBodyString("internal error")
@@ -445,156 +448,17 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	ctx.SetContentTypeBytes([]byte("application/json"))
 	ctx.SetBody(b)
 
-	h.recordNonStream(ctx, req.Model, key.Provider, key.ID, resp)
-}
-
-// recordError terminates the pending request accounting and persists the
-// failure as a single request_log row + a request_details row. Called on
-// non-stream error paths (PAR-ROUTE-054, PAR-USAGE-018/026).
-func (h *ChatHandler) recordError(ctx *fasthttp.RequestCtx, model, provider, connID string, perr *schemas.ProviderError) {
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, true)
-	}
-	statusCode := perr.StatusCode
-	if statusCode == 0 {
-		statusCode = 502
-	}
-	statusLabel := fmt.Sprintf("%d", statusCode)
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(&UsageEntry{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Endpoint:     "/v1/chat/completions",
-			Status:       "error",
-			Tokens:       map[string]int64{},
-		})
-	}
-	if h.detailCapture != nil {
-		_ = h.detailCapture.Save(RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       "error",
-			Response:     map[string]any{"error": map[string]any{"message": perr.Message, "status": statusLabel}},
-		})
-	}
-}
-
-// recordNonStream terminates the pending request accounting and persists the
-// success as a single request_log row + a request_details row. Called on
-// non-stream success paths (PAR-ROUTE-054, PAR-USAGE-018/026).
-func (h *ChatHandler) recordNonStream(ctx *fasthttp.RequestCtx, model, provider, connID string, resp *schemas.ChatResponse) {
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, false)
-	}
-	entry := &UsageEntry{
-		Provider:     provider,
-		Model:        model,
-		ConnectionID: connID,
-		Endpoint:     "/v1/chat/completions",
-		Status:       "ok",
-	}
+	var pt, ct int64
 	if resp != nil && resp.Usage != nil {
-		entry.PromptTokens = int64(resp.Usage.PromptTokens)
-		entry.CompletionTokens = int64(resp.Usage.CompletionTokens)
-		entry.Tokens = map[string]int64{
-			"prompt_tokens":     entry.PromptTokens,
-			"completion_tokens": entry.CompletionTokens,
-		}
+		pt = int64(resp.Usage.PromptTokens)
+		ct = int64(resp.Usage.CompletionTokens)
 	}
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(entry)
-	}
-	if h.detailCapture != nil {
-		_ = h.detailCapture.Save(RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       "success",
-			Tokens:       entry.Tokens,
-			Response:     resp,
-		})
-	}
+	g.recordNonStream("/v1/chat/completions", req.Model, key.Provider, key.ID, raw, headers, pt, ct, resp)
 }
 
-// recordStream terminates the pending request accounting and persists the
-// stream's accumulated/estimated usage + a request_details row. Called on
-// stream completion (success or error). src is unused here because the
-// processor already applied the estimation machinery.
-func (h *ChatHandler) recordStream(ctx *fasthttp.RequestCtx, model, provider, connID string, summary translation.StreamSummary, sErr error) {
-	isError := sErr != nil
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, isError)
-	}
-	status := "ok"
-	if isError {
-		status = "error"
-	}
-	entry := &UsageEntry{
-		Provider:     provider,
-		Model:        model,
-		ConnectionID: connID,
-		Endpoint:     "/v1/chat/completions",
-		Status:       status,
-	}
-	if summary.Usage != nil {
-		entry.PromptTokens = int64(extractInt(summary.Usage, "prompt_tokens"))
-		entry.CompletionTokens = int64(extractInt(summary.Usage, "completion_tokens"))
-		entry.Tokens = map[string]int64{}
-		if v, ok := summary.Usage["prompt_tokens"]; ok {
-			entry.Tokens["prompt_tokens"] = int64(toFloat(v))
-		}
-		if v, ok := summary.Usage["completion_tokens"]; ok {
-			entry.Tokens["completion_tokens"] = int64(toFloat(v))
-		}
-	}
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(entry)
-	}
-	if h.detailCapture != nil {
-		capture := RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       status,
-			Tokens:       entry.Tokens,
-		}
-		if isError {
-			capture.Response = map[string]any{"error": sErr.Error()}
-		}
-		_ = h.detailCapture.Save(capture)
-	}
+// recordGlue assembles the shared usage-recording dependencies for this handler.
+func (h *ChatHandler) recordGlue() recordGlue {
+	return recordGlue{recorder: h.usageRecorder, tracker: h.pendingTracker, detail: h.detailCapture}
 }
 
-// extractInt / toFloat / toFloatMapInt64: small helpers for pulling numeric
-// fields out of an untyped usage map. Kept local to avoid exposing them
-// across the package.
-func extractInt(m map[string]any, key string) int {
-	if v, ok := m[key]; ok {
-		return int(toFloat(v))
-	}
-	return 0
-}
 
-func toFloat(v any) float64 {
-	switch x := v.(type) {
-	case int:
-		return float64(x)
-	case int32:
-		return float64(x)
-	case int64:
-		return float64(x)
-	case uint:
-		return float64(x)
-	case uint32:
-		return float64(x)
-	case uint64:
-		return float64(x)
-	case float32:
-		return float64(x)
-	case float64:
-		return x
-	}
-	return 0
-}

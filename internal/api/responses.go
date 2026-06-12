@@ -45,8 +45,12 @@ func (h *ResponsesHandler) SetDetailCapture(d DetailCapture) { h.detailCapture =
 // Completions format. The streaming path is the only path — the ref endpoint is
 // streaming-only (stream:true forced at openai-responses.js:203,208).
 func (h *ResponsesHandler) Handle(ctx *fasthttp.RequestCtx) {
+	raw := ctx.PostBody()
+	headers := requestHeadersFromCtx(ctx)
+	g := h.recordGlue()
+
 	var body map[string]any
-	if err := json.Unmarshal(ctx.PostBody(), &body); err != nil {
+	if err := json.Unmarshal(raw, &body); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "invalid JSON body", nil)
 		return
 	}
@@ -96,7 +100,7 @@ func (h *ResponsesHandler) Handle(ctx *fasthttp.RequestCtx) {
 
 	ch, perr := provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
 	if perr != nil {
-		h.recordError(req.Model, key.Provider, key.ID, perr)
+		g.recordError("/v1/responses", req.Model, key.Provider, key.ID, raw, headers, perr)
 		writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
 		return
 	}
@@ -109,83 +113,10 @@ func (h *ResponsesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	if sErr != nil {
 		log.Printf("responses stream error: %v", sErr)
 	}
-	h.recordStream(req.Model, key.Provider, key.ID, summary, sErr)
+	g.recordStream("/v1/responses", req.Model, key.Provider, key.ID, raw, headers, summary, sErr)
 }
 
-// recordError / recordStream handle the usage glue (PAR-ROUTE-054,
-// PAR-USAGE-018/026). The Responses endpoint is streaming-only, so a
-// non-stream variant is unnecessary.
-func (h *ResponsesHandler) recordError(model, provider, connID string, perr *schemas.ProviderError) {
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, true)
-	}
-	statusCode := perr.StatusCode
-	if statusCode == 0 {
-		statusCode = 502
-	}
-	statusLabel := fmt.Sprintf("%d", statusCode)
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(&UsageEntry{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Endpoint:     "/v1/responses",
-			Status:       "error",
-			Tokens:       map[string]int64{},
-		})
-	}
-	if h.detailCapture != nil {
-		_ = h.detailCapture.Save(RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       "error",
-			Response:     map[string]any{"error": map[string]any{"message": perr.Message, "status": statusLabel}},
-		})
-	}
-}
-
-func (h *ResponsesHandler) recordStream(model, provider, connID string, summary translation.StreamSummary, sErr error) {
-	isError := sErr != nil
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, isError)
-	}
-	status := "ok"
-	if isError {
-		status = "error"
-	}
-	entry := &UsageEntry{
-		Provider:     provider,
-		Model:        model,
-		ConnectionID: connID,
-		Endpoint:     "/v1/responses",
-		Status:       status,
-	}
-	if summary.Usage != nil {
-		entry.PromptTokens = int64(extractInt(summary.Usage, "prompt_tokens"))
-		entry.CompletionTokens = int64(extractInt(summary.Usage, "completion_tokens"))
-		entry.Tokens = map[string]int64{}
-		if v, ok := summary.Usage["prompt_tokens"]; ok {
-			entry.Tokens["prompt_tokens"] = int64(toFloat(v))
-		}
-		if v, ok := summary.Usage["completion_tokens"]; ok {
-			entry.Tokens["completion_tokens"] = int64(toFloat(v))
-		}
-	}
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(entry)
-	}
-	if h.detailCapture != nil {
-		capture := RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       status,
-			Tokens:       entry.Tokens,
-		}
-		if isError {
-			capture.Response = map[string]any{"error": sErr.Error()}
-		}
-		_ = h.detailCapture.Save(capture)
-	}
+// recordGlue assembles the shared usage-recording dependencies for this handler.
+func (h *ResponsesHandler) recordGlue() recordGlue {
+	return recordGlue{recorder: h.usageRecorder, tracker: h.pendingTracker, detail: h.detailCapture}
 }

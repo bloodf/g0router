@@ -41,8 +41,12 @@ func (h *MessagesHandler) SetDetailCapture(d DetailCapture) { h.detailCapture = 
 
 // Handle processes Claude-format requests, translating to/from OpenAI format.
 func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
+	raw := ctx.PostBody()
+	headers := requestHeadersFromCtx(ctx)
+	g := h.recordGlue()
+
 	var body map[string]any
-	if err := json.Unmarshal(ctx.PostBody(), &body); err != nil {
+	if err := json.Unmarshal(raw, &body); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "invalid JSON body", nil)
 		return
 	}
@@ -84,8 +88,8 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	nativeSkip := false
 	if nfp, ok := provider.(interface{ NativeFormat() string }); ok {
 		if nfp.NativeFormat() == DetectFormat(body) {
-			raw, _ := json.Marshal(body)
-			if err := json.Unmarshal(raw, &req); err == nil {
+			rawTranslated, _ := json.Marshal(body)
+			if err := json.Unmarshal(rawTranslated, &req); err == nil {
 				nativeSkip = true
 			}
 		}
@@ -94,14 +98,14 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	if !nativeSkip {
 		translated, err := h.registry.TranslateRequest(translation.FormatClaude, translation.FormatOpenAI, model, body, stream, nil)
 		if err != nil {
-			h.recordError(ctx, model, key.Provider, key.ID, &schemas.ProviderError{StatusCode: 400, Message: err.Error(), Type: "invalid_request_error"})
+			g.recordError("/v1/messages", model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: 400, Message: err.Error(), Type: "invalid_request_error"})
 			writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
 			return
 		}
 
 		b, err := json.Marshal(translated)
 		if err != nil {
-			h.recordError(ctx, model, key.Provider, key.ID, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
+			g.recordError("/v1/messages", model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
 			ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 			ctx.SetContentTypeBytes([]byte("text/plain"))
 			ctx.SetBodyString("internal error")
@@ -109,7 +113,7 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 		}
 
 		if err := json.Unmarshal(b, &req); err != nil {
-			h.recordError(ctx, model, key.Provider, key.ID, &schemas.ProviderError{StatusCode: 400, Message: err.Error(), Type: "invalid_request_error"})
+			g.recordError("/v1/messages", model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: 400, Message: err.Error(), Type: "invalid_request_error"})
 			writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", err.Error(), nil)
 			return
 		}
@@ -131,7 +135,7 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 
 		ch, perr := provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
 		if perr != nil {
-			h.recordError(ctx, model, key.Provider, key.ID, perr)
+			g.recordError("/v1/messages", model, key.Provider, key.ID, raw, headers, perr)
 			writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
 			return
 		}
@@ -144,13 +148,13 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 		if sErr != nil {
 			log.Printf("messages stream error: %v", sErr)
 		}
-		h.recordStream(ctx, model, key.Provider, key.ID, summary, sErr)
+		g.recordStream("/v1/messages", model, key.Provider, key.ID, raw, headers, summary, sErr)
 		return
 	}
 
 	resp, perr := provider.ChatCompletion(gatewayCtx, key, &req)
 	if perr != nil {
-		h.recordError(ctx, model, key.Provider, key.ID, perr)
+		g.recordError("/v1/messages", model, key.Provider, key.ID, raw, headers, perr)
 		status := perr.StatusCode
 		if status == 0 {
 			status = fasthttp.StatusBadGateway
@@ -164,7 +168,7 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	// and never synthesizes Claude JSON.
 	out, err := jsonMarshal(resp)
 	if err != nil {
-		h.recordError(ctx, model, key.Provider, key.ID, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
+		g.recordError("/v1/messages", model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: 500, Message: "marshal failure", Type: "internal"})
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
 		ctx.SetContentTypeBytes([]byte("text/plain"))
 		ctx.SetBodyString("internal error")
@@ -174,116 +178,15 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	ctx.SetContentTypeBytes([]byte("application/json"))
 	ctx.SetBody(out)
 
-	h.recordNonStream(ctx, model, key.Provider, key.ID, resp)
-}
-
-// recordError, recordNonStream, recordStream handle the usage glue for
-// non-bypass paths (PAR-ROUTE-054, PAR-USAGE-018/026).
-func (h *MessagesHandler) recordError(ctx *fasthttp.RequestCtx, model, provider, connID string, perr *schemas.ProviderError) {
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, true)
-	}
-	statusCode := perr.StatusCode
-	if statusCode == 0 {
-		statusCode = 502
-	}
-	statusLabel := fmt.Sprintf("%d", statusCode)
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(&UsageEntry{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Endpoint:     "/v1/messages",
-			Status:       "error",
-			Tokens:       map[string]int64{},
-		})
-	}
-	if h.detailCapture != nil {
-		_ = h.detailCapture.Save(RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       "error",
-			Response:     map[string]any{"error": map[string]any{"message": perr.Message, "status": statusLabel}},
-		})
-	}
-}
-
-func (h *MessagesHandler) recordNonStream(ctx *fasthttp.RequestCtx, model, provider, connID string, resp *schemas.ChatResponse) {
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, false)
-	}
-	entry := &UsageEntry{
-		Provider:     provider,
-		Model:        model,
-		ConnectionID: connID,
-		Endpoint:     "/v1/messages",
-		Status:       "ok",
-	}
+	var pt, ct int64
 	if resp != nil && resp.Usage != nil {
-		entry.PromptTokens = int64(resp.Usage.PromptTokens)
-		entry.CompletionTokens = int64(resp.Usage.CompletionTokens)
-		entry.Tokens = map[string]int64{
-			"prompt_tokens":     entry.PromptTokens,
-			"completion_tokens": entry.CompletionTokens,
-		}
+		pt = int64(resp.Usage.PromptTokens)
+		ct = int64(resp.Usage.CompletionTokens)
 	}
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(entry)
-	}
-	if h.detailCapture != nil {
-		_ = h.detailCapture.Save(RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       "success",
-			Tokens:       entry.Tokens,
-			Response:     resp,
-		})
-	}
+	g.recordNonStream("/v1/messages", model, key.Provider, key.ID, raw, headers, pt, ct, resp)
 }
 
-func (h *MessagesHandler) recordStream(ctx *fasthttp.RequestCtx, model, provider, connID string, summary translation.StreamSummary, sErr error) {
-	isError := sErr != nil
-	if h.pendingTracker != nil {
-		h.pendingTracker.End(model, provider, connID, isError)
-	}
-	status := "ok"
-	if isError {
-		status = "error"
-	}
-	entry := &UsageEntry{
-		Provider:     provider,
-		Model:        model,
-		ConnectionID: connID,
-		Endpoint:     "/v1/messages",
-		Status:       status,
-	}
-	if summary.Usage != nil {
-		entry.PromptTokens = int64(extractInt(summary.Usage, "prompt_tokens"))
-		entry.CompletionTokens = int64(extractInt(summary.Usage, "completion_tokens"))
-		entry.Tokens = map[string]int64{}
-		if v, ok := summary.Usage["prompt_tokens"]; ok {
-			entry.Tokens["prompt_tokens"] = int64(toFloat(v))
-		}
-		if v, ok := summary.Usage["completion_tokens"]; ok {
-			entry.Tokens["completion_tokens"] = int64(toFloat(v))
-		}
-	}
-	if h.usageRecorder != nil {
-		_ = h.usageRecorder.Record(entry)
-	}
-	if h.detailCapture != nil {
-		capture := RequestDetailCapture{
-			Provider:     provider,
-			Model:        model,
-			ConnectionID: connID,
-			Status:       status,
-			Tokens:       entry.Tokens,
-		}
-		if isError {
-			capture.Response = map[string]any{"error": sErr.Error()}
-		}
-		_ = h.detailCapture.Save(capture)
-	}
+// recordGlue assembles the shared usage-recording dependencies for this handler.
+func (h *MessagesHandler) recordGlue() recordGlue {
+	return recordGlue{recorder: h.usageRecorder, tracker: h.pendingTracker, detail: h.detailCapture}
 }

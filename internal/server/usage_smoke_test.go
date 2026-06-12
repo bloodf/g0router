@@ -20,16 +20,26 @@ import (
 // the catalog and a helper that writes a canned chat completion to the stub.
 func newFakeProviderCatalog(t *testing.T) (stubURL string, cleanup func()) {
 	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]any{
-			"id":      "smoke-1",
-			"object":  "chat.completion",
-			"model":   "smoke-model",
-			"choices": []map[string]any{{"index": 0, "message": map[string]any{"role": "assistant", "content": "smoke"}, "finish_reason": "stop"}},
-			"usage":   map[string]any{"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
-		})
+		switch r.URL.Path {
+		case "/v1/embeddings":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"object": "list",
+				"data":   []map[string]any{{"object": "embedding", "index": 0, "embedding": []float64{0.1, 0.2}}},
+				"model":  "smoke-embed",
+				"usage":  map[string]any{"prompt_tokens": 2, "total_tokens": 2},
+			})
+		default:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id":      "smoke-1",
+				"object":  "chat.completion",
+				"model":   "smoke-model",
+				"choices": []map[string]any{{"index": 0, "message": map[string]any{"role": "assistant", "content": "smoke"}, "finish_reason": "stop"}},
+				"usage":   map[string]any{"prompt_tokens": 7, "completion_tokens": 3, "total_tokens": 10},
+			})
+		}
 	}))
 	orig, ok := catalog.Providers["smoketest"]
 	catalog.Providers["smoketest"] = catalog.ProviderConfig{
@@ -134,41 +144,71 @@ func TestSmokeChatRequestPersistsRequestLog(t *testing.T) {
 // for the Claude-format /v1/messages route. Same single-row expectation.
 func TestSmokeMessagesRequestPersistsRequestLog(t *testing.T) {
 	st := newTestStore(t)
+	_, cleanup := newFakeProviderCatalog(t)
+	defer cleanup()
+
 	sessions := auth.NewSessions(st, time.Hour)
 	if _, err := sessions.SeedAdmin("admin", "123456"); err != nil {
 		t.Fatalf("SeedAdmin: %v", err)
 	}
+
+	seedSmokeProvider(t, st)
+
+	rec, err := st.CreateAPIKey("smoke-test")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	apiKey := rec.Key
 
 	srv := New(testUIFS(), st, nil)
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod(http.MethodPost)
 	ctx.Request.SetRequestURI("/v1/messages")
-	ctx.Request.SetBody([]byte(`{"model":"claude-3","messages":[{"role":"user","content":"hi"}]}`))
+	ctx.Request.Header.Set("Authorization", "Bearer "+apiKey)
+	ctx.Request.SetBody([]byte(`{"model":"smoketest/smoke-model","messages":[{"role":"user","content":"hi"}]}`))
 	srv.Handler(&ctx)
+
 	if ctx.Response.StatusCode() == fasthttp.StatusNotFound {
-		t.Fatalf("/v1/messages returned 404")
+		t.Fatalf("/v1/messages returned 404: %s", string(ctx.Response.Body()))
 	}
+
+	assertExactlyOneRequestLogRow(t, st, "/v1/messages")
 }
 
 // TestSmokeEmbeddingsRequestPersistsRequestLog covers the embeddings route.
 func TestSmokeEmbeddingsRequestPersistsRequestLog(t *testing.T) {
 	st := newTestStore(t)
+	_, cleanup := newFakeProviderCatalog(t)
+	defer cleanup()
+
 	sessions := auth.NewSessions(st, time.Hour)
 	if _, err := sessions.SeedAdmin("admin", "123456"); err != nil {
 		t.Fatalf("SeedAdmin: %v", err)
 	}
+
+	seedSmokeProvider(t, st)
+
+	rec, err := st.CreateAPIKey("smoke-test")
+	if err != nil {
+		t.Fatalf("CreateAPIKey: %v", err)
+	}
+	apiKey := rec.Key
 
 	srv := New(testUIFS(), st, nil)
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod(http.MethodPost)
 	ctx.Request.SetRequestURI("/v1/embeddings")
-	ctx.Request.SetBody([]byte(`{"model":"text-embedding-3-small","input":"hi"}`))
+	ctx.Request.Header.Set("Authorization", "Bearer "+apiKey)
+	ctx.Request.SetBody([]byte(`{"model":"smoketest/smoke-embed","input":"hi"}`))
 	srv.Handler(&ctx)
+
 	if ctx.Response.StatusCode() == fasthttp.StatusNotFound {
-		t.Fatalf("/v1/embeddings returned 404")
+		t.Fatalf("/v1/embeddings returned 404: %s", string(ctx.Response.Body()))
 	}
+
+	assertExactlyOneRequestLogRow(t, st, "/v1/embeddings")
 }
 
 // TestServerWiresUsageGlue verifies that the w5-b/c usage components are
@@ -187,6 +227,41 @@ func TestServerWiresUsageGlue(t *testing.T) {
 	}
 	if !strings.EqualFold(name, "request_log") {
 		t.Errorf("table name = %q, want request_log", name)
+	}
+}
+
+// assertExactlyOneRequestLogRow queries request_log and verifies exactly one
+// row exists for the given endpoint with non-empty provider/model attribution.
+func assertExactlyOneRequestLogRow(t *testing.T, st *store.Store, endpoint string) {
+	t.Helper()
+	rows, err := st.DB().Query("SELECT provider, model, endpoint, status FROM request_log ORDER BY id DESC LIMIT 5")
+	if err != nil {
+		t.Fatalf("query request_log: %v", err)
+	}
+	defer rows.Close()
+
+	count := 0
+	var provider, model, gotEndpoint, status string
+	for rows.Next() {
+		if err := rows.Scan(&provider, &model, &gotEndpoint, &status); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		count++
+	}
+	if count != 1 {
+		t.Errorf("request_log rows = %d, want 1", count)
+	}
+	if provider == "" {
+		t.Error("provider attribution is empty")
+	}
+	if model == "" {
+		t.Error("model attribution is empty")
+	}
+	if gotEndpoint != endpoint {
+		t.Errorf("endpoint = %q, want %q", gotEndpoint, endpoint)
+	}
+	if status == "" {
+		t.Error("status is empty")
 	}
 }
 

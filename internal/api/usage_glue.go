@@ -1,5 +1,15 @@
 package api
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/bloodf/g0router/internal/schemas"
+	"github.com/bloodf/g0router/internal/translation"
+	"github.com/valyala/fasthttp"
+)
+
 // UsageEntry is the api-side data passed to the wired UsageRecorder when a
 // request completes. It mirrors the request_log schema the persistence layer
 // stores but lives in the transport package so the api layer can stay free
@@ -52,4 +62,215 @@ type PendingTracker interface {
 type DetailCapture interface {
 	Save(capture RequestDetailCapture) error
 	Close() error
+}
+
+var sensitiveHeaderKeys = []string{"authorization", "x-api-key", "cookie", "token", "api-key"}
+
+// sanitizeHeaders returns a copy of headers with sensitive keys removed.
+// Matching is case-insensitive and by substring, matching the reference
+// (internal/usage.SanitizeHeaders). This lives in the api package so the
+// transport layer can redact captured request details before passing them
+// across the DetailCapture boundary.
+func sanitizeHeaders(headers map[string]string) map[string]string {
+	out := make(map[string]string)
+	if headers == nil {
+		return out
+	}
+	for k, v := range headers {
+		lower := strings.ToLower(k)
+		sensitive := false
+		for _, s := range sensitiveHeaderKeys {
+			if strings.Contains(lower, s) {
+				sensitive = true
+				break
+			}
+		}
+		if !sensitive {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// requestHeadersFromCtx copies the incoming request headers into a plain
+// map[string]string for detail capture.
+func requestHeadersFromCtx(ctx *fasthttp.RequestCtx) map[string]string {
+	headers := make(map[string]string)
+	ctx.Request.Header.VisitAll(func(key, value []byte) {
+		headers[string(key)] = string(value)
+	})
+	return headers
+}
+
+// captureRequest builds a request-detail map from the raw body and incoming
+// headers, sanitizing sensitive headers before persistence.
+func captureRequest(body []byte, headers map[string]string) any {
+	var reqMap map[string]any
+	if err := json.Unmarshal(body, &reqMap); err != nil {
+		reqMap = map[string]any{"raw_body": string(body)}
+	}
+	if reqMap == nil {
+		reqMap = map[string]any{}
+	}
+	reqMap["headers"] = sanitizeHeaders(headers)
+	return reqMap
+}
+
+// recordGlue holds the usage-recording dependencies shared by all handlers.
+// It exists so the duplicated recordError/recordNonStream/recordStream blocks
+// can be expressed once and parameterized by endpoint.
+type recordGlue struct {
+	recorder UsageRecorder
+	tracker  PendingTracker
+	detail   DetailCapture
+}
+
+// recordError terminates pending tracking and persists a usage entry + detail
+// capture for a provider error on the given endpoint.
+func (g *recordGlue) recordError(endpoint, model, provider, connID string, body []byte, headers map[string]string, perr *schemas.ProviderError) {
+	if g.tracker != nil {
+		g.tracker.End(model, provider, connID, true)
+	}
+	statusCode := perr.StatusCode
+	if statusCode == 0 {
+		statusCode = 502
+	}
+	statusLabel := fmt.Sprintf("%d", statusCode)
+	if g.recorder != nil {
+		_ = g.recorder.Record(&UsageEntry{
+			Provider:     provider,
+			Model:        model,
+			ConnectionID: connID,
+			Endpoint:     endpoint,
+			Status:       "error",
+			Tokens:       map[string]int64{},
+		})
+	}
+	if g.detail != nil {
+		_ = g.detail.Save(RequestDetailCapture{
+			Provider:     provider,
+			Model:        model,
+			ConnectionID: connID,
+			Status:       "error",
+			Request:      captureRequest(body, headers),
+			Response:     map[string]any{"error": map[string]any{"message": perr.Message, "status": statusLabel}},
+		})
+	}
+}
+
+// recordNonStream terminates pending tracking and persists a usage entry +
+// detail capture for a successful non-streaming request.
+func (g *recordGlue) recordNonStream(endpoint, model, provider, connID string, body []byte, headers map[string]string, promptTokens, completionTokens int64, response any) {
+	if g.tracker != nil {
+		g.tracker.End(model, provider, connID, false)
+	}
+	entry := &UsageEntry{
+		Provider:     provider,
+		Model:        model,
+		ConnectionID: connID,
+		Endpoint:     endpoint,
+		Status:       "ok",
+	}
+	if promptTokens > 0 || completionTokens > 0 {
+		entry.PromptTokens = promptTokens
+		entry.CompletionTokens = completionTokens
+		entry.Tokens = map[string]int64{
+			"prompt_tokens":     promptTokens,
+			"completion_tokens": completionTokens,
+		}
+	}
+	if g.recorder != nil {
+		_ = g.recorder.Record(entry)
+	}
+	if g.detail != nil {
+		_ = g.detail.Save(RequestDetailCapture{
+			Provider:     provider,
+			Model:        model,
+			ConnectionID: connID,
+			Status:       "success",
+			Request:      captureRequest(body, headers),
+			Tokens:       entry.Tokens,
+			Response:     response,
+		})
+	}
+}
+
+// extractInt / toFloat are small helpers for pulling numeric fields out of an
+// untyped usage map. They live next to recordStream, their only caller.
+func extractInt(m map[string]any, key string) int {
+	if v, ok := m[key]; ok {
+		return int(toFloat(v))
+	}
+	return 0
+}
+
+func toFloat(v any) float64 {
+	switch x := v.(type) {
+	case int:
+		return float64(x)
+	case int32:
+		return float64(x)
+	case int64:
+		return float64(x)
+	case uint:
+		return float64(x)
+	case uint32:
+		return float64(x)
+	case uint64:
+		return float64(x)
+	case float32:
+		return float64(x)
+	case float64:
+		return x
+	}
+	return 0
+}
+
+// recordStream terminates pending tracking and persists a usage entry + detail
+// capture for a streaming request. The summary carries accumulated/estimated
+// usage from the stream processor.
+func (g *recordGlue) recordStream(endpoint, model, provider, connID string, body []byte, headers map[string]string, summary translation.StreamSummary, sErr error) {
+	isError := sErr != nil
+	if g.tracker != nil {
+		g.tracker.End(model, provider, connID, isError)
+	}
+	status := "ok"
+	if isError {
+		status = "error"
+	}
+	entry := &UsageEntry{
+		Provider:     provider,
+		Model:        model,
+		ConnectionID: connID,
+		Endpoint:     endpoint,
+		Status:       status,
+	}
+	if summary.Usage != nil {
+		entry.PromptTokens = int64(extractInt(summary.Usage, "prompt_tokens"))
+		entry.CompletionTokens = int64(extractInt(summary.Usage, "completion_tokens"))
+		entry.Tokens = map[string]int64{}
+		if v, ok := summary.Usage["prompt_tokens"]; ok {
+			entry.Tokens["prompt_tokens"] = int64(toFloat(v))
+		}
+		if v, ok := summary.Usage["completion_tokens"]; ok {
+			entry.Tokens["completion_tokens"] = int64(toFloat(v))
+		}
+	}
+	if g.recorder != nil {
+		_ = g.recorder.Record(entry)
+	}
+	if g.detail != nil {
+		capture := RequestDetailCapture{
+			Provider:     provider,
+			Model:        model,
+			ConnectionID: connID,
+			Status:       status,
+			Request:      captureRequest(body, headers),
+			Tokens:       entry.Tokens,
+		}
+		if isError {
+			capture.Response = map[string]any{"error": sErr.Error()}
+		}
+		_ = g.detail.Save(capture)
+	}
 }

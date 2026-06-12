@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/bloodf/g0router"
@@ -121,7 +123,7 @@ func main() {
 	}
 
 	allowedOrigins := parseAllowedOrigins()
-	srv := server.New(uiFS, st, allowedOrigins)
+	srv := server.NewWithShutdown(uiFS, st, allowedOrigins)
 
 	versionLine := version
 	if buildDate != "" {
@@ -129,7 +131,25 @@ func main() {
 	}
 	log.Printf("g0router %s listening on %s", versionLine, listenAddr)
 
-	if err := srv.ListenAndServe(listenAddr); err != nil {
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+
+	serveErr := make(chan error, 1)
+	go func() {
+		serveErr <- srv.ListenAndServe(listenAddr)
+	}()
+
+	select {
+	case sig := <-shutdown:
+		log.Printf("received %s, shutting down", sig)
+		if err := srv.Close(); err != nil {
+			log.Fatalf("shutdown: %v", err)
+		}
+		if err := <-serveErr; err != nil {
+			log.Fatalf("listen %s: %v", listenAddr, err)
+		}
+		return
+	case err := <-serveErr:
 		log.Fatalf("listen %s: %v", listenAddr, err)
 	}
 }
