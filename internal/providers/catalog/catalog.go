@@ -10,6 +10,16 @@ type ProviderConfig struct {
 	Headers    map[string]string
 	AuthHeader string
 	NoAuth     bool
+	// Retry overrides the default per-status attempt count. The map key is the
+	// HTTP status code and the value is the number of retry attempts for that
+	// status. A value of zero disables retries for that status. Delays are taken
+	// from the default retry configuration.
+	Retry map[int]int
+}
+
+// RetryOverride returns the provider-specific retry attempt overrides.
+func (p ProviderConfig) RetryOverride() map[int]int {
+	return p.Retry
 }
 
 // Providers is the Go port of the reference PROVIDERS map

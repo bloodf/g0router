@@ -1,0 +1,183 @@
+package inference
+
+import (
+	"context"
+	"errors"
+	"net"
+	"testing"
+	"time"
+
+	"github.com/bloodf/g0router/internal/providers/catalog"
+)
+
+func TestRetryPerStatusAttempts(t *testing.T) {
+	// Default retry config gives 429 zero attempts, so a provider that would
+	// eventually succeed is not retried and the first 429 is returned.
+	calls := 0
+	call := func() (int, []byte, error) {
+		calls++
+		if calls < 3 {
+			return 429, []byte(`{"error":{"message":"rate limit"}}`), nil
+		}
+		return 200, []byte(`{"ok":true}`), nil
+	}
+
+	provider := catalog.ProviderConfig{}
+	status, body, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 429 {
+		t.Errorf("status=%d, want 429", status)
+	}
+	if calls != 1 {
+		t.Errorf("calls=%d, want 1 (no retry for 429 by default)", calls)
+	}
+	_ = body
+}
+
+func TestProviderRetryOverride(t *testing.T) {
+	// Provider override says retry 429 up to 2 times.
+	calls := 0
+	call := func() (int, []byte, error) {
+		calls++
+		if calls < 3 {
+			return 429, []byte(`{"error":{"message":"rate limit"}}`), nil
+		}
+		return 200, []byte(`{"ok":true}`), nil
+	}
+
+	provider := catalog.ProviderConfig{Retry: map[int]int{429: 2}}
+	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 200 {
+		t.Errorf("status=%d, want 200", status)
+	}
+	if calls != 3 {
+		t.Errorf("calls=%d, want 3 (2 retries + 1 success)", calls)
+	}
+}
+
+func TestProviderRetryOverrideFewerAttempts(t *testing.T) {
+	// Override with fewer attempts than default; use a tiny delay to keep the test fast.
+	calls := 0
+	call := func() (int, []byte, error) {
+		calls++
+		return 502, []byte(`{"error":{"message":"bad gateway"}}`), nil
+	}
+
+	provider := catalog.ProviderConfig{Retry: map[int]int{502: 1}}
+	cfg := map[int]RetryEntry{502: {Attempts: 3, DelayMs: 1}}
+	status, _, err := WithRetry(context.Background(), provider, call, cfg)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 502 {
+		t.Errorf("status=%d, want 502", status)
+	}
+	// 1 attempt allowed means 1 initial call + 1 retry = 2 calls.
+	if calls != 2 {
+		t.Errorf("calls=%d, want 2", calls)
+	}
+}
+
+func TestConnectTimeout502NotRetriedAsClientAbort(t *testing.T) {
+	// Connect timeout is a net.Error with Timeout() true and Temporary() false.
+	calls := 0
+	call := func() (int, []byte, error) {
+		calls++
+		return 0, nil, &fakeNetError{timeout: true, temporary: false}
+	}
+
+	provider := catalog.ProviderConfig{}
+	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 502 {
+		t.Errorf("status=%d, want 502 for connect timeout", status)
+	}
+	if calls != 1 {
+		t.Errorf("calls=%d, want 1 (no retry for connect timeout)", calls)
+	}
+
+	// Client mid-stream abort (context.Canceled) is a different path and must
+	// NOT be converted to a 502.
+	clientCalls := 0
+	clientCall := func() (int, []byte, error) {
+		clientCalls++
+		return 0, nil, context.Canceled
+	}
+	_, _, err = WithRetry(context.Background(), provider, clientCall, DefaultRetryConfig)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("client abort err=%v, want context.Canceled", err)
+	}
+	if clientCalls != 1 {
+		t.Errorf("client abort calls=%d, want 1", clientCalls)
+	}
+}
+
+func TestNoRetryOnPermanentClass(t *testing.T) {
+	calls := 0
+	call := func() (int, []byte, error) {
+		calls++
+		return 400, []byte(`{"error":{"message":"invalid request"}}`), nil
+	}
+
+	provider := catalog.ProviderConfig{}
+	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 400 {
+		t.Errorf("status=%d, want 400", status)
+	}
+	if calls != 1 {
+		t.Errorf("calls=%d, want 1 (no retry for ClassPermanent)", calls)
+	}
+}
+
+func TestRetryRespectsResetsAt(t *testing.T) {
+	// Rate limit with a short resets_at should be respected (capped behavior is
+	// tested in errorclass tests; here we just ensure it does not blow up).
+	calls := 0
+	call := func() (int, []byte, error) {
+		calls++
+		if calls == 1 {
+			return 429, []byte(`{"error":{"message":"rate limit","resets_in_seconds":1}}`), nil
+		}
+		return 200, []byte(`{"ok":true}`), nil
+	}
+
+	provider := catalog.ProviderConfig{Retry: map[int]int{429: 1}}
+	start := time.Now()
+	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 200 {
+		t.Errorf("status=%d, want 200", status)
+	}
+	if calls != 2 {
+		t.Errorf("calls=%d, want 2", calls)
+	}
+	// Should have slept at least the 1-second resets_at window.
+	if elapsed < 800*time.Millisecond {
+		t.Errorf("elapsed=%v, expected at least ~1s sleep for resets_at", elapsed)
+	}
+}
+
+// fakeNetError implements net.Error for test control.
+type fakeNetError struct {
+	timeout   bool
+	temporary bool
+}
+
+func (f *fakeNetError) Error() string   { return "fake network error" }
+func (f *fakeNetError) Timeout() bool   { return f.timeout }
+func (f *fakeNetError) Temporary() bool { return f.temporary }
+
+var _ net.Error = (*fakeNetError)(nil)
