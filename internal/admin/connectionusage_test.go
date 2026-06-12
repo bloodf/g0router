@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/store"
+	httprouter "github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
 )
 
@@ -14,10 +15,19 @@ func TestConnectionUsageRoute404(t *testing.T) {
 	token := loginToken(t, env)
 	authHeader := map[string]string{"Authorization": "Bearer " + token}
 
-	h := &ConnectionUsageHandler{Handlers: env.handlers}
-	handler := env.handlers.RequireSession(h.GetConnectionUsage)
+	stats, resolver := BuildUsageServices(env.store)
+	env.handlers.SetUsageServices(stats, resolver)
 
-	status, envl := call(t, handler, "GET", "/api/usage/missing-id", "", map[string]any{"connectionId": "missing-id"}, authHeader)
+	r := httprouter.New()
+	r.GET("/api/usage/stats", env.handlers.RequireSession(env.handlers.GetUsageStats))
+	r.GET("/api/usage/{connectionId}", env.handlers.RequireSession((&ConnectionUsageHandler{Handlers: env.handlers}).GetConnectionUsage))
+
+	status, envl := call(t, r.Handler, "GET", "/api/usage/stats", "", nil, authHeader)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("stats status = %d, want 200", status)
+	}
+
+	status, envl = call(t, r.Handler, "GET", "/api/usage/missing-id", "", nil, authHeader)
 	if status != fasthttp.StatusNotFound {
 		t.Fatalf("status = %d, want 404", status)
 	}

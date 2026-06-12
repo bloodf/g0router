@@ -23,6 +23,20 @@ const (
 	anthropicAPIVersion  = "2023-06-01"
 )
 
+// parseModelProvider splits a tracker model key into model and provider.
+// Keys are produced by Tracker.modelKey: "model (provider)" when provider is
+// present, otherwise just "model".
+func parseModelProvider(key string) (model, provider string) {
+	if !strings.HasSuffix(key, ")") {
+		return key, ""
+	}
+	idx := strings.LastIndex(key, " (")
+	if idx == -1 {
+		return key, ""
+	}
+	return key[:idx], key[idx+2 : len(key)-1]
+}
+
 // StatsMap returns the Stats result for the given period as a JSON-shaped map.
 // It is used by the SSE usage stream to send full stats frames.
 func (s *StatsService) StatsMap(period string) (map[string]any, error) {
@@ -59,8 +73,34 @@ func (s *StatsService) StreamSnapshot() (map[string]any, error) {
 			Status:           e.Status,
 		})
 	}
+
+	active := make([]ActiveRequest, 0)
+	s.tracker.mu.Lock()
+	for connID, models := range s.tracker.byAccount {
+		account := ""
+		if s.names != nil {
+			account = s.names.ConnectionName(connID)
+		}
+		if account == "" {
+			account = accountFallback(connID)
+		}
+		for modelKey, count := range models {
+			if count <= 0 {
+				continue
+			}
+			model, provider := parseModelProvider(modelKey)
+			active = append(active, ActiveRequest{
+				Model:    model,
+				Provider: provider,
+				Account:  account,
+				Count:    count,
+			})
+		}
+	}
+	s.tracker.mu.Unlock()
+
 	return map[string]any{
-		"active_requests": []any{},
+		"active_requests": active,
 		"recent_requests": DedupeRecent(recent),
 		"error_provider":  s.tracker.LastErrorProvider(),
 	}, nil
@@ -242,12 +282,12 @@ func createClaudeQuotaObject(window map[string]any) map[string]any {
 	used := window["utilization"].(float64)
 	remaining := math.Max(0, 100-used)
 	return map[string]any{
-		"used":                used,
-		"total":               float64(100),
-		"remaining":           remaining,
-		"remainingPercentage": remaining,
-		"resetAt":             parseResetTime(window["resets_at"]),
-		"unlimited":           false,
+		"used":                 used,
+		"total":                float64(100),
+		"remaining":            remaining,
+		"remaining_percentage": remaining,
+		"reset_at":             parseResetTime(window["resets_at"]),
+		"unlimited":            false,
 	}
 }
 
@@ -332,11 +372,11 @@ func fetchGeminiUsage(accessToken, metadata string, client *http.Client, baseURL
 		remaining := math.Round(total * frac)
 		used := math.Max(0, total-remaining)
 		quotas[modelID] = map[string]any{
-			"used":                used,
-			"total":               total,
-			"resetAt":             parseResetTime(bucket["resetTime"]),
-			"remainingPercentage": frac * 100,
-			"unlimited":           false,
+			"used":                 used,
+			"total":                total,
+			"reset_at":             parseResetTime(bucket["resetTime"]),
+			"remaining_percentage": frac * 100,
+			"unlimited":            false,
 		}
 	}
 
@@ -353,24 +393,24 @@ func fetchGeminiSubscriptionInfo(accessToken string, client *http.Client, baseUR
 	body, _ := json.Marshal(map[string]any{"metadata": map[string]any{}})
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gemini subscription info: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gemini subscription info: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("loadCodeAssist status %d", resp.StatusCode)
+		return nil, fmt.Errorf("gemini subscription info: loadCodeAssist status %d", resp.StatusCode)
 	}
 
 	var data map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gemini subscription info: %w", err)
 	}
 
 	project := normalizeCloudCodeProjectID(data["cloudaicompanionProject"])
@@ -379,7 +419,7 @@ func fetchGeminiSubscriptionInfo(accessToken string, client *http.Client, baseUR
 		plan, _ = tier["name"].(string)
 	}
 	if project == "" {
-		return nil, fmt.Errorf("no project")
+		return nil, fmt.Errorf("gemini subscription info: no project")
 	}
 	return &geminiSubscription{projectID: project, plan: plan}, nil
 }
