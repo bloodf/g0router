@@ -6,33 +6,39 @@ import (
 )
 
 type fakeLock struct {
-	connID    string
-	model     string
-	expiresAt int64
+	connID     string
+	providerID string
+	model      string
+	expiresAt  int64
 }
 
 type fakeLockStore struct {
-	locks    []fakeLock
-	backoffs map[string]int
+	locks      []fakeLock
+	backoffs   map[string]int
+	rateLimits map[string]int64
 }
 
 func newFakeLockStore() *fakeLockStore {
-	return &fakeLockStore{backoffs: make(map[string]int)}
+	return &fakeLockStore{
+		backoffs:   make(map[string]int),
+		rateLimits: make(map[string]int64),
+	}
 }
 
-func (f *fakeLockStore) LockModel(connID, model string, expiresAt int64) error {
+func (f *fakeLockStore) LockModel(connID, providerID, model string, expiresAt int64) error {
 	for i, l := range f.locks {
 		if l.connID == connID && l.model == model {
 			f.locks[i].expiresAt = expiresAt
+			f.locks[i].providerID = providerID
 			return nil
 		}
 	}
-	f.locks = append(f.locks, fakeLock{connID: connID, model: model, expiresAt: expiresAt})
+	f.locks = append(f.locks, fakeLock{connID: connID, providerID: providerID, model: model, expiresAt: expiresAt})
 	return nil
 }
 
-func (f *fakeLockStore) LockAccount(connID string, expiresAt int64) error {
-	return f.LockModel(connID, "__all", expiresAt)
+func (f *fakeLockStore) LockAccount(connID, providerID string, expiresAt int64) error {
+	return f.LockModel(connID, providerID, "__all", expiresAt)
 }
 
 func (f *fakeLockStore) ClearLocks(connID string) error {
@@ -46,11 +52,11 @@ func (f *fakeLockStore) ClearLocks(connID string) error {
 	return nil
 }
 
-func (f *fakeLockStore) EarliestExpiry(model string, now int64) (int64, bool, error) {
+func (f *fakeLockStore) EarliestExpiry(providerID, model string, now int64) (int64, bool, error) {
 	var min int64
 	found := false
 	for _, l := range f.locks {
-		if l.model == model && l.expiresAt > now {
+		if l.providerID == providerID && (l.model == model || l.model == "__all") && l.expiresAt > now {
 			if !found || l.expiresAt < min {
 				min = l.expiresAt
 				found = true
@@ -67,6 +73,11 @@ func (f *fakeLockStore) SetBackoffLevel(connID string, level int) error {
 
 func (f *fakeLockStore) GetBackoffLevel(connID string) (int, error) {
 	return f.backoffs[connID], nil
+}
+
+func (f *fakeLockStore) SetRateLimitedUntil(connID string, until int64) error {
+	f.rateLimits[connID] = until
+	return nil
 }
 
 // activeLocks is a test helper — not part of LockStore interface.
@@ -110,13 +121,17 @@ func TestMarkUnavailableRateLimit(t *testing.T) {
 	engine := NewCooldownEngine(st, func() time.Time { return now })
 
 	// First unavailable: backoffLevel 0 → 1, cooldown = 2000ms = 2s.
-	if err := engine.MarkUnavailable("conn1", "gpt-4", VerdictRateLimit); err != nil {
+	if err := engine.MarkUnavailable("conn1", "p1", "gpt-4", VerdictRateLimit); err != nil {
 		t.Fatalf("MarkUnavailable: %v", err)
 	}
 	if st.backoffs["conn1"] != 1 {
 		t.Fatalf("backoff level = %d, want 1", st.backoffs["conn1"])
 	}
 	wantExpiry := now.Add(2 * time.Second).Unix()
+	// rate_limited_until must be written.
+	if got := st.rateLimits["conn1"]; got != wantExpiry {
+		t.Fatalf("rate_limited_until = %d, want %d", got, wantExpiry)
+	}
 	found := false
 	for _, l := range st.locks {
 		if l.connID == "conn1" && l.model == "gpt-4" && l.expiresAt == wantExpiry {
@@ -134,7 +149,7 @@ func TestSuccessResets(t *testing.T) {
 	engine := NewCooldownEngine(st, func() time.Time { return now })
 
 	st.backoffs["conn1"] = 5
-	_ = st.LockModel("conn1", "gpt-4", now.Unix()+100)
+	_ = st.LockModel("conn1", "p1", "gpt-4", now.Unix()+100)
 
 	if err := engine.MarkSuccess("conn1"); err != nil {
 		t.Fatalf("MarkSuccess: %v", err)
@@ -152,15 +167,15 @@ func TestGroupRetryAfter(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	engine := NewCooldownEngine(st, func() time.Time { return now })
 
-	_, ok := engine.GroupRetryAfter("gpt-4", now)
+	_, ok := engine.GroupRetryAfter("p1", "gpt-4", now)
 	if ok {
 		t.Fatal("GroupRetryAfter with no locks: ok=true, want false")
 	}
 
-	_ = st.LockModel("connA", "gpt-4", now.Unix()+200)
-	_ = st.LockModel("connB", "gpt-4", now.Unix()+100)
+	_ = st.LockModel("connA", "p1", "gpt-4", now.Unix()+200)
+	_ = st.LockModel("connB", "p1", "gpt-4", now.Unix()+100)
 
-	retryAt, ok := engine.GroupRetryAfter("gpt-4", now)
+	retryAt, ok := engine.GroupRetryAfter("p1", "gpt-4", now)
 	if !ok {
 		t.Fatal("GroupRetryAfter ok=false, want true")
 	}
@@ -176,7 +191,7 @@ func TestPermanentAndAuthNotLocked(t *testing.T) {
 	engine := NewCooldownEngine(st, func() time.Time { return now })
 
 	for _, verdict := range []Verdict{VerdictAuth, VerdictPermanent} {
-		if err := engine.MarkUnavailable("conn1", "gpt-4", verdict); err != nil {
+		if err := engine.MarkUnavailable("conn1", "p1", "gpt-4", verdict); err != nil {
 			t.Fatalf("MarkUnavailable %v: %v", verdict, err)
 		}
 	}

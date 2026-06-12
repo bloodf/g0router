@@ -6,8 +6,8 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-// GetDisabledModels handles GET /api/models/disabled[?providerAlias=xxx].
-// With providerAlias: returns {data: {ids: [...]}}. Without: returns {data: {disabled: {...}}}.
+// GetDisabledModels handles GET /api/models/disabled[?provider_alias=xxx].
+// With provider_alias: returns {data: {ids: [...]}}. Without: returns {data: {disabled: {...}}}.
 func (h *Handlers) GetDisabledModels(ctx *fasthttp.RequestCtx) {
 	all, err := h.store.ListDisabledModels()
 	if err != nil {
@@ -15,7 +15,7 @@ func (h *Handlers) GetDisabledModels(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	alias := string(ctx.QueryArgs().Peek("providerAlias"))
+	alias := string(ctx.QueryArgs().Peek("provider_alias"))
 	if alias != "" {
 		ids := all[alias]
 		if ids == nil {
@@ -28,10 +28,10 @@ func (h *Handlers) GetDisabledModels(ctx *fasthttp.RequestCtx) {
 }
 
 // PostDisabledModels handles POST /api/models/disabled.
-// Body: { "providerAlias": "...", "ids": ["model1", ...] }
+// Body: { "provider_alias": "...", "ids": ["model1", ...] }
 func (h *Handlers) PostDisabledModels(ctx *fasthttp.RequestCtx) {
 	var req struct {
-		ProviderAlias string   `json:"providerAlias"`
+		ProviderAlias string   `json:"provider_alias"`
 		IDs           []string `json:"ids"`
 	}
 	if err := json.Unmarshal(ctx.Request.Body(), &req); err != nil {
@@ -39,7 +39,7 @@ func (h *Handlers) PostDisabledModels(ctx *fasthttp.RequestCtx) {
 		return
 	}
 	if req.ProviderAlias == "" || req.IDs == nil {
-		writeError(ctx, fasthttp.StatusBadRequest, "providerAlias and ids[] required")
+		writeError(ctx, fasthttp.StatusBadRequest, "provider_alias and ids[] required")
 		return
 	}
 
@@ -50,12 +50,12 @@ func (h *Handlers) PostDisabledModels(ctx *fasthttp.RequestCtx) {
 	writeData(ctx, fasthttp.StatusOK, map[string]bool{"success": true})
 }
 
-// DeleteDisabledModels handles DELETE /api/models/disabled?providerAlias=xxx[&id=yyy].
+// DeleteDisabledModels handles DELETE /api/models/disabled?provider_alias=xxx[&id=yyy].
 // If id is omitted, all models for the alias are re-enabled.
 func (h *Handlers) DeleteDisabledModels(ctx *fasthttp.RequestCtx) {
-	alias := string(ctx.QueryArgs().Peek("providerAlias"))
+	alias := string(ctx.QueryArgs().Peek("provider_alias"))
 	if alias == "" {
-		writeError(ctx, fasthttp.StatusBadRequest, "providerAlias required")
+		writeError(ctx, fasthttp.StatusBadRequest, "provider_alias required")
 		return
 	}
 

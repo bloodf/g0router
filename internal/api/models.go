@@ -40,7 +40,12 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 	for providerID := range catalog.Providers {
 		for _, m := range catalog.ModelsFor(providerID) {
 			if h.disabledChecker != nil {
-				if disabled, _ := h.disabledChecker.IsDisabled(providerID, m.ID); disabled {
+				disabled, err := h.disabledChecker.IsDisabled(providerID, m.ID)
+				if err != nil {
+					writeError(ctx, fasthttp.StatusInternalServerError, "server_error", "failed to check disabled models", nil)
+					return
+				}
+				if disabled {
 					continue
 				}
 			}

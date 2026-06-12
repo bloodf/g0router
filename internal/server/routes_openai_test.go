@@ -15,7 +15,7 @@ func TestResponsesRouteRegistered(t *testing.T) {
 		ctx.SetStatusCode(fasthttp.StatusNotFound)
 		ctx.SetBodyString("not found")
 	}
-	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()))
+	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()), nil)
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod("POST")

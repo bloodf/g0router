@@ -25,7 +25,7 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 	r.GET("/api/health", healthHandler())
 
 	// OpenAI-compatible API routes
-	RegisterOpenAIRoutes(r, infRouter)
+	RegisterOpenAIRoutes(r, infRouter, st)
 
 	// Management API routes and central guard (only when a store is present).
 	var guard Middleware = func(next fasthttp.RequestHandler) fasthttp.RequestHandler {

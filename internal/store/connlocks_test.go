@@ -10,7 +10,7 @@ func TestModelLockCRUD(t *testing.T) {
 	now := time.Now().Unix()
 	future := now + 60
 
-	if err := st.LockModel("conn1", "gpt-4", future); err != nil {
+	if err := st.LockModel("conn1", "p1", "gpt-4", future); err != nil {
 		t.Fatalf("LockModel: %v", err)
 	}
 
@@ -24,7 +24,7 @@ func TestModelLockCRUD(t *testing.T) {
 
 	// Expired lock is not returned.
 	past := now - 1
-	if err := st.LockModel("conn1", "gpt-3.5", past); err != nil {
+	if err := st.LockModel("conn1", "p1", "gpt-3.5", past); err != nil {
 		t.Fatalf("LockModel expired: %v", err)
 	}
 	locks, err = st.ActiveLocks("conn1", now)
@@ -53,7 +53,7 @@ func TestAccountLockSentinel(t *testing.T) {
 	now := time.Now().Unix()
 	future := now + 120
 
-	if err := st.LockAccount("conn2", future); err != nil {
+	if err := st.LockAccount("conn2", "p1", future); err != nil {
 		t.Fatalf("LockAccount: %v", err)
 	}
 
@@ -74,8 +74,8 @@ func TestMigrationAdditiveRerun(t *testing.T) {
 		t.Fatalf("second migrate: %v", err)
 	}
 
-	// connection_model_locks table must exist after migration.
-	if _, err := st.db.Exec("SELECT connection_id, model, expires_at FROM connection_model_locks LIMIT 0"); err != nil {
+	// connection_model_locks table must exist after migration with provider_id column.
+	if _, err := st.db.Exec("SELECT connection_id, provider_id, model, expires_at FROM connection_model_locks LIMIT 0"); err != nil {
 		t.Fatalf("connection_model_locks table missing: %v", err)
 	}
 
@@ -91,19 +91,19 @@ func TestEarliestExpiryAcrossConnections(t *testing.T) {
 	st := newTestStore(t)
 	now := time.Now().Unix()
 
-	// Two connections with locks on the same model.
-	if err := st.LockModel("connA", "claude-3", now+200); err != nil {
+	// Two connections with locks on the same model under the same provider.
+	if err := st.LockModel("connA", "p1", "claude-3", now+200); err != nil {
 		t.Fatalf("LockModel connA: %v", err)
 	}
-	if err := st.LockModel("connB", "claude-3", now+100); err != nil {
+	if err := st.LockModel("connB", "p1", "claude-3", now+100); err != nil {
 		t.Fatalf("LockModel connB: %v", err)
 	}
 	// One with a different model — must not affect claude-3 expiry.
-	if err := st.LockModel("connC", "gpt-4", now+50); err != nil {
+	if err := st.LockModel("connC", "p1", "gpt-4", now+50); err != nil {
 		t.Fatalf("LockModel connC gpt-4: %v", err)
 	}
 
-	earliest, ok, err := st.EarliestExpiry("claude-3", now)
+	earliest, ok, err := st.EarliestExpiry("p1", "claude-3", now)
 	if err != nil {
 		t.Fatalf("EarliestExpiry: %v", err)
 	}
@@ -114,13 +114,28 @@ func TestEarliestExpiryAcrossConnections(t *testing.T) {
 		t.Fatalf("EarliestExpiry = %d, want %d", earliest, now+100)
 	}
 
-	// No active locks for unknown model.
-	_, ok, err = st.EarliestExpiry("unknown-model", now)
+	// No active locks for unknown model under p1.
+	_, ok, err = st.EarliestExpiry("p1", "unknown-model", now)
 	if err != nil {
 		t.Fatalf("EarliestExpiry unknown: %v", err)
 	}
 	if ok {
 		t.Fatal("EarliestExpiry for unknown model should be ok=false")
+	}
+
+	// Account-level lock (__all) must be included in EarliestExpiry for any model.
+	if err := st.LockAccount("connD", "p1", now+60); err != nil {
+		t.Fatalf("LockAccount connD: %v", err)
+	}
+	earliest, ok, err = st.EarliestExpiry("p1", "any-model", now)
+	if err != nil {
+		t.Fatalf("EarliestExpiry __all: %v", err)
+	}
+	if !ok {
+		t.Fatal("EarliestExpiry with __all lock ok=false, want true")
+	}
+	if earliest != now+60 {
+		t.Fatalf("EarliestExpiry with __all = %d, want %d", earliest, now+60)
 	}
 }
 
@@ -164,5 +179,31 @@ func TestBackoffLevelRoundTrip(t *testing.T) {
 	}
 	if level != 3 {
 		t.Fatalf("backoff level = %d, want 3", level)
+	}
+}
+
+func TestSetRateLimitedUntil(t *testing.T) {
+	st := newTestStore(t)
+
+	p := &ProviderRecord{Name: "Test", Type: "openai", Enabled: true}
+	if err := st.CreateProvider(p); err != nil {
+		t.Fatalf("CreateProvider: %v", err)
+	}
+	c := &Connection{ProviderID: p.ID, Name: "key", Kind: "api_key"}
+	if err := st.CreateConnection(c); err != nil {
+		t.Fatalf("CreateConnection: %v", err)
+	}
+
+	until := time.Now().Unix() + 120
+	if err := st.SetRateLimitedUntil(c.ID, until); err != nil {
+		t.Fatalf("SetRateLimitedUntil: %v", err)
+	}
+
+	var got int64
+	if err := st.db.QueryRow("SELECT rate_limited_until FROM connections WHERE id = ?", c.ID).Scan(&got); err != nil {
+		t.Fatalf("SELECT rate_limited_until: %v", err)
+	}
+	if got != until {
+		t.Fatalf("rate_limited_until = %d, want %d", got, until)
 	}
 }

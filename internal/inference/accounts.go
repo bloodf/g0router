@@ -19,12 +19,13 @@ const (
 
 // LockStore abstracts the connection lock and backoff state operations.
 type LockStore interface {
-	LockModel(connID, model string, expiresAt int64) error
-	LockAccount(connID string, expiresAt int64) error
+	LockModel(connID, providerID, model string, expiresAt int64) error
+	LockAccount(connID, providerID string, expiresAt int64) error
 	ClearLocks(connID string) error
-	EarliestExpiry(model string, now int64) (int64, bool, error)
+	EarliestExpiry(providerID, model string, now int64) (int64, bool, error)
 	SetBackoffLevel(connID string, level int) error
 	GetBackoffLevel(connID string) (int, error)
+	SetRateLimitedUntil(connID string, until int64) error
 }
 
 const (
@@ -67,10 +68,10 @@ func NewCooldownEngine(st LockStore, clock func() time.Time) *CooldownEngine {
 }
 
 // MarkUnavailable records that the connection failed with the given verdict.
-// RateLimit: increments backoff level and creates a timed model lock.
+// RateLimit: increments backoff level, creates a timed model lock, and writes rate_limited_until.
 // Transient: creates a fixed 30s model lock.
 // Auth/Permanent: no lock created (caller handles connection exclusion).
-func (e *CooldownEngine) MarkUnavailable(connID, model string, verdict Verdict) error {
+func (e *CooldownEngine) MarkUnavailable(connID, providerID, model string, verdict Verdict) error {
 	switch verdict {
 	case VerdictRateLimit:
 		level, err := e.st.GetBackoffLevel(connID)
@@ -86,11 +87,14 @@ func (e *CooldownEngine) MarkUnavailable(connID, model string, verdict Verdict) 
 		}
 		cooldownSec := quotaCooldown(newLevel) / 1000
 		expiresAt := e.clock().Unix() + cooldownSec
-		return e.st.LockModel(connID, model, expiresAt)
+		if err := e.st.SetRateLimitedUntil(connID, expiresAt); err != nil {
+			return fmt.Errorf("set rate_limited_until: %w", err)
+		}
+		return e.st.LockModel(connID, providerID, model, expiresAt)
 
 	case VerdictTransient:
 		expiresAt := e.clock().Unix() + transientCooldownSec
-		return e.st.LockModel(connID, model, expiresAt)
+		return e.st.LockModel(connID, providerID, model, expiresAt)
 
 	case VerdictAuth, VerdictPermanent:
 		// Connection is broken, not temporarily overloaded; no timed lock.
@@ -109,10 +113,11 @@ func (e *CooldownEngine) MarkSuccess(connID string) error {
 }
 
 // GroupRetryAfter returns the earliest lock expiry across all connections for
-// the given model. Returns (zero, false) when no active locks exist.
+// the given provider and model. Account-level ("__all") locks are included.
+// Returns (zero, false) when no active locks exist.
 // Mirrors the retryAfter aggregation in open-sse/services/combo.js (PAR-ROUTE-049).
-func (e *CooldownEngine) GroupRetryAfter(model string, now time.Time) (time.Time, bool) {
-	earliest, ok, err := e.st.EarliestExpiry(model, now.Unix())
+func (e *CooldownEngine) GroupRetryAfter(providerID, model string, now time.Time) (time.Time, bool) {
+	earliest, ok, err := e.st.EarliestExpiry(providerID, model, now.Unix())
 	if err != nil || !ok {
 		return time.Time{}, false
 	}

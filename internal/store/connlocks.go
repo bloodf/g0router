@@ -9,16 +9,17 @@ import (
 
 // ModelLock represents an active timed lock on a model for a connection.
 type ModelLock struct {
-	ConnID    string
-	Model     string
-	ExpiresAt int64
+	ConnID     string
+	ProviderID string
+	Model      string
+	ExpiresAt  int64
 }
 
 // LockModel creates or replaces a timed lock on the given model for a connection.
-func (s *Store) LockModel(connID, model string, expiresAt int64) error {
+func (s *Store) LockModel(connID, providerID, model string, expiresAt int64) error {
 	_, err := s.db.Exec(
-		`INSERT OR REPLACE INTO connection_model_locks (connection_id, model, expires_at) VALUES (?, ?, ?)`,
-		connID, model, expiresAt,
+		`INSERT OR REPLACE INTO connection_model_locks (connection_id, provider_id, model, expires_at) VALUES (?, ?, ?, ?)`,
+		connID, providerID, model, expiresAt,
 	)
 	if err != nil {
 		return fmt.Errorf("lock model %s/%s: %w", connID, model, err)
@@ -27,8 +28,8 @@ func (s *Store) LockModel(connID, model string, expiresAt int64) error {
 }
 
 // LockAccount locks the entire account for a connection using the "__all" sentinel.
-func (s *Store) LockAccount(connID string, expiresAt int64) error {
-	return s.LockModel(connID, "__all", expiresAt)
+func (s *Store) LockAccount(connID, providerID string, expiresAt int64) error {
+	return s.LockModel(connID, providerID, "__all", expiresAt)
 }
 
 // ClearLocks removes all locks for the given connection.
@@ -44,7 +45,7 @@ func (s *Store) ClearLocks(connID string) error {
 // now is the current Unix timestamp used as the expiry threshold.
 func (s *Store) ActiveLocks(connID string, now int64) ([]*ModelLock, error) {
 	rows, err := s.db.Query(
-		`SELECT connection_id, model, expires_at FROM connection_model_locks
+		`SELECT connection_id, provider_id, model, expires_at FROM connection_model_locks
 		 WHERE connection_id = ? AND expires_at > ?`,
 		connID, now,
 	)
@@ -56,7 +57,7 @@ func (s *Store) ActiveLocks(connID string, now int64) ([]*ModelLock, error) {
 	var out []*ModelLock
 	for rows.Next() {
 		var l ModelLock
-		if err := rows.Scan(&l.ConnID, &l.Model, &l.ExpiresAt); err != nil {
+		if err := rows.Scan(&l.ConnID, &l.ProviderID, &l.Model, &l.ExpiresAt); err != nil {
 			return nil, fmt.Errorf("scan model lock: %w", err)
 		}
 		out = append(out, &l)
@@ -68,15 +69,17 @@ func (s *Store) ActiveLocks(connID string, now int64) ([]*ModelLock, error) {
 }
 
 // EarliestExpiry returns the earliest active lock expiry across all connections
-// for the given model. Returns (0, false, nil) when no active locks exist.
-func (s *Store) EarliestExpiry(model string, now int64) (int64, bool, error) {
+// for the given provider and model. Account-level ("__all") locks are included.
+// Returns (0, false, nil) when no active locks exist.
+func (s *Store) EarliestExpiry(providerID, model string, now int64) (int64, bool, error) {
 	var exp sql.NullInt64
 	err := s.db.QueryRow(
-		`SELECT MIN(expires_at) FROM connection_model_locks WHERE model = ? AND expires_at > ?`,
-		model, now,
+		`SELECT MIN(expires_at) FROM connection_model_locks
+		 WHERE provider_id = ? AND (model = ? OR model = '__all') AND expires_at > ?`,
+		providerID, model, now,
 	).Scan(&exp)
 	if err != nil {
-		return 0, false, fmt.Errorf("earliest expiry %s: %w", model, err)
+		return 0, false, fmt.Errorf("earliest expiry %s/%s: %w", providerID, model, err)
 	}
 	if !exp.Valid {
 		return 0, false, nil
@@ -108,4 +111,16 @@ func (s *Store) GetBackoffLevel(connID string) (int, error) {
 		return 0, fmt.Errorf("get backoff level %s: %w", connID, err)
 	}
 	return level, nil
+}
+
+// SetRateLimitedUntil updates the rate_limited_until column for the given connection.
+func (s *Store) SetRateLimitedUntil(connID string, until int64) error {
+	_, err := s.db.Exec(
+		"UPDATE connections SET rate_limited_until = ?, updated_at = ? WHERE id = ?",
+		until, time.Now().Unix(), connID,
+	)
+	if err != nil {
+		return fmt.Errorf("set rate_limited_until %s: %w", connID, err)
+	}
+	return nil
 }
