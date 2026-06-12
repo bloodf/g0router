@@ -75,6 +75,8 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/usage/request-logs", h.RequireSession(h.GetUsageRequestLogs))
 	r.GET("/api/usage/logs", h.RequireSession(h.GetUsageRequestLogs))
 	r.GET("/api/usage/request-details", h.RequireSession(h.GetRequestDetails))
+	r.GET("/api/usage/stream", h.RequireSession((&admin.UsageStreamHandler{Handlers: h}).UsageStream))
+	r.GET("/api/usage/{connectionId}", h.RequireSession((&admin.ConnectionUsageHandler{Handlers: h}).GetConnectionUsage))
 
 	r.GET("/api/pricing", h.RequireSession(h.GetPricing))
 	r.PATCH("/api/pricing", h.RequireSession(h.PatchPricing))
