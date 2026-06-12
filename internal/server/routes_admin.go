@@ -89,4 +89,7 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/pricing", h.RequireSession(h.GetPricing))
 	r.PATCH("/api/pricing", h.RequireSession(h.PatchPricing))
 	r.DELETE("/api/pricing", h.RequireSession(h.DeletePricing))
+
+	// Public UI preference endpoint (no session required).
+	r.POST("/api/locale", h.PostLocale)
 }
