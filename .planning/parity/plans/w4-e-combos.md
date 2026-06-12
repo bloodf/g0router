@@ -39,3 +39,19 @@ VERIFIED present — `internal/translation/bypass_handler.go` EXISTS (w1, unwire
 deps (w4-c Verdict enum consumed by w4-d/e) are by-design dependency-inversion, not
 ambiguity; (d) whole-file cites for obvious stream loops. The Kimi DIFF gate at
 implementation (with full source context) is the binding check.
+
+## Plan-gate disposition (cycle 3, 2026-06-12) — CLOSED BY DECISION
+
+Cycle-1 FIXED: production wiring (SetComboLister), cooldown semantics (sleep→next, not retry),
+regex backslash bug.
+Cycle-2 FIXED: ComboLister layering (api no longer imports store; returns []string via
+ListComboNames()); ErrModelTransient sentinel + sleep gated on errors.Is; sticky-limit
+default-1 test (invalid setting); per-combo comboStrategies override test.
+Cycle-3 BLOCKER rebutted (close-by-decision):
+  Finding: ErrModelTransient is never returned by production code in this diff.
+  Rebuttal: ModelRunner is an interface boundary. The combo engine (w4-e) defines the
+  contract: "if RunModel returns ErrModelTransient, apply ≤5s cooldown". The production
+  runner that wraps real HTTP 502/503/504 responses with ErrModelTransient is a pipeline
+  glue concern deferred to w4-f. The sentinel lives in inference/ so the real runner can
+  import and use it without circular deps. Tests correctly verify the engine's half of
+  the contract. Cycle-3 close-by-decision per 3-cycle rule.

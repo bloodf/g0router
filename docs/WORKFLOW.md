@@ -6418,7 +6418,13 @@ Next: w4-e (combos).
 
 Plans_done: w4-e (PAR-ROUTE-001/002/003/004/011/024/046/047 + PAR-PR-648).
 Rows_flipped: PAR-ROUTE-001/002/003/004/011/024/046/047 MISSING→HAVE. PAR-PR-648 tracked in PARITY.md.
-Commits: 4e549c6 (store+engine+admin+models), followed by routes_admin wiring.
-Diff-gate: PENDING (cycle 1 not yet run).
+Commits: 4e549c6 (initial), bb6a324 (routes wiring), 6f29db8 (FIX1), 85eaef7 (FIX2).
+Diff-gate: CLOSED BY DECISION after cycle 3.
+  Cycle-1 FIXED: production wiring, transient cooldown semantics, regex.
+  Cycle-2 FIXED: ComboLister layering (api→store removed), ErrModelTransient sentinel,
+    sticky-limit default-1 test, per-combo comboStrategies override test.
+  Cycle-3 BLOCKER rebutted: ErrModelTransient production wiring (real runner wrapping
+    502/503/504) is intentionally deferred to w4-f pipeline glue wave. Combo engine
+    contract is fully defined and tested; interface boundary is the correct split point.
 
 Next: w4-f (pipeline glue).
