@@ -3,7 +3,9 @@ package store
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -149,5 +151,107 @@ func TestForeignKeysEnabled(t *testing.T) {
 	}
 	if on != 1 {
 		t.Fatalf("foreign_keys = %d, want 1", on)
+	}
+}
+
+func TestMigrateUsageTables(t *testing.T) {
+	st := newTestStore(t)
+
+	wantTables := map[string][]string{
+		"request_log": {
+			"id", "timestamp", "provider", "model", "connection_id",
+			"api_key", "endpoint", "prompt_tokens", "completion_tokens",
+			"cost", "status", "tokens", "meta",
+		},
+		"usage_daily": {
+			"date_key", "data",
+		},
+		"request_details": {
+			"id", "timestamp", "provider", "model", "connection_id",
+			"status", "data",
+		},
+		"kv": {
+			"scope", "key", "value",
+		},
+	}
+
+	for table, wantCols := range wantTables {
+		rows, err := st.DB().Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+		if err != nil {
+			t.Fatalf("table_info %s: %v", table, err)
+		}
+		cols := map[string]bool{}
+		for rows.Next() {
+			var cid, notNull, primaryKey int
+			var name, typ string
+			var dflt sql.NullString
+			if err := rows.Scan(&cid, &name, &typ, &notNull, &dflt, &primaryKey); err != nil {
+				t.Fatalf("scan table_info %s: %v", table, err)
+			}
+			cols[name] = true
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate table_info %s: %v", table, err)
+		}
+		for _, c := range wantCols {
+			if !cols[c] {
+				t.Errorf("table %s missing column %q", table, c)
+			}
+		}
+	}
+
+	wantIndexes := map[string][]string{
+		"request_log": {
+			"idx_request_log_timestamp",
+			"idx_request_log_provider",
+			"idx_request_log_model",
+			"idx_request_log_connection_id",
+		},
+		"request_details": {
+			"idx_request_details_timestamp",
+			"idx_request_details_provider",
+			"idx_request_details_model",
+			"idx_request_details_connection_id",
+		},
+	}
+
+	for table, wantIdxs := range wantIndexes {
+		rows, err := st.DB().Query(fmt.Sprintf("PRAGMA index_list(%s)", table))
+		if err != nil {
+			t.Fatalf("index_list %s: %v", table, err)
+		}
+		idxs := map[string]bool{}
+		for rows.Next() {
+			var seq int
+			var name, origin string
+			var partial, unique int
+			if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+				t.Fatalf("scan index_list %s: %v", table, err)
+			}
+			idxs[name] = true
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			t.Fatalf("iterate index_list %s: %v", table, err)
+		}
+		for _, idx := range wantIdxs {
+			if !idxs[idx] {
+				t.Errorf("table %s missing index %q", table, idx)
+			}
+		}
+	}
+
+	// Verify DESC ordering on the timestamp indexes via sqlite_master.
+	for _, idx := range []string{"idx_request_log_timestamp", "idx_request_details_timestamp"} {
+		var sql string
+		if err := st.DB().QueryRow(
+			"SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?", idx,
+		).Scan(&sql); err != nil {
+			t.Fatalf("lookup sqlite_master for %s: %v", idx, err)
+		}
+		if !strings.Contains(strings.ToLower(sql), "desc") {
+			t.Errorf("index %s is not DESC: %s", idx, sql)
+		}
 	}
 }

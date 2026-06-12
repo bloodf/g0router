@@ -94,6 +94,40 @@ func migrate(db *sql.DB) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`},
+		{"request_log", `CREATE TABLE IF NOT EXISTS request_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp TEXT NOT NULL,
+			provider TEXT,
+			model TEXT,
+			connection_id TEXT,
+			api_key TEXT,
+			endpoint TEXT,
+			prompt_tokens INTEGER NOT NULL DEFAULT 0,
+			completion_tokens INTEGER NOT NULL DEFAULT 0,
+			cost REAL NOT NULL DEFAULT 0,
+			status TEXT,
+			tokens TEXT NOT NULL DEFAULT '{}',
+			meta TEXT NOT NULL DEFAULT '{}'
+		)`},
+		{"usage_daily", `CREATE TABLE IF NOT EXISTS usage_daily (
+			date_key TEXT PRIMARY KEY,
+			data TEXT NOT NULL
+		)`},
+		{"request_details", `CREATE TABLE IF NOT EXISTS request_details (
+			id TEXT PRIMARY KEY,
+			timestamp TEXT NOT NULL,
+			provider TEXT,
+			model TEXT,
+			connection_id TEXT,
+			status TEXT,
+			data TEXT NOT NULL
+		)`},
+		{"kv", `CREATE TABLE IF NOT EXISTS kv (
+			scope TEXT NOT NULL,
+			key TEXT NOT NULL,
+			value TEXT NOT NULL,
+			PRIMARY KEY (scope, key)
+		)`},
 	}
 
 	for _, t := range tables {
@@ -104,6 +138,23 @@ func migrate(db *sql.DB) error {
 
 	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key)"); err != nil {
 		return fmt.Errorf("create api_keys key index: %w", err)
+	}
+
+	usageIndexes := []struct{ name, table, columns string }{
+		{"idx_request_log_timestamp", "request_log", "timestamp DESC"},
+		{"idx_request_log_provider", "request_log", "provider"},
+		{"idx_request_log_model", "request_log", "model"},
+		{"idx_request_log_connection_id", "request_log", "connection_id"},
+		{"idx_request_details_timestamp", "request_details", "timestamp DESC"},
+		{"idx_request_details_provider", "request_details", "provider"},
+		{"idx_request_details_model", "request_details", "model"},
+		{"idx_request_details_connection_id", "request_details", "connection_id"},
+	}
+	for _, idx := range usageIndexes {
+		stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s(%s)", idx.name, idx.table, idx.columns)
+		if _, err := db.Exec(stmt); err != nil {
+			return fmt.Errorf("create index %s: %w", idx.name, err)
+		}
 	}
 
 	// FK migrations must run before ensureColumn so the recreate+copy step
