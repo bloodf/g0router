@@ -3,7 +3,10 @@
 PAR rows: PAR-USAGE-001/002/003/004 (tables only — write/read semantics land in
 w5-b/c/d), 005, 006, 007, 008, 009, 010, 040. NOT in scope: saveRequestUsage
 transaction (011/012 → w5-b), observability writer (024-028 → w5-c), all usage/pricing
-HTTP routes (013-017/021-023/029-031 → w5-d/e), handler glue (→ w5-f).
+HTTP routes (013-017/021-023/029-031 → w5-d/e), pricing mutation/reset repo ops
+(`updatePricing`/`resetPricing`/`resetAllPricing`, `pricingRepo.js:60-108` — port in
+w5-d with PAR-USAGE-030/031; w5-a exposes only the `Invalidate()` hook they will call),
+handler glue (→ w5-f).
 Frozen ref @ 827e5c3. Depends: w5-pre merged. Runs ALONE (owns `migrate.go`, hot file).
 
 ## Architectural decisions
@@ -40,19 +43,22 @@ Frozen ref @ 827e5c3. Depends: w5-pre merged. Runs ALONE (owns `migrate.go`, hot
 2. **kv store accessors** — evidence: `src/lib/db/helpers/kvStore.js` usage via
    `pricingRepo.js:5` (`makeKv("pricing")` → getAll/clear) and direct kv SQL at
    `pricingRepo.js:64-98`.
-   STEP (a): `TestKVRoundTrip` (Set/Get/List by scope/Delete/ClearScope; unknown key →
-   sql.ErrNoRows-mapped sentinel) — fails.
+   STEP (a): `TestKVRoundTrip` (Set/Get/List by scope/Delete/ClearScope; unknown key
+   behaves exactly like the neighbor convention `internal/store/settings.go:33-40`
+   `GetSetting` — `sql.ErrNoRows` maps to ("", nil), i.e. missing is not an error) — fails.
    STEP (b): NEW `internal/store/kv.go`: `SetKV(scope, key, value string)` (upsert),
    `GetKV(scope, key)`, `ListKV(scope) (map[string]string, error)`, `DeleteKV(scope, key)`,
    `ClearKVScope(scope)`. Match neighbor style (`internal/store/settings.go`).
 
 3. **Pricing data tables** — evidence: `src/shared/constants/pricing.js:12-117`
-   (MODEL_PRICING ~100 entries), `:124-129` (PROVIDER_PRICING: gh/gpt-5.3-codex
-   override), `:136-207` (PATTERN_PRICING ~45 ordered patterns, first match wins).
+   (MODEL_PRICING, exactly **83** entries — counted against the frozen ref), `:124-129`
+   (PROVIDER_PRICING: 1 provider, gh/gpt-5.3-codex override), `:136-207`
+   (PATTERN_PRICING, exactly **49** ordered patterns, first match wins).
    STEP (a): `TestPricingDataParity` spot-checks ≥10 known entries across families
    (claude-opus-4-6 input=5.00/cache_creation=6.25; deepseek-chat cached=0.0028;
-   gh override gpt-5.3-codex input=1.75; pattern "*-codex-xhigh" input=10.00; counts:
-   len(ModelPricing) and len(PatternPricing) equal the ref's entry counts) — fails.
+   gh override gpt-5.3-codex input=1.75; pattern "*-codex-xhigh" input=10.00) AND
+   asserts the binary counts `len(ModelPricing) == 83`, `len(PatternPricing) == 49`,
+   `len(ProviderPricing) == 1` — fails.
    STEP (b): NEW `internal/usage/pricingdata.go`: `Pricing{Input, Output, Cached,
    Reasoning, CacheCreation float64}`; `ModelPricing map[string]Pricing`,
    `ProviderPricing map[string]map[string]Pricing`, `PatternPricing []PatternPrice`
@@ -70,22 +76,34 @@ Frozen ref @ 827e5c3. Depends: w5-pre merged. Runs ALONE (owns `migrate.go`, hot
    → nil,false) — fails.
    STEP (b): `internal/usage/pricing.go`: `MatchPattern(pattern, model string) bool`,
    `ResolvePricing(provider, model string) (Pricing, bool)`; `Resolver` struct holding an
-   `OverrideStore` interface (`UserPricing() (map[string]map[string]Pricing, error)`)
-   with method `PricingForModel(provider, model)` = user override → ResolvePricing.
+   `OverrideStore` interface (`UserPricing() (map[string]map[string]map[string]float64,
+   error)` — provider → model → rate-name → value; present keys only) with method
+   `PricingForModel(provider, model)` = user override → ResolvePricing. A per-model
+   user override is returned VERBATIM, not overlaid onto canonical
+   (`pricingRepo.js:51-56` returns the raw user object); absent rate keys resolve to 0
+   in Go (the ref's undefined-arithmetic NaN is a JS artifact with no parity value —
+   recorded adaptation).
 
-5. **Merged pricing view + 5s cache (040, 004)** — evidence: `pricingRepo.js:6-49`
-   (cache TTL 5000ms; merge PROVIDER_PRICING with user kv per provider per model —
-   user fields overlay shallowly; user-only providers included), `:60-108`
-   (updatePricing per-provider read-modify-write in one tx; resetPricing per-provider /
-   per-model / all; every mutation invalidates the cache).
-   STEP (a): `TestMergedPricingAndCache` (injected clock: second call within TTL hits
-   cache — count store reads via fake; update invalidates; merge semantics: user override
-   on gh model overlays field-wise, new provider appears) — fails.
-   STEP (b): implement on `Resolver`: `Merged() (map[string]map[string]Pricing, error)`,
-   `Update(data map[string]map[string]Pricing)`, `Reset(provider, model string)`,
-   `ResetAll()`; cache `{value, expiresAt}` guarded by mutex, clock injected via struct
-   field (no global state). Store-side: kv rows scope='pricing', key=provider,
-   value=JSON model→Pricing map.
+5. **Merged pricing view + 5s cache (040, 004 — READ side only)** — evidence:
+   `pricingRepo.js:6-49` (cache TTL 5000ms; merge PROVIDER_PRICING with user kv per
+   provider per model — user fields overlay field-wise via JS object spread `:30-32`;
+   user-only providers included `:37-45`). Mutation/reset (`updatePricing`,
+   `resetPricing`, `resetAllPricing`, `pricingRepo.js:60-108`) belongs to
+   PAR-USAGE-030/031 and ports in **w5-d** with the pricing routes; w5-a ships only
+   the read path plus an exported `Invalidate()` hook w5-d's mutations will call.
+   Field-absence semantics (binary): user override rows are stored/parsed as
+   `map[string]float64` keyed by rate name — a PRESENT key overrides that field, an
+   ABSENT key inherits the canonical value (exactly the JS spread semantics; a Go
+   zero-value cannot be conflated with absent because absent keys never enter the map).
+   STEP (a): `TestMergedPricingAndCache` (injected clock: second call within TTL does
+   not re-read store — count reads via fake OverrideStore; after TTL expiry re-reads;
+   `Invalidate()` forces re-read; merge: user kv sets ONLY `input` on gh/gpt-5.3-codex
+   → merged input is the user value AND output stays 14.00 canonical; user kv adds a
+   provider absent from constants → it appears) — fails.
+   STEP (b): implement on `Resolver`: `Merged() (map[string]map[string]Pricing, error)`
+   + `Invalidate()`; cache `{value, expiresAt}` guarded by mutex, clock injected via
+   struct field (no global state). Store-side read: kv rows scope='pricing',
+   key=provider, value=JSON model→map[rate]float64.
 
 6. **Token normalization + cost calculation (009, 010)** — evidence:
    `pricing.js:274-303` / `usageRepo.js:113-151`: synonyms prompt_tokens|input_tokens,
