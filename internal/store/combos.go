@@ -106,3 +106,17 @@ func (s *Store) DeleteCombo(name string) error {
 	}
 	return nil
 }
+
+// ListComboNames returns all combo names in alphabetical order.
+// Used by the /v1/models handler (api layer) without importing store types.
+func (s *Store) ListComboNames() ([]string, error) {
+	combos, err := s.ListCombos()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, len(combos))
+	for i, c := range combos {
+		names[i] = c.Name
+	}
+	return names, nil
+}

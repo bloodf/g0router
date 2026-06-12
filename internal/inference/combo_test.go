@@ -2,6 +2,7 @@ package inference
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -138,7 +139,7 @@ func TestComboTransientCooldownCap5s(t *testing.T) {
 
 	t.Run("wait_then_next", func(t *testing.T) {
 		mr := newFakeModelRunner()
-		mr.failMap["modelA"] = []error{errors.New("transient")}
+		mr.failMap["modelA"] = []error{fmt.Errorf("unavailable: %w", ErrModelTransient)}
 		mr.retryAfters["modelA"] = now.Add(3 * time.Second) // ≤5s → sleep then fall to next model
 
 		var slept []time.Duration
@@ -172,7 +173,7 @@ func TestComboTransientCooldownCap5s(t *testing.T) {
 
 	t.Run("skip_on_long_cooldown", func(t *testing.T) {
 		mr := newFakeModelRunner()
-		mr.failMap["modelA"] = []error{errors.New("transient")}
+		mr.failMap["modelA"] = []error{fmt.Errorf("unavailable: %w", ErrModelTransient)}
 		mr.retryAfters["modelA"] = now.Add(10 * time.Second) // >5s → skip to next model
 
 		var slept []time.Duration
@@ -252,5 +253,87 @@ func TestComboStateResetOnChange(t *testing.T) {
 	}
 	if len(mr.calls) != 1 || mr.calls[0] != "modelX" {
 		t.Fatalf("second call = %v, want [modelX] (state reset)", mr.calls)
+	}
+}
+
+func TestComboStickyLimitDefault(t *testing.T) {
+	// Invalid comboStickyRoundRobinLimit → Atoi fails → stickyLimit stays 0 → normalized to 1.
+	// With stickyLimit=1, every call rotates to the next model.
+	cs := &fakeComboStore{combos: map[string]*store.Combo{
+		"c1": {Name: "c1", Models: []string{"modelA", "modelB"}},
+	}}
+	ss := &fakeSettingStore{settings: map[string]string{
+		"comboStrategy":              "round-robin",
+		"comboStickyRoundRobinLimit": "invalid",
+	}}
+	mr := newFakeModelRunner()
+	engine := NewComboEngine(cs, ss, mr, time.Now, func(d time.Duration) {})
+	fn := func(model string, conn *store.Connection) (Verdict, error) { return VerdictUnknown, nil }
+
+	// Call 1: starts at modelA (idx=0).
+	mr.calls = nil
+	if err := engine.ExecuteCombo("c1", fn); err != nil {
+		t.Fatalf("call 1: %v", err)
+	}
+	if len(mr.calls) != 1 || mr.calls[0] != "modelA" {
+		t.Fatalf("call 1 = %v, want [modelA]", mr.calls)
+	}
+
+	// Call 2: stickyLimit=1 means count already exhausted → rotates to modelB.
+	mr.calls = nil
+	if err := engine.ExecuteCombo("c1", fn); err != nil {
+		t.Fatalf("call 2: %v", err)
+	}
+	if len(mr.calls) != 1 || mr.calls[0] != "modelB" {
+		t.Errorf("call 2 = %v, want [modelB] (default stickyLimit=1 rotates every call)", mr.calls)
+	}
+}
+
+func TestComboStrategyOverridePerCombo(t *testing.T) {
+	cs := &fakeComboStore{combos: map[string]*store.Combo{
+		"c1": {Name: "c1", Models: []string{"modelA", "modelB"}},
+		"c2": {Name: "c2", Models: []string{"modelX", "modelY"}},
+	}}
+	// Global strategy is fallback. Per-combo override: c1 uses round-robin with stickyLimit=1.
+	ss := &fakeSettingStore{settings: map[string]string{
+		"comboStrategy":   "fallback",
+		"comboStrategies": `{"c1":{"fallbackStrategy":"round-robin","stickyRoundRobinLimit":1}}`,
+	}}
+	mr := newFakeModelRunner()
+	engine := NewComboEngine(cs, ss, mr, time.Now, func(d time.Duration) {})
+	fn := func(model string, conn *store.Connection) (Verdict, error) { return VerdictUnknown, nil }
+
+	// c1: per-combo round-robin, stickyLimit=1 → rotates each call.
+	mr.calls = nil
+	if err := engine.ExecuteCombo("c1", fn); err != nil {
+		t.Fatalf("c1 call 1: %v", err)
+	}
+	if len(mr.calls) != 1 || mr.calls[0] != "modelA" {
+		t.Fatalf("c1 call 1 = %v, want [modelA]", mr.calls)
+	}
+
+	mr.calls = nil
+	if err := engine.ExecuteCombo("c1", fn); err != nil {
+		t.Fatalf("c1 call 2: %v", err)
+	}
+	if len(mr.calls) != 1 || mr.calls[0] != "modelB" {
+		t.Errorf("c1 call 2 = %v, want [modelB] (per-combo round-robin override active)", mr.calls)
+	}
+
+	// c2: no per-combo override → global fallback → always starts at modelX.
+	mr.calls = nil
+	if err := engine.ExecuteCombo("c2", fn); err != nil {
+		t.Fatalf("c2 call 1: %v", err)
+	}
+	if len(mr.calls) != 1 || mr.calls[0] != "modelX" {
+		t.Fatalf("c2 call 1 = %v, want [modelX]", mr.calls)
+	}
+
+	mr.calls = nil
+	if err := engine.ExecuteCombo("c2", fn); err != nil {
+		t.Fatalf("c2 call 2: %v", err)
+	}
+	if len(mr.calls) != 1 || mr.calls[0] != "modelX" {
+		t.Errorf("c2 call 2 = %v, want [modelX] (global fallback always starts at first model)", mr.calls)
 	}
 }

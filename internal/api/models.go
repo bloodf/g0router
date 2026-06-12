@@ -6,7 +6,6 @@ import (
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/schemas"
-	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -15,9 +14,10 @@ type DisabledChecker interface {
 	IsDisabled(providerAlias, modelID string) (bool, error)
 }
 
-// ComboLister returns the list of defined combos (PAR-ROUTE-047: combo names first in /v1/models).
+// ComboLister returns combo names for /v1/models promotion (PAR-ROUTE-047).
+// Returns names only to keep the api layer free of store types.
 type ComboLister interface {
-	ListCombos() ([]*store.Combo, error)
+	ListComboNames() ([]string, error)
 }
 
 // ModelsHandler handles GET /v1/models and GET /v1/models/:id.
@@ -50,14 +50,14 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 
 	// Combo names appear first (PAR-ROUTE-047).
 	if h.comboLister != nil {
-		combos, err := h.comboLister.ListCombos()
+		names, err := h.comboLister.ListComboNames()
 		if err != nil {
 			writeError(ctx, fasthttp.StatusInternalServerError, "server_error", "failed to list combos", nil)
 			return
 		}
-		for _, c := range combos {
+		for _, name := range names {
 			resp.Data = append(resp.Data, schemas.ModelEntry{
-				ID:      c.Name,
+				ID:      name,
 				Object:  "model",
 				OwnedBy: "combo",
 			})

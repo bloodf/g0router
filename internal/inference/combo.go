@@ -18,6 +18,10 @@ var ErrComboRecursion = errors.New("combo recursion detected")
 // ErrComboAllExhausted is returned when all models in a combo are exhausted.
 var ErrComboAllExhausted = errors.New("all combo models exhausted")
 
+// ErrModelTransient is wrapped by ModelRunner.RunModel for HTTP 502/503/504 failures.
+// Only transient-classified errors qualify for the ≤5s cooldown-sleep before the next model.
+var ErrModelTransient = errors.New("model transient failure")
+
 // ComboStore provides combo lookup for the engine.
 type ComboStore interface {
 	GetCombo(name string) (*store.Combo, error)
@@ -183,10 +187,13 @@ func (e *ComboEngine) executeCombo(name string, fn func(model string, conn *stor
 		}
 
 		// Transient cooldown ≤5s: sleep before falling back to the next model. (combo.js:161-165)
-		now := e.clock()
-		if retryAt, ok, _ := e.mr.ModelRetryAfter(model, now); ok {
-			if wait := retryAt.Sub(now); wait <= 5*time.Second {
-				e.sleep(wait)
+		// Only fires for ErrModelTransient (502/503/504); rate-limit and other errors skip directly.
+		if errors.Is(runErr, ErrModelTransient) {
+			now := e.clock()
+			if retryAt, ok, _ := e.mr.ModelRetryAfter(model, now); ok {
+				if wait := retryAt.Sub(now); wait <= 5*time.Second {
+					e.sleep(wait)
+				}
 			}
 		}
 	}

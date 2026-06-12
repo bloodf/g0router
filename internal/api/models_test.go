@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/inference"
-	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/translation"
 	"github.com/valyala/fasthttp"
 )
@@ -226,21 +225,18 @@ func TestModelsListExcludesDisabled(t *testing.T) {
 
 // fakeComboLister implements ComboLister for testing.
 type fakeComboLister struct {
-	combos []*store.Combo
+	names []string
 }
 
-func (f *fakeComboLister) ListCombos() ([]*store.Combo, error) {
-	return f.combos, nil
+func (f *fakeComboLister) ListComboNames() ([]string, error) {
+	return f.names, nil
 }
 
 func TestModelsListCombosFirst(t *testing.T) {
 	router := inference.NewRouter(translation.NewRegistry())
 	h := NewModelsHandler(router)
 	h.SetComboLister(&fakeComboLister{
-		combos: []*store.Combo{
-			{Name: "fast-combo", Models: []string{"gpt-4"}},
-			{Name: "smart-combo", Models: []string{"claude-3-opus"}},
-		},
+		names: []string{"fast-combo", "smart-combo"},
 	})
 
 	var ctx fasthttp.RequestCtx
