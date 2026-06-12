@@ -6452,3 +6452,32 @@ Diff-gate: CLOSED BY DECISION after cycle 3.
     translation); GetTestByKind metadata (architectural adaptation, pingModelByKind is BFF).
 
 Next: Wave-4 complete. Next phase per HANDOFF.md.
+
+## Wave 5: Planning + w5-pre/w5-a (2026-06-12)
+Map: .planning/parity/plans/WAVE-5-MAP.md — 8 micro-plans (w5-pre, a-g).
+Scope: PAR-USAGE 36 full + 032/033 Stage-1 partial (036/037→W6); PAR-ROUTE-030/031/054;
+  PAR-TRANS-046 usage clause; PAR-AUTH-017/018; W4 carry-forward debts.
+Plan gates: w5-pre PASS (c3), w5-c PASS (c3), w5-a/b/d/e/f/g closed-by-decision after
+  3 cycles each (per-finding triage appended to each plan).
+Impl order: w5-pre ALONE → w5-a ALONE → (w5-b ∥ w5-c) → (w5-d → w5-e) ∥ w5-f → w5-g.
+
+## w5-pre: Debt Closure (2026-06-12)
+Plan: .planning/parity/plans/w5-pre-debt-closure.md
+Closes: SetCredentialRefresher production caller (RefreshCredentials by connection ID,
+  wired in routes_openai), production AccountRunner (ErrModelTransient wrap 502/503/504),
+  combo dispatch glue in chat path (Cooldown→Selection→Runner→ComboEngine chain in server.New).
+Rows_flipped: none (makes PAR-ROUTE-023 + combo rows real in production).
+Commits: 94b9812, 878aa64, 53cd537. Tests+race green.
+Diff-gate: cycle-1 REJECT → fix micro-plan fixes/w5-pre-fix-r1.md (production bridge test,
+  RegisterOpenAIRoutes plumb test, refresher compile assertion) — dispatch queued.
+
+## w5-a: Schema + Pricing Engine (2026-06-12)
+Plan: .planning/parity/plans/w5-a-schema-pricing.md
+Delivered: request_log/usage_daily/request_details/kv tables (+8 indexes), kv accessors,
+  pricing data (83 models/1 provider/49 patterns, golden-tested), glob matcher + 3-step
+  resolution + user-override-first, merged view + 5s cache + Invalidate, token
+  normalization + 5-category cost calc.
+Rows pending flip (after fix-r1 + gate close): PAR-USAGE-004..010, 040 (+001/002/003 tables).
+Commits: 2f28678, eaa00a5, 7e5b2ea, 76d6c9d, dfd09a7, 353bc98. Tests+race green.
+Diff-gate: cycle-1 REJECT — REAL: missing store UserPricing() reader, unwrapped errors,
+  user-override baseModel over-match → fix micro-plan fixes/w5-a-fix-r1.md queued.
