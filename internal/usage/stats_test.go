@@ -72,6 +72,54 @@ func newTestStatsService(now time.Time) (*StatsService, *fakeUsageReader, *fakeN
 	return NewStatsService(reader, names, tracker, ring, func() time.Time { return now }), reader, names
 }
 
+func TestLastUsedOverlay(t *testing.T) {
+	now := time.Date(2026, 6, 12, 15, 0, 0, 0, time.UTC)
+	svc, reader, _ := newTestStatsService(now)
+
+	day := map[string]any{
+		"requests":         1,
+		"promptTokens":     10,
+		"completionTokens": 5,
+		"cost":             0.1,
+		"byProvider":       map[string]any{"openai": map[string]any{"requests": 1, "promptTokens": 10, "completionTokens": 5, "cost": 0.1}},
+		"byModel": map[string]any{
+			"gpt-4o|openai": map[string]any{"requests": 1, "promptTokens": 10, "completionTokens": 5, "cost": 0.1, "rawModel": "gpt-4o", "provider": "openai"},
+		},
+		"byAccount": map[string]any{
+			"conn-1": map[string]any{"requests": 1, "promptTokens": 10, "completionTokens": 5, "cost": 0.1, "rawModel": "gpt-4o", "provider": "openai"},
+		},
+		"byApiKey": map[string]any{
+			"key-1|gpt-4o|openai": map[string]any{"requests": 1, "promptTokens": 10, "completionTokens": 5, "cost": 0.1, "rawModel": "gpt-4o", "provider": "openai", "apiKey": "key-1"},
+		},
+		"byEndpoint": map[string]any{
+			"/chat/completions|gpt-4o|openai": map[string]any{"requests": 1, "promptTokens": 10, "completionTokens": 5, "cost": 0.1, "endpoint": "/chat/completions", "rawModel": "gpt-4o", "provider": "openai"},
+		},
+	}
+	b, _ := json.Marshal(day)
+	reader.daily = []*store.UsageDailyRow{{DateKey: "2026-06-12", Data: string(b)}}
+	reader.logs = []*store.RequestLogEntry{
+		{Timestamp: "2026-06-12T14:33:00Z", Provider: "openai", Model: "gpt-4o", ConnectionID: "conn-1", APIKey: "key-1", Endpoint: "/chat/completions", PromptTokens: 1, CompletionTokens: 1},
+	}
+
+	stats, err := svc.Stats("7d")
+	if err != nil {
+		t.Fatalf("Stats(7d): %v", err)
+	}
+	want := "2026-06-12T14:33:00Z"
+	if stats.ByModel["gpt-4o (openai)"].LastUsed != want {
+		t.Errorf("ByModel lastUsed = %q, want %q", stats.ByModel["gpt-4o (openai)"].LastUsed, want)
+	}
+	if stats.ByAccount["gpt-4o (openai - Main Account)"].LastUsed != want {
+		t.Errorf("ByAccount lastUsed = %q, want %q", stats.ByAccount["gpt-4o (openai - Main Account)"].LastUsed, want)
+	}
+	if stats.ByAPIKey["key-1|gpt-4o|openai"].LastUsed != want {
+		t.Errorf("ByAPIKey lastUsed = %q, want %q", stats.ByAPIKey["key-1|gpt-4o|openai"].LastUsed, want)
+	}
+	if stats.ByEndpoint["/chat/completions|gpt-4o|openai"].LastUsed != want {
+		t.Errorf("ByEndpoint lastUsed = %q, want %q", stats.ByEndpoint["/chat/completions|gpt-4o|openai"].LastUsed, want)
+	}
+}
+
 func TestUsageStatsDailyPath(t *testing.T) {
 	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
 	svc, reader, _ := newTestStatsService(now)
@@ -193,6 +241,36 @@ func TestUsageStatsDailyPath(t *testing.T) {
 	}
 	if e.Requests != 3 || e.Endpoint != "/chat/completions" {
 		t.Errorf("ByEndpoint entry = %+v", e)
+	}
+}
+
+func TestLast10MinuteBuckets(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	svc, reader, _ := newTestStatsService(now)
+
+	reader.logs = []*store.RequestLogEntry{
+		{Timestamp: "2026-06-12T11:59:00Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 10, CompletionTokens: 5, Cost: 0.1},
+		{Timestamp: "2026-06-12T11:51:00Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 20, CompletionTokens: 10, Cost: 0.2},
+		{Timestamp: "2026-06-12T11:49:00Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 30, CompletionTokens: 15, Cost: 0.3},
+	}
+
+	stats, err := svc.Stats("today")
+	if err != nil {
+		t.Fatalf("Stats(today): %v", err)
+	}
+	if len(stats.Last10Minutes) != 10 {
+		t.Fatalf("Last10Minutes len = %d, want 10", len(stats.Last10Minutes))
+	}
+
+	// Bucket 0 covers 11:51:00; bucket 8 covers 11:59:00; 11:49:00 is outside.
+	if stats.Last10Minutes[0].Requests != 1 || stats.Last10Minutes[0].PromptTokens != 20 {
+		t.Errorf("bucket 0 = %+v, want requests=1 promptTokens=20", stats.Last10Minutes[0])
+	}
+	if stats.Last10Minutes[8].Requests != 1 || stats.Last10Minutes[8].PromptTokens != 10 {
+		t.Errorf("bucket 8 = %+v, want requests=1 promptTokens=10", stats.Last10Minutes[8])
+	}
+	if stats.Last10Minutes[9].Requests != 0 {
+		t.Errorf("bucket 9 requests = %d, want 0", stats.Last10Minutes[9].Requests)
 	}
 }
 
