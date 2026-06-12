@@ -78,6 +78,19 @@ var Providers = map[string]ProviderConfig{
 		BaseURL: "https://api.perplexity.ai/chat/completions",
 		Format:  "openai",
 	},
+	"kiro": {
+		Name:    "kiro",
+		BaseURL: "https://codewhisperer.us-east-1.amazonaws.com/generateAssistantResponse",
+		Format:  "kiro",
+		Retry:   map[int]int{429: 2},
+		Headers: map[string]string{
+			"Content-Type":             "application/json",
+			"Accept":                   "application/vnd.amazon.eventstream",
+			"X-Amz-Target":             "AmazonCodeWhispererStreamingService.GenerateAssistantResponse",
+			"User-Agent":               "AWS-SDK-JS/3.0.0 kiro-ide/1.0.0",
+			"X-Amz-User-Agent":         "aws-sdk-js/3.0.0 kiro-ide/1.0.0",
+		},
+	},
 	"ollama": {
 		Name:    "ollama",
 		BaseURL: "https://ollama.com/api/chat",

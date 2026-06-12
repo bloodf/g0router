@@ -38,7 +38,15 @@ func TestRetryPerStatusAttempts(t *testing.T) {
 }
 
 func TestProviderRetryOverride(t *testing.T) {
-	// Provider override says retry 429 up to 2 times.
+	// Use kiro's actual catalog retry data instead of a hardcoded map.
+	provider, ok := catalog.Lookup("kiro")
+	if !ok {
+		t.Fatal("catalog.Lookup(\"kiro\") returned ok=false")
+	}
+	if provider.RetryOverride()[429] != 2 {
+		t.Fatalf("kiro retry override for 429=%v, want 2", provider.RetryOverride()[429])
+	}
+
 	calls := 0
 	call := func() (int, []byte, error) {
 		calls++
@@ -48,7 +56,6 @@ func TestProviderRetryOverride(t *testing.T) {
 		return 200, []byte(`{"ok":true}`), nil
 	}
 
-	provider := catalog.ProviderConfig{Retry: map[int]int{429: 2}}
 	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
