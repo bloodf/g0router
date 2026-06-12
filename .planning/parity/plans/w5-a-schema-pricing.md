@@ -193,3 +193,12 @@ this view; the route stays in w5-d and will consume w5-a's Merged().
 
 Kimi diff gate at implementation (full source context) is the binding check.
 APPROVED BY DECISION for dispatch after w5-pre merges.
+
+## Diff-gate cycle-2 artifact note (Fable 5, 2026-06-12)
+The first cycle-2 run was DISCARDED as a harness-scoping artifact: the path filter
+`internal/usage/` swept w5-b's interleaved commits (recorder/events/recent/ring/
+tracker — gated separately under w5-b) into the w5-a diff, and every "finding" was
+about those files. Re-run with exact w5-a file paths only (migrate, kv, doc,
+pricingdata, pricing, tokens, cost + tests). Cycle-1 REAL findings were fixed in
+fixes/w5-a-fix-r1.md (commit b6089ab): Store.UserPricing() kv reader, wrapped
+resolver errors, exact-match user overrides.
