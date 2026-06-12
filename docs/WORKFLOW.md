@@ -6501,3 +6501,11 @@ Commits: 77f19db, 26ce6fb, 29c1a3b, be1843b, 0953bb1. Build/vet/test/-race green
 Diff-gate cycle-1: 4 MAJORs, ALL verified REAL (NullString scan for nullable columns,
   ring init cap, emit-while-holding-mutex deadlock risk for w5-e SSE, missing
   aggregation test cases) → fixes/w5-b-fix-r1.md dispatched.
+
+## w5-b: MERGED (2026-06-12)
+Diff gate closed by decision after 3 cycles. Cycle-1 (4 REAL → fix-r1 80679a9),
+cycle-2 (2 REAL → fix-r2 cdefa31; parse-tolerance rebutted as ref parseJson default),
+cycle-3 (3 findings contradicted the frozen ref itself — bare-model byModel key
+usageRepo.js:63, "unknown" provider segment :71/:75, global byModel zeroing on
+timeout :176-181 — all ported faithfully; 1 test nit covered by w5-d follow-up).
+Rows_flipped: PAR-USAGE-001/002/011/012/018/019/020/038 → HAVE (usage 16/0/24).
