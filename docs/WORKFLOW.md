@@ -6578,3 +6578,23 @@ prohibition in all prompts; diff-gate argv limit → split-run procedure; commit
 pollution → exact-file scoping + blame verification.
 Next: Wave 6 under CLI_ORCHESTRATOR.md (d5a6ef5) — ON HOLD pending operator model
 change (user directive 2026-06-12).
+
+## Wave 6 — MAP approved (2026-06-12)
+
+```yaml
+wave: 6
+status: IN_PROGRESS
+summary: |
+  WAVE-6-MAP.md drafted by Fable 5 and approved after 3 gate cycles (closed
+  by decision). 14 micro-plans: w6-pre (Go routing carry-forward), w6-a..m
+  (UI foundation + pages). Impl order: w6-pre∥w6-a → w6-b∥w6-d → w6-c∥w6-e∥
+  w6-g∥w6-h∥w6-i → w6-f∥w6-j∥w6-k∥w6-l∥w6-m. Gate artifacts in
+  .planning/harness/artifacts/WAVE-6-MAP-plan-review.txt (cycle 3 REJECT,
+  closed by decision per CLI_ORCHESTRATOR.md §9.2). REAL fixes applied:
+  row-count correction (128→133), w6-c moved after w6-b, PAR-UI-130 tunnels
+  added, w6-m PARTIAL flip semantics clarified.
+  Next: Fable 5 drafts w6-pre.md micro-plan.
+started_at: "2026-06-12T19:23:00Z"
+map: .planning/parity/plans/WAVE-6-MAP.md
+governance: CLI_ORCHESTRATOR.md
+```
