@@ -76,6 +76,17 @@ func migrate(db *sql.DB) error {
 			target TEXT NOT NULL,
 			created_at INTEGER NOT NULL
 		)`},
+		{"connection_model_locks", `CREATE TABLE IF NOT EXISTS connection_model_locks (
+			connection_id TEXT NOT NULL,
+			model TEXT NOT NULL,
+			expires_at INTEGER NOT NULL,
+			PRIMARY KEY (connection_id, model)
+		)`},
+		{"disabled_models", `CREATE TABLE IF NOT EXISTS disabled_models (
+			provider_alias TEXT NOT NULL,
+			model_id TEXT NOT NULL,
+			PRIMARY KEY (provider_alias, model_id)
+		)`},
 	}
 
 	for _, t := range tables {
@@ -88,11 +99,21 @@ func migrate(db *sql.DB) error {
 		return fmt.Errorf("create api_keys key index: %w", err)
 	}
 
-	// Future additive column migrations go here, e.g.:
-	//   ensureColumn(db, "providers", "priority", "INTEGER NOT NULL DEFAULT 0")
-
+	// FK migrations must run before ensureColumn so the recreate+copy step
+	// sees only the base schema columns, not any newly appended ones.
 	if err := migrateForeignKeys(db); err != nil {
 		return fmt.Errorf("migrate foreign keys: %w", err)
+	}
+
+	// Additive column migrations (w4-c, PAR-ROUTE-014/015).
+	for _, col := range []struct{ table, column, decl string }{
+		{"connections", "backoff_level", "INTEGER NOT NULL DEFAULT 0"},
+		{"connections", "rate_limited_until", "INTEGER NOT NULL DEFAULT 0"},
+		{"connections", "last_error", "TEXT NOT NULL DEFAULT ''"},
+	} {
+		if err := ensureColumn(db, col.table, col.column, col.decl); err != nil {
+			return fmt.Errorf("ensure column %s.%s: %w", col.table, col.column, err)
+		}
 	}
 
 	return nil

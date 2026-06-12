@@ -165,6 +165,64 @@ func TestModelsGetUnknown404(t *testing.T) {
 	}
 }
 
+// fakeDisabledChecker implements DisabledChecker for testing.
+type fakeDisabledChecker struct {
+	disabled map[string]map[string]bool // providerAlias → set of modelIDs
+}
+
+func (f *fakeDisabledChecker) IsDisabled(providerAlias, modelID string) (bool, error) {
+	if models, ok := f.disabled[providerAlias]; ok {
+		return models[modelID], nil
+	}
+	return false, nil
+}
+
+func TestModelsListExcludesDisabled(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetDisabledChecker(&fakeDisabledChecker{
+		disabled: map[string]map[string]bool{
+			"deepseek": {"deepseek-chat": true},
+		},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	for _, m := range resp.Data {
+		if m.ID == "deepseek-chat" {
+			t.Fatal("deepseek-chat should be excluded (disabled)")
+		}
+	}
+
+	// Other deepseek models must still appear.
+	found := false
+	for _, m := range resp.Data {
+		if m.ID == "deepseek-reasoner" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("deepseek-reasoner should still appear")
+	}
+}
+
 func TestListModelsDeterministicOrder(t *testing.T) {
 	router := inference.NewRouter(translation.NewRegistry())
 	h := NewModelsHandler(router)

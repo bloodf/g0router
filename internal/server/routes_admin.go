@@ -57,4 +57,8 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 
 	r.GET("/api/oauth/{provider}/start", h.RequireSession(h.OAuthStart))
 	r.POST("/api/oauth/{provider}/callback", h.RequireSession(h.OAuthCallback))
+
+	r.GET("/api/models/disabled", h.RequireSession(h.GetDisabledModels))
+	r.POST("/api/models/disabled", h.RequireSession(h.PostDisabledModels))
+	r.DELETE("/api/models/disabled", h.RequireSession(h.DeleteDisabledModels))
 }

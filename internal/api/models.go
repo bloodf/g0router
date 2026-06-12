@@ -9,14 +9,25 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// DisabledChecker reports whether a model is disabled for a given provider alias.
+type DisabledChecker interface {
+	IsDisabled(providerAlias, modelID string) (bool, error)
+}
+
 // ModelsHandler handles GET /v1/models and GET /v1/models/:id.
 type ModelsHandler struct {
-	router *inference.Router
+	router          *inference.Router
+	disabledChecker DisabledChecker
 }
 
 // NewModelsHandler creates a models handler.
 func NewModelsHandler(router *inference.Router) *ModelsHandler {
 	return &ModelsHandler{router: router}
+}
+
+// SetDisabledChecker wires a disabled-model checker into the handler.
+func (h *ModelsHandler) SetDisabledChecker(dc DisabledChecker) {
+	h.disabledChecker = dc
 }
 
 // List handles GET /v1/models.
@@ -25,9 +36,14 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 		Object: "list",
 	}
 
-	// Aggregate models from all Stage-1 provider catalogs.
+	// Aggregate models from all Stage-1 provider catalogs, skipping disabled ones.
 	for providerID := range catalog.Providers {
 		for _, m := range catalog.ModelsFor(providerID) {
+			if h.disabledChecker != nil {
+				if disabled, _ := h.disabledChecker.IsDisabled(providerID, m.ID); disabled {
+					continue
+				}
+			}
 			resp.Data = append(resp.Data, schemas.ModelEntry{
 				ID:      m.ID,
 				Object:  "model",
