@@ -137,3 +137,39 @@ func TestBuildProviderUnknownErrors(t *testing.T) {
 		t.Fatalf("buildProvider(not-a-real-provider) provider = %v, want nil", p)
 	}
 }
+
+func TestPassthroughLookupByProviderID(t *testing.T) {
+	// "ollama" is not in ProviderAliases, but it is a valid provider ID.
+	got, ok := providerForModel("ollama/llama3")
+	if !ok {
+		t.Fatalf("providerForModel(ollama/llama3) = _, false, want true")
+	}
+	if got != "ollama" {
+		t.Errorf("providerForModel(ollama/llama3) = %q, want ollama", got)
+	}
+}
+
+func TestFactoryCatalogPrecedenceUnchanged(t *testing.T) {
+	// Catalog lookup must still win over prefix-based inference.
+	got, ok := providerForModel("deepseek-chat")
+	if !ok || got != "deepseek" {
+		t.Errorf("providerForModel(deepseek-chat) = (%q, %v), want (deepseek, true)", got, ok)
+	}
+
+	// Existing prefix-based fallbacks for anthropic/gemini remain effective.
+	for _, tc := range []struct{ model, want string }{
+		{"claude-3-opus-20240229", "anthropic"},
+		{"gemini-1.5-pro", "gemini"},
+		{"anthropic/claude-3-5-sonnet", "anthropic"},
+		{"gemini/gemini-1.5-pro", "gemini"},
+	} {
+		got, ok := providerForModel(tc.model)
+		if !ok {
+			t.Errorf("providerForModel(%q) = _, false, want true", tc.model)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("providerForModel(%q) = %q, want %q", tc.model, got, tc.want)
+		}
+	}
+}

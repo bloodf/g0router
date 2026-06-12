@@ -77,3 +77,32 @@ func TestCreateAliasSelfLoopRejected(t *testing.T) {
 		t.Errorf("CreateAlias(A,A) error = %v, want error containing 'cycle'", err)
 	}
 }
+
+func TestParseModelPrefix(t *testing.T) {
+	cases := []struct {
+		input, wantPrefix, wantBare string
+	}{
+		{"anthropic/claude-3-5", "anthropic", "claude-3-5"},
+		{"gpt4alias/gpt-4", "gpt4alias", "gpt-4"},
+		{"gpt-4", "", "gpt-4"},
+	}
+	for _, tc := range cases {
+		prefix, bare := ParseModelPrefix(tc.input)
+		if prefix != tc.wantPrefix || bare != tc.wantBare {
+			t.Errorf("ParseModelPrefix(%q) = (%q, %q), want (%q, %q)",
+				tc.input, prefix, bare, tc.wantPrefix, tc.wantBare)
+		}
+	}
+}
+
+func TestNamePrefixInference(t *testing.T) {
+	// Bare model not in catalog; provider alias prefix match should infer provider.
+	if got, ok := InferProvider("ds-chat"); !ok || got != "deepseek" {
+		t.Errorf("InferProvider(ds-chat) = (%q, %v), want (deepseek, true)", got, ok)
+	}
+
+	// Unknown prefix should not match.
+	if got, ok := InferProvider("unknown-model"); ok {
+		t.Errorf("InferProvider(unknown-model) = (%q, %v), want (_, false)", got, ok)
+	}
+}
