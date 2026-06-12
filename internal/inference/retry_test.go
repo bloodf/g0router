@@ -3,6 +3,7 @@ package inference
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -181,3 +182,119 @@ func (f *fakeNetError) Timeout() bool   { return f.timeout }
 func (f *fakeNetError) Temporary() bool { return f.temporary }
 
 var _ net.Error = (*fakeNetError)(nil)
+
+func TestTokenParamAutoLearn(t *testing.T) {
+	settings := &fakeSettings{data: make(map[string]string)}
+	providerID := "test-provider"
+	modelID := "test-model"
+
+	body := map[string]any{
+		"model":      modelID,
+		"messages":   []any{map[string]any{"role": "user", "content": "hi"}},
+		"max_tokens": 100,
+	}
+
+	// First request: max_tokens is rejected, max_completion_tokens succeeds.
+	firstCalls := 0
+	firstCall := func(b map[string]any) (int, []byte, error) {
+		firstCalls++
+		if _, ok := b["max_tokens"]; ok {
+			return 400, []byte(`{"error":{"message":"unsupported parameter: max_tokens"}}`), nil
+		}
+		if _, ok := b["max_completion_tokens"]; ok {
+			return 200, []byte(`{"ok":true}`), nil
+		}
+		return 500, nil, fmt.Errorf("no token param in body")
+	}
+
+	status, _, err := AutoLearnTokenParam(context.Background(), providerID, modelID, body, settings, firstCall)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 200 {
+		t.Errorf("status=%d, want 200", status)
+	}
+	if firstCalls != 2 {
+		t.Errorf("firstCalls=%d, want 2", firstCalls)
+	}
+
+	key := learnedTokenParamKey(providerID, modelID)
+	if got, want := settings.data[key], TokenParamMaxCompletionTokens; got != want {
+		t.Errorf("learned pref=%q, want %q", got, want)
+	}
+
+	// Second request for the same provider+model should immediately use the
+	// learned parameter without trying max_tokens first.
+	secondBody := map[string]any{
+		"model":      modelID,
+		"messages":   []any{map[string]any{"role": "user", "content": "hi"}},
+		"max_tokens": 100,
+	}
+	secondCalls := 0
+	secondCall := func(b map[string]any) (int, []byte, error) {
+		secondCalls++
+		if _, ok := b["max_tokens"]; ok {
+			t.Errorf("second request used max_tokens before learned preference")
+			return 400, []byte(`{"error":{"message":"unsupported parameter: max_tokens"}}`), nil
+		}
+		if _, ok := b["max_completion_tokens"]; ok {
+			return 200, []byte(`{"ok":true}`), nil
+		}
+		return 500, nil, fmt.Errorf("no token param in body")
+	}
+
+	status, _, err = AutoLearnTokenParam(context.Background(), providerID, modelID, secondBody, settings, secondCall)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 200 {
+		t.Errorf("status=%d, want 200", status)
+	}
+	if secondCalls != 1 {
+		t.Errorf("secondCalls=%d, want 1", secondCalls)
+	}
+}
+
+func TestTokenParamAutoLearnNoMismatch(t *testing.T) {
+	// A normal permanent error that does NOT mention the token param must not
+	// trigger the auto-learn retry.
+	settings := &fakeSettings{data: make(map[string]string)}
+	body := map[string]any{"max_tokens": 100}
+
+	calls := 0
+	call := func(b map[string]any) (int, []byte, error) {
+		calls++
+		return 400, []byte(`{"error":{"message":"invalid request"}}`), nil
+	}
+
+	status, _, err := AutoLearnTokenParam(context.Background(), "p", "m", body, settings, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status != 400 {
+		t.Errorf("status=%d, want 400", status)
+	}
+	if calls != 1 {
+		t.Errorf("calls=%d, want 1", calls)
+	}
+	if len(settings.data) != 0 {
+		t.Errorf("unexpected learned prefs: %v", settings.data)
+	}
+}
+
+type fakeSettings struct {
+	data map[string]string
+}
+
+func (f *fakeSettings) GetSetting(key string) (string, error) {
+	v, ok := f.data[key]
+	if !ok {
+		return "", fmt.Errorf("missing key %s", key)
+	}
+	return v, nil
+}
+
+func (f *fakeSettings) SetSetting(key, value string) error {
+	f.data[key] = value
+	return nil
+}

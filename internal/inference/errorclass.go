@@ -88,6 +88,10 @@ func Classify(statusCode int, body []byte) Classification {
 	if c.Class == ClassUnknown && statusCode >= 500 {
 		c.Class = ClassTransient
 	}
+	// 400 and 406 map to invalid_request_error in ERROR_TYPES and are permanent.
+	if c.Class == ClassUnknown && (statusCode == 400 || statusCode == 406) {
+		c.Class = ClassPermanent
+	}
 
 	switch c.Class {
 	case ClassRateLimit:

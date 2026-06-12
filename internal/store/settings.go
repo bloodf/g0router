@@ -1,6 +1,8 @@
 package store
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -25,6 +27,24 @@ func (s *Store) GetSettings() (map[string]string, error) {
 		return nil, fmt.Errorf("iterate settings: %w", err)
 	}
 	return out, nil
+}
+
+// GetSetting returns a single setting value by key.
+func (s *Store) GetSetting(key string) (string, error) {
+	var value string
+	err := s.db.QueryRow("SELECT value FROM settings WHERE key = ?", key).Scan(&value)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", fmt.Errorf("get setting %s: %w", key, err)
+	}
+	return value, nil
+}
+
+// SetSetting upserts a single key→value pair.
+func (s *Store) SetSetting(key, value string) error {
+	return s.SetSettings(map[string]string{key: value})
 }
 
 // SetSettings upserts the given key→value pairs.

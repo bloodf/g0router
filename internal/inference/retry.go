@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -29,6 +30,24 @@ var DefaultRetryConfig = map[int]RetryEntry{
 // catalog.ProviderConfig.
 type Provider interface {
 	RetryOverride() map[int]int
+}
+
+// Settings is the minimal key-value store used by PR-1626 auto-learning.
+// It is implemented by *store.Store.
+type Settings interface {
+	GetSetting(key string) (string, error)
+	SetSetting(key, value string) error
+}
+
+// Token parameter names involved in PR-1626 auto-learning.
+const (
+	TokenParamMaxTokens           = "max_tokens"
+	TokenParamMaxCompletionTokens = "max_completion_tokens"
+)
+
+// learnedTokenParamKey returns the settings key for a learned token parameter.
+func learnedTokenParamKey(providerID, modelID string) string {
+	return "learned_token_param:" + providerID + ":" + modelID
 }
 
 // WithRetry wraps a provider call with classification-driven retries. It honors
@@ -129,3 +148,99 @@ func connectTimeoutBody() []byte {
 	return b
 }
 
+
+// AutoLearnTokenParam executes a provider call with PR-1626 token-parameter
+// auto-learning. It reads any previously-learned preference for
+// provider+model, applies it to the request body, and if the provider rejects
+// the active parameter as unsupported, retries once with the alternate
+// parameter and persists the learned preference on success.
+func AutoLearnTokenParam(
+	ctx context.Context,
+	providerID, modelID string,
+	body map[string]any,
+	settings Settings,
+	call func(body map[string]any) (int, []byte, error),
+) (int, []byte, error) {
+	currentParam := TokenParamMaxTokens
+
+	// Apply any previously learned preference.
+	key := learnedTokenParamKey(providerID, modelID)
+	if learned, err := settings.GetSetting(key); err == nil && learned != "" {
+		if learned == TokenParamMaxCompletionTokens || learned == TokenParamMaxTokens {
+			currentParam = applyTokenParam(body, learned)
+		}
+	}
+
+	status, respBody, err := call(body)
+	if err != nil {
+		return status, respBody, err
+	}
+	if status >= 200 && status < 300 {
+		return status, respBody, nil
+	}
+
+	class := Classify(status, respBody)
+	if class.Class != ClassPermanent || !isUnsupportedTokenParamMismatch(respBody, currentParam) {
+		return status, respBody, nil
+	}
+
+	// Retry once with the alternate parameter.
+	switchedTo := switchTokenParam(body, currentParam)
+	if switchedTo == "" {
+		return status, respBody, nil
+	}
+
+	status2, respBody2, err2 := call(body)
+	if err2 != nil {
+		return status2, respBody2, err2
+	}
+	if status2 >= 200 && status2 < 300 {
+		_ = settings.SetSetting(key, switchedTo)
+	}
+	return status2, respBody2, nil
+}
+
+// applyTokenParam ensures only the preferred token parameter is present in body.
+// It returns the parameter that is now active.
+func applyTokenParam(body map[string]any, preferred string) string {
+	other := TokenParamMaxTokens
+	if preferred == TokenParamMaxTokens {
+		other = TokenParamMaxCompletionTokens
+	}
+
+	if _, ok := body[preferred]; ok {
+		delete(body, other)
+		return preferred
+	}
+	if value, ok := body[other]; ok {
+		delete(body, other)
+		body[preferred] = value
+		return preferred
+	}
+	return preferred
+}
+
+// switchTokenParam moves the value from the current token parameter to the
+// alternate one. It returns the new active parameter, or empty if neither was
+// present.
+func switchTokenParam(body map[string]any, current string) string {
+	alternate := TokenParamMaxCompletionTokens
+	if current == TokenParamMaxCompletionTokens {
+		alternate = TokenParamMaxTokens
+	}
+
+	value, ok := body[current]
+	if !ok {
+		return ""
+	}
+	delete(body, current)
+	body[alternate] = value
+	return alternate
+}
+
+// isUnsupportedTokenParamMismatch reports whether the response body indicates
+// the active token parameter is unsupported.
+func isUnsupportedTokenParamMismatch(body []byte, param string) bool {
+	msg := strings.ToLower(extractMessage(body))
+	return strings.Contains(msg, "unsupported") && strings.Contains(msg, param)
+}
