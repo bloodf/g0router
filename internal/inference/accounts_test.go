@@ -167,7 +167,10 @@ func TestGroupRetryAfter(t *testing.T) {
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	engine := NewCooldownEngine(st, func() time.Time { return now })
 
-	_, ok := engine.GroupRetryAfter("p1", "gpt-4", now)
+	_, ok, err := engine.GroupRetryAfter("p1", "gpt-4", now)
+	if err != nil {
+		t.Fatalf("GroupRetryAfter (no locks): %v", err)
+	}
 	if ok {
 		t.Fatal("GroupRetryAfter with no locks: ok=true, want false")
 	}
@@ -175,7 +178,10 @@ func TestGroupRetryAfter(t *testing.T) {
 	_ = st.LockModel("connA", "p1", "gpt-4", now.Unix()+200)
 	_ = st.LockModel("connB", "p1", "gpt-4", now.Unix()+100)
 
-	retryAt, ok := engine.GroupRetryAfter("p1", "gpt-4", now)
+	retryAt, ok, err := engine.GroupRetryAfter("p1", "gpt-4", now)
+	if err != nil {
+		t.Fatalf("GroupRetryAfter: %v", err)
+	}
 	if !ok {
 		t.Fatal("GroupRetryAfter ok=false, want true")
 	}

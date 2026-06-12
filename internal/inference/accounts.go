@@ -114,12 +114,15 @@ func (e *CooldownEngine) MarkSuccess(connID string) error {
 
 // GroupRetryAfter returns the earliest lock expiry across all connections for
 // the given provider and model. Account-level ("__all") locks are included.
-// Returns (zero, false) when no active locks exist.
+// Returns (zero, false, nil) when no active locks exist.
 // Mirrors the retryAfter aggregation in open-sse/services/combo.js (PAR-ROUTE-049).
-func (e *CooldownEngine) GroupRetryAfter(providerID, model string, now time.Time) (time.Time, bool) {
+func (e *CooldownEngine) GroupRetryAfter(providerID, model string, now time.Time) (time.Time, bool, error) {
 	earliest, ok, err := e.st.EarliestExpiry(providerID, model, now.Unix())
-	if err != nil || !ok {
-		return time.Time{}, false
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("group retry after: %w", err)
 	}
-	return time.Unix(earliest, 0), true
+	if !ok {
+		return time.Time{}, false, nil
+	}
+	return time.Unix(earliest, 0), true, nil
 }
