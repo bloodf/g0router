@@ -60,9 +60,13 @@ type providerStrategyConfig struct {
 
 // resolveStrategy returns the effective fallback strategy and sticky limit
 // for the given provider. Mirrors auth.js:102-116.
-func (e *SelectionEngine) resolveStrategy(providerID string) (strategy string, stickyLimit int) {
+func (e *SelectionEngine) resolveStrategy(providerID string) (strategy string, stickyLimit int, err error) {
 	// Per-provider override from providerStrategies JSON setting.
-	if raw, _ := e.ss.GetSetting("providerStrategies"); raw != "" {
+	raw, err := e.ss.GetSetting("providerStrategies")
+	if err != nil {
+		return "", 0, fmt.Errorf("get providerStrategies setting: %w", err)
+	}
+	if raw != "" {
 		var pmap map[string]providerStrategyConfig
 		if json.Unmarshal([]byte(raw), &pmap) == nil {
 			if ps, ok := pmap[providerID]; ok {
@@ -77,7 +81,11 @@ func (e *SelectionEngine) resolveStrategy(providerID string) (strategy string, s
 	}
 	// Global fallbackStrategy setting.
 	if strategy == "" {
-		if s, _ := e.ss.GetSetting("fallbackStrategy"); s != "" {
+		s, err := e.ss.GetSetting("fallbackStrategy")
+		if err != nil {
+			return "", 0, fmt.Errorf("get fallbackStrategy setting: %w", err)
+		}
+		if s != "" {
 			strategy = s
 		}
 	}
@@ -86,8 +94,12 @@ func (e *SelectionEngine) resolveStrategy(providerID string) (strategy string, s
 	}
 	// Resolve stickyRoundRobinLimit from global setting if not already set.
 	if stickyLimit == 0 && strategy == "round-robin" {
-		if s, _ := e.ss.GetSetting("stickyRoundRobinLimit"); s != "" {
-			if n, err := strconv.Atoi(s); err == nil && n > 0 {
+		s, err := e.ss.GetSetting("stickyRoundRobinLimit")
+		if err != nil {
+			return "", 0, fmt.Errorf("get stickyRoundRobinLimit setting: %w", err)
+		}
+		if s != "" {
+			if n, convErr := strconv.Atoi(s); convErr == nil && n > 0 {
 				stickyLimit = n
 			}
 		}
@@ -161,7 +173,10 @@ func (e *SelectionEngine) SelectConnection(providerID, model string, exclude []s
 		// Preferred not eligible — fall through to strategy.
 	}
 
-	strategy, stickyLimit := e.resolveStrategy(providerID)
+	strategy, stickyLimit, err := e.resolveStrategy(providerID)
+	if err != nil {
+		return nil, err
+	}
 	key := providerID + ":" + model
 
 	switch strategy {
@@ -215,7 +230,11 @@ func (e *SelectionEngine) WithAccountFallback(providerID, model string, fn func(
 		if err != nil {
 			// All connections exhausted — attach retry-after info if available.
 			now := e.clock()
-			if retryAt, ok, _ := e.cd.GroupRetryAfter(providerID, model, now); ok {
+			retryAt, ok, grErr := e.cd.GroupRetryAfter(providerID, model, now)
+			if grErr != nil {
+				return fmt.Errorf("%w: %w", ErrAllUnavailable, grErr)
+			}
+			if ok {
 				return fmt.Errorf("%w: retry after %v", ErrAllUnavailable, retryAt)
 			}
 			return ErrAllUnavailable

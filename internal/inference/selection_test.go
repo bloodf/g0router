@@ -1,7 +1,9 @@
 package inference
 
 import (
+	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -235,25 +237,54 @@ func TestRoundRobinSticky(t *testing.T) {
 	}
 }
 
+// slowConn wraps fakeConnStore and introduces a small delay in ListConnections
+// to expose concurrent access if the mutex were absent.
+type slowConnStore struct {
+	*fakeConnStore
+	inFlight int64 // accessed via sync/atomic
+}
+
+func (s *slowConnStore) ListConnections() ([]*store.Connection, error) {
+	n := atomic.AddInt64(&s.inFlight, 1)
+	if n > 1 {
+		// This path must never be reached if selectionMu works.
+		atomic.AddInt64(&s.inFlight, -1)
+		return nil, fmt.Errorf("concurrent ListConnections: %d goroutines in flight", n)
+	}
+	time.Sleep(time.Millisecond) // hold the slot long enough for others to queue
+	atomic.AddInt64(&s.inFlight, -1)
+	return s.fakeConnStore.ListConnections()
+}
+
 func TestSelectionGlobalMutexSerializes(t *testing.T) {
-	cs := &fakeConnStore{
-		conns: []*store.Connection{
-			makeConn("c1", "p1"),
-			makeConn("c2", "p1"),
+	slow := &slowConnStore{
+		fakeConnStore: &fakeConnStore{
+			conns: []*store.Connection{
+				makeConn("c1", "p1"),
+			},
 		},
 	}
-	engine := NewSelectionEngine(cs, &fakeSettingStore{}, &fakeCooldownForSelection{}, time.Now)
+	engine := NewSelectionEngine(slow, &fakeSettingStore{}, &fakeCooldownForSelection{}, time.Now)
 
-	const N = 20
+	const N = 10
 	var wg sync.WaitGroup
+	errCh := make(chan error, N)
 	wg.Add(N)
 	for i := 0; i < N; i++ {
 		go func() {
 			defer wg.Done()
-			_, _ = engine.SelectConnection("p1", "gpt-4", nil, "")
+			_, err := engine.SelectConnection("p1", "gpt-4", nil, "")
+			if err != nil {
+				errCh <- err
+			}
 		}()
 	}
 	wg.Wait()
+	close(errCh)
+
+	for err := range errCh {
+		t.Errorf("concurrent access detected: %v", err)
+	}
 }
 
 func TestFallbackAdvancesOnFailure(t *testing.T) {
