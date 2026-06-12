@@ -124,9 +124,6 @@ func extractMessage(body []byte) string {
 		if msg, ok := errObj["message"].(string); ok {
 			return msg
 		}
-		if msg, ok := errObj["message"].(fmt.Stringer); ok {
-			return msg.String()
-		}
 	}
 
 	// Fallback fields used by some providers.
