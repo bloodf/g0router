@@ -1,6 +1,7 @@
 package translation
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,51 +21,62 @@ type StreamSummary struct {
 // ProcessTranslateStream consumes a channel of stream chunks, translates each
 // chunk through reg, and writes framed SSE to w. It returns a summary of the
 // stream and a non-nil error if the stream aborted on an error chunk or write
-// failure.
-func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Registry, from, to Format, state *StreamState) (StreamSummary, error) {
+// failure. The loop also watches ctx.Done() so the caller can abort the stream
+// without waiting for the next chunk.
+func ProcessTranslateStream(ctx context.Context, w io.Writer, ch <-chan *schemas.StreamChunk, reg *Registry, from, to Format, state *StreamState) (StreamSummary, error) {
 	var summary StreamSummary
 
-	for chunk := range ch {
-		if summary.TTFT.IsZero() {
-			summary.TTFT = time.Now()
-		}
-
-		if chunk.Error != nil {
-			return summary, fmt.Errorf("stream error: %w", chunk.Error)
-		}
-
-		b, err := json.Marshal(chunk)
-		if err != nil {
-			return summary, fmt.Errorf("marshal chunk: %w", err)
-		}
-		var openaiChunk map[string]any
-		if err := json.Unmarshal(b, &openaiChunk); err != nil {
-			return summary, fmt.Errorf("unmarshal chunk: %w", err)
-		}
-
-		accumulateContent(openaiChunk, &summary)
-
-		results, err := reg.TranslateResponse(from, to, openaiChunk, state)
-		if err != nil {
-			return summary, fmt.Errorf("translate response: %w", err)
-		}
-
-		for _, item := range results {
-			if !HasValuableContent(item, to) {
-				continue
+loop:
+	for {
+		select {
+		case <-ctx.Done():
+			return summary, ctx.Err()
+		case chunk, ok := <-ch:
+			if !ok {
+				break loop
 			}
 
-			if to == FormatOpenAIResponses && isResponsesTerminalEvent(item) {
-				state.ResponsesTerminalSeen = true
+			if summary.TTFT.IsZero() {
+				summary.TTFT = time.Now()
 			}
 
-			if state.Usage != nil && isFinishChunk(item) {
-				item["usage"] = state.Usage
-				summary.Usage = state.Usage
+			if chunk.Error != nil {
+				return summary, fmt.Errorf("stream error: %w", chunk.Error)
 			}
 
-			if _, werr := w.Write(FormatSSE(to, item)); werr != nil {
-				return summary, fmt.Errorf("write translated chunk: %w", werr)
+			b, err := json.Marshal(chunk)
+			if err != nil {
+				return summary, fmt.Errorf("marshal chunk: %w", err)
+			}
+			var openaiChunk map[string]any
+			if err := json.Unmarshal(b, &openaiChunk); err != nil {
+				return summary, fmt.Errorf("unmarshal chunk: %w", err)
+			}
+
+			accumulateContent(openaiChunk, &summary)
+
+			results, err := reg.TranslateResponse(from, to, openaiChunk, state)
+			if err != nil {
+				return summary, fmt.Errorf("translate response: %w", err)
+			}
+
+			for _, item := range results {
+				if !HasValuableContent(item, to) {
+					continue
+				}
+
+				if to == FormatOpenAIResponses && isResponsesTerminalEvent(item) {
+					state.ResponsesTerminalSeen = true
+				}
+
+				if state.Usage != nil && isFinishChunk(item) {
+					item["usage"] = state.Usage
+					summary.Usage = state.Usage
+				}
+
+				if _, werr := w.Write(FormatSSE(to, item)); werr != nil {
+					return summary, fmt.Errorf("write translated chunk: %w", werr)
+				}
 			}
 		}
 	}
@@ -102,52 +114,60 @@ func ProcessTranslateStream(w io.Writer, ch <-chan *schemas.StreamChunk, reg *Re
 }
 
 // ProcessPassthroughStream consumes a channel of stream chunks, normalizes
-// each chunk for OpenAI compatibility, and writes framed SSE to w.
-func ProcessPassthroughStream(w io.Writer, ch <-chan *schemas.StreamChunk) (StreamSummary, error) {
+// each chunk for OpenAI compatibility, and writes framed SSE to w. The loop
+// also watches ctx.Done() so the caller can abort the stream without waiting
+// for the next chunk.
+func ProcessPassthroughStream(ctx context.Context, w io.Writer, ch <-chan *schemas.StreamChunk) (StreamSummary, error) {
 	var summary StreamSummary
 
-	for chunk := range ch {
-		if summary.TTFT.IsZero() {
-			summary.TTFT = time.Now()
-		}
+	for {
+		select {
+		case <-ctx.Done():
+			return summary, ctx.Err()
+		case chunk, ok := <-ch:
+			if !ok {
+				if _, werr := w.Write([]byte("data: [DONE]\n\n")); werr != nil {
+					return summary, fmt.Errorf("write done: %w", werr)
+				}
+				return summary, nil
+			}
 
-		b, err := json.Marshal(chunk)
-		if err != nil {
-			return summary, fmt.Errorf("marshal chunk: %w", err)
-		}
-		var payload map[string]any
-		if err := json.Unmarshal(b, &payload); err != nil {
-			return summary, fmt.Errorf("unmarshal chunk: %w", err)
-		}
+			if summary.TTFT.IsZero() {
+				summary.TTFT = time.Now()
+			}
 
-		if chunk.Error != nil {
-			return summary, fmt.Errorf("stream error: %w", chunk.Error)
-		}
+			b, err := json.Marshal(chunk)
+			if err != nil {
+				return summary, fmt.Errorf("marshal chunk: %w", err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(b, &payload); err != nil {
+				return summary, fmt.Errorf("unmarshal chunk: %w", err)
+			}
 
-		FixInvalidID(payload)
-		injectRequiredFields(payload)
-		stripAzureFields(payload)
+			if chunk.Error != nil {
+				return summary, fmt.Errorf("stream error: %w", chunk.Error)
+			}
 
-		if !HasValuableContent(payload, FormatOpenAI) {
-			continue
-		}
+			FixInvalidID(payload)
+			injectRequiredFields(payload)
+			stripAzureFields(payload)
 
-		accumulateContent(payload, &summary)
+			if !HasValuableContent(payload, FormatOpenAI) {
+				continue
+			}
 
-		data, err := json.Marshal(payload)
-		if err != nil {
-			return summary, fmt.Errorf("marshal normalized chunk: %w", err)
-		}
-		if _, werr := w.Write([]byte(fmt.Sprintf("data: %s\n\n", data))); werr != nil {
-			return summary, fmt.Errorf("write chunk: %w", werr)
+			accumulateContent(payload, &summary)
+
+			data, err := json.Marshal(payload)
+			if err != nil {
+				return summary, fmt.Errorf("marshal normalized chunk: %w", err)
+			}
+			if _, werr := w.Write([]byte(fmt.Sprintf("data: %s\n\n", data))); werr != nil {
+				return summary, fmt.Errorf("write chunk: %w", werr)
+			}
 		}
 	}
-
-	if _, werr := w.Write([]byte("data: [DONE]\n\n")); werr != nil {
-		return summary, fmt.Errorf("write done: %w", werr)
-	}
-
-	return summary, nil
 }
 
 // accumulateContent adds delta.content from a chunk map into the summary.

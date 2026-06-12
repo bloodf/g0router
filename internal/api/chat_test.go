@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"math"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -41,7 +43,7 @@ func TestWriteSSEStreamSuccess(t *testing.T) {
 	close(ch)
 
 	w := &failingWriter{writesLeft: 100}
-	if err := writeSSEStream(w, ch); err != nil {
+	if err := writeSSEStream(context.Background(), w, ch); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -63,7 +65,7 @@ func TestWriteSSEStreamAbortsBeforeFirstFrame(t *testing.T) {
 	close(ch)
 
 	w := &failingWriter{writesLeft: 0}
-	if err := writeSSEStream(w, ch); err == nil {
+	if err := writeSSEStream(context.Background(), w, ch); err == nil {
 		t.Fatal("writeSSEStream: want error when first write fails")
 	}
 	if out := w.sb.String(); out != "" {
@@ -80,7 +82,7 @@ func TestWriteSSEStreamAbortsOnWriteError(t *testing.T) {
 	close(ch)
 
 	w := &failingWriter{writesLeft: 1} // first full SSE frame succeeds; [DONE] write fails
-	err := writeSSEStream(w, ch)
+	err := writeSSEStream(context.Background(), w, ch)
 	if err == nil {
 		t.Fatal("writeSSEStream: want error when write fails mid-stream")
 	}
@@ -104,7 +106,7 @@ func TestWriteSSEStreamAbortsOnErrorChunk(t *testing.T) {
 	close(ch)
 
 	w := &failingWriter{writesLeft: 100}
-	if err := writeSSEStream(w, ch); err == nil {
+	if err := writeSSEStream(context.Background(), w, ch); err == nil {
 		t.Fatal("writeSSEStream: want error on in-band error chunk")
 	}
 
@@ -140,7 +142,7 @@ func TestWriteSSEStreamAbortsOnMarshalError(t *testing.T) {
 	close(ch)
 
 	w := &failingWriter{writesLeft: 100}
-	err := writeSSEStream(w, ch)
+	err := writeSSEStream(context.Background(), w, ch)
 	if err == nil {
 		t.Fatal("writeSSEStream: want error when marshal fails")
 	}
@@ -160,7 +162,7 @@ func TestChatStreamPassthroughNormalization(t *testing.T) {
 	close(ch)
 
 	w := &failingWriter{writesLeft: 100}
-	if err := writeSSEStream(w, ch); err != nil {
+	if err := writeSSEStream(context.Background(), w, ch); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -337,5 +339,32 @@ func TestChatHandlerPreprocessesRequest(t *testing.T) {
 	// Verify that the Type was also set by preprocessing.
 	if msgs[1].ToolCalls[0].Type != "function" {
 		t.Errorf("tool_call type = %q, want %q", msgs[1].ToolCalls[0].Type, "function")
+	}
+}
+
+// TestChatStreamStopsOnClientAbort verifies that the chat stream drain loop
+// returns promptly when the request context is cancelled mid-stream, instead
+// of blocking forever on a channel that never receives another chunk.
+func TestChatStreamStopsOnClientAbort(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		w := &failingWriter{writesLeft: 100}
+		writeSSEStream(ctx, w, ch)
+	}()
+
+	// Cancel the context before any chunk arrives.
+	cancel()
+
+	select {
+	case <-done:
+		// Expected: the drain loop observed ctx.Done() and returned.
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("writeSSEStream did not return after context cancellation")
 	}
 }

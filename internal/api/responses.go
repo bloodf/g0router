@@ -81,8 +81,10 @@ func (h *ResponsesHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	streamCtx, cancel := withRequestCancel(ctx)
+	defer cancel()
 	state := translation.NewStreamState()
-	if _, err := translation.ProcessTranslateStream(ctx, ch, h.registry, translation.FormatOpenAI, translation.FormatOpenAIResponses, state); err != nil {
+	if _, err := translation.ProcessTranslateStream(streamCtx, ctx, ch, h.registry, translation.FormatOpenAI, translation.FormatOpenAIResponses, state); err != nil {
 		log.Printf("responses stream error: %v", err)
 	}
 }

@@ -2,6 +2,7 @@ package translation
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -37,7 +38,7 @@ func TestProcessTranslateStreamFiltersEmptyChunks(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	_, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatClaude, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,7 +62,7 @@ func TestProcessTranslateStreamEmitsDone(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	_, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatClaude, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestProcessTranslateStreamFlushesStateOnClose(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	_, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatClaude, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -113,7 +114,7 @@ func TestProcessTranslateStreamReturnsErrorOnErrorChunk(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	_, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatClaude, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
 	if err == nil {
 		t.Fatal("expected error from error chunk")
 	}
@@ -137,7 +138,7 @@ func TestProcessTranslateStreamSummaryAccumulates(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	summary, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatClaude, state)
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestProcessTranslateStreamAttachesStateUsageOnFinish(t *testing.T) {
 	reg := NewRegistry()
 	state := NewStreamState()
 	state.Usage = map[string]any{"total_tokens": 42}
-	summary, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatClaude, state)
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -181,7 +182,7 @@ func TestProcessTranslateStreamRecordsTTFT(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	summary, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatClaude, state)
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -202,7 +203,7 @@ func TestProcessPassthroughFixesInvalidID(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "chat", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
 	close(ch)
 
-	summary, err := ProcessPassthroughStream(w, ch)
+	summary, err := ProcessPassthroughStream(context.Background(), w, ch)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -225,7 +226,7 @@ func TestProcessPassthroughInjectsRequiredFields(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "chatcmpl-12345678", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
 	close(ch)
 
-	_, err := ProcessPassthroughStream(w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,7 +265,7 @@ func TestProcessPassthroughStripsAzureFields(t *testing.T) {
 	}
 	close(ch)
 
-	_, err := ProcessPassthroughStream(w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -312,7 +313,7 @@ func TestProcessPassthroughFiltersEmptyChunks(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}}}} // empty
 	close(ch)
 
-	_, err := ProcessPassthroughStream(w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -329,7 +330,7 @@ func TestProcessPassthroughEmitsDone(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
 	close(ch)
 
-	_, err := ProcessPassthroughStream(w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -347,7 +348,7 @@ func TestProcessPassthroughReturnsErrorOnErrorChunk(t *testing.T) {
 	ch <- &schemas.StreamChunk{Error: &schemas.ProviderError{Message: "boom", Type: "stream_error"}}
 	close(ch)
 
-	_, err := ProcessPassthroughStream(w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch)
 	if err == nil {
 		t.Fatal("expected error from error chunk")
 	}
@@ -373,7 +374,7 @@ func TestProcessTranslateStreamSynthesizesResponseFailed(t *testing.T) {
 	state := NewStreamState()
 	state.ResponsesCompletedSent = true // suppress flush from emitting response.completed
 
-	_, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -406,7 +407,7 @@ func TestProcessTranslateStreamNoSynthesisWhenCompleted(t *testing.T) {
 	state := NewStreamState()
 	// Normal state: flush will emit response.completed, so terminal is seen.
 
-	_, err := ProcessTranslateStream(w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

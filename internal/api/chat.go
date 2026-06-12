@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -27,10 +28,35 @@ type streamWriter interface {
 
 // writeSSEStream drains ch onto w as framed SSE via the shared passthrough
 // processor (PAR-TRANS-049). It returns a non-nil error if the stream
-// aborted on an error chunk or write failure.
-func writeSSEStream(w streamWriter, ch chan *schemas.StreamChunk) error {
-	_, err := translation.ProcessPassthroughStream(w, ch)
+// aborted on an error chunk or write failure. The loop watches ctx.Done()
+// so the handler can return promptly on client abort.
+func writeSSEStream(ctx context.Context, w streamWriter, ch chan *schemas.StreamChunk) error {
+	_, err := translation.ProcessPassthroughStream(ctx, w, ch)
 	return err
+}
+
+// withRequestCancel returns a cancellable context derived from reqCtx when
+// running inside a real fasthttp server. Unit tests often use a bare
+// *fasthttp.RequestCtx whose Done() panics, so the helper falls back to
+// context.Background() in that case.
+func withRequestCancel(reqCtx *fasthttp.RequestCtx) (context.Context, context.CancelFunc) {
+	if c, cancel, ok := tryDeriveCancel(reqCtx); ok {
+		return c, cancel
+	}
+	return context.WithCancel(context.Background())
+}
+
+// tryDeriveCancel attempts to derive a cancellable context. It recovers from
+// panics caused by contexts whose Done() method is not usable (e.g., a bare
+// *fasthttp.RequestCtx in unit tests).
+func tryDeriveCancel(ctx context.Context) (context.Context, context.CancelFunc, bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			// ctx.Done() panicked; report failure to caller.
+		}
+	}()
+	c, cancel := context.WithCancel(ctx)
+	return c, cancel, true
 }
 
 // ChatHandler handles POST /v1/chat/completions.
@@ -75,7 +101,9 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 			return
 		}
 
-		if err := writeSSEStream(ctx, ch); err != nil {
+		streamCtx, cancel := withRequestCancel(ctx)
+		defer cancel()
+		if err := writeSSEStream(streamCtx, ctx, ch); err != nil {
 			log.Printf("chat stream error: %v", err)
 		}
 		return
