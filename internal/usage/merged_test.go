@@ -1,17 +1,22 @@
 package usage
 
 import (
+	"errors"
+	"strings"
 	"testing"
 )
+
+var errPricingBoom = errors.New("pricing boom")
 
 type fakeOverrideStore struct {
 	calls int
 	data  map[string]map[string]map[string]float64
+	err   error
 }
 
 func (f *fakeOverrideStore) UserPricing() (map[string]map[string]map[string]float64, error) {
 	f.calls++
-	return f.data, nil
+	return f.data, f.err
 }
 
 func TestMergedPricingAndCache(t *testing.T) {
@@ -100,5 +105,21 @@ func TestMergedPricingAndCache(t *testing.T) {
 	}
 	if store.calls != 3 {
 		t.Errorf("after Invalidate, store.calls = %d, want 3", store.calls)
+	}
+}
+
+func TestMergedWrapsStoreError(t *testing.T) {
+	store := &fakeOverrideStore{err: errPricingBoom}
+	r := NewResolver(store, func() int64 { return 0 })
+
+	_, err := r.Merged()
+	if err == nil {
+		t.Fatal("expected error from failing store")
+	}
+	if !errors.Is(err, errPricingBoom) {
+		t.Errorf("errors.Is(err, errPricingBoom) = false, err = %v", err)
+	}
+	if !strings.Contains(err.Error(), "user pricing:") {
+		t.Errorf("error message = %q, want 'user pricing:' context", err.Error())
 	}
 }

@@ -1,6 +1,8 @@
 package usage
 
 import (
+	"errors"
+	"strings"
 	"testing"
 )
 
@@ -79,5 +81,59 @@ func TestResolvePricing(t *testing.T) {
 	_, ok = ResolvePricing("openai", "")
 	if ok {
 		t.Error("ResolvePricing empty model: expected miss")
+	}
+}
+
+func TestPricingForModelWrapsStoreError(t *testing.T) {
+	store := &fakeOverrideStore{err: errPricingBoom}
+	r := NewResolver(store, func() int64 { return 0 })
+
+	_, _, err := r.PricingForModel("deepseek", "deepseek-chat")
+	if err == nil {
+		t.Fatal("expected error from failing store")
+	}
+	if !errors.Is(err, errPricingBoom) {
+		t.Errorf("errors.Is(err, errPricingBoom) = false, err = %v", err)
+	}
+	if !strings.Contains(err.Error(), "user pricing:") {
+		t.Errorf("error message = %q, want 'user pricing:' context", err.Error())
+	}
+}
+
+func TestPricingForModelUserOverrideExactMatch(t *testing.T) {
+	store := &fakeOverrideStore{
+		data: map[string]map[string]map[string]float64{
+			"deepseek": {
+				"deepseek-chat": {"input": 9.9},
+			},
+		},
+	}
+	r := NewResolver(store, func() int64 { return 0 })
+
+	// Exact provider+model uses the user override.
+	p, ok, err := r.PricingForModel("deepseek", "deepseek-chat")
+	if err != nil {
+		t.Fatalf("exact match: %v", err)
+	}
+	if !ok {
+		t.Fatal("exact match: expected hit")
+	}
+	if p.Input != 9.9 {
+		t.Errorf("exact match input = %v, want 9.9", p.Input)
+	}
+
+	// Vendor-prefixed model does NOT match the user override (ref exact lookup).
+	p, ok, err = r.PricingForModel("deepseek", "deepseek/deepseek-chat")
+	if err != nil {
+		t.Fatalf("prefixed match: %v", err)
+	}
+	if !ok {
+		t.Fatal("prefixed match: expected hit from constants")
+	}
+	if p == (Pricing{}) {
+		t.Fatal("prefixed match: got zero pricing")
+	}
+	if p.Input == 9.9 {
+		t.Errorf("prefixed match used user override (%v), should have fallen through to constants", p)
 	}
 }

@@ -47,8 +47,8 @@ func CalculateCost(tokens TokenSet, p Pricing) float64 {
 // CostFor resolves pricing for provider/model and calculates cost.
 // Returns 0 when no pricing resolves.
 func (r *Resolver) CostFor(provider, model string, tokens TokenSet) float64 {
-	p, ok := r.PricingForModel(provider, model)
-	if !ok {
+	p, ok, err := r.PricingForModel(provider, model)
+	if err != nil || !ok {
 		return 0
 	}
 	return CalculateCost(tokens, p)

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -65,5 +66,45 @@ func TestKVRoundTrip(t *testing.T) {
 	}
 	if sameScope["k1"] != "v1-updated" {
 		t.Errorf("ListKV scope k1 = %q, want v1-updated", sameScope["k1"])
+	}
+}
+
+func TestUserPricingReadsKV(t *testing.T) {
+	st := newTestStore(t)
+
+	// Empty scope returns an empty non-nil map.
+	got, err := st.UserPricing()
+	if err != nil {
+		t.Fatalf("UserPricing empty: %v", err)
+	}
+	if got == nil {
+		t.Fatal("UserPricing empty returned nil map")
+	}
+	if len(got) != 0 {
+		t.Errorf("UserPricing empty len = %d, want 0", len(got))
+	}
+
+	// Seed a provider pricing JSON blob.
+	if err := st.SetKV("pricing", "gh", `{"gpt-5.3-codex":{"input":2.0}}`); err != nil {
+		t.Fatalf("SetKV pricing: %v", err)
+	}
+	got, err = st.UserPricing()
+	if err != nil {
+		t.Fatalf("UserPricing seeded: %v", err)
+	}
+	if got["gh"]["gpt-5.3-codex"]["input"] != 2.0 {
+		t.Errorf("UserPricing = %v, want gh/gpt-5.3-codex/input=2.0", got)
+	}
+
+	// Corrupt JSON surfaces the offending provider key.
+	if err := st.SetKV("pricing", "bad", `not json`); err != nil {
+		t.Fatalf("SetKV bad: %v", err)
+	}
+	_, err = st.UserPricing()
+	if err == nil {
+		t.Fatal("UserPricing corrupt: expected error")
+	}
+	if !strings.Contains(err.Error(), "bad") {
+		t.Errorf("UserPricing corrupt error = %v, want mention of provider key 'bad'", err)
 	}
 }

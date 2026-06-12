@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -107,7 +108,7 @@ func (r *Resolver) Merged() (map[string]map[string]Pricing, error) {
 
 	user, err := r.store.UserPricing()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("user pricing: %w", err)
 	}
 
 	merged := make(map[string]map[string]Pricing)
@@ -182,30 +183,27 @@ func copyMerged(src map[string]map[string]Pricing) map[string]map[string]Pricing
 }
 
 // PricingForModel resolves pricing for a provider/model, checking user overrides first.
-func (r *Resolver) PricingForModel(provider, model string) (Pricing, bool) {
+// User overrides are matched by exact provider/model only (pricingRepo.js:51-56);
+// vendor-prefix stripping is reserved for canonical constant resolution.
+func (r *Resolver) PricingForModel(provider, model string) (Pricing, bool, error) {
 	overrides, err := r.store.UserPricing()
 	if err != nil {
-		return Pricing{}, false
-	}
-
-	baseModel := model
-	if idx := strings.LastIndex(model, "/"); idx >= 0 {
-		baseModel = model[idx+1:]
+		return Pricing{}, false, fmt.Errorf("user pricing: %w", err)
 	}
 
 	// User override checked before constants (pricingRepo.js:51-56).
 	if provider != "" {
 		if models, ok := overrides[provider]; ok {
 			if u, ok := models[model]; ok {
-				return overrideToPricing(u), true
-			}
-			if u, ok := models[baseModel]; ok {
-				return overrideToPricing(u), true
+				return overrideToPricing(u), true, nil
 			}
 		}
 	}
 
-	return ResolvePricing(provider, model)
+	if p, ok := ResolvePricing(provider, model); ok {
+		return p, true, nil
+	}
+	return Pricing{}, false, nil
 }
 
 // overrideToPricing converts a present-key rate map into a Pricing struct.
