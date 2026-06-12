@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"sync"
+	"testing"
 )
 
 // fakeVKResolver resolves keys to canned VKInfo values.
@@ -75,4 +76,26 @@ type errVKResolver struct{}
 
 func (errVKResolver) ResolveVK(string) (*VKInfo, error) {
 	return nil, errors.New("lookup failed")
+}
+
+// TestVKGateUnknownKeyDenied verifies Fix 1: a non-empty x-g0-vk header that
+// resolves to nil is denied with 401 and the provider/quota layer is never called.
+func TestVKGateUnknownKeyDenied(t *testing.T) {
+	resolver := newFakeVKResolver()
+	quota := newFakeVKQuotaChecker()
+	gate := NewVKGate(resolver, quota)
+
+	ok, status, reason := gate.AllowVK("g0vk-does-not-exist", "gpt-4")
+	if ok {
+		t.Fatalf("AllowVK unknown key: got ok=true, want false")
+	}
+	if status != 401 {
+		t.Errorf("AllowVK unknown key status = %d, want 401", status)
+	}
+	if reason != "unknown virtual key" {
+		t.Errorf("AllowVK unknown key reason = %q, want %q", reason, "unknown virtual key")
+	}
+	if quota.calls != nil {
+		t.Errorf("quota checker called %d times, want 0", len(quota.calls))
+	}
 }

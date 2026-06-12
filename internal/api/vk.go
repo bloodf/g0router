@@ -47,7 +47,7 @@ func (g *VKGate) AllowVK(key, model string) (ok bool, status int, reason string)
 		return false, 500, "virtual key lookup failed"
 	}
 	if vk == nil {
-		return true, 0, ""
+		return false, 401, "unknown virtual key"
 	}
 	if !vk.IsActive {
 		return false, 403, "virtual key inactive"
