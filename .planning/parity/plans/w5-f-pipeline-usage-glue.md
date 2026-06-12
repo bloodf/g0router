@@ -170,3 +170,36 @@ seam mandated by AGENTS.md:24). Cycle-3 residual triage:
   ProcessPassthroughStream' internal/ --include='*.go' | grep -v _test` →
   internal/api only + translation itself). No unowned caller exists.
 APPROVED BY DECISION for dispatch after w5-b + w5-c merge.
+
+## Diff-gate disposition (cycle 3, both halves, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles per half. Cycle-1 REAL FIXED (fix-r1, 4b337b2: production
+shutdown wiring via NewWithShutdown + SIGINT/SIGTERM in main.go, persistence-
+asserting smoke tests, error-path + sanitized detail capture, deduped record glue).
+Cycle-2 REAL FIXED (fix-r2, feb76c3: passthrough valid-usage test, isArrayish stub
+deleted, Claude token synonyms in glue, logged-not-discarded write failures).
+Cycle-3 residual triage:
+- A-BLOCKER "NormalizeUsage omits input_tokens/output_tokens/promptTokenCount":
+  FALSE POSITIVE — ref-verbatim: normalizeUsage (`usageTracking.js:115-148`)
+  assigns ONLY the OpenAI-shaped keys because extractUsage MAPS claude/gemini/
+  responses shapes INTO prompt_tokens/completion_tokens BEFORE normalizing
+  (`:177-180` claude, `:189-196` responses, `:216-221` gemini). The Go port
+  mirrors both halves of that pipeline.
+- A-MAJOR buffer-total increment: THIRD occurrence of a rebutted finding (ref
+  `:46-51`). A-MAJOR FormatUsage default-OpenAI + filter: SECOND occurrence (ref
+  `:283` comment; estimated-only payloads for gemini/responses clients are the
+  ref's own behavior). Gate non-convergence documented.
+- B-BLOCKER cmd/main.go scope: SECOND occurrence — fix-r1's explicit OWNERSHIP
+  GRANT closed the gate's OWN cycle-1 blocker (shutdown flush unreachable).
+- B-MAJOR "TestServerWiresUsageGlue only checks table": REBUTTED BY SIBLINGS — the
+  fix-r1-strengthened smokes (chat/messages/embeddings PersistsRequestLog) prove
+  the full wiring end-to-end (HTTP request → request_log row with attribution);
+  the named test is a redundant precondition check, not the wiring proof.
+- B-MAJOR "APIKey attribution never populated": REAL → TRANSFERRED TO w5-g
+  (recorded follow-up): the machine/virtual key value enters the request at the
+  guard/VK layer; w5-g's per-key quota engine is the CONSUMER of request_log
+  api_key attribution (its SumCostByAPIKey reads it), so the plumbing (guard/VK
+  context → UsageEntry.APIKey) lands with w5-g and is checked at w5-g's diff gate.
+  Until then byApiKey stats attribute to local-no-key — matching the ref's
+  behavior for keyless local traffic.
+Full gates green (build/vet/test/-race verified live). MERGED.
+Rows flip: PAR-TRANS-046 PARTIAL→HAVE; PAR-ROUTE-054 MISSING→HAVE.

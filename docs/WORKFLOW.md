@@ -6540,3 +6540,14 @@ artifact; byAccount daily keying is ref-verbatim :66-68/:455-462; canonical pric
 has only gh; immutable fields table).
 Rows_flipped: PAR-USAGE-013-017/021-023/029-031/039 → HAVE (usage 37/1/2 —
 remaining: 032 PARTIAL Stage-1, 036/037 UI → W6).
+
+## w5-f: MERGED (2026-06-12)
+Diff gate (split into translation + api/server halves — 117KB diff exceeded the
+harness argv limit; split-run procedure recorded) closed by decision after 3 cycles
+per half. Fix rounds: r1 4b337b2 (production shutdown wiring — REAL: NewWithShutdown
+had zero callers; smoke/persistence assertions; error-path capture; deduped glue),
+r2 feb76c3 (passthrough usage test, dead stub, claude token synonyms, logged write
+failures). Cycle-3: ref-pipeline rebuttals (extractUsage maps formats before
+normalize); APIKey attribution transferred to w5-g (its quota engine consumes it).
+Rows_flipped: PAR-TRANS-046 PARTIAL→HAVE (translation 65/1/1); PAR-ROUTE-054 →
+HAVE (routing 46/1/13).
