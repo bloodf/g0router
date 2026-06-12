@@ -116,7 +116,7 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 		streamCtx, cancel := withRequestCancel(ctx)
 		defer cancel()
 		state := translation.NewStreamState()
-		if _, err := translation.ProcessTranslateStream(streamCtx, ctx, ch, h.registry, translation.FormatOpenAI, translation.FormatClaude, state); err != nil {
+		if _, err := translation.ProcessTranslateStream(streamCtx, ctx, ch, h.registry, translation.FormatOpenAI, translation.FormatClaude, state, nil); err != nil {
 			log.Printf("messages stream error: %v", err)
 		}
 		return

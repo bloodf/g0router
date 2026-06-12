@@ -38,7 +38,7 @@ func TestProcessTranslateStreamFiltersEmptyChunks(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestProcessTranslateStreamEmitsDone(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestProcessTranslateStreamFlushesStateOnClose(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestProcessTranslateStreamReturnsErrorOnErrorChunk(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state, nil)
 	if err == nil {
 		t.Fatal("expected error from error chunk")
 	}
@@ -138,7 +138,7 @@ func TestProcessTranslateStreamSummaryAccumulates(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,8 +157,9 @@ func TestProcessTranslateStreamAttachesStateUsageOnFinish(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	state.Usage = map[string]any{"total_tokens": 42}
-	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
+	// Claude-shaped usage so the format filter keeps it client-bound.
+	state.Usage = map[string]any{"input_tokens": 10, "output_tokens": 5}
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -168,9 +169,9 @@ func TestProcessTranslateStreamAttachesStateUsageOnFinish(t *testing.T) {
 	}
 
 	out := w.buf.String()
-	// The finish chunk should have usage attached.
-	if !strings.Contains(out, "total_tokens") {
-		t.Errorf("output missing usage: %q", out)
+	// The finish chunk should have usage attached (with buffer applied).
+	if !strings.Contains(out, `"input_tokens":2010`) {
+		t.Errorf("output missing buffered input_tokens=2010 (10+2000); output: %q", out)
 	}
 }
 
@@ -182,7 +183,7 @@ func TestProcessTranslateStreamRecordsTTFT(t *testing.T) {
 
 	reg := NewRegistry()
 	state := NewStreamState()
-	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state)
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatClaude, state, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -203,7 +204,7 @@ func TestProcessPassthroughFixesInvalidID(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "chat", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
 	close(ch)
 
-	summary, err := ProcessPassthroughStream(context.Background(), w, ch)
+	summary, err := ProcessPassthroughStream(context.Background(), w, ch, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -226,7 +227,7 @@ func TestProcessPassthroughInjectsRequiredFields(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "chatcmpl-12345678", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
 	close(ch)
 
-	_, err := ProcessPassthroughStream(context.Background(), w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -265,7 +266,7 @@ func TestProcessPassthroughStripsAzureFields(t *testing.T) {
 	}
 	close(ch)
 
-	_, err := ProcessPassthroughStream(context.Background(), w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -313,7 +314,7 @@ func TestProcessPassthroughFiltersEmptyChunks(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}}}} // empty
 	close(ch)
 
-	_, err := ProcessPassthroughStream(context.Background(), w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -330,7 +331,7 @@ func TestProcessPassthroughEmitsDone(t *testing.T) {
 	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
 	close(ch)
 
-	_, err := ProcessPassthroughStream(context.Background(), w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -348,7 +349,7 @@ func TestProcessPassthroughReturnsErrorOnErrorChunk(t *testing.T) {
 	ch <- &schemas.StreamChunk{Error: &schemas.ProviderError{Message: "boom", Type: "stream_error"}}
 	close(ch)
 
-	_, err := ProcessPassthroughStream(context.Background(), w, ch)
+	_, err := ProcessPassthroughStream(context.Background(), w, ch, nil)
 	if err == nil {
 		t.Fatal("expected error from error chunk")
 	}
@@ -359,6 +360,144 @@ func TestProcessPassthroughReturnsErrorOnErrorChunk(t *testing.T) {
 	out := w.buf.String()
 	if strings.Contains(out, "[DONE]") {
 		t.Errorf("error chunk should abort before [DONE]: %q", out)
+	}
+}
+
+// --- Task 2 (w5-f): StreamSummary.ContentLen + estimate-on-finish (PAR-TRANS-046) ---
+
+func TestStreamAccumulatesContentLen(t *testing.T) {
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 3)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hello "}}}}
+	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "world"}}}}
+	ch <- &schemas.StreamChunk{ID: "c3", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}, FinishReason: strPtr("stop")}}}
+	close(ch)
+
+	reg := NewRegistry()
+	state := NewStreamState()
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAI, state, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if summary.ContentLen != 11 {
+		t.Errorf("summary.ContentLen = %d, want 11 (len('hello ')+len('world'))", summary.ContentLen)
+	}
+}
+
+func TestStreamAccumulatesUsage(t *testing.T) {
+	// Chunk carries a real usage payload; finish chunk should attach the
+	// buffered+filtered usage and the summary should expose the original.
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 2)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
+	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}, FinishReason: strPtr("stop")}}, Usage: &schemas.Usage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150}}
+	close(ch)
+
+	reg := NewRegistry()
+	state := NewStreamState()
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAI, state, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if summary.Usage == nil {
+		t.Fatal("expected usage in summary")
+	}
+	if summary.Usage["prompt_tokens"] != 100 {
+		t.Errorf("summary.Usage.prompt_tokens = %v, want 100", summary.Usage["prompt_tokens"])
+	}
+
+	out := w.buf.String()
+	// The finish chunk should have a buffered usage attached.
+	if !strings.Contains(out, `"prompt_tokens":2100`) {
+		t.Errorf("finish chunk should carry buffered prompt_tokens=2100 (100+2000); output: %q", out)
+	}
+}
+
+func TestStreamEstimatesOnFinish(t *testing.T) {
+	// No usage in any chunk, content present → finish chunk + summary carry
+	// estimated usage with `estimated` flag.
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 2)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hello"}}}}
+	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}, FinishReason: strPtr("stop")}}}
+	close(ch)
+
+	reg := NewRegistry()
+	state := NewStreamState()
+	body := map[string]any{"messages": []any{map[string]any{"role": "user", "content": "0123456789"}}}
+	src := &EstimateSource{Body: body, Format: FormatOpenAI}
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAI, state, src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if summary.Usage == nil {
+		t.Fatal("expected estimated usage in summary")
+	}
+	if summary.Usage["estimated"] != true {
+		t.Errorf("summary.Usage.estimated = %v, want true", summary.Usage["estimated"])
+	}
+	// contentLength 5 → 1 output token. Body is small → a few input tokens + buffer.
+	if summary.Usage["completion_tokens"] != 1 {
+		t.Errorf("summary.Usage.completion_tokens = %v, want 1", summary.Usage["completion_tokens"])
+	}
+
+	out := w.buf.String()
+	if !strings.Contains(out, `"estimated":true`) {
+		t.Errorf("client-bound finish chunk should carry estimated usage; output: %q", out)
+	}
+}
+
+func TestPassthroughStreamEstimatesOnFinish(t *testing.T) {
+	// Passthrough mode → no usage in any chunk, content present → finish
+	// chunk + summary carry estimated usage.
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 2)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hello"}}}}
+	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}, FinishReason: strPtr("stop")}}}
+	close(ch)
+
+	body := map[string]any{"messages": []any{map[string]any{"role": "user", "content": "0123456789"}}}
+	src := &EstimateSource{Body: body, Format: FormatOpenAI}
+	summary, err := ProcessPassthroughStream(context.Background(), w, ch, src)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if summary.Usage == nil {
+		t.Fatal("expected estimated usage in summary")
+	}
+	if summary.Usage["estimated"] != true {
+		t.Errorf("summary.Usage.estimated = %v, want true", summary.Usage["estimated"])
+	}
+
+	out := w.buf.String()
+	if !strings.Contains(out, `"estimated":true`) {
+		t.Errorf("client-bound finish chunk should carry estimated usage; output: %q", out)
+	}
+}
+
+func TestStreamNilEstimateSourceSkipsEstimation(t *testing.T) {
+	// No EstimateSource → no estimation runs, summary.Usage is nil.
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 2)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hello"}}}}
+	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}, FinishReason: strPtr("stop")}}}
+	close(ch)
+
+	reg := NewRegistry()
+	state := NewStreamState()
+	summary, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAI, state, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if summary.Usage != nil {
+		t.Errorf("summary.Usage = %+v, want nil when no EstimateSource", summary.Usage)
+	}
+	if summary.ContentLen != 5 {
+		t.Errorf("summary.ContentLen = %d, want 5", summary.ContentLen)
 	}
 }
 
@@ -374,7 +513,7 @@ func TestProcessTranslateStreamSynthesizesResponseFailed(t *testing.T) {
 	state := NewStreamState()
 	state.ResponsesCompletedSent = true // suppress flush from emitting response.completed
 
-	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -407,7 +546,7 @@ func TestProcessTranslateStreamNoSynthesisWhenCompleted(t *testing.T) {
 	state := NewStreamState()
 	// Normal state: flush will emit response.completed, so terminal is seen.
 
-	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state)
+	_, err := ProcessTranslateStream(context.Background(), w, ch, reg, FormatOpenAI, FormatOpenAIResponses, state, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

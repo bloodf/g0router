@@ -12,10 +12,19 @@ import (
 
 // StreamSummary holds aggregated data from a processed stream.
 type StreamSummary struct {
-	Content string
-	Thinking string
-	Usage   map[string]any
-	TTFT    time.Time
+	Content   string
+	ContentLen int
+	Thinking  string
+	Usage     map[string]any
+	TTFT      time.Time
+}
+
+// EstimateSource carries the request body and the client format used to
+// estimate token usage when the provider stream omits usage (PAR-TRANS-046
+// usage clause). A nil source disables estimation entirely.
+type EstimateSource struct {
+	Body   map[string]any
+	Format Format
 }
 
 // ProcessTranslateStream consumes a channel of stream chunks, translates each
@@ -23,8 +32,16 @@ type StreamSummary struct {
 // stream and a non-nil error if the stream aborted on an error chunk or write
 // failure. The loop also watches ctx.Done() so the caller can abort the stream
 // without waiting for the next chunk.
-func ProcessTranslateStream(ctx context.Context, w io.Writer, ch <-chan *schemas.StreamChunk, reg *Registry, from, to Format, state *StreamState) (StreamSummary, error) {
+//
+// src optionally carries the request body and client format for usage
+// estimation. When non-nil and the upstream emits no usage, the finish chunk
+// gets a buffered+filtered estimated usage (PAR-TRANS-046 usage clause).
+func ProcessTranslateStream(ctx context.Context, w io.Writer, ch <-chan *schemas.StreamChunk, reg *Registry, from, to Format, state *StreamState, src *EstimateSource) (StreamSummary, error) {
 	var summary StreamSummary
+	clientFormat := to
+	if src != nil && src.Format != "" {
+		clientFormat = src.Format
+	}
 
 loop:
 	for {
@@ -55,6 +72,14 @@ loop:
 
 			accumulateContent(openaiChunk, &summary)
 
+			// Extract usage from the upstream chunk and stash the original in
+			// state.Usage for logging (the client-bound chunk may carry a
+			// buffered+filtered version, but the original is what we want to
+			// record for cost).
+			if extracted := ExtractUsage(openaiChunk); extracted != nil {
+				state.Usage = extracted
+			}
+
 			results, err := reg.TranslateResponse(from, to, openaiChunk, state)
 			if err != nil {
 				return summary, fmt.Errorf("translate response: %w", err)
@@ -69,9 +94,8 @@ loop:
 					state.ResponsesTerminalSeen = true
 				}
 
-				if state.Usage != nil && isFinishChunk(item) {
-					item["usage"] = state.Usage
-					summary.Usage = state.Usage
+				if isFinishChunk(item) {
+					applyFinishUsage(item, state, summary.ContentLen, src, clientFormat, &summary)
 				}
 
 				if _, werr := w.Write(FormatSSE(to, item)); werr != nil {
@@ -95,6 +119,9 @@ loop:
 		if to == FormatOpenAIResponses && isResponsesTerminalEvent(item) {
 			state.ResponsesTerminalSeen = true
 		}
+		if isFinishChunk(item) {
+			applyFinishUsage(item, state, summary.ContentLen, src, clientFormat, &summary)
+		}
 		if _, werr := w.Write(FormatSSE(to, item)); werr != nil {
 			return summary, fmt.Errorf("write flushed chunk: %w", werr)
 		}
@@ -110,15 +137,80 @@ loop:
 		return summary, fmt.Errorf("write done: %w", werr)
 	}
 
+	// Final fallback: if no usage was seen at all and we have content + a
+	// body to estimate from, fill the summary so the caller can still record.
+	if summary.Usage == nil && src != nil && summary.ContentLen > 0 {
+		summary.Usage = EstimateUsage(src.Body, summary.ContentLen, clientFormat)
+	}
+
 	return summary, nil
+}
+
+// applyFinishUsage mirrors open-sse/utils/stream.js:152-159, 295-305:
+//   - if the translated item carries valid usage, attach the buffered+filtered
+//     version to the client-bound chunk and keep the original in summary.Usage
+//   - otherwise, if state.Usage is already populated (e.g. injected by a
+//     caller or by the translator), use it as the base and attach the
+//     buffered+filtered version
+//   - otherwise, if the chunk has no valid usage and we accumulated content,
+//     build an estimated usage from the body + content length, attach the
+//     filtered version, and keep the estimated in summary.Usage
+func applyFinishUsage(item map[string]any, state *StreamState, contentLen int, src *EstimateSource, clientFormat Format, summary *StreamSummary) {
+	hasUsage := HasValidUsage(usageFromItem(item))
+	if hasUsage {
+		// Prefer state.Usage (the original extracted payload) so we preserve
+		// details objects the translator may have dropped.
+		base := state.Usage
+		if base == nil {
+			base = usageFromItem(item)
+		}
+		buffered := AddBufferToUsage(base)
+		item["usage"] = FilterUsageForFormat(buffered, clientFormat)
+		summary.Usage = base
+		return
+	}
+	// State-injected usage (tests, manual override). Buffer+filter and ship.
+	if state.Usage != nil {
+		buffered := AddBufferToUsage(state.Usage)
+		item["usage"] = FilterUsageForFormat(buffered, clientFormat)
+		summary.Usage = state.Usage
+		return
+	}
+	if src == nil || contentLen <= 0 {
+		return
+	}
+	estimated := EstimateUsage(src.Body, contentLen, clientFormat)
+	item["usage"] = FilterUsageForFormat(estimated, clientFormat)
+	state.Usage = estimated
+	summary.Usage = estimated
+}
+
+// usageFromItem returns the item's usage field as a map, or nil.
+func usageFromItem(item map[string]any) map[string]any {
+	if item == nil {
+		return nil
+	}
+	if u, ok := item["usage"].(map[string]any); ok {
+		return u
+	}
+	return nil
 }
 
 // ProcessPassthroughStream consumes a channel of stream chunks, normalizes
 // each chunk for OpenAI compatibility, and writes framed SSE to w. The loop
 // also watches ctx.Done() so the caller can abort the stream without waiting
 // for the next chunk.
-func ProcessPassthroughStream(ctx context.Context, w io.Writer, ch <-chan *schemas.StreamChunk) (StreamSummary, error) {
+//
+// src optionally carries the request body and client format for usage
+// estimation. When non-nil and the upstream emits no usage, the finish chunk
+// gets a buffered+filtered estimated usage (PAR-TRANS-046 usage clause).
+func ProcessPassthroughStream(ctx context.Context, w io.Writer, ch <-chan *schemas.StreamChunk, src *EstimateSource) (StreamSummary, error) {
 	var summary StreamSummary
+	clientFormat := FormatOpenAI
+	if src != nil && src.Format != "" {
+		clientFormat = src.Format
+	}
+	var lastUsage map[string]any
 
 	for {
 		select {
@@ -128,6 +220,11 @@ func ProcessPassthroughStream(ctx context.Context, w io.Writer, ch <-chan *schem
 			if !ok {
 				if _, werr := w.Write([]byte("data: [DONE]\n\n")); werr != nil {
 					return summary, fmt.Errorf("write done: %w", werr)
+				}
+				// Final fallback: estimate on stream close (parity with
+				// stream.js:327-329).
+				if summary.Usage == nil && src != nil && summary.ContentLen > 0 {
+					summary.Usage = EstimateUsage(src.Body, summary.ContentLen, clientFormat)
 				}
 				return summary, nil
 			}
@@ -159,6 +256,25 @@ func ProcessPassthroughStream(ctx context.Context, w io.Writer, ch <-chan *schem
 
 			accumulateContent(payload, &summary)
 
+			// Extract usage from the upstream chunk.
+			if extracted := ExtractUsage(payload); extracted != nil {
+				lastUsage = extracted
+			}
+
+			// Finish-chunk handling (parity with stream.js:151-159).
+			if isFinishReasonSet(payload) {
+				if lastUsage != nil && HasValidUsage(lastUsage) {
+					buffered := AddBufferToUsage(lastUsage)
+					payload["usage"] = FilterUsageForFormat(buffered, clientFormat)
+					summary.Usage = lastUsage
+				} else if src != nil && summary.ContentLen > 0 {
+					estimated := EstimateUsage(src.Body, summary.ContentLen, clientFormat)
+					payload["usage"] = FilterUsageForFormat(estimated, clientFormat)
+					lastUsage = estimated
+					summary.Usage = estimated
+				}
+			}
+
 			data, err := json.Marshal(payload)
 			if err != nil {
 				return summary, fmt.Errorf("marshal normalized chunk: %w", err)
@@ -170,7 +286,29 @@ func ProcessPassthroughStream(ctx context.Context, w io.Writer, ch <-chan *schem
 	}
 }
 
+// isFinishReasonSet reports whether a passthrough chunk carries a non-empty
+// finish_reason on its first choice.
+func isFinishReasonSet(payload map[string]any) bool {
+	choicesRaw, ok := payload["choices"]
+	if !ok {
+		return false
+	}
+	choices, ok := choicesRaw.([]any)
+	if !ok || len(choices) == 0 {
+		return false
+	}
+	choice, ok := choices[0].(map[string]any)
+	if !ok {
+		return false
+	}
+	fr, ok := choice["finish_reason"].(string)
+	return ok && fr != ""
+}
+
 // accumulateContent adds delta.content from a chunk map into the summary.
+// It also tracks ContentLen (total characters across content + reasoning
+// content) which the estimate-on-finish path uses to size the output token
+// estimate (PAR-TRANS-046 usage clause).
 func accumulateContent(chunk map[string]any, summary *StreamSummary) {
 	choicesRaw, ok := chunk["choices"]
 	if !ok {
@@ -194,6 +332,10 @@ func accumulateContent(chunk map[string]any, summary *StreamSummary) {
 	}
 	if content, ok := delta["content"].(string); ok {
 		summary.Content += content
+		summary.ContentLen += len(content)
+	}
+	if reasoning, ok := delta["reasoning_content"].(string); ok {
+		summary.ContentLen += len(reasoning)
 	}
 }
 

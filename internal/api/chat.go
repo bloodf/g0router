@@ -33,7 +33,7 @@ type streamWriter interface {
 // aborted on an error chunk or write failure. The loop watches ctx.Done()
 // so the handler can return promptly on client abort.
 func writeSSEStream(ctx context.Context, w streamWriter, ch chan *schemas.StreamChunk) error {
-	_, err := translation.ProcessPassthroughStream(ctx, w, ch)
+	_, err := translation.ProcessPassthroughStream(ctx, w, ch, nil)
 	return err
 }
 
