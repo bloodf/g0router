@@ -19,6 +19,7 @@ type MessagesHandler struct {
 	pendingTracker PendingTracker
 	detailCapture  DetailCapture
 	vkGate         *VKGate
+	pinnedResolver VKPinnedKeyResolver
 }
 
 // NewMessagesHandler creates a Claude-compatible messages handler.
@@ -42,6 +43,10 @@ func (h *MessagesHandler) SetDetailCapture(d DetailCapture) { h.detailCapture = 
 
 // SetVKGate wires a virtual-key gate for x-g0-vk header enforcement (PAR-ROUTE-030).
 func (h *MessagesHandler) SetVKGate(g *VKGate) { h.vkGate = g }
+
+// SetVKPinnedResolver wires a resolver that overrides the selected connection
+// when a virtual-key config pins specific KeyIDs (PAR-ROUTE-030).
+func (h *MessagesHandler) SetVKPinnedResolver(r VKPinnedKeyResolver) { h.pinnedResolver = r }
 
 // Handle processes Claude-format requests, translating to/from OpenAI format.
 func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
@@ -83,7 +88,8 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before dispatch.
 	vkHeader := string(ctx.Request.Header.Peek("x-g0-vk"))
 	if vkHeader != "" {
-		if ok, status, reason, _ := h.vkGate.AllowVK(vkHeader, model, key.Provider); !ok {
+		ok, status, reason, keyIDs := h.vkGate.AllowVK(vkHeader, model, key.Provider)
+		if !ok {
 			errType := "invalid_request_error"
 			if status == 429 {
 				errType = "rate_limit_exceeded"
@@ -91,6 +97,12 @@ func (h *MessagesHandler) Handle(ctx *fasthttp.RequestCtx) {
 			g.recordError("/v1/messages", model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: status, Message: reason, Type: errType})
 			writeError(ctx, status, errType, reason, nil)
 			return
+		}
+		if len(keyIDs) > 0 && h.pinnedResolver != nil {
+			if connID, credential, ok := h.pinnedResolver.ResolvePinned(key.Provider, model, keyIDs); ok {
+				key.ID = connID
+				key.Value = credential
+			}
 		}
 		g.apiKey = vkHeader
 	}

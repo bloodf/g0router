@@ -39,6 +39,7 @@ type fakeMessagesProvider struct {
 	streamCh    chan *schemas.StreamChunk
 	chatCalled  bool
 	capturedReq *schemas.ChatRequest
+	capturedKey schemas.Key
 }
 
 func (p *fakeMessagesProvider) GetProvider() schemas.ModelProvider { return schemas.ProviderOpenAI }
@@ -48,13 +49,15 @@ func (p *fakeMessagesProvider) ListModels(_ *schemas.GatewayContext, _ schemas.K
 	return nil, nil
 }
 
-func (p *fakeMessagesProvider) ChatCompletion(_ *schemas.GatewayContext, _ schemas.Key, req *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
+func (p *fakeMessagesProvider) ChatCompletion(_ *schemas.GatewayContext, key schemas.Key, req *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
 	p.chatCalled = true
 	p.capturedReq = req
+	p.capturedKey = key
 	return p.response, nil
 }
 
-func (p *fakeMessagesProvider) ChatCompletionStream(_ *schemas.GatewayContext, _ schemas.PostHookRunner, _ schemas.Key, req *schemas.ChatRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
+func (p *fakeMessagesProvider) ChatCompletionStream(_ *schemas.GatewayContext, _ schemas.PostHookRunner, key schemas.Key, req *schemas.ChatRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
+	p.capturedKey = key
 	return p.streamCh, nil
 }
 
@@ -473,5 +476,43 @@ func TestBypassTitleSkip(t *testing.T) {
 	}
 	if len(ctx.Response.Body()) == 0 {
 		t.Fatal("bypass response body is empty")
+	}
+}
+
+// TestMessagesHandle_VKPinnedKeyOverridesDispatch verifies PAR-ROUTE-030 pinning
+// for the /v1/messages handler.
+func TestMessagesHandle_VKPinnedKeyOverridesDispatch(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-pinned", &VKInfo{
+		Key: "vk-pinned",
+		Configs: []VKProviderConfig{
+			{Provider: "anthropic", AllowedModels: []string{"claude-opus-4"}, KeyIDs: []string{"conn-2"}},
+		},
+		IsActive: true,
+	})
+
+	fake := &fakeMessagesResolver{response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"}}
+	h := &MessagesHandler{router: fake, registry: translation.NewRegistry()}
+	h.SetVKGate(NewVKGate(resolver, newFakeVKQuotaChecker()))
+	h.SetVKPinnedResolver(&fakePinnedKeyResolver{connID: "conn-2", credential: "cred-2", ok: true})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/messages")
+	ctx.Request.Header.Set("x-g0-vk", "vk-pinned")
+	ctx.Request.SetBody([]byte(`{"model":"claude-opus-4","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if fake.lastProv == nil || !fake.lastProv.chatCalled {
+		t.Fatal("provider ChatCompletion not called")
+	}
+	if fake.lastProv.capturedKey.ID != "conn-2" {
+		t.Errorf("key.ID = %q, want conn-2", fake.lastProv.capturedKey.ID)
+	}
+	if fake.lastProv.capturedKey.Value != "cred-2" {
+		t.Errorf("key.Value = %q, want cred-2", fake.lastProv.capturedKey.Value)
 	}
 }

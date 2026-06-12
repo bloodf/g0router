@@ -125,6 +125,7 @@ type ChatHandler struct {
 	pendingTracker   PendingTracker
 	detailCapture    DetailCapture
 	vkGate           *VKGate
+	pinnedResolver   VKPinnedKeyResolver
 }
 
 // NewChatHandler creates a chat completion handler.
@@ -156,6 +157,10 @@ func (h *ChatHandler) SetDetailCapture(d DetailCapture) { h.detailCapture = d }
 
 // SetVKGate wires a virtual-key gate for x-g0-vk header enforcement (PAR-ROUTE-030).
 func (h *ChatHandler) SetVKGate(g *VKGate) { h.vkGate = g }
+
+// SetVKPinnedResolver wires a resolver that overrides the selected connection
+// when a virtual-key config pins specific KeyIDs (PAR-ROUTE-030).
+func (h *ChatHandler) SetVKPinnedResolver(r VKPinnedKeyResolver) { h.pinnedResolver = r }
 
 // classifyProviderError maps a provider error to the verdict used by the
 // account-fallback and combo engines. It reuses the w4-b classifier.
@@ -359,13 +364,20 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before dispatch.
 	vkHeader := string(ctx.Request.Header.Peek("x-g0-vk"))
 	if vkHeader != "" {
-		if ok, status, reason, _ := h.vkGate.AllowVK(vkHeader, req.Model, key.Provider); !ok {
+		ok, status, reason, keyIDs := h.vkGate.AllowVK(vkHeader, req.Model, key.Provider)
+		if !ok {
 			errType := "invalid_request_error"
 			if status == 429 {
 				errType = "rate_limit_exceeded"
 			}
 			writeError(ctx, status, errType, reason, nil)
 			return
+		}
+		if len(keyIDs) > 0 && h.pinnedResolver != nil {
+			if connID, credential, ok := h.pinnedResolver.ResolvePinned(key.Provider, req.Model, keyIDs); ok {
+				key.ID = connID
+				key.Value = credential
+			}
 		}
 	}
 

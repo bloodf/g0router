@@ -78,6 +78,27 @@ func (errVKResolver) ResolveVK(string) (*VKInfo, error) {
 	return nil, errors.New("lookup failed")
 }
 
+// fakePinnedKeyResolver is a test VKPinnedKeyResolver that returns canned values.
+type fakePinnedKeyResolver struct {
+	connID     string
+	credential string
+	ok         bool
+	calls      []struct {
+		providerID string
+		model      string
+		keyIDs     []string
+	}
+}
+
+func (f *fakePinnedKeyResolver) ResolvePinned(providerID, model string, keyIDs []string) (string, string, bool) {
+	f.calls = append(f.calls, struct {
+		providerID string
+		model      string
+		keyIDs     []string
+	}{providerID: providerID, model: model, keyIDs: keyIDs})
+	return f.connID, f.credential, f.ok
+}
+
 // TestVKGateUnknownKeyDenied verifies Fix 1: a non-empty x-g0-vk header that
 // resolves to nil is denied with 401 and the provider/quota layer is never called.
 func TestVKGateUnknownKeyDenied(t *testing.T) {

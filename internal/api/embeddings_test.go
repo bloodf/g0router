@@ -24,10 +24,12 @@ func (r *fakeEmbeddingsResolver) Resolve(model string) (schemas.Provider, schema
 type fakeEmbeddingsProvider struct {
 	fakeMessagesProvider
 	embeddingCalled bool
+	capturedKey     schemas.Key
 }
 
-func (p *fakeEmbeddingsProvider) Embedding(_ *schemas.GatewayContext, _ schemas.Key, _ *schemas.EmbeddingRequest) (*schemas.EmbeddingResponse, *schemas.ProviderError) {
+func (p *fakeEmbeddingsProvider) Embedding(_ *schemas.GatewayContext, key schemas.Key, _ *schemas.EmbeddingRequest) (*schemas.EmbeddingResponse, *schemas.ProviderError) {
 	p.embeddingCalled = true
+	p.capturedKey = key
 	return &schemas.EmbeddingResponse{Object: "list"}, nil
 }
 
@@ -93,5 +95,43 @@ func TestEmbeddingsVKDenied(t *testing.T) {
 	}
 	if prov.embeddingCalled {
 		t.Fatal("provider Embedding should not be called")
+	}
+}
+
+// TestEmbeddingsHandle_VKPinnedKeyOverridesDispatch verifies PAR-ROUTE-030 pinning
+// for the /v1/embeddings handler.
+func TestEmbeddingsHandle_VKPinnedKeyOverridesDispatch(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-pinned", &VKInfo{
+		Key: "vk-pinned",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"text-embedding-ada-002"}, KeyIDs: []string{"conn-2"}},
+		},
+		IsActive: true,
+	})
+
+	prov := &fakeEmbeddingsProvider{}
+	h := &EmbeddingsHandler{router: &fakeEmbeddingsResolver{prov: prov}}
+	h.SetVKGate(NewVKGate(resolver, newFakeVKQuotaChecker()))
+	h.SetVKPinnedResolver(&fakePinnedKeyResolver{connID: "conn-2", credential: "cred-2", ok: true})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/embeddings")
+	ctx.Request.Header.Set("x-g0-vk", "vk-pinned")
+	ctx.Request.SetBody([]byte(`{"model":"text-embedding-ada-002","input":"hello"}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if !prov.embeddingCalled {
+		t.Fatal("provider Embedding not called")
+	}
+	if prov.capturedKey.ID != "conn-2" {
+		t.Errorf("key.ID = %q, want conn-2", prov.capturedKey.ID)
+	}
+	if prov.capturedKey.Value != "cred-2" {
+		t.Errorf("key.Value = %q, want cred-2", prov.capturedKey.Value)
 	}
 }

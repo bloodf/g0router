@@ -24,6 +24,12 @@ type VKResolver interface {
 	ResolveVK(key string) (*VKInfo, error)
 }
 
+// VKPinnedKeyResolver resolves a provider/model/keyIDs triple to a pinned
+// connection ID and credential. Implementations live outside the api package.
+type VKPinnedKeyResolver interface {
+	ResolvePinned(providerID, model string, keyIDs []string) (connID, credential string, ok bool)
+}
+
 // VKQuotaChecker enforces budget and RPM limits for a virtual key.
 // Implementations live outside the api package.
 type VKQuotaChecker interface {

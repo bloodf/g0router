@@ -361,19 +361,22 @@ type testDispatchProvider struct {
 	streamCalled   bool
 	chatCalled     bool
 	capturedReq    *schemas.ChatRequest
+	capturedKey    schemas.Key
 }
 
 func (p *testDispatchProvider) RequiresStreaming() bool { return p.requiresStream }
 func (p *testDispatchProvider) ThinkingMode() string    { return p.thinkMode }
 
-func (p *testDispatchProvider) ChatCompletion(_ *schemas.GatewayContext, _ schemas.Key, req *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
+func (p *testDispatchProvider) ChatCompletion(_ *schemas.GatewayContext, key schemas.Key, req *schemas.ChatRequest) (*schemas.ChatResponse, *schemas.ProviderError) {
 	p.chatCalled = true
 	p.capturedReq = req
+	p.capturedKey = key
 	return p.fakeMessagesProvider.response, nil
 }
 
-func (p *testDispatchProvider) ChatCompletionStream(_ *schemas.GatewayContext, _ schemas.PostHookRunner, _ schemas.Key, _ *schemas.ChatRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
+func (p *testDispatchProvider) ChatCompletionStream(_ *schemas.GatewayContext, _ schemas.PostHookRunner, key schemas.Key, _ *schemas.ChatRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
 	p.streamCalled = true
+	p.capturedKey = key
 	return p.fakeMessagesProvider.streamCh, nil
 }
 
@@ -828,5 +831,87 @@ func TestChatComboStreamFallsBackPreStream(t *testing.T) {
 	}
 	if !strings.Contains(body, "data: [DONE]") {
 		t.Errorf("body missing DONE terminator: %q", body)
+	}
+}
+
+// TestChatHandle_VKPinnedKeyOverridesDispatch verifies PAR-ROUTE-030: when a VK
+// config carries KeyIDs and the pinned resolver accepts, the dispatched key is
+// overridden before the provider call.
+func TestChatHandle_VKPinnedKeyOverridesDispatch(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-pinned", &VKInfo{
+		Key: "vk-pinned",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}, KeyIDs: []string{"conn-2"}},
+		},
+		IsActive: true,
+	})
+
+	prov := &testDispatchProvider{
+		fakeMessagesProvider: fakeMessagesProvider{
+			response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"},
+		},
+	}
+	h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+	h.SetVKGate(NewVKGate(resolver, newFakeVKQuotaChecker()))
+	h.SetVKPinnedResolver(&fakePinnedKeyResolver{connID: "conn-2", credential: "cred-2", ok: true})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.Header.Set("x-g0-vk", "vk-pinned")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if !prov.chatCalled {
+		t.Fatal("provider ChatCompletion not called")
+	}
+	if prov.capturedKey.ID != "conn-2" {
+		t.Errorf("key.ID = %q, want conn-2", prov.capturedKey.ID)
+	}
+	if prov.capturedKey.Value != "cred-2" {
+		t.Errorf("key.Value = %q, want cred-2", prov.capturedKey.Value)
+	}
+}
+
+// TestChatHandle_VKPinFallbackKeepsResolvedKey verifies that when the pinned
+// resolver returns ok=false, the originally resolved key is dispatched unchanged.
+func TestChatHandle_VKPinFallbackKeepsResolvedKey(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-pinned", &VKInfo{
+		Key: "vk-pinned",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}, KeyIDs: []string{"conn-2"}},
+		},
+		IsActive: true,
+	})
+
+	prov := &testDispatchProvider{
+		fakeMessagesProvider: fakeMessagesProvider{
+			response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"},
+		},
+	}
+	h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+	h.SetVKGate(NewVKGate(resolver, newFakeVKQuotaChecker()))
+	h.SetVKPinnedResolver(&fakePinnedKeyResolver{connID: "conn-2", credential: "cred-2", ok: false})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.Header.Set("x-g0-vk", "vk-pinned")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if prov.capturedKey.ID != "" {
+		t.Errorf("key.ID = %q, want original empty", prov.capturedKey.ID)
+	}
+	if prov.capturedKey.Value != "" {
+		t.Errorf("key.Value = %q, want original empty", prov.capturedKey.Value)
 	}
 }

@@ -20,6 +20,7 @@ type fakeResponsesResolver struct {
 	streamCh       chan *schemas.StreamChunk
 	providerErr    *schemas.ProviderError
 	streamCalled   bool
+	lastProv       *fakeResponsesProvider
 }
 
 func (f *fakeResponsesResolver) ResolveForModel(req *schemas.ChatRequest) (schemas.Provider, schemas.Key, error) {
@@ -27,7 +28,9 @@ func (f *fakeResponsesResolver) ResolveForModel(req *schemas.ChatRequest) (schem
 	if f.providerErr != nil {
 		return nil, schemas.Key{}, errors.New(f.providerErr.Message)
 	}
-	return &fakeResponsesProvider{response: f.response, streamCh: f.streamCh, resolver: f}, schemas.Key{Provider: "openai"}, nil
+	prov := &fakeResponsesProvider{response: f.response, streamCh: f.streamCh, resolver: f}
+	f.lastProv = prov
+	return prov, schemas.Key{Provider: "openai"}, nil
 }
 
 type fakeResponsesProvider struct {
@@ -35,6 +38,7 @@ type fakeResponsesProvider struct {
 	streamCh     chan *schemas.StreamChunk
 	chatCalled   bool
 	resolver     *fakeResponsesResolver
+	capturedKey  schemas.Key
 }
 
 func (p *fakeResponsesProvider) GetProvider() schemas.ModelProvider { return schemas.ProviderOpenAI }
@@ -49,7 +53,8 @@ func (p *fakeResponsesProvider) ChatCompletion(_ *schemas.GatewayContext, _ sche
 	return p.response, nil
 }
 
-func (p *fakeResponsesProvider) ChatCompletionStream(_ *schemas.GatewayContext, _ schemas.PostHookRunner, _ schemas.Key, req *schemas.ChatRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
+func (p *fakeResponsesProvider) ChatCompletionStream(_ *schemas.GatewayContext, _ schemas.PostHookRunner, key schemas.Key, req *schemas.ChatRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
+	p.capturedKey = key
 	if p.resolver != nil {
 		p.resolver.streamCalled = true
 	}
@@ -270,5 +275,45 @@ func TestResponsesEndpointForcesStreaming(t *testing.T) {
 	ct := string(ctx.Response.Header.ContentType())
 	if !strings.Contains(ct, "text/event-stream") {
 		t.Errorf("content-type = %q, want text/event-stream", ct)
+	}
+}
+
+// TestResponsesHandle_VKPinnedKeyOverridesDispatch verifies PAR-ROUTE-030 pinning
+// for the /v1/responses handler.
+func TestResponsesHandle_VKPinnedKeyOverridesDispatch(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-pinned", &VKInfo{
+		Key: "vk-pinned",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4"}, KeyIDs: []string{"conn-2"}},
+		},
+		IsActive: true,
+	})
+
+	ch := make(chan *schemas.StreamChunk)
+	close(ch)
+	fake := &fakeResponsesResolver{streamCh: ch}
+	h := &ResponsesHandler{router: fake, registry: translation.NewRegistry()}
+	h.SetVKGate(NewVKGate(resolver, newFakeVKQuotaChecker()))
+	h.SetVKPinnedResolver(&fakePinnedKeyResolver{connID: "conn-2", credential: "cred-2", ok: true})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/responses")
+	ctx.Request.Header.Set("x-g0-vk", "vk-pinned")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4","input":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	if fake.lastProv == nil {
+		t.Fatal("provider not resolved")
+	}
+	if fake.lastProv.capturedKey.ID != "conn-2" {
+		t.Errorf("key.ID = %q, want conn-2", fake.lastProv.capturedKey.ID)
+	}
+	if fake.lastProv.capturedKey.Value != "cred-2" {
+		t.Errorf("key.Value = %q, want cred-2", fake.lastProv.capturedKey.Value)
 	}
 }
