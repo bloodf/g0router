@@ -9,7 +9,7 @@ Serial slot: `internal/server/routes_admin.go` — w6-d is the 2nd w6 holder (af
 
 | Row | Scope | Parity level |
 |---|---|---|
-| PAR-UI-069 | 39 locales in LOCALES array (source of truth: 9router `src/i18n/config.js:1`) | FULL |
+| PAR-UI-069 | 33 locales in LOCALES array (source of truth: 9router `src/i18n/config.js:1`) | FULL |
 | PAR-UI-070 | i18n runtime wiring | PARTIAL after w6-d (I18nProvider created + configured — variant of DOM approach per WAVE-6-MAP §Arch decision 3; rows DO NOT flip HAVE, only PARTIAL) |
 | PAR-UI-071 | Re-process on route change | PARTIAL after w6-d (router.subscribe hook in I18nProvider — variant; HAVE deferred to w6-b which mounts I18nProvider in __root.tsx) |
 | PAR-UI-072 | locale cookie + `POST /api/locale` endpoint | FULL |
@@ -33,8 +33,8 @@ Serial slot: `internal/server/routes_admin.go` — w6-d is the 2nd w6 holder (af
 
 UI — new directory `ui/src/i18n/` (no other task touches it):
 - `ui/src/i18n/index.ts` — i18next + react-i18next init (resources, fallback `en`, no suspense), exports `i18n` instance.
-- `ui/src/i18n/locales.ts` — `LOCALES` metadata array: `{ code, name, flag }` ×39, mirrored from ref `config.js`.
-- `ui/src/i18n/locales/*.json` — ×39 minimal translation files (one per code; `{}` or shared seed keys only).
+- `ui/src/i18n/locales.ts` — `LOCALES` metadata array: `{ code, name, flag }` ×33, mirrored from ref `config.js`.
+- `ui/src/i18n/locales/*.json` — ×33 minimal translation files (one per code; `{}` or shared seed keys only).
 - `ui/src/providers/i18n.tsx` — `I18nProvider`: mounts react-i18next, reads `locale` cookie for initial language, subscribes to TanStack Router route changes (PAR-UI-071 variant), exposes `setLocale` that calls `POST /api/locale` via `apiFetch` then `i18n.changeLanguage`.
 
 Go — new files plus one append-only slot:
