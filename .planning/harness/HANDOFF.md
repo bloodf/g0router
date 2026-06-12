@@ -168,3 +168,13 @@ Impl order: dashboard track w3-a → w3-b → (w3-c ∥ w3-d) ; w3-e independent
 ### Wave 4 — PLANS LOCKED (2026-06-12), implementation pending; audit fixes G1-G6 in w4-pre. Original 'NEXT' note: (combo chains, fallback, rate-limit rotation, bypass patterns PAR-ROUTE-034 canonical, model aliases). PAR-ROUTE ~60 + ~20 PR ports. Depends on W1+W2 (composes providers+translation). Needs Fable-5 planning. w2-d router does single-provider resolution today; Wave 4 adds the composition layer.
 
 ### Wave 4 impl order (Sonnet): w4-pre ALONE first (audit G1-G6 + PAR-TRANS-006/051/052/053) → then w4-a (aliases) ∥ w4-b (errors/retry) ∥ w4-c (conn-state) → w4-d (selection, after c; serial-on-settings.go after b) → w4-e (combos, after a-d; serial-on-settings.go after d) → w4-f (pipeline glue, after a+b; ONLY internal/api editor, last). NO shared-file concurrency. Audit: reviews/wave0-3-audit-2026-06-12.md (2 HIGH wiring gaps now in w4-pre). All 7 plans closed-by-decision (harness gate sees only routing matrix; PR rows + in-tree source rebutted).
+
+### Wave 5 — COMPLETE (2026-06-12)
+Usage/cost/request-logging/virtual-keys. 8 plans (WAVE-5-MAP): w5-pre debt closure →
+w5-a schema+pricing → (w5-b ∥ w5-c) → (w5-d → w5-e) ∥ w5-f → w5-g. Plan gates:
+pre/c PASS, others closed-by-decision after 3 cycles. Diff gates: all closed after
+1-3 fix rounds each (dispositions + fix micro-plans in plans/ and plans/fixes/).
+Real catches worth remembering: wrong-account token on /api/usage/{connectionId},
+tracker emit-under-mutex deadlock risk, zero-token live stats, unknown-VK bypass,
+dead shutdown/APIKey wiring. Rows: usage 37/1/2, auth 28/1/1, translation 65/1/1,
+routing 47/2/11. W6+: governed by CLI_ORCHESTRATOR.md (repo root), not this file.

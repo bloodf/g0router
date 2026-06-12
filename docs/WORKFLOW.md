@@ -6551,3 +6551,30 @@ failures). Cycle-3: ref-pipeline rebuttals (extractUsage maps formats before
 normalize); APIKey attribution transferred to w5-g (its quota engine consumes it).
 Rows_flipped: PAR-TRANS-046 PARTIAL→HAVE (translation 65/1/1); PAR-ROUTE-054 →
 HAVE (routing 46/1/13).
+
+## w5-g: MERGED — Wave 5 COMPLETE (2026-06-12)
+Diff gate closed by decision after 3 cycles. Fix rounds: r1 e565dd4 (unknown-VK
+denial — REAL security bypass: bogus x-g0-vk headers passed through; per-provider
+model enforcement; VK spend attribution into request_log.api_key — the w5-f transfer
+without which budget enforcement read zero; direct gate tests), r2 0194d45
+(store-level SumCostByAPIKey test). Cycle-3 KeyIDs theme (3rd occurrence) conceded
+via row status: PAR-ROUTE-030 → PARTIAL (KeyIDs upstream-key pinning → W6 with
+PAR-ROUTE-057/058); PAR-ROUTE-031 → HAVE. Routing rollup 47/2/11.
+
+## Wave 5 — COMPLETE (2026-06-12)
+All 8 plans merged with gates closed: w5-pre (W4 debt closure: production OAuth
+refresher, ErrModelTransient runner, combo dispatch), w5-a (schema + pricing engine),
+w5-b (usage write path + trackers), w5-c (observability writer + AUTH-017/018),
+w5-d (usage read APIs + pricing routes), w5-e (SSE + provider quota, 032 Stage-1
+half), w5-f (pipeline usage glue: TRANS-046 + ROUTE-054), w5-g (virtual keys:
+030 PARTIAL + 031).
+Matrix deltas this wave: usage 0/0/40 → 37/1/2 (remaining: 036/037 UI → W6); auth
++017/+018 → 28/1/1; translation TRANS-046 → 65/1/1; routing +030(P)/+031/+054 →
+47/2/11. All gates: go build/vet/test/-race green at every merge.
+Carry-forwards into W6: PAR-USAGE-036/037 (UI components), PAR-ROUTE-030 KeyIDs
+half, PAR-ROUTE-057/058 (settings-driven catalogs), GetTestByKind live pinging,
+PAR-PR-339 (combo list UI). Process notes: worker checkout incident → absolute
+prohibition in all prompts; diff-gate argv limit → split-run procedure; commit-range
+pollution → exact-file scoping + blame verification.
+Next: Wave 6 under CLI_ORCHESTRATOR.md (d5a6ef5) — ON HOLD pending operator model
+change (user directive 2026-06-12).

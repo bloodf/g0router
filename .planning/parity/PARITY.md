@@ -14,7 +14,7 @@ North star: g0router is a total replacement. v1.0 = drop-in 9router replacement.
 |---|---|---:|---:|---:|---:|---:|---|
 | 9router Translation | `matrix/9router-translation.md` | 67 | 65 | 1 | 1 | 0 | Stage 1 |
 | 9router Providers | `matrix/9router-providers.md` | 67 | 3 | 0 | 63 | 1 | Stage 1 |
-| 9router Routing | `matrix/9router-routing.md` | 60 | 46 | 1 | 13 | 0 | Stage 1 |
+| 9router Routing | `matrix/9router-routing.md` | 60 | 47 | 2 | 11 | 0 | Stage 1 |
 | 9router Auth | `matrix/9router-auth.md` | 30 | 28 | 1 | 1 | 0 | Stage 1 |
 | 9router Usage | `matrix/9router-usage.md` | 40 | 37 | 1 | 2 | 0 | Stage 1 |
 | 9router UI | `matrix/9router-ui.md` | 133 | 9 | 2 | 117 | 5 | Stage 1 |

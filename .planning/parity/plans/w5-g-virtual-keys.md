@@ -149,3 +149,21 @@ triage:
   with RateLimitRPM's name and the Budget{Limit,Used} schema. Recorded as the
   binding interpretation for PAR-ROUTE-031.
 APPROVED BY DECISION for dispatch after w5-f merges (last in wave).
+
+## Diff-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1 REAL FIXED (fix-r1, e565dd4 + 3 commits:
+unknown-VK denial 401 — security bypass closed; per-provider model enforcement via
+VKProviderConfig + AllowVK(key, model, providerID); VK spend attribution into
+request_log.api_key — the w5-f transfer that makes QuotaEngine.SumCostByAPIKey read
+real spend; direct table-driven VKGate tests). Cycle-2 REAL FIXED (fix-r2, 0194d45:
+store-level TestSumCostByAPIKey over real SQL). Cycle-3 residual: all three findings
+are the THIRD occurrence of the KeyIDs theme, deferred with recorded rationale in
+fix-r1 AND fix-r2 dispositions — ProviderConfig.KeyIDs pinning requires
+connection-pinned dispatch through the selection engine, the settings/catalog-driven
+work deferred to W6 with PAR-ROUTE-057/058. RESOLUTION CONCEDES THE SUBSTANCE: row
+PAR-ROUTE-030 flips to **PARTIAL**, not HAVE — Stage-1 half = header gate +
+provider/model constraints + budget/RPM quota + spend attribution; W6 half = KeyIDs
+upstream-key pinning. Same recorded partial mechanism as PAR-USAGE-032 and
+PAR-AUTH-020. PAR-ROUTE-031 (per-key quota tracking) flips HAVE — budget windows +
+RPM + real spend source all shipped and tested end-to-end.
+Full gates green (build/vet/test/-race verified live). MERGED. Wave 5 complete.
