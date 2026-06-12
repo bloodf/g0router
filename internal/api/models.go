@@ -6,6 +6,7 @@ import (
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/schemas"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
@@ -14,10 +15,16 @@ type DisabledChecker interface {
 	IsDisabled(providerAlias, modelID string) (bool, error)
 }
 
+// ComboLister returns the list of defined combos (PAR-ROUTE-047: combo names first in /v1/models).
+type ComboLister interface {
+	ListCombos() ([]*store.Combo, error)
+}
+
 // ModelsHandler handles GET /v1/models and GET /v1/models/:id.
 type ModelsHandler struct {
 	router          *inference.Router
 	disabledChecker DisabledChecker
+	comboLister     ComboLister
 }
 
 // NewModelsHandler creates a models handler.
@@ -30,11 +37,33 @@ func (h *ModelsHandler) SetDisabledChecker(dc DisabledChecker) {
 	h.disabledChecker = dc
 }
 
+// SetComboLister wires a combo lister so combo names appear first in /v1/models (PAR-ROUTE-047).
+func (h *ModelsHandler) SetComboLister(cl ComboLister) {
+	h.comboLister = cl
+}
+
 // List handles GET /v1/models.
 func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 	resp := &schemas.ListModelsResponse{
 		Object: "list",
 	}
+
+	// Combo names appear first (PAR-ROUTE-047).
+	if h.comboLister != nil {
+		combos, err := h.comboLister.ListCombos()
+		if err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, "server_error", "failed to list combos", nil)
+			return
+		}
+		for _, c := range combos {
+			resp.Data = append(resp.Data, schemas.ModelEntry{
+				ID:      c.Name,
+				Object:  "model",
+				OwnedBy: "combo",
+			})
+		}
+	}
+	providerStart := len(resp.Data)
 
 	// Aggregate models from all Stage-1 provider catalogs, skipping disabled ones.
 	for providerID := range catalog.Providers {
@@ -57,9 +86,9 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 		}
 	}
 
-	// Deterministic order: sort by model ID.
-	sort.Slice(resp.Data, func(i, j int) bool {
-		return resp.Data[i].ID < resp.Data[j].ID
+	// Sort only the provider-model section; combo entries keep their list order.
+	sort.Slice(resp.Data[providerStart:], func(i, j int) bool {
+		return resp.Data[providerStart+i].ID < resp.Data[providerStart+j].ID
 	})
 
 	b, err := jsonMarshal(resp)

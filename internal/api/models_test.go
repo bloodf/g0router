@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/translation"
 	"github.com/valyala/fasthttp"
 )
@@ -220,6 +221,61 @@ func TestModelsListExcludesDisabled(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("deepseek-reasoner should still appear")
+	}
+}
+
+// fakeComboLister implements ComboLister for testing.
+type fakeComboLister struct {
+	combos []*store.Combo
+}
+
+func (f *fakeComboLister) ListCombos() ([]*store.Combo, error) {
+	return f.combos, nil
+}
+
+func TestModelsListCombosFirst(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetComboLister(&fakeComboLister{
+		combos: []*store.Combo{
+			{Name: "fast-combo", Models: []string{"gpt-4"}},
+			{Name: "smart-combo", Models: []string{"claude-3-opus"}},
+		},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(resp.Data) < 2 {
+		t.Fatalf("expected at least 2 entries, got %d", len(resp.Data))
+	}
+	// First two entries must be combo entries in list order.
+	if resp.Data[0].ID != "fast-combo" || resp.Data[0].OwnedBy != "combo" {
+		t.Errorf("data[0] = {%q, %q}, want {fast-combo, combo}", resp.Data[0].ID, resp.Data[0].OwnedBy)
+	}
+	if resp.Data[1].ID != "smart-combo" || resp.Data[1].OwnedBy != "combo" {
+		t.Errorf("data[1] = {%q, %q}, want {smart-combo, combo}", resp.Data[1].ID, resp.Data[1].OwnedBy)
+	}
+	// Remaining entries must be provider models (not combo-owned).
+	for i, m := range resp.Data[2:] {
+		if m.OwnedBy == "combo" {
+			t.Errorf("data[%d] = {%q, combo}, expected provider model", i+2, m.ID)
+		}
 	}
 }
 

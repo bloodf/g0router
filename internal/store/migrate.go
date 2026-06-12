@@ -88,6 +88,12 @@ func migrate(db *sql.DB) error {
 			model_id TEXT NOT NULL,
 			PRIMARY KEY (provider_alias, model_id)
 		)`},
+		{"combos", `CREATE TABLE IF NOT EXISTS combos (
+			name TEXT PRIMARY KEY,
+			models_json TEXT NOT NULL DEFAULT '[]',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
