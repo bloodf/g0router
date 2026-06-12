@@ -60,6 +60,12 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.PUT("/api/keys/{id}", h.RequireSession(h.UpdateAPIKey))
 	r.DELETE("/api/keys/{id}", h.RequireSession(h.DeleteAPIKey))
 
+	r.GET("/api/virtual-keys", h.RequireSession(h.ListVirtualKeys))
+	r.POST("/api/virtual-keys", h.RequireSession(h.CreateVirtualKey))
+	r.GET("/api/virtual-keys/{id}", h.RequireSession(h.GetVirtualKey))
+	r.PUT("/api/virtual-keys/{id}", h.RequireSession(h.UpdateVirtualKey))
+	r.DELETE("/api/virtual-keys/{id}", h.RequireSession(h.DeleteVirtualKey))
+
 	r.GET("/api/oauth/{provider}/start", h.RequireSession(h.OAuthStart))
 	r.POST("/api/oauth/{provider}/callback", h.RequireSession(h.OAuthCallback))
 
