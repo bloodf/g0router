@@ -9,7 +9,7 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 
 | ID | Behavior | Evidence (file:line) | g0router status | Notes |
 |---|---|---|---|---|
-| PAR-UI-001 | Route `/` redirects to `/dashboard` | `src/app/page.js:4` | MISSING | g0router `App.tsx` is a static placeholder with no router logic |
+| PAR-UI-001 | Route `/` redirects to `/dashboard` | `ui/src/routes/__root.tsx` | HAVE | `beforeLoad` throws `redirect({ to: '/dashboard' })` |
 | PAR-UI-002 | Route `/login` renders password + OIDC login form | `src/app/login/page.js:7-197` | MISSING | g0router e2e expects `/login` but no page exists in `src/` |
 | PAR-UI-003 | Route `/callback` handles OAuth callback via postMessage, BroadcastChannel, localStorage | `src/app/callback/page.js:9-147` | MISSING | g0router has no OAuth callback page |
 | PAR-UI-004 | Route `/landing` marketing page | `src/app/landing/page.js` | MISSING | Not referenced in g0router e2e |
@@ -34,12 +34,12 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-023 | Route `/dashboard/media-providers/[kind]/[id]` media provider detail | `src/app/(dashboard)/dashboard/media-providers/[kind]/[id]/page.js` | MISSING | Not in g0router e2e |
 | PAR-UI-024 | Route `/dashboard/media-providers/web` web search/fetch combos | `src/app/(dashboard)/dashboard/media-providers/web/page.js` | MISSING | Not in g0router e2e |
 | PAR-UI-025 | Route `/dashboard/settings/pricing` pricing management | `src/app/dashboard/settings/pricing/page.js` | MISSING | g0router e2e expects `/pricing` |
-| PAR-UI-026 | Dashboard layout wraps all routes with sidebar + header + toasts | `src/app/(dashboard)/layout.js:1-6` | MISSING | g0router has `__root.tsx` but no layout components |
+| PAR-UI-026 | Dashboard layout wraps all routes with sidebar + header + toasts | `ui/src/routes/__root.tsx` | HAVE | `ThemeProvider > I18nMount > flex shell [Sidebar | MobileSidebar | Header + Outlet] + Toaster` |
 | PAR-UI-027 | Root layout loads Inter font, ThemeProvider, RuntimeI18nProvider | `src/app/layout.js:1-49` | MISSING | g0router `main.tsx` only mounts `<App />` in StrictMode |
-| PAR-UI-028 | Sidebar renders traffic lights, logo, nav items, media accordion, update checker | `src/shared/components/Sidebar.js:20-440` | MISSING | g0router e2e expects sidebar navigation links |
-| PAR-UI-029 | Header renders breadcrumbs, page title, search bar, auth badge, donate, theme/lang toggles, logout | `src/shared/components/Header.js:17-364` | MISSING | g0router e2e expects header with user menu |
-| PAR-UI-030 | Toast notifications via Zustand store with auto-dismiss | `src/shared/components/layouts/DashboardLayout.js:9-70` | MISSING | g0router `package.json` includes `sonner` |
-| PAR-UI-031 | Mobile sidebar with overlay and slide-in animation | `src/shared/components/layouts/DashboardLayout.js:71-91` | MISSING | g0router e2e tests responsive navigation |
+| PAR-UI-028 | Sidebar renders traffic lights, logo, nav items, media accordion, update checker | `ui/src/components/layout/sidebar.tsx` | PARTIAL | Traffic lights, logo, 29 nav items, update badge present; media accordion + live update-check deferred |
+| PAR-UI-029 | Header renders breadcrumbs, page title, search bar, auth badge, donate, theme/lang toggles, logout | `ui/src/components/layout/header.tsx` | PARTIAL | Breadcrumbs, title, search bound to store, auth badge present; theme/lang toggles + logout + donate slots null (w6-b/c/j) |
+| PAR-UI-030 | Toast notifications via Zustand store with auto-dismiss | `ui/src/stores/notification.ts`, `ui/src/components/layout/toaster.tsx` | HAVE | Zustand `notificationStore` with auto-dismiss; sonner bridge via `AppToaster` |
+| PAR-UI-031 | Mobile sidebar with overlay and slide-in animation | `ui/src/components/layout/mobile-sidebar.tsx` | HAVE | Reuses `NAV_ITEMS`, overlay closes panel, hamburger-driven |
 | PAR-UI-032 | Button component with variants (primary, secondary, ghost, outline, danger), sizes, icon, loading | `src/shared/components/Button.js` | MISSING | g0router uses shadcn/ui via `components.json` |
 | PAR-UI-033 | Input component with label, error, hint | `src/shared/components/Input.js` | MISSING | g0router uses shadcn/ui via `components.json` |
 | PAR-UI-034 | Select component with options array | `src/shared/components/Select.js` | MISSING | g0router uses shadcn/ui via `components.json` |
@@ -81,15 +81,15 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-070 | i18n: runtime DOM translation via MutationObserver, stores `_originalText` per node | `src/i18n/runtime.js` | MISSING | g0router intends `react-i18next` hook-based approach |
 | PAR-UI-071 | i18n: `RuntimeI18nProvider` re-processes DOM on route change (double RAF) | `src/i18n/RuntimeI18nProvider.js:7-27` | MISSING | g0router `package.json` `sideEffects: ["src/lib/i18n.ts"]` |
 | PAR-UI-072 | i18n: locale cookie name `locale`, POST `/api/locale` to set server-side | `src/shared/components/LanguageSwitcher.js` | MISSING | g0router e2e mocks `GET/PUT /api/locale` |
-| PAR-UI-073 | Theming: Tailwind CSS v4 with `@theme inline` and semantic tokens | `src/app/globals.css` | PARTIAL | g0router has `tailwindcss@^4.2.1` + `@tailwindcss/vite` |
-| PAR-UI-074 | Theming: brand color `#E56A4A`, light `#FDFAF6`, dark `#1a1a1a` | `src/app/globals.css` | MISSING | g0router `components.json` sets `baseColor: slate` |
-| PAR-UI-075 | Theming: Zustand themeStore with `persist` middleware, key `"theme"` | `src/store/themeStore.js:1-54` | MISSING | g0router `package.json` has `zustand` |
-| PAR-UI-076 | Theming: `useTheme` hook syncs with `prefers-color-scheme` via `useSyncExternalStore` | `src/shared/hooks/useTheme.js` | MISSING | g0router has no hooks in `src/` yet |
-| PAR-UI-077 | Theming: `ThemeProvider` calls `initTheme()` on mount | `src/shared/components/ThemeProvider.js` | MISSING | g0router `App.tsx` sets `colorScheme: 'light dark'` inline |
-| PAR-UI-078 | Theming: `.dark` class toggled on `<html>` | `src/store/themeStore.js:46-50` | MISSING | g0router has no theme implementation |
-| PAR-UI-079 | Icons: Material Symbols Outlined font with `fill-1` class | `src/app/layout.js:2` | PARTIAL | g0router `package.json` has `material-symbols` and `lucide-react` |
-| PAR-UI-080 | State: Zustand stores (themeStore, userStore, providerStore, settingsStore, notificationStore, headerSearchStore) | `src/store/*.js` | MISSING | g0router `package.json` has `zustand` |
-| PAR-UI-081 | Data fetching: raw `fetch()` with local state, no React Query/SWR | `src/app/login/page.js:33`, `src/shared/components/UsageStats.js:242` | MISSING | g0router `package.json` has `@tanstack/react-query` |
+| PAR-UI-073 | Theming: Tailwind CSS v4 with `@theme inline` and semantic tokens | `ui/src/index.css` | HAVE | `@theme inline` with primary, background, foreground, muted, border, ring tokens + dark overrides |
+| PAR-UI-074 | Theming: brand color `#E56A4A`, light `#FDFAF6`, dark `#1a1a1a` | `ui/src/index.css` | HAVE | `--color-primary: #e56a4a; --color-bg-light: #fdfaf6; --color-bg-dark: #1a1a1a` |
+| PAR-UI-075 | Theming: Zustand themeStore with `persist` middleware, key `"theme"` | `ui/src/stores/theme.ts` | HAVE | `create(persist(..., { name: 'theme' }))` with light/dark/system |
+| PAR-UI-076 | Theming: `useTheme` hook syncs with `prefers-color-scheme` via `useSyncExternalStore` | `ui/src/hooks/use-theme.ts` | HAVE | `useSyncExternalStore` over `matchMedia('(prefers-color-scheme: dark)')` |
+| PAR-UI-077 | Theming: `ThemeProvider` calls `initTheme()` on mount | `ui/src/providers/theme.tsx` | HAVE | `useEffect` calls `initTheme()` on mount; re-applies on theme/system change |
+| PAR-UI-078 | Theming: `.dark` class toggled on `<html>` | `ui/src/stores/theme.ts` | HAVE | `document.documentElement.classList.toggle('dark', ...)` in `applyTheme` |
+| PAR-UI-079 | Icons: Material Symbols Outlined font with `fill-1` class | `ui/src/index.css` | HAVE | `@import 'material-symbols/outlined.css'` + `.fill-1 { font-variation-settings: 'FILL' 1; }` |
+| PAR-UI-080 | State: Zustand stores (themeStore, userStore, providerStore, settingsStore, notificationStore, headerSearchStore) | `ui/src/stores/*.ts` | HAVE | All six stores implemented; theme/settings use `persist` |
+| PAR-UI-081 | Data fetching: raw `fetch()` with local state, no React Query/SWR | `ui/src/lib/api.ts` | HAVE (variant) | `apiFetch` unwraps Go `{data,error}` envelope; serves as TanStack Query `queryFn` adapter |
 | PAR-UI-082 | Real-time: SSE `EventSource` for usage stats at `/api/usage/stream` | `src/shared/components/UsageStats.js:255-278` | MISSING | g0router e2e mocks SSE with `MockEventSource` |
 | PAR-UI-083 | Real-time: SSE `EventSource` for console logs at `/api/translator/console-logs/stream` | `src/app/(dashboard)/dashboard/console-log/page.js` | MISSING | g0router e2e mocks SSE for `/api/console-logs/stream` |
 | PAR-UI-084 | Drag & Drop: `@dnd-kit/core` + `@dnd-kit/sortable` in combo builder | `src/app/(dashboard)/dashboard/combos/page.js:4-7` | HAVE | g0router `package.json` has `@dnd-kit/core`, `@dnd-kit/sortable` |

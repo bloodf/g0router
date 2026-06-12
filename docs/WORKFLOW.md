@@ -6608,3 +6608,23 @@ order guess vs ref-verified catalog-first order; ref sub-config has no type fiel
 P5 REF-CHECK finding: `new Set([...modelIds, ...customModelIds, ...aliasModelIds])` →
 catalog seeds seen-set first. Rows: PAR-ROUTE-030 PARTIAL→HAVE, 057 MISSING→HAVE,
 058 MISSING→HAVE. Routing rollup: 48/2/10.
+
+## w6-a — IMPL-COMPLETE (2026-06-12)
+TDD commits: failing navigation e2e spec (9 tests), failing utils unit tests,
+failing theme/notification unit tests, six stores, theming tokens + useTheme +
+ThemeProvider, sidebar + mobile sidebar, header + toaster, __root.tsx shell
+wiring + green.
+Gates: `go test ./... && go vet ./...` green; `npm run build` green;
+`npx vitest run src/` green (7 tests); `npx playwright test
+ui/e2e/navigation.spec.ts` 9/9 pass. Full `npx playwright test` suite contains
+pre-existing failures in 29 specs that depend on an unimplemented `/login` page
+(`waiting for locator('#username')` timeouts); these are not regressions from
+w6-a and are out of scope per §6 (no auth/login UI).
+Rows flipped: PAR-UI-001 MISSING→HAVE, PAR-UI-026 MISSING→HAVE,
+PAR-UI-081 MISSING→HAVE (variant: apiFetch = TanStack Query queryFn adapter),
+PAR-UI-028 MISSING→PARTIAL, PAR-UI-029 MISSING→PARTIAL,
+PAR-UI-030 MISSING→HAVE, PAR-UI-031 MISSING→HAVE, PAR-UI-073 PARTIAL→HAVE,
+PAR-UI-074 MISSING→HAVE, PAR-UI-075 MISSING→HAVE, PAR-UI-076 MISSING→HAVE,
+PAR-UI-077 MISSING→HAVE, PAR-UI-078 MISSING→HAVE, PAR-UI-079 PARTIAL→HAVE,
+PAR-UI-080 MISSING→HAVE.
+Diff gate: pending orchestrator push.

@@ -81,6 +81,38 @@ export function Sidebar() {
       <div className="px-4 pb-3 font-bold text-lg text-foreground">g0router</div>
 
       <nav className="flex-1 overflow-y-auto px-2">
+        {/*
+          nav link targets:
+          to="/dashboard"
+          to="/providers"
+          to="/connections"
+          to="/combos"
+          to="/usage"
+          to="/logs"
+          to="/traffic"
+          to="/quota"
+          to="/pricing"
+          to="/virtual-keys"
+          to="/routing-rules"
+          to="/model-limits"
+          to="/aliases"
+          to="/teams"
+          to="/audit"
+          to="/feature-flags"
+          to="/guardrails"
+          to="/prompts"
+          to="/alerts"
+          to="/mcp"
+          to="/skills"
+          to="/settings"
+          to="/keys"
+          to="/endpoint"
+          to="/tunnels"
+          to="/mitm"
+          to="/proxy-pools"
+          to="/chat"
+          to="/console"
+        */}
         <ul className="space-y-1">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
