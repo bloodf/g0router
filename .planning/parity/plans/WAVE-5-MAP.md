@@ -42,7 +42,7 @@ the derived-log read path (PAR-USAGE-023 — ref derives logs from usageHistory,
 
 | Plan | Scope | Rows | Key ref evidence | Depends |
 |---|---|---|---|---|
-| **w5-pre** | Carry-forward debts: production `CredentialRefresher` (OAuth token-exchange via `OAuthFlow.Refresh` + persist rotated tokens to connections; wire `SetCredentialRefresher` in server startup); production runner wraps 502/503/504 in `ErrModelTransient` | debts (w4-e/w4-f dispositions) | in-tree `internal/api/chat.go:97-118,143-165`, `internal/auth/oauth.go:221-264`, `internal/inference/combo.go:21-23,190-191` | — (FIRST, alone) |
+| **w5-pre** | Carry-forward debts: production `CredentialRefresher` (OAuth token-exchange via `OAuthFlow.Refresh` + persist rotated tokens to connections; wire `SetCredentialRefresher` in server startup); production runner wraps 502/503/504 in `ErrModelTransient`; combo dispatch glue in chat path — the production caller chain (Cooldown→Selection→Runner→ComboEngine) that makes the runner real, recorded as follow-up in `w4-f-pipeline-glue.md:22` ("Combo dispatch into the chat path: … a noted follow-up task") and required by w4-e cycle-3 disposition ("The production runner … is a pipeline glue concern") | debts (w4-e/w4-f dispositions) | in-tree `internal/api/chat.go:97-118,143-165`, `internal/auth/oauth.go:221-264`, `internal/inference/combo.go:21-23,190-191`, `internal/inference/selection.go:226` | — (FIRST, alone) |
 | **w5-a** | Schema + pricing engine: `request_log`/`usage_daily`/`request_details`/`kv` tables in migrate.go; `internal/usage` pricing tables (MODEL/PROVIDER/PATTERN), glob matcher, 3-step resolution, 5-category cost calc, token-field normalization, kv-backed user overrides merged view + 5s cache | 001-004 (tables), 005,006,007,008,009,010,040 | `src/shared/constants/pricing.js:12-303`, `src/lib/db/repos/pricingRepo.js:5-108`, `src/lib/db/schema.js:96-150` | w5-pre |
 | **w5-b** | Usage write path + live trackers: transactional save (history insert + daily upsert + lifetime counter), cost-at-save, daily aggregation entry shape (byProvider/byModel/byAccount/byApiKey/byEndpoint with meta), recent-request dedup, pending tracker (60s timeout), ring buffer (50), connection-name cache (30s TTL), stats-update event hook for SSE | 001,002 (write semantics), 011,012,018,019,020,038 | `src/lib/db/repos/usageRepo.js:6-287` | w5-a |
 | **w5-c** | Observability writer: buffered request-details writes (batch flush at batchSize, timer flush, shutdown flush), config from settings+env (enabled/maxRecords/batchSize/flushIntervalMs/maxJsonSize), header sanitizer (=PAR-AUTH-017), JSON truncation >maxJsonSize, retention delete-oldest, filtered+paginated query; debug-log production gate (PAR-AUTH-018) in `internal/logging` | 003 (write semantics), 024,025,026,027,028 + AUTH-017,018 | `src/lib/db/repos/requestDetailsRepo.js:4-200`, `debugLog.js:3` | w5-a (∥ w5-b) |
@@ -53,8 +53,11 @@ the derived-log read path (PAR-USAGE-023 — ref derives logs from usageHistory,
 
 ## Ownership tracks (W3/W4 lesson: NO shared files across live jobs)
 
-- w5-pre: `internal/auth/refresher*.go` (new), `internal/server/server.go` (wiring),
-  `internal/inference/runner*.go` (transient wrap) — runs ALONE first.
+- w5-pre: `internal/auth/credentials.go`, `internal/server/{server,routes_openai}.go`,
+  `internal/inference/runner*.go` (new), `internal/api/chat.go` (combo dispatch) — runs
+  ALONE first, so its chat.go touch precedes every concurrent W5 job. The "ONLY
+  internal/api editor" rule for w5-f governs the CONCURRENT phase (b∥c∥d/e/f); w5-pre
+  (alone, first) and w5-g (serialized last) touch internal/api without conflict.
 - w5-a: `internal/store/migrate.go` + `internal/store/kv*.go` +
   `internal/usage/pricing*.go` (new package) — ALONE (migrate.go is hot).
 - w5-b: `internal/store/requestlog*.go`, `internal/usage/tracker*.go`.
