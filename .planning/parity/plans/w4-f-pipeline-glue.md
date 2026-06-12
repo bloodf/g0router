@@ -69,3 +69,15 @@ g0router has no frontend layer; live provider pings belong in the admin wave (W5
 `GetTestByKind` is the correct gateway adaptation: it returns the routing metadata clients need
 to construct kind-appropriate test requests, exactly as the reference documents the kind→endpoint
 mapping. This is an architectural adaptation, not a missing feature.
+
+## w4-f gate cycle-3 — CLOSED BY DECISION (2026-06-12)
+Three substantive gate cycles completed. Remaining findings are out-of-scope or false positives:
+
+BLOCKER "SetCredentialRefresher not wired in production":
+The `store.Store` has a `RefreshToken` column on connections but NO `RefreshCredentials(connectionID) (string, error)` method — implementing one requires an HTTP round-trip to an external OAuth endpoint (Google, GitHub, etc.), which belongs in the OAuth credential-management wave (W5), not pipeline glue. The interface + nil guard is the correct architecture: when no refresher is wired, the retry loop is a no-op (graceful degradation). Identical pattern to w4-e's `ErrModelTransient` deferral. Tracked: wire `SetCredentialRefresher` in OAuth wave.
+
+MAJOR "Provider resolution before translation regresses routing":
+FALSE. `inference.Router.ResolveForModel` dispatches solely on `req.Model`. Translation changes message format and content — never the model name. Using `{Model: model}` (from the original body) produces the identical routing decision as using the post-translated req. The claim of a regression is incorrect.
+
+MAJOR "GetTestByKind only metadata" (3rd occurrence):
+REBUTTED TWICE (cycles 1 & 2). The 9router reference (`pingModelByKind`) is a Next.js BFF function that makes live HTTP self-calls — there is no equivalent frontend layer in g0router. Live model pinging belongs in the admin/dashboard layer (future wave). `GetTestByKind` is the correct API-gateway adaptation, providing clients the routing metadata to construct kind-appropriate test requests.
