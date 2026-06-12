@@ -151,13 +151,37 @@ routes_admin.go; w5-f owns internal/api (disjoint).
 ## Binary acceptance
 - `go build ./... && go vet ./...` clean; `go test ./...` green; `go test -race ./internal/usage/ ./internal/admin/ ./internal/store/` green.
 - `grep -c '/api/usage/stats\|/api/usage/chart\|/api/usage/request-logs\|/api/usage/logs\|/api/usage/request-details' internal/server/routes_admin.go` ≥ 5; method-explicit registration checks: `grep -c 'r.GET("/api/pricing"' internal/server/routes_admin.go` = 1, `grep -c 'r.PATCH("/api/pricing"' ...` = 1, `grep -c 'r.DELETE("/api/pricing"' ...` = 1.
-- TestLoadDailyRange, TestRangeRequestLogs, TestUsageStatsDailyPath, TestUsageStatsLivePath, TestLast10MinuteBuckets,
-  TestLastUsedOverlay, TestChartToday, TestChartDailyZeroFill, TestRecentLogsFormat,
-  TestUpdatePricingMergesPerProvider, TestResetPricing, TestPricingPatchValidation,
-  TestRequestDetailsRouteValidation all pass.
+- ALL named tests pass (complete list): TestLoadDailyRange, TestRangeRequestLogs,
+  TestUsageStatsDailyPath, TestUsageStatsLivePath, TestLast10MinuteBuckets,
+  TestLastUsedOverlay, TestChartToday, TestChart24hClamp, TestChartDailyZeroFill,
+  TestRecentLogsFormat, TestUpdatePricingMergesPerProvider, TestResetPricing,
+  TestResetAllPricing, TestKVDeleteAndClear, TestUsageStatsRoute,
+  TestRequestDetailsRouteValidation, TestPricingPatchValidation, TestPricingDelete.
 
 ## Out of scope
 SSE `/api/usage/stream` + per-connection provider quota (w5-e). Wiring usage capture
 into chat/messages handlers (w5-f). UI (W6). `/api/usage/history` and
 `/api/usage/providers` (excluded with evidence in §Ref route inventory; NOTE
 `/api/usage/logs` IS in scope — required by `matrix/9router-usage.md:125`).
+
+## Plan-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1 findings FIXED (scope terminology
+"inference-pipeline glue" vs admin routes; stats live-fields anchored to
+PAR-USAGE-015's evidence lines 372-375; route exclusions evidenced; /api/usage/logs
+included per matrix Go-port directive 9router-usage.md:125). Cycle-2 findings FIXED
+(Out-of-scope contradiction removed; history alias dropped; store-level test-first
+queries added; method-explicit pricing-route acceptance). Cycle-3 residual triage:
+- BLOCKER "/api/usage/request-logs not authorized": FALSE POSITIVE. PAR-USAGE-037
+  defers the W6 REACT COMPONENT, not the API it polls; w5-d's charter is exactly the
+  route halves whose UI consumers come later (same split as every row in this plan).
+  The ref serves BOTH paths with one function (request-logs/route.js:4-13 ≡
+  logs/route.js:4-12); registering both names of one handler adds zero scope. Note
+  the cycle-2/cycle-3 findings are mutually contradictory (cycle 2 attacked the
+  logs alias as unauthorized; cycle 3 attacks request-logs while accepting logs) —
+  a gate-stability artifact, not a plan defect.
+- MAJOR ownership crossing: FIXED at source — WAVE-5-MAP §Ownership now enumerates
+  the w5-d serial grants (kv Delete/Clear, pricing mutations, requestlog read
+  queries) recorded in w5-a's cycle-2 disposition. All serial-after-merge.
+- MAJOR missing named tests: REAL → FIXED (complete 18-test list in acceptance).
+Kimi diff gate at implementation is the binding check. APPROVED BY DECISION for
+dispatch after w5-b + w5-c merge.

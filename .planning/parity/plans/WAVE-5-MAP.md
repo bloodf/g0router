@@ -63,11 +63,20 @@ the derived-log read path (PAR-USAGE-023 — ref derives logs from usageHistory,
 - w5-b: `internal/store/requestlog*.go`, `internal/usage/tracker*.go`.
 - w5-c: `internal/store/requestdetails*.go`, `internal/usage/observability*.go`,
   `internal/logging/*` — disjoint from w5-b.
-- w5-d: `internal/admin/usage*.go`, `internal/admin/pricing*.go`,
-  `internal/server/routes_admin.go`.
-- w5-e: `internal/admin/usagestream*.go`, `internal/usage/providerusage*.go`;
+- w5-d: `internal/admin/usage.go`, `internal/admin/pricing.go` (exact names, not a
+  glob), `internal/usage/{stats,chart,logs}.go`, `internal/server/routes_admin.go`;
+  PLUS serial-after-merge additions granted by w5-a's cycle-2 disposition:
+  `internal/store/kv.go` (DeleteKV/ClearKVScope), `internal/usage/pricing.go`
+  (Update/Reset/ResetAll), and read queries in `internal/store/requestlog.go`
+  (after w5-b merges) — all SERIAL, no live concurrency on any of them.
+- w5-e: `internal/admin/usagestream.go` + `internal/admin/connectionusage.go`
+  (distinct from w5-d's exact-named files), `internal/usage/providerusage*.go`;
   routes_admin.go additions AFTER w5-d merges.
-- w5-f: `internal/api/*` — the ONLY plan touching internal/api (except w5-g after).
+- w5-f: `internal/api/*` (the ONLY concurrent-phase plan touching internal/api)
+  PLUS `internal/translation/{usage_tracking.go,stream.go}` (PAR-TRANS-046 lives in
+  the translation stream processor) and wiring-only touches to
+  `internal/server/{server,routes_openai}.go` — none of these files are owned by
+  any concurrent plan (w5-d/e own internal/admin + routes_admin.go only).
 - w5-g: `internal/store/virtualkeys*.go`, `internal/governance/*`, api hook +
   admin routes — LAST (serializes on both api and admin route files).
 

@@ -1,5 +1,12 @@
 # w5-f — Pipeline usage glue (ONLY internal/api editor of the concurrent phase)
 
+Ownership authority: WAVE-5-MAP §Ownership tracks (amended 2026-06-12) assigns w5-f
+`internal/api/*` PLUS `internal/translation/{usage_tracking.go,stream.go}` (the
+PAR-TRANS-046 stream processor lives in translation, not api) and wiring-only
+touches to `internal/server/{server,routes_openai}.go` — and records that no
+concurrent plan owns any of those files (w5-d/e own internal/admin +
+routes_admin.go only).
+
 PAR rows: PAR-TRANS-046 (usage clause — flips PARTIAL→HAVE; row text,
 `matrix/9router-translation.md:55`: "Central stream processor … tracks TTFT,
 accumulates content/thinking lengths, ESTIMATES USAGE ON FINISH … g0router
@@ -32,7 +39,13 @@ Frozen ref @ 827e5c3. Depends: w5-b + w5-c merged. Runs ∥ w5-d/e (api vs admin
    (`:57-113`), `estimateInputTokens` (`:240-255` — ceil(len(JSON(body))/4)),
    `estimateOutputTokens` (`:259-262` — max(1, floor(contentLength/4))),
    `formatUsage`/`estimateUsage` (`:270-305` — claude vs openai shape + estimated
-   flag + buffer).
+   flag + buffer). EVERY helper is demanded by the PAR-TRANS-046 finish-clause
+   call-sites in `stream.js` (none is speculative): `hasValidUsage` at :151/:292,
+   `estimateUsage` at :152/:293/:330, `filterUsageForFormat` at :153/:158/:294/:299,
+   `addBufferToUsage` at :158/:298, `extractUsage` at :147/:255, `normalizeUsage` is
+   extractUsage's output normalizer (usageTracking.js:172+ delegates),
+   `formatUsage` is estimateUsage's body (`:295-305`), `estimateInputTokens`/
+   `estimateOutputTokens` are formatUsage's inputs.
    STEP (a): table-driven `TestNormalizeUsage`, `TestHasValidUsage`,
    `TestExtractUsageFormats` (one fixture per source format), `TestAddBufferToUsage`
    (2000 + total recompute), `TestEstimateUsage` (golden: body of known JSON length →
@@ -81,9 +94,14 @@ Frozen ref @ 827e5c3. Depends: w5-b + w5-c merged. Runs ∥ w5-d/e (api vs admin
    (fake DetailWriter receives sanitized capture on success AND error paths),
    `TestMessagesRecordsUsage`, `TestEmbeddingsRecordsUsage` (endpoint attribution
    varies per route) — run — fail.
-   STEP (b): in `internal/api`: small consumer interfaces (api imports neither store
-   nor usage — the established seam precedent `internal/api/models.go:17-19`
-   `ComboLister` interface, w4-e): `UsageRecorder`, `PendingTracker`,
+   STEP (b): in `internal/api`: small consumer interfaces — NOT a stylistic choice:
+   `AGENTS.md:24` ("Layered DDD architecture (transport→domain→repository) enforced
+   by arch test") forbids the transport layer importing domain/repository packages
+   directly, so an api-side interface + setter is the ONLY compliant way to hand the
+   handlers a Recorder/Tracker/Writer (the mechanism every prior wave used:
+   `internal/api/models.go:17-19` ComboLister/DisabledChecker (w4-c/e),
+   `internal/api/chat.go` CredentialRefresher + ComboDispatcher (w4-f/w5-pre)):
+   `UsageRecorder`, `PendingTracker`,
    `DetailCapture`; setters on Chat/Messages/Embeddings/Responses handlers; glue:
    Start before dispatch; on completion End + Record (+ Detail) with endpoint =
    route path; on error End(error=true) + Record(status=error) + Detail. Server
@@ -92,9 +110,12 @@ Frozen ref @ 827e5c3. Depends: w5-b + w5-c merged. Runs ∥ w5-d/e (api vs admin
    ALREADY exists post-w5-pre (`internal/server/routes_openai.go:11` now takes
    `refresher api.CredentialRefresher, comboDisp api.ComboDispatcher`; this plan
    extends the same pattern). Also call `DetailWriter.Close()` on server shutdown —
-   the hook w5-c EXPLICITLY deferred here (`w5-c-observability.md` §Task 4: "explicit
-   `Close()` called from server shutdown is OUT of this plan's files" and §Out of
-   scope: "the server Close hook ships with w5-f's glue").
+   REF EVIDENCE `requestDetailsRepo.js:183-200` (`_shutdownHandler` flushes the
+   buffer on beforeExit/SIGINT/SIGTERM/exit — the shutdown flush is the ref's own
+   PAR-USAGE-026 behavior, not an invention); the call-SITE placement here is the
+   recorded w5-c deferral (`w5-c-observability.md` §Task 4: "explicit `Close()`
+   called from server shutdown is OUT of this plan's files" and §Out of scope: "the
+   server Close hook ships with w5-f's glue").
 
 ## Preconditions (each states its own pass condition)
 - `grep -c 'func (r \*Recorder) Record\|func (.*Recorder) Record' internal/usage/recorder.go` ≥ 1 (w5-b merged).

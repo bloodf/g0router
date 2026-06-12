@@ -20,8 +20,11 @@ Runs LAST in Wave 5, ALONE.
 
 1. **virtual_keys store** — evidence: schema `internal/schemas/governance.go:4-25`
    (`VirtualKey{ID, Name, ProviderConfigs[], Budget{Limit, Period, Used},
-   RateLimitRPM}`); store pattern `internal/store/apikeys.go` (key-table neighbor);
-   migrations additive per `internal/store/migrate.go`.
+   RateLimitRPM}`); store pattern `internal/store/apikeys.go:34+` (key-table
+   neighbor: generator seam, unique key column, is_active flag — read the whole
+   file before writing); migrations additive per `internal/store/migrate.go:74-78`
+   (the `model_aliases` entry is the minimal additive-table example to mirror) and
+   `migrate.go:105-107` (index creation pattern).
    STEP (a): `TestVirtualKeyCRUD` (create/get-by-id/get-by-key/list/update/delete
    round-trip; key value stored UNIQUE; unknown id → ErrNoRows-mapped per
    `settings.go:33-40` convention) — fails.
@@ -58,16 +61,29 @@ Runs LAST in Wave 5, ALONE.
    403 envelope), `TestChatVKQuotaDenied` (exhausted vk → 429 envelope, provider
    never called), `TestChatNoVKHeaderUnchanged` (no header → existing path
    untouched) — fail.
-   STEP (b): in `internal/api/chat.go` (serialized AFTER w5-f): `VKResolver`
-   interface (api imports neither store nor governance — w4-e seam precedent):
-   `ResolveVK(key string) (vk-info, ok)` + `AllowVK(key, model string) (ok, status,
-   reason)`; check after model resolution, before dispatch. Production adapter in
+   STEP (b): VK enforcement on ALL FOUR inference endpoints (PAR-ROUTE-030 names no
+   endpoint subset; the header gate applies wherever inference dispatches):
+   `internal/api/vk.go` (NEW) holds the shared `VKGate` helper + `VKResolver`
+   interface (api imports neither store nor governance — seam precedent
+   `internal/api/models.go:17-19`, mandated by `AGENTS.md:24` layering):
+   `AllowVK(key, model string) (ok bool, status int, reason string)`; each of
+   chat.go/messages.go/responses.go/embeddings.go (all serialized AFTER w5-f) calls
+   the gate after model resolution, before dispatch. Production adapter in
    `internal/server` wiring (same pattern as w5-pre's comboDispatcher adapter).
+   Add per-endpoint tests `TestMessagesVKHeaderRouting`, `TestResponsesVKDenied`,
+   `TestEmbeddingsVKDenied` alongside the chat tests in STEP (a).
 
-4. **Admin CRUD routes** — evidence: Phase-8 PLAN.md:27 (`internal/admin/keys.go` —
-   note: `/api/keys` is TAKEN by machine API-keys (w3-d, `routes_admin.go:52-56`);
-   virtual keys get `/api/virtual-keys` matching the Phase-8 dashboard page name
-   `_app.virtual-keys.tsx`, PLAN.md:31).
+4. **Admin CRUD routes** — evidence authority note: PAR-ROUTE-030/031's OWN matrix
+   evidence IS Phase-8 PLAN.md (`matrix/9router-routing.md:38-39` cite
+   `.planning/phases/08-keys-virtualkeys-routing/PLAN.md:46` and `:25`) — the same
+   document specifies "Virtual key CRUD" (PLAN.md:21) and the admin handlers
+   (PLAN.md:27); it carries identical evidentiary status for the CRUD half as for
+   the routing/quota halves. Enablement necessity: rows 030/031 are untestable
+   end-to-end without a way to create a virtual key — verification item 1
+   (PLAN.md:42 "Virtual key CRUD endpoints work") precedes the header-routing item
+   for exactly this reason. Route shape: `/api/keys` is TAKEN by machine API-keys
+   (w3-d, `routes_admin.go:52-56`); virtual keys get `/api/virtual-keys` matching
+   the Phase-8 dashboard page name `_app.virtual-keys.tsx` (PLAN.md:31).
    STEP (a): `TestVirtualKeysAdminCRUD` (POST validates name + provider_configs
    non-empty + budget fields non-negative → 400 on violation; GET list; PUT update;
    DELETE; envelope + snake_case) — fails.
@@ -84,21 +100,21 @@ Runs LAST in Wave 5, ALONE.
 
 ## Exclusive file ownership
 NEW: `internal/store/virtualkeys.go`(+test), `internal/governance/quota.go`(+test),
-`internal/admin/virtualkeys.go`(+test). TOUCH: `internal/store/migrate.go`(+test),
-`internal/store/requestlog.go`(+test — SumCostByAPIKey), `internal/api/chat.go`(+test),
+`internal/admin/virtualkeys.go`(+test), `internal/api/vk.go`(+test). TOUCH:
+`internal/store/migrate.go`(+test), `internal/store/requestlog.go`(+test —
+SumCostByAPIKey), `internal/api/{chat,messages,responses,embeddings}.go`(+tests),
 `internal/server/{server,routes_openai,routes_admin}.go` (wiring). Runs ALONE, last —
 no concurrency constraints.
 
 ## Binary acceptance
 - `go build ./... && go vet ./...` clean; `go test ./...` green; `go test -race ./internal/governance/ ./internal/api/ ./internal/store/` green.
-- `grep -c 'x-g0-vk' internal/api/chat.go` ≥ 1; `grep -c '/api/virtual-keys' internal/server/routes_admin.go` ≥ 2.
-- `grep -rc 'bloodf/g0router/internal/store\|bloodf/g0router/internal/governance' internal/api/chat.go` → `:0`.
+- `grep -c 'x-g0-vk' internal/api/vk.go` ≥ 1; `grep -c 'VKGate\|AllowVK' internal/api/chat.go internal/api/messages.go internal/api/responses.go internal/api/embeddings.go` ≥ 1 each; `grep -c '/api/virtual-keys' internal/server/routes_admin.go` ≥ 2.
+- `grep -c 'bloodf/g0router/internal/store' internal/api/vk.go` outputs `0`; `grep -c 'bloodf/g0router/internal/governance' internal/api/vk.go` outputs `0`.
 - TestVirtualKeyCRUD, TestVKBudgetExhaustion, TestVKRateLimitRPM, TestVKQuotaConcurrent,
   TestChatVKHeaderRouting, TestChatVKQuotaDenied, TestChatNoVKHeaderUnchanged,
+  TestMessagesVKHeaderRouting, TestResponsesVKDenied, TestEmbeddingsVKDenied,
   TestVirtualKeysAdminCRUD all pass.
 
 ## Out of scope
 Weighted selection / routing-rules / dashboard pages (Phase-8 leftovers → W6+ or
 non-parity). Per-vk usage analytics views (w5-d stats already break down byApiKey).
-Messages/responses/embeddings VK enforcement (chat is the Phase-8 verification
-surface; extending to sibling endpoints is a follow-up noted for W6).

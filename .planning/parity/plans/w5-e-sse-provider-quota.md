@@ -15,7 +15,8 @@ usage endpoint in the ref)." The structural reason the other six fetchers CANNOT
 now: their providers do not exist in g0router — the Stage-1 catalog holds only the 11
 Stage-1 entries (`internal/providers/catalog/catalog.go:26-27` "Only the 11 Stage-1
 entries are…"), and github/antigravity/codex/kiro/glm/minimax have neither adapters
-nor OAuth flows (`internal/server/server.go` flows map = anthropic/gemini/xai) — a
+nor OAuth flows (`internal/server/server.go:35-39` — the flows map literal holds
+exactly the keys "anthropic", "gemini", "xai") — a
 fetcher whose provider cannot be connected is dead code. This mirrors the recorded
 W3 precedent (`WAVE-3-MAP.md` §Stage-1 scope: OAuth handlers ONLY for providers
 whose adapters exist). Ref dispatcher `open-sse/services/usage.js:60-101`; claude
@@ -51,8 +52,8 @@ note — same mechanism as PAR-AUTH-020's Stage-1 half (w3-e precedent).
    GET `/api/usage/stream` in `internal/server/routes_admin.go` under
    `RequireSession`.
 
-2. **Provider quota fetchers: claude + gemini** — evidence (read in full before
-   porting): `usage.js:497-563` getClaudeUsage (OAuth usage endpoint first; on
+2. **Provider quota fetchers: claude + gemini (PAR-USAGE-032 Stage-1 half — see
+   §Stage-1 scope note)** — evidence (read in full before porting): `usage.js:497-563` getClaudeUsage (OAuth usage endpoint first; on
    non-OK falls back to legacy settings/org endpoint `getClaudeUsageLegacy`
    `:564-614`; returns quotas array with windows + resetsAt via `parseResetTime`
    `:103-135`); `usage.js:225-301` getGeminiUsage (loadCodeAssist→quota snapshot,
@@ -101,7 +102,10 @@ note — same mechanism as PAR-AUTH-020's Stage-1 half (w3-e precedent).
 ## Exclusive file ownership
 NEW: `internal/admin/usagestream.go`(+test), `internal/admin/connectionusage.go`(+test),
 `internal/usage/providerusage.go`(+test). TOUCH: `internal/server/routes_admin.go`
-(serial after w5-d). NO internal/api files (w5-f's domain).
+(serial after w5-d). NO internal/api files (w5-f's domain). Disambiguation vs w5-d:
+WAVE-5-MAP §Ownership (amended 2026-06-12) names w5-d's admin files EXACTLY
+(`internal/admin/usage.go`, `internal/admin/pricing.go` — no glob); this plan's two
+admin files are distinct names with zero overlap.
 
 ## Binary acceptance
 - `go build ./... && go vet ./...` clean; `go test ./...` green; `go test -race ./internal/admin/ ./internal/usage/` green.
@@ -113,7 +117,7 @@ NEW: `internal/admin/usagestream.go`(+test), `internal/admin/connectionusage.go`
   TestConnectionUsageAuthExpiredRetryOnce all pass.
 
 ## Out of scope
-Stage-2 fetchers (github/antigravity/codex/kiro/qoder/qwen/iflow/ollama/glm/minimax —
-port with their providers). Proxy options plumbing (`proxyOptions`, S2/W7 with proxy
+Stage-2 fetchers for the six remaining PAR-USAGE-032 providers
+(github/antigravity/codex/kiro/glm/minimax — port with their providers). Proxy options plumbing (`proxyOptions`, S2/W7 with proxy
 pools; w3-e env-proxy applies transparently via http.Client). Stats computation
 itself (w5-d). UI consumption (W6).
