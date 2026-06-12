@@ -24,7 +24,7 @@ type streamStatsService interface {
 
 // UsageStreamHandler serves GET /api/usage/stream as a Server-Sent Events stream.
 type UsageStreamHandler struct {
-	Handlers *Handlers
+	Handlers  *Handlers
 	Keepalive time.Duration
 	stats     streamStatsService
 }
@@ -115,10 +115,10 @@ func (h *UsageStreamHandler) serve(w *bufio.Writer, clientDone <-chan struct{}, 
 
 // streamState holds the cached stats and write mutex for a single SSE stream.
 type streamState struct {
-	mu      sync.Mutex
-	closed  bool
-	cached  map[string]any
-	writer  *bufio.Writer
+	mu     sync.Mutex
+	closed bool
+	cached map[string]any
+	writer *bufio.Writer
 }
 
 func (s *streamState) sendFull(stats streamStatsService) error {

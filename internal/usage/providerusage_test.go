@@ -25,10 +25,10 @@ func TestClaudeUsageFetcher(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]any{
-				"five_hour":          map[string]any{"utilization": 12, "resets_at": "2026-06-13T00:00:00Z"},
-				"seven_day":          map[string]any{"utilization": 45},
-				"seven_day_sonnet":   map[string]any{"utilization": 80},
-				"extra_usage":        map[string]any{"foo": "bar"},
+				"five_hour":        map[string]any{"utilization": 12, "resets_at": "2026-06-13T00:00:00Z"},
+				"seven_day":        map[string]any{"utilization": 45},
+				"seven_day_sonnet": map[string]any{"utilization": 80},
+				"extra_usage":      map[string]any{"foo": "bar"},
 			})
 		}))
 		t.Cleanup(srv.Close)
