@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { apiFetch, ApiError } from "./api";
+import { useUserStore } from "@/stores/user";
 
 describe("apiFetch", () => {
   beforeEach(() => {
@@ -51,5 +52,37 @@ describe("apiFetch", () => {
 
     await expect(apiFetch("/api/test")).rejects.toThrow(ApiError);
     await expect(apiFetch("/api/test")).rejects.toThrow("HTTP 500");
+  });
+
+  it("includes Authorization header when userStore has token", async () => {
+    useUserStore.setState({ token: "test-tok" });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: { id: 1 }, error: null }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiFetch("/api/test");
+
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
+    const headers = requestInit.headers as Headers;
+    expect(headers.get("Authorization")).toBe("Bearer test-tok");
+  });
+
+  it("omits Authorization header when token is empty", async () => {
+    useUserStore.setState({ token: "" });
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ data: { id: 1 }, error: null }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await apiFetch("/api/test");
+
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
+    const headers = requestInit.headers as Headers;
+    expect(headers.has("Authorization")).toBe(false);
   });
 });

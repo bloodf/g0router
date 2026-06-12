@@ -29,19 +29,18 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: "Parity Stage 1 Wave 1"
-current_wave: "Translation engine — w1-a..f implemented; diff gates pending; w1-g+ not planned"
-last_completed_plan: "w1-f cloud envelope (Kimi, tasks 0-7, commit 5d629345)"
-last_updated: "2026-06-10T14:45:00Z"
-orchestrator: "Claude Code (VPS) — see .planning/harness/HANDOFF.md"
+current_stage: "Wave 6 — UI dashboard parity"
+current_wave: "w6-a fix round 2 — NAV_ITEMS single source + apiFetch Bearer test"
+last_completed_plan: "w6-a fix round 2 (Kimi, 2 findings fixed, all gates green)"
+last_updated: "2026-06-12T21:52:09Z"
+orchestrator: "Claude Code (VPS) — see CLI_ORCHESTRATOR.md"
 planner: "Fable 5"
 implementer: "Kimi"
 notes: |
-  Harness handoff ready for VPS: HANDOFF.md, VPS-SETUP.md, diff-scopes.json,
-  run-diff-scoped.sh, templates/ for job dispatch.
-  w1-c/d/e/f need scoped diff gate re-run + blocker fixes (see HANDOFF open work).
-  Next: Fable drafts w1-g (Responses API), then w1-h..j.
-  go test ./... green at HEAD.
+  Refactored ui/src/components/layout/sidebar.tsx to render from NAV_ITEMS;
+  verified mobile-sidebar.tsx consumes the same export.
+  Added two apiFetch Authorization Bearer header tests to ui/src/lib/api.test.ts.
+  Gates green: vitest 12/12, playwright navigation 9/9, ui build, go test, go vet.
 ```
 
 ---
