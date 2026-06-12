@@ -88,6 +88,18 @@ func TestOllamaConfig(t *testing.T) {
 	}
 }
 
+func TestProviderRetryOverride(t *testing.T) {
+	cfg, ok := Lookup("kiro")
+	if !ok {
+		t.Fatal("kiro not in catalog")
+	}
+	got := cfg.RetryOverride()
+	want429 := 2
+	if got[429] != want429 {
+		t.Errorf("kiro Retry[429] = %d, want %d", got[429], want429)
+	}
+}
+
 func TestResolveOllamaHost(t *testing.T) {
 	// override trimmed
 	if got := ResolveOllamaHost("  http://ollama.local:11434/  "); got != "http://ollama.local:11434" {
