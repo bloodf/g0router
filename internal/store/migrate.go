@@ -71,6 +71,11 @@ func migrate(db *sql.DB) error {
 			is_active INTEGER NOT NULL DEFAULT 1,
 			created_at INTEGER NOT NULL
 		)`},
+		{"model_aliases", `CREATE TABLE IF NOT EXISTS model_aliases (
+			name TEXT PRIMARY KEY,
+			target TEXT NOT NULL,
+			created_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
