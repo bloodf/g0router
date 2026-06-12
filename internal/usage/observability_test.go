@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 var errFake = errors.New("fake settings error")
@@ -63,11 +64,11 @@ func TestObservabilityConfig(t *testing.T) {
 		{
 			name: "env override",
 			env: map[string]string{
-				"OBSERVABILITY_ENABLED":          "false",
-				"OBSERVABILITY_MAX_RECORDS":      "300",
-				"OBSERVABILITY_BATCH_SIZE":       "30",
+				"OBSERVABILITY_ENABLED":           "false",
+				"OBSERVABILITY_MAX_RECORDS":       "300",
+				"OBSERVABILITY_BATCH_SIZE":        "30",
 				"OBSERVABILITY_FLUSH_INTERVAL_MS": "2000",
-				"OBSERVABILITY_MAX_JSON_SIZE":    "10",
+				"OBSERVABILITY_MAX_JSON_SIZE":     "10",
 			},
 			want: ObsConfig{
 				Enabled:         false,
@@ -276,5 +277,35 @@ func TestTruncateFieldShortOversize(t *testing.T) {
 	}
 	if preview != string(originalJSON) {
 		t.Errorf("preview = %q, want full JSON %q", preview, originalJSON)
+	}
+}
+
+func TestTruncateFieldUTF8Preview(t *testing.T) {
+	// Construct a value whose marshaled JSON contains multibyte runes
+	// (e.g. "é") straddling the 200-byte preview boundary. The JSON
+	// encoding of "é" is two raw UTF-8 bytes (0xc3 0xa9); with 200
+	// copies the data section spans bytes 9..408, so a 200-byte slice
+	// will cut "é" #96 in the middle. Byte-based truncation produces
+	// invalid UTF-8; rune-based truncation must yield a valid, <=200
+	// rune preview.
+	value := map[string]any{"data": strings.Repeat("é", 200)}
+	got := TruncateField(value, 250)
+
+	marker, ok := got.(map[string]any)
+	if !ok {
+		t.Fatalf("type = %T, want map[string]any", got)
+	}
+	if marker["_truncated"] != true {
+		t.Errorf("_truncated = %v, want true", marker["_truncated"])
+	}
+	preview, ok := marker["_preview"].(string)
+	if !ok {
+		t.Fatalf("_preview type = %T, want string", marker["_preview"])
+	}
+	if !utf8.ValidString(preview) {
+		t.Errorf("preview is not valid UTF-8: bytes=%x", []byte(preview))
+	}
+	if n := len([]rune(preview)); n > 200 {
+		t.Errorf("preview rune count = %d, want <= 200", n)
 	}
 }

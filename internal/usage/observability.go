@@ -148,6 +148,9 @@ func SanitizeHeaders(headers map[string]string) map[string]string {
 
 // TruncateField replaces oversized JSON values with a truncation marker.
 // Nil input is treated as an empty object, matching the reference.
+// The preview is truncated to the first 200 RUNES of the marshaled JSON
+// (not bytes) so that multibyte UTF-8 sequences are never split, matching
+// the reference's character-based substring.
 func TruncateField(v any, maxSize int) any {
 	if v == nil {
 		v = map[string]any{}
@@ -159,13 +162,14 @@ func TruncateField(v any, maxSize int) any {
 	if len(str) <= maxSize {
 		return v
 	}
-	previewLen := len(str)
+	runes := []rune(string(str))
+	previewLen := len(runes)
 	if previewLen > 200 {
 		previewLen = 200
 	}
 	return map[string]any{
 		"_truncated":    true,
 		"_originalSize": len(str),
-		"_preview":      string(str[:previewLen]),
+		"_preview":      string(runes[:previewLen]),
 	}
 }
