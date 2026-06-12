@@ -243,6 +243,24 @@ func (s *Store) RangeRequestLogs(sinceISO, untilISO string) ([]*RequestLogEntry,
 	return out, nil
 }
 
+// SumCostByAPIKey returns the sum of cost for request_log rows attributed to
+// the given api_key with timestamp >= sinceISO. It is used by the quota engine
+// to enforce per-key budget windows (PAR-ROUTE-031).
+func (s *Store) SumCostByAPIKey(key, sinceISO string) (float64, error) {
+	var total sql.NullFloat64
+	err := s.db.QueryRow(
+		"SELECT SUM(cost) FROM request_log WHERE api_key = ? AND timestamp >= ?",
+		key, sinceISO,
+	).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("sum cost by api key: %w", err)
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return total.Float64, nil
+}
+
 func localDateKey(timestamp string) string {
 	t, err := time.Parse(time.RFC3339, timestamp)
 	if err != nil {
