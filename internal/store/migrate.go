@@ -78,6 +78,7 @@ func migrate(db *sql.DB) error {
 		)`},
 		{"connection_model_locks", `CREATE TABLE IF NOT EXISTS connection_model_locks (
 			connection_id TEXT NOT NULL,
+			provider_id TEXT NOT NULL DEFAULT '',
 			model TEXT NOT NULL,
 			expires_at INTEGER NOT NULL,
 			PRIMARY KEY (connection_id, model)

@@ -6386,3 +6386,11 @@ fmt.Stringer code (cycle 4). Residual: connect-timeout fasthttp port constraint;
 swallowing intentional design. Suite + go vet GREEN.
 
 Next: w4-c (connection-state) — NOW UNBLOCKED (migrate.go free; w4-a merged).
+
+### w4-c — Connection/account state: locks, backoff, disabled models IN PROGRESS (2026-06-12)
+
+Commit: 70a3bc4. Diff-gate: cycle 1 running.
+Files: store/connlocks.go, store/disabledmodels.go, inference/accounts.go,
+admin/disabledmodels.go, api/models.go (+DisabledChecker), store/migrate.go,
+server/routes_admin.go.
+Suite + go vet + go test -race ./internal/inference/ ./internal/store/ GREEN.
