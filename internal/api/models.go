@@ -37,13 +37,26 @@ type AliasModelLister interface {
 	ListAliasNames() ([]string, error)
 }
 
+// SubConfigModel is a TTS/embedding model declared inside a connection's metadata.
+type SubConfigModel struct {
+	ID         string
+	Kind       string
+	ProviderID string
+}
+
+// SubConfigModelReader returns sub-config models for /v1/models (PAR-ROUTE-058).
+type SubConfigModelReader interface {
+	ListSubConfigModels() ([]SubConfigModel, error)
+}
+
 // ModelsHandler handles GET /v1/models and GET /v1/models/:id.
 type ModelsHandler struct {
-	router            *inference.Router
-	disabledChecker   DisabledChecker
-	comboLister       ComboLister
-	customModelLister CustomModelLister
-	aliasModelLister  AliasModelLister
+	router             *inference.Router
+	disabledChecker    DisabledChecker
+	comboLister        ComboLister
+	customModelLister  CustomModelLister
+	aliasModelLister   AliasModelLister
+	subConfigReader    SubConfigModelReader
 }
 
 // NewModelsHandler creates a models handler.
@@ -69,6 +82,11 @@ func (h *ModelsHandler) SetCustomModelLister(l CustomModelLister) {
 // SetAliasModelLister wires an alias lister for /v1/models (PAR-ROUTE-057).
 func (h *ModelsHandler) SetAliasModelLister(l AliasModelLister) {
 	h.aliasModelLister = l
+}
+
+// SetSubConfigModelReader wires a sub-config model reader for /v1/models (PAR-ROUTE-058).
+func (h *ModelsHandler) SetSubConfigModelReader(r SubConfigModelReader) {
+	h.subConfigReader = r
 }
 
 // List handles GET /v1/models.
@@ -169,6 +187,27 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 				ID:      name,
 				Object:  "model",
 				OwnedBy: "alias",
+			})
+		}
+	}
+
+	// Merge sub-config models (PAR-ROUTE-058). Sub-config entries are appended after
+	// alias entries, matching route.js:364-383 placement.
+	if h.subConfigReader != nil {
+		subModels, err := h.subConfigReader.ListSubConfigModels()
+		if err != nil {
+			writeError(ctx, fasthttp.StatusInternalServerError, "server_error", "failed to list sub-config models", nil)
+			return
+		}
+		for _, m := range subModels {
+			if m.ID == "" || seen[m.ID] {
+				continue
+			}
+			seen[m.ID] = true
+			resp.Data = append(resp.Data, schemas.ModelEntry{
+				ID:      m.ID,
+				Object:  "model",
+				OwnedBy: m.ProviderID,
 			})
 		}
 	}

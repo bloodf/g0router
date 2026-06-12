@@ -254,6 +254,16 @@ func (f *fakeAliasModelLister) ListAliasNames() ([]string, error) {
 	return f.names, f.err
 }
 
+// fakeSubConfigReader implements SubConfigModelReader for testing.
+type fakeSubConfigReader struct {
+	models []SubConfigModel
+	err    error
+}
+
+func (f *fakeSubConfigReader) ListSubConfigModels() ([]SubConfigModel, error) {
+	return f.models, f.err
+}
+
 func TestModelsListCombosFirst(t *testing.T) {
 	router := inference.NewRouter(translation.NewRegistry())
 	h := NewModelsHandler(router)
@@ -670,5 +680,125 @@ func TestModelsList_NilListersUnchanged(t *testing.T) {
 	}
 	if !found {
 		t.Error("deepseek-chat missing from catalog-only response")
+	}
+}
+
+// TestModelsList_IncludesSubConfigModels verifies PAR-ROUTE-058: TTS and embedding
+// models from connection metadata are appended after alias entries with owned_by set
+// to the connection's provider ID (route.js:364-383).
+func TestModelsList_IncludesSubConfigModels(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetSubConfigModelReader(&fakeSubConfigReader{
+		models: []SubConfigModel{
+			{ID: "tts-1", Kind: "tts", ProviderID: "prov-1"},
+			{ID: "emb-1", Kind: "embedding", ProviderID: "prov-1"},
+		},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	foundTTS, foundEmb := false, false
+	for _, m := range resp.Data {
+		if m.ID == "tts-1" {
+			foundTTS = true
+			if m.OwnedBy != "prov-1" {
+				t.Errorf("tts-1 owned_by = %q, want prov-1 (route.js:375-379)", m.OwnedBy)
+			}
+		}
+		if m.ID == "emb-1" {
+			foundEmb = true
+			if m.OwnedBy != "prov-1" {
+				t.Errorf("emb-1 owned_by = %q, want prov-1", m.OwnedBy)
+			}
+		}
+	}
+	if !foundTTS {
+		t.Error("tts-1 not found")
+	}
+	if !foundEmb {
+		t.Error("emb-1 not found")
+	}
+}
+
+// TestModelsList_SubConfigDedup verifies that a sub-config ID colliding with a
+// catalog ID is skipped because the catalog ID is already in the seen set.
+func TestModelsList_SubConfigDedup(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetSubConfigModelReader(&fakeSubConfigReader{
+		models: []SubConfigModel{
+			{ID: "deepseek-chat", Kind: "tts", ProviderID: "prov-1"},
+		},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	count := 0
+	var survivor string
+	for _, m := range resp.Data {
+		if m.ID == "deepseek-chat" {
+			count++
+			survivor = m.OwnedBy
+		}
+	}
+	if count != 1 {
+		t.Fatalf("deepseek-chat appears %d times, want 1", count)
+	}
+	if survivor != "deepseek" {
+		t.Errorf("survivor owned_by = %q, want deepseek (catalog wins per route.js:358)", survivor)
+	}
+}
+
+// TestModelsList_SubConfigReaderError verifies that a failing sub-config reader
+// returns a 500 server_error.
+func TestModelsList_SubConfigReaderError(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetSubConfigModelReader(&fakeSubConfigReader{
+		err: errors.New("sub-config reader failed"),
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusInternalServerError {
+		t.Errorf("status = %d, want 500", ctx.Response.StatusCode())
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, "server_error") {
+		t.Errorf("body = %q, want server_error envelope", body)
 	}
 }
