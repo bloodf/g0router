@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+// UsageDailyRow is a single persisted daily rollup row.
+type UsageDailyRow struct {
+	DateKey string
+	Data    string
+}
+
 // RequestLogEntry is a single persisted usage record.
 type RequestLogEntry struct {
 	Timestamp        string
@@ -157,6 +163,82 @@ func (s *Store) ListRecentRequestLogs(limit int) ([]*RequestLogEntry, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate request logs: %w", err)
+	}
+	return out, nil
+}
+
+// LoadDailyRange returns usage_daily rows with date_key on or after the cutoff.
+// maxDays <= 0 returns all rows.
+func (s *Store) LoadDailyRange(maxDays int) ([]*UsageDailyRow, error) {
+	var rows *sql.Rows
+	var err error
+	if maxDays > 0 {
+		now := time.Now().UTC()
+		cutoff := now.AddDate(0, 0, -(maxDays - 1)).Format("2006-01-02")
+		rows, err = s.db.Query("SELECT date_key, data FROM usage_daily WHERE date_key >= ? ORDER BY date_key ASC", cutoff)
+	} else {
+		rows, err = s.db.Query("SELECT date_key, data FROM usage_daily ORDER BY date_key ASC")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("load daily range: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*UsageDailyRow
+	for rows.Next() {
+		var r UsageDailyRow
+		if err := rows.Scan(&r.DateKey, &r.Data); err != nil {
+			return nil, fmt.Errorf("scan daily row: %w", err)
+		}
+		out = append(out, &r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate daily range: %w", err)
+	}
+	return out, nil
+}
+
+// RangeRequestLogs returns request_log rows with timestamp in the inclusive
+// [sinceISO, untilISO] window, ordered newest first.
+func (s *Store) RangeRequestLogs(sinceISO, untilISO string) ([]*RequestLogEntry, error) {
+	rows, err := s.db.Query(
+		`SELECT timestamp, provider, model, connection_id, api_key, endpoint,
+		        prompt_tokens, completion_tokens, cost, status, tokens, meta
+		 FROM request_log WHERE timestamp >= ? AND timestamp <= ? ORDER BY timestamp DESC`,
+		sinceISO, untilISO,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("range request logs: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*RequestLogEntry
+	for rows.Next() {
+		var e RequestLogEntry
+		var provider, model, connectionID, apiKey, endpoint, status sql.NullString
+		var tokensJSON, metaJSON string
+		if err := rows.Scan(
+			&e.Timestamp, &provider, &model, &connectionID, &apiKey, &endpoint,
+			&e.PromptTokens, &e.CompletionTokens, &e.Cost, &status, &tokensJSON, &metaJSON,
+		); err != nil {
+			return nil, fmt.Errorf("scan request log: %w", err)
+		}
+		e.Provider = provider.String
+		e.Model = model.String
+		e.ConnectionID = connectionID.String
+		e.APIKey = apiKey.String
+		e.Endpoint = endpoint.String
+		e.Status = status.String
+		if tokensJSON != "" {
+			_ = json.Unmarshal([]byte(tokensJSON), &e.Tokens)
+		}
+		if metaJSON != "" {
+			_ = json.Unmarshal([]byte(metaJSON), &e.Meta)
+		}
+		out = append(out, &e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate range request logs: %w", err)
 	}
 	return out, nil
 }

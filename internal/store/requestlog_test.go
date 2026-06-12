@@ -226,6 +226,80 @@ func requireCounter(t *testing.T, m map[string]any, key string) map[string]any {
 	return c
 }
 
+func TestLoadDailyRange(t *testing.T) {
+	st := newTestStore(t)
+
+	// Insert 4 daily rows out of order.
+	rows := []struct {
+		dateKey string
+		data    string
+	}{
+		{"2026-06-09", `{"requests":1}`},
+		{"2026-06-10", `{"requests":2}`},
+		{"2026-06-11", `{"requests":3}`},
+		{"2026-06-12", `{"requests":4}`},
+	}
+	for _, r := range rows {
+		if _, err := st.DB().Exec("INSERT INTO usage_daily (date_key, data) VALUES (?, ?)", r.dateKey, r.data); err != nil {
+			t.Fatalf("insert usage_daily %s: %v", r.dateKey, err)
+		}
+	}
+
+	// maxDays=2 should include today and yesterday only (dateKey >= today-1).
+	got, err := st.LoadDailyRange(2)
+	if err != nil {
+		t.Fatalf("LoadDailyRange(2): %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("LoadDailyRange(2) len = %d, want 2", len(got))
+	}
+	if got[0].DateKey != "2026-06-11" || got[1].DateKey != "2026-06-12" {
+		t.Errorf("LoadDailyRange(2) keys = %v, want [2026-06-11 2026-06-12]", []string{got[0].DateKey, got[1].DateKey})
+	}
+
+	// nil equivalent: maxDays=0 returns all rows (caller uses zero to mean unlimited here).
+	got, err = st.LoadDailyRange(0)
+	if err != nil {
+		t.Fatalf("LoadDailyRange(0): %v", err)
+	}
+	if len(got) != 4 {
+		t.Fatalf("LoadDailyRange(0) len = %d, want 4", len(got))
+	}
+}
+
+func TestRangeRequestLogs(t *testing.T) {
+	st := newTestStore(t)
+
+	entries := []*RequestLogEntry{
+		{Timestamp: "2026-06-12T08:59:59Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 1, CompletionTokens: 1},
+		{Timestamp: "2026-06-12T09:00:00Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 2, CompletionTokens: 2},
+		{Timestamp: "2026-06-12T09:30:00Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 3, CompletionTokens: 3},
+		{Timestamp: "2026-06-12T10:00:00Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 4, CompletionTokens: 4},
+		{Timestamp: "2026-06-12T10:00:01Z", Provider: "openai", Model: "gpt-4o", PromptTokens: 5, CompletionTokens: 5},
+	}
+	for _, e := range entries {
+		if err := st.SaveUsage(e); err != nil {
+			t.Fatalf("SaveUsage: %v", err)
+		}
+	}
+
+	// Inclusive bounds: [09:00:00, 10:00:00] should include exactly 09:00:00, 09:30:00, 10:00:00.
+	got, err := st.RangeRequestLogs("2026-06-12T09:00:00Z", "2026-06-12T10:00:00Z")
+	if err != nil {
+		t.Fatalf("RangeRequestLogs: %v", err)
+	}
+	if len(got) != 3 {
+		t.Fatalf("RangeRequestLogs len = %d, want 3", len(got))
+	}
+	sum := int64(0)
+	for _, e := range got {
+		sum += e.PromptTokens
+	}
+	if sum != 2+3+4 {
+		t.Errorf("prompt tokens sum = %d, want 9", sum)
+	}
+}
+
 func TestAggregateEntryToDay(t *testing.T) {
 	// Full entry: exact key shapes and meta preservation.
 	day := freshDay()
