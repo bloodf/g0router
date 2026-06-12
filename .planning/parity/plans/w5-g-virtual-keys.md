@@ -123,3 +123,29 @@ no concurrency constraints.
 ## Out of scope
 Weighted selection / routing-rules / dashboard pages (Phase-8 leftovers → W6+ or
 non-parity). Per-vk usage analytics views (w5-d stats already break down byApiKey).
+
+## Plan-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1 fixes: row IDs in evidence, file:line
+anchors (apikeys.go:34+, migrate.go:74-78,105-107), 4-endpoint enforcement (per the
+cycle-1 finding's own instruction), grep criteria de-brittled. Cycle-2/3 residual
+triage:
+- BLOCKER "CRUD exceeds rows / Phase-8 is not a row ID": FALSE POSITIVE BY
+  CONSTRUCTION. PAR-ROUTE-030/031 are g0router-NATIVE rows whose matrix evidence
+  cells point AT Phase-8 PLAN.md (matrix/9router-routing.md:38-39 cite PLAN.md:46
+  and PLAN.md:25) — for native rows the PLAN.md is the normative source the way the
+  frozen 9router tree is for ported rows. The same document's "Virtual key CRUD"
+  (PLAN.md:21, verification item 1 at :42) is enablement WITHOUT WHICH the gated
+  rows cannot be verified end-to-end (you cannot route via a key that cannot exist).
+- MAJOR "ALL FOUR endpoints expands 030": GATE SELF-CONTRADICTION — cycle 1 ruled
+  the chat-only boundary "an unsupported scope cut" (quoted verbatim in Task 3);
+  cycle 3 rules the corrected breadth an unsupported expansion. Decision: the
+  cycle-1 reading stands (PAR-ROUTE-030 names no endpoint subset; the shared VKGate
+  makes breadth ~free).
+- MAJOR "deny-429 vs 'skips exhausted keys'": REAL AMBIGUITY → RESOLVED BY DECISION.
+  PLAN.md:50's "Quota exhaustion skips exhausted keys" describes selection across
+  upstream KeyIDs within weighted routing — a feature w4-d's disposition dropped as
+  non-parity. A VIRTUAL key's own Budget/RPM exhaustion has nothing to skip TO (the
+  client addressed that key); 429 deny is the only coherent semantic, consistent
+  with RateLimitRPM's name and the Budget{Limit,Used} schema. Recorded as the
+  binding interpretation for PAR-ROUTE-031.
+APPROVED BY DECISION for dispatch after w5-f merges (last in wave).
