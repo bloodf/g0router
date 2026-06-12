@@ -71,6 +71,15 @@ func migrate(db *sql.DB) error {
 			is_active INTEGER NOT NULL DEFAULT 1,
 			created_at INTEGER NOT NULL
 		)`},
+		{"virtual_keys", `CREATE TABLE IF NOT EXISTS virtual_keys (
+			id TEXT PRIMARY KEY,
+			key TEXT NOT NULL UNIQUE,
+			name TEXT NOT NULL,
+			config_json TEXT NOT NULL DEFAULT '{}',
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`},
 		{"model_aliases", `CREATE TABLE IF NOT EXISTS model_aliases (
 			name TEXT PRIMARY KEY,
 			target TEXT NOT NULL,
@@ -138,6 +147,10 @@ func migrate(db *sql.DB) error {
 
 	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key)"); err != nil {
 		return fmt.Errorf("create api_keys key index: %w", err)
+	}
+
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_virtual_keys_key ON virtual_keys(key)"); err != nil {
+		return fmt.Errorf("create virtual_keys key index: %w", err)
 	}
 
 	usageIndexes := []struct{ name, table, columns string }{
