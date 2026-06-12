@@ -20,6 +20,7 @@ type Router struct {
 	providers   map[string]schemas.Provider
 	mu          sync.RWMutex
 	keyResolver KeyResolver
+	aliasStore  AliasStore
 }
 
 // NewRouter creates a router with all providers wired in.
@@ -38,10 +39,25 @@ func (r *Router) SetKeyResolver(resolver KeyResolver) {
 	r.mu.Unlock()
 }
 
+// SetAliasStore sets an optional alias store. When non-nil, Resolve expands
+// user-defined model aliases before catalog lookup. nil leaves behavior unchanged.
+func (r *Router) SetAliasStore(st AliasStore) {
+	r.mu.Lock()
+	r.aliasStore = st
+	r.mu.Unlock()
+}
+
 // Resolve returns the provider and key for a given model request.
 // It looks up the model in the static catalog, builds the provider, and
 // resolves the key via the configured key resolver when one is present.
 func (r *Router) Resolve(model string) (schemas.Provider, schemas.Key, error) {
+	r.mu.RLock()
+	aliasStore := r.aliasStore
+	r.mu.RUnlock()
+	if aliasStore != nil {
+		model = ResolveModelAlias(aliasStore, model)
+	}
+
 	providerID, ok := providerForModel(model)
 	if !ok {
 		return nil, schemas.Key{}, fmt.Errorf("no provider available for model %q", model)

@@ -39,6 +39,7 @@ func New(uiFS fs.FS, st *store.Store, allowedOrigins []string) *fasthttp.Server 
 			"xai":       auth.NewOAuthFlow(auth.XaiOAuth(), st, nil),
 		}
 		infRouter.SetKeyResolver(auth.NewCredentialResolver(st, flows))
+		infRouter.SetAliasStore(st)
 		RegisterAdminRoutes(r, admin.New(st, sessions, flows))
 		guard = (&Guard{
 			Sessions:          sessions,

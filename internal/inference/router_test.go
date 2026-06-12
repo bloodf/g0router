@@ -196,6 +196,39 @@ func (f *fakeResolver) ResolveKey(providerID string) (schemas.Key, map[string]st
 	return k, f.psd, f.err
 }
 
+func TestRouterResolvesModelAlias(t *testing.T) {
+	r := NewRouter(translation.NewRegistry())
+	r.SetAliasStore(&fakeAliasStore{aliases: map[string]string{
+		"my-alias": "gpt-4o",
+	}})
+
+	p, key, err := r.Resolve("my-alias")
+	if err != nil {
+		t.Fatalf("Resolve(my-alias) error: %v", err)
+	}
+	if p.GetProvider() != schemas.ProviderOpenAI {
+		t.Errorf("provider = %q, want openai", p.GetProvider())
+	}
+	if key.Provider != "openai" {
+		t.Errorf("key.Provider = %q, want openai", key.Provider)
+	}
+}
+
+func TestRouterNilAliasStoreSkips(t *testing.T) {
+	r := NewRouter(translation.NewRegistry())
+	// aliasStore intentionally left nil.
+	p, key, err := r.Resolve("gpt-4o")
+	if err != nil {
+		t.Fatalf("Resolve(gpt-4o) error: %v", err)
+	}
+	if p.GetProvider() != schemas.ProviderOpenAI {
+		t.Errorf("provider = %q, want openai", p.GetProvider())
+	}
+	if key.Provider != "openai" {
+		t.Errorf("key.Provider = %q, want openai", key.Provider)
+	}
+}
+
 func TestSetKeyResolverConcurrent(t *testing.T) {
 	r := NewRouter(translation.NewRegistry())
 	models := []string{"gpt-4", "anthropic/claude-3-5-sonnet"}
