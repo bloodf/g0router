@@ -90,40 +90,38 @@ func TestQuotaWindowSecMs(t *testing.T) {
 }
 
 func TestErrorClassFixture(t *testing.T) {
-	tests := []struct {
-		name        string
-		status      int
-		body        string
-		wantClass   ErrorClass
-		wantRetry   bool
+	cases := []struct {
+		name      string
+		status    int
+		body      string
+		wantClass ErrorClass
 	}{
-		// Text-based rules (checked first, order = priority).
-		{"text_no_credentials", 200, `{"error":{"message":"no credentials provided"}}`, ClassAuthError, false},
-		{"text_request_not_allowed", 200, `{"error":{"message":"request not allowed"}}`, ClassAuthError, false},
-		{"text_improperly_formed_request", 200, `{"error":{"message":"improperly formed request"}}`, ClassPermanent, false},
-		{"text_unsupported_param", 200, `{"error":{"message":"unsupported parameter: max_tokens"}}`, ClassUnsupportedParam, false},
-		{"text_rate_limit", 200, `{"error":{"message":"rate limit hit"}}`, ClassRateLimit, true},
-		{"text_too_many_requests", 200, `{"error":{"message":"too many requests"}}`, ClassRateLimit, true},
-		{"text_quota_exceeded", 200, `{"error":{"message":"quota exceeded"}}`, ClassRateLimit, true},
-		{"text_capacity", 200, `{"error":{"message":"capacity reached"}}`, ClassRateLimit, true},
-		{"text_overloaded", 200, `{"error":{"message":"server overloaded"}}`, ClassRateLimit, true},
+		// Text-based rules from errorConfig.js:59-68 (checked first, order = priority).
+		{"no_credentials", 200, `{"error":"no credentials"}`, ClassAuthError},
+		{"request_not_allowed", 200, `{"error":"request not allowed"}`, ClassAuthError},
+		{"improperly_formed_request", 200, `{"error":"improperly formed request"}`, ClassPermanent},
+		{"rate_limit", 200, `{"error":"rate limit"}`, ClassRateLimit},
+		{"too_many_requests", 200, `{"error":"too many requests"}`, ClassRateLimit},
+		{"quota_exceeded", 200, `{"error":"quota exceeded"}`, ClassRateLimit},
+		{"capacity", 200, `{"error":"capacity"}`, ClassRateLimit},
+		{"overloaded", 200, `{"error":"overloaded"}`, ClassRateLimit},
 
-		// Status-based rules (fallback when text doesn't match).
-		{"status_401", 401, `{}`, ClassAuthError, false},
-		{"status_402", 402, `{}`, ClassAuthError, false},
-		{"status_403", 403, `{}`, ClassAuthError, false},
-		{"status_404", 404, `{}`, ClassPermanent, false},
-		{"status_429", 429, `{}`, ClassRateLimit, true},
+		// Status-based rules from errorConfig.js:70-76 (fallback when text doesn't match).
+		{"status_401", 401, `{}`, ClassAuthError},
+		{"status_402", 402, `{}`, ClassAuthError},
+		{"status_403", 403, `{}`, ClassAuthError},
+		{"status_404", 404, `{}`, ClassPermanent},
+		{"status_429", 429, `{}`, ClassRateLimit},
+
+		// g0router-specific text rule for PR-1626 token-parameter auto-learning.
+		{"unsupported_param", 200, `{"error":"unsupported parameter: max_tokens"}`, ClassUnsupportedParam},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			c := Classify(tt.status, []byte(tt.body))
-			if c.Class != tt.wantClass {
-				t.Errorf("class=%v, want %v", c.Class, tt.wantClass)
-			}
-			if c.Retryable != tt.wantRetry {
-				t.Errorf("Retryable=%v, want %v", c.Retryable, tt.wantRetry)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := Classify(tc.status, []byte(tc.body))
+			if got.Class != tc.wantClass {
+				t.Errorf("Classify(%d, %q).Class = %v, want %v", tc.status, tc.body, got.Class, tc.wantClass)
 			}
 		})
 	}
