@@ -43,8 +43,10 @@ type errorRule struct {
 	class  ErrorClass
 }
 
-//nolint:gochecknoglobals // ordered rule table is the port of ERROR_RULES.
-var errorRules = []errorRule{
+// errorRules is the ordered rule table ported from ERROR_RULES in
+// open-sse/config/errorConfig.js. Declared as an array so it cannot be
+// appended to or mutated at runtime.
+var errorRules = [...]errorRule{
 	// Text-based rules (checked first, order = priority).
 	{text: "no credentials", class: ClassAuthError},
 	{text: "request not allowed", class: ClassAuthError},

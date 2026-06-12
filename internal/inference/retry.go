@@ -18,13 +18,16 @@ type RetryEntry struct {
 	DelayMs  int
 }
 
-// DefaultRetryConfig is the default per-status retry policy ported from
-// open-sse/config/runtimeConfig.js:52-57.
-var DefaultRetryConfig = map[int]RetryEntry{
-	429: {Attempts: 0, DelayMs: 0},
-	502: {Attempts: 3, DelayMs: 3000},
-	503: {Attempts: 3, DelayMs: 2000},
-	504: {Attempts: 2, DelayMs: 3000},
+// newDefaultRetryConfig returns the default per-status retry policy ported from
+// open-sse/config/runtimeConfig.js:52-57. Returned as a new map on each call so
+// callers cannot mutate shared package state.
+func newDefaultRetryConfig() map[int]RetryEntry {
+	return map[int]RetryEntry{
+		429: {Attempts: 0, DelayMs: 0},
+		502: {Attempts: 3, DelayMs: 3000},
+		503: {Attempts: 3, DelayMs: 2000},
+		504: {Attempts: 2, DelayMs: 3000},
+	}
 }
 
 // Provider exposes retry configuration for a backend. It is implemented by

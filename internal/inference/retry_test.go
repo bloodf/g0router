@@ -24,7 +24,7 @@ func TestRetryPerStatusAttempts(t *testing.T) {
 	}
 
 	provider := catalog.ProviderConfig{}
-	status, body, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	status, body, err := WithRetry(context.Background(), provider, call, newDefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestProviderRetryOverride(t *testing.T) {
 		return 200, []byte(`{"ok":true}`), nil
 	}
 
-	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	status, _, err := WithRetry(context.Background(), provider, call, newDefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestConnectTimeout502NotRetriedAsClientAbort(t *testing.T) {
 	}
 
 	provider := catalog.ProviderConfig{}
-	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	status, _, err := WithRetry(context.Background(), provider, call, newDefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestConnectTimeout502NotRetriedAsClientAbort(t *testing.T) {
 		clientCalls++
 		return 0, nil, context.Canceled
 	}
-	_, _, err = WithRetry(context.Background(), provider, clientCall, DefaultRetryConfig)
+	_, _, err = WithRetry(context.Background(), provider, clientCall, newDefaultRetryConfig())
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("client abort err=%v, want context.Canceled", err)
 	}
@@ -135,7 +135,7 @@ func TestNoRetryOnPermanentClass(t *testing.T) {
 	}
 
 	provider := catalog.ProviderConfig{}
-	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	status, _, err := WithRetry(context.Background(), provider, call, newDefaultRetryConfig())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -161,7 +161,7 @@ func TestRetryRespectsResetsAt(t *testing.T) {
 
 	provider := catalog.ProviderConfig{Retry: map[int]int{429: 1}}
 	start := time.Now()
-	status, _, err := WithRetry(context.Background(), provider, call, DefaultRetryConfig)
+	status, _, err := WithRetry(context.Background(), provider, call, newDefaultRetryConfig())
 	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
