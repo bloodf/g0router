@@ -10,15 +10,18 @@ handler glue (→ w5-f).
 Frozen ref @ 827e5c3. Depends: w5-pre merged. Runs ALONE (owns `migrate.go`, hot file).
 
 ## Architectural decisions
-- AGENTS.md: **usage data lives in `request_log`** — 9router `usageHistory`
+- `AGENTS.md:27` "Usage data lives in the `request_log` table" — 9router `usageHistory`
   (`src/lib/db/schema.js:105-127`) ports as `request_log`, snake_case columns.
 - Timestamps in `request_log`/`request_details` are ISO-8601 TEXT (not epoch INTEGER
   like older tables): the ref's read paths depend on lexicographic string ranges and
   minute-prefix slicing (`usageRepo.js:231,359`, `requestDetailsRepo.js:112`); porting
   behavior, not storage style.
 - Pricing engine lives in NEW package `internal/usage` (domain layer, no store import);
-  user overrides reach it through a small interface implemented by the store's kv table
-  (DDD layering per arch test).
+  user overrides reach it through a small interface implemented by the store's kv table.
+  Mandated by `AGENTS.md:24` "Layered DDD architecture (transport→domain→repository)":
+  domain (usage) may not import repository (store), and the in-repo precedent is the
+  interface-seam pattern of `internal/api/models.go` (`ComboLister`/`DisabledChecker`,
+  w4-c/e) — the interface is the MINIMAL mechanism, not new infrastructure.
 
 ## Tasks
 
@@ -40,24 +43,36 @@ Frozen ref @ 827e5c3. Depends: w5-pre merged. Runs ALONE (owns `migrate.go`, hot
    `kv` (scope TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
    PRIMARY KEY (scope, key)); plus the 8 indexes.
 
-2. **kv store accessors** — evidence: `src/lib/db/helpers/kvStore.js` usage via
-   `pricingRepo.js:5` (`makeKv("pricing")` → getAll/clear) and direct kv SQL at
-   `pricingRepo.js:64-98`.
-   STEP (a): `TestKVRoundTrip` (Set/Get/List by scope/Delete/ClearScope; unknown key
-   behaves exactly like the neighbor convention `internal/store/settings.go:33-40`
-   `GetSetting` — `sql.ErrNoRows` maps to ("", nil), i.e. missing is not an error) — fails.
+2. **kv store accessors (READ path of PAR-USAGE-004 only)** — evidence:
+   PAR-USAGE-004 "kv table with scope='pricing' stores user pricing overrides"
+   (`src/lib/db/schema.js:96-104`); the read path consumes them via
+   `pricingRepo.js:14-16` (`pricingKv.getAll()`); storing requires an upsert
+   (`pricingRepo.js:71` INSERT ... ON CONFLICT — cited here ONLY to fix the upsert
+   SQL shape, not to port mutation flows).
+   STEP (a): `TestKVRoundTrip` (SetKV/GetKV/ListKV by scope; unknown key behaves
+   exactly like the neighbor convention `internal/store/settings.go:33-40`
+   `GetSetting` — `sql.ErrNoRows` maps to ("", nil), missing is not an error) — fails.
    STEP (b): NEW `internal/store/kv.go`: `SetKV(scope, key, value string)` (upsert),
-   `GetKV(scope, key)`, `ListKV(scope) (map[string]string, error)`, `DeleteKV(scope, key)`,
-   `ClearKVScope(scope)`. Match neighbor style (`internal/store/settings.go`).
+   `GetKV(scope, key)`, `ListKV(scope) (map[string]string, error)`. NO DeleteKV /
+   ClearKVScope — those exist only for pricing reset (PAR-USAGE-031) and port in
+   w5-d. Match neighbor style (`internal/store/settings.go`).
 
 3. **Pricing data tables** — evidence: `src/shared/constants/pricing.js:12-117`
    (MODEL_PRICING, exactly **83** entries — counted against the frozen ref), `:124-129`
    (PROVIDER_PRICING: 1 provider, gh/gpt-5.3-codex override), `:136-207`
    (PATTERN_PRICING, exactly **49** ordered patterns, first match wins).
-   STEP (a): `TestPricingDataParity` spot-checks ≥10 known entries across families
-   (claude-opus-4-6 input=5.00/cache_creation=6.25; deepseek-chat cached=0.0028;
-   gh override gpt-5.3-codex input=1.75; pattern "*-codex-xhigh" input=10.00) AND
-   asserts the binary counts `len(ModelPricing) == 83`, `len(PatternPricing) == 49`,
+   STEP (a): `TestPricingDataParity` asserts EXACTLY these ten entries (full 5-field
+   golden values from the frozen ref) — `claude-opus-4-6` {5.00, 25.00, 0.50, 25.00,
+   6.25}; `claude-sonnet-4-6` {3.00, 15.00, 0.30, 15.00, 3.75}; `gpt-4o-mini` {0.15,
+   0.60, 0.075, 0.90, 0.15}; `gpt-5.3-codex-spark` {3.00, 12.00, 0.30, 12.00, 3.00};
+   `gemini-2.5-flash-lite` {0.15, 1.25, 0.015, 1.875, 0.15}; `deepseek-chat` {0.14,
+   0.28, 0.0028, 0.28, 0.14}; `kimi-k2.5-thinking` {1.80, 7.20, 0.90, 10.80, 1.80};
+   `glm-4.6v` {0.75, 3.00, 0.375, 4.50, 0.75}; `MiniMax-M3` {0.30, 1.20, 0.06, 1.80,
+   0.30}; `auto` {2.00, 8.00, 1.00, 12.00, 2.00} — plus provider override
+   `ProviderPricing["gh"]["gpt-5.3-codex"]` {1.75, 14.00, 0.175, 14.00, 1.75}, plus
+   first/last pattern anchors `PatternPricing[0].Pattern == "*-codex-xhigh"` (input
+   10.00) and `PatternPricing[48].Pattern == "grok-*"` (input 0.50), AND the binary
+   counts `len(ModelPricing) == 83`, `len(PatternPricing) == 49`,
    `len(ProviderPricing) == 1` — fails.
    STEP (b): NEW `internal/usage/pricingdata.go`: `Pricing{Input, Output, Cached,
    Reasoning, CacheCreation float64}`; `ModelPricing map[string]Pricing`,
@@ -75,14 +90,19 @@ Frozen ref @ 827e5c3. Depends: w5-pre merged. Runs ALONE (owns `migrate.go`, hot
    `deepseek/deepseek-chat` → strips to `deepseek-chat`; pattern fallback order; unknown
    → nil,false) — fails.
    STEP (b): `internal/usage/pricing.go`: `MatchPattern(pattern, model string) bool`,
-   `ResolvePricing(provider, model string) (Pricing, bool)`; `Resolver` struct holding an
+   `ResolvePricing(provider, model string) (Pricing, bool)` (pure, constants-only —
+   this alone closes PAR-USAGE-008's 3-step chain). The user-override-FIRST step is
+   row evidence too: PAR-USAGE-004's overrides are consumed at resolution by
+   `pricingRepo.js:51-56` (`getPricingForModel`: user kv hit returns before the
+   constants chain) — so a `Resolver` struct holds the override source behind an
    `OverrideStore` interface (`UserPricing() (map[string]map[string]map[string]float64,
-   error)` — provider → model → rate-name → value; present keys only) with method
-   `PricingForModel(provider, model)` = user override → ResolvePricing. A per-model
-   user override is returned VERBATIM, not overlaid onto canonical
-   (`pricingRepo.js:51-56` returns the raw user object); absent rate keys resolve to 0
-   in Go (the ref's undefined-arithmetic NaN is a JS artifact with no parity value —
-   recorded adaptation).
+   error)` — provider → model → rate-name → value; present keys only) and exposes
+   `PricingForModel(provider, model)` = user override → ResolvePricing. The interface
+   is the layering-mandated seam (`AGENTS.md:24`; precedent `internal/api/models.go`
+   ComboLister), not new infrastructure. A per-model user override is returned
+   VERBATIM, not overlaid onto canonical (`pricingRepo.js:51-56` returns the raw user
+   object); absent rate keys resolve to 0 in Go (the ref's undefined-arithmetic NaN is
+   a JS artifact with no parity value — recorded adaptation).
 
 5. **Merged pricing view + 5s cache (040, 004 — READ side only)** — evidence:
    `pricingRepo.js:6-49` (cache TTL 5000ms; merge PROVIDER_PRICING with user kv per
