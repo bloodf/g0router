@@ -9,16 +9,16 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router`
 
 | ID | Behavior | Evidence (file:line) | g0router status | Notes |
 |---|---|---|---|---|
-| PAR-USAGE-001 | `usageHistory` table stores per-request timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens JSON, meta JSON | `src/lib/db/schema.js:105-127` | MISSING | g0router migrate.go creates no usage tables |
-| PAR-USAGE-002 | `usageDaily` table stores dateKey + aggregated JSON (byProvider, byModel, byAccount, byApiKey, byEndpoint) | `src/lib/db/schema.js:128-133` | MISSING | No daily rollup table in g0router |
-| PAR-USAGE-003 | `requestDetails` table stores observability records with id, timestamp, provider, model, connectionId, status, data JSON | `src/lib/db/schema.js:134-150` | MISSING | g0router has no request-details schema |
-| PAR-USAGE-004 | `kv` table with scope='pricing' stores user pricing overrides per provider | `src/lib/db/schema.js:96-104` | MISSING | g0router kv table does not exist |
-| PAR-USAGE-005 | Provider-specific pricing overrides merged with canonical model pricing and pattern pricing | `src/shared/constants/pricing.js:124-129` | MISSING | g0router has no pricing constants |
-| PAR-USAGE-006 | Canonical model pricing table covers Anthropic, OpenAI, Gemini, Qwen, Kimi, DeepSeek, GLM, MiniMax, Grok, etc. | `src/shared/constants/pricing.js:12-117` | MISSING | No model pricing data in g0router |
-| PAR-USAGE-007 | Pattern-based pricing fallback using glob patterns (e.g. `*-codex-xhigh`, `claude-opus-*`) | `src/shared/constants/pricing.js:136-207` | MISSING | No pattern matcher for pricing |
-| PAR-USAGE-008 | Three-step pricing resolution: PROVIDER_PRICING → MODEL_PRICING → PATTERN_PRICING | `src/shared/constants/pricing.js:227-248` | MISSING | No pricing resolution logic |
-| PAR-USAGE-009 | Cost calculation supports input, output, cached, reasoning, cache_creation rates per 1M tokens | `src/shared/constants/pricing.js:274-303` | MISSING | No cost calculator in g0router |
-| PAR-USAGE-010 | Token field normalization: prompt_tokens / input_tokens, completion_tokens / output_tokens, cached_tokens / cache_read_input_tokens | `src/lib/db/repos/usageRepo.js:121-122` | MISSING | Schema exists but no extraction logic |
+| PAR-USAGE-001 | `usageHistory` table stores per-request timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens JSON, meta JSON | `src/lib/db/schema.js:105-127` | MISSING | g0router migrate.go creates no usage tables — request_log table+indexes created (w5-a); write path w5-b |
+| PAR-USAGE-002 | `usageDaily` table stores dateKey + aggregated JSON (byProvider, byModel, byAccount, byApiKey, byEndpoint) | `src/lib/db/schema.js:128-133` | MISSING | No daily rollup table in g0router — usage_daily table created (w5-a); rollup writes w5-b |
+| PAR-USAGE-003 | `requestDetails` table stores observability records with id, timestamp, provider, model, connectionId, status, data JSON | `src/lib/db/schema.js:134-150` | MISSING | g0router has no request-details schema — request_details table+indexes created (w5-a); writer w5-c |
+| PAR-USAGE-004 | `kv` table with scope='pricing' stores user pricing overrides per provider | `src/lib/db/schema.js:96-104` | HAVE | kv table + Store.UserPricing() reader + SetKV/GetKV/ListKV (internal/store/kv.go); scope=pricing overrides consumed by usage.Resolver (w5-a) |
+| PAR-USAGE-005 | Provider-specific pricing overrides merged with canonical model pricing and pattern pricing | `src/shared/constants/pricing.js:124-129` | HAVE | ProviderPricing override map ported; gh/gpt-5.3-codex golden-tested (internal/usage/pricingdata.go) (w5-a) |
+| PAR-USAGE-006 | Canonical model pricing table covers Anthropic, OpenAI, Gemini, Qwen, Kimi, DeepSeek, GLM, MiniMax, Grok, etc. | `src/shared/constants/pricing.js:12-117` | HAVE | ModelPricing: 83 entries ported verbatim, count-asserted (w5-a) |
+| PAR-USAGE-007 | Pattern-based pricing fallback using glob patterns (e.g. `*-codex-xhigh`, `claude-opus-*`) | `src/shared/constants/pricing.js:136-207` | HAVE | PatternPricing: 49 ordered glob patterns, first-match-wins, anchors tested (w5-a) |
+| PAR-USAGE-008 | Three-step pricing resolution: PROVIDER_PRICING → MODEL_PRICING → PATTERN_PRICING | `src/shared/constants/pricing.js:227-248` | HAVE | 3-step resolution ResolvePricing + user-override-first PricingForModel (exact provider/model match per fix-r1) (w5-a) |
+| PAR-USAGE-009 | Cost calculation supports input, output, cached, reasoning, cache_creation rates per 1M tokens | `src/shared/constants/pricing.js:274-303` | HAVE | CalculateCost: 5 rate categories per 1M, cached-subtraction, reasoning/cache_creation fallbacks, golden-tested (internal/usage/cost.go) (w5-a) |
+| PAR-USAGE-010 | Token field normalization: prompt_tokens / input_tokens, completion_tokens / output_tokens, cached_tokens / cache_read_input_tokens | `src/lib/db/repos/usageRepo.js:121-122` | HAVE | NormalizeTokens accepts prompt|input, completion|output, cached|cache_read synonyms (internal/usage/tokens.go) (w5-a) |
 | PAR-USAGE-011 | Usage entry saved atomically in transaction: insert history, upsert daily, increment lifetime counter in `_meta` | `src/lib/db/repos/usageRepo.js:243-287` | MISSING | No transaction writes for usage |
 | PAR-USAGE-012 | `saveRequestUsage` computes cost before persisting via `calculateCost(provider, model, tokens)` | `src/lib/db/repos/usageRepo.js:248` | MISSING | Chat/embed handlers do not extract usage |
 | PAR-USAGE-013 | `getUsageStats` supports periods: today, 24h, 7d, 30d, 60d, all | `src/app/api/usage/stats/route.js:4` | MISSING | No usage stats API in g0router |
@@ -48,7 +48,7 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router`
 | PAR-USAGE-037 | Dashboard RequestLogger polls `/api/usage/request-logs` every 3s with auto-refresh toggle | `src/shared/components/RequestLogger.js:15-23` | MISSING | UI has no request logger component |
 | PAR-USAGE-038 | Usage history dedupes recent requests by (model + provider + promptTokens + completionTokens + minute) | `src/lib/db/repos/usageRepo.js:229-237` | MISSING | No deduplication logic |
 | PAR-USAGE-039 | Usage daily aggregation overlays precise lastUsed timestamps from history rows | `src/lib/db/repos/usageRepo.js:506-530` | MISSING | No lastUsed overlay |
-| PAR-USAGE-040 | Pricing cache TTL 5s in memory to avoid repeated DB reads | `src/lib/db/repos/pricingRepo.js:6-12` | MISSING | No pricing cache |
+| PAR-USAGE-040 | Pricing cache TTL 5s in memory to avoid repeated DB reads | `src/lib/db/repos/pricingRepo.js:6-12` | HAVE | Resolver.Merged() 5s TTL cache + Invalidate() hook, injected clock (w5-a) |
 
 ---
 
