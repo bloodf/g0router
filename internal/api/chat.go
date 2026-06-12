@@ -85,8 +85,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// Keys are provided by the management layer (WebUI) via the router.
-	// Phase 6+ will wire the key store; empty keys yield provider auth errors.
+	// Keys are resolved by the router via the wired credential resolver.
 
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
 

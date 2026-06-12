@@ -13,9 +13,8 @@ type KeyResolver interface {
 	ResolveKey(providerID string) (schemas.Key, map[string]string, error)
 }
 
-// Router resolves a model name to a provider and API key.
-// This is a minimal Phase 5 implementation; full virtual-key routing
-// arrives in Phase 8.
+// Router resolves a model name to a provider and API key using the static
+// model catalog and an optional key resolver (wired from the credential store).
 type Router struct {
 	registry    *translation.Registry
 	providers   map[string]schemas.Provider
@@ -40,9 +39,9 @@ func (r *Router) SetKeyResolver(resolver KeyResolver) {
 }
 
 // Resolve returns the provider and key for a given model request.
-// Phase 5: prefix-based routing (anthropic/, gemini/, or default openai).
+// It looks up the model in the static catalog, builds the provider, and
+// resolves the key via the configured key resolver when one is present.
 func (r *Router) Resolve(model string) (schemas.Provider, schemas.Key, error) {
-	// TODO(phase-8): virtual-key routing, weighted selection, fallbacks.
 	providerID, ok := providerForModel(model)
 	if !ok {
 		return nil, schemas.Key{}, fmt.Errorf("no provider available for model %q", model)
