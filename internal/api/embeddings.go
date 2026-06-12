@@ -45,8 +45,8 @@ func (h *EmbeddingsHandler) SetDetailCapture(d DetailCapture) { h.detailCapture 
 // SetVKGate wires a virtual-key gate for x-g0-vk header enforcement (PAR-ROUTE-030).
 func (h *EmbeddingsHandler) SetVKGate(g *VKGate) { h.vkGate = g }
 
-// SetVKPinnedResolver wires a resolver that overrides the selected connection
-// when a virtual-key config pins specific KeyIDs (PAR-ROUTE-030).
+// PinnedResolver setter wires the resolver for virtual-key KeyID pinning
+// (PAR-ROUTE-030).
 func (h *EmbeddingsHandler) SetVKPinnedResolver(r VKPinnedKeyResolver) { h.pinnedResolver = r }
 
 // Handle processes embedding requests.

@@ -158,8 +158,8 @@ func (h *ChatHandler) SetDetailCapture(d DetailCapture) { h.detailCapture = d }
 // SetVKGate wires a virtual-key gate for x-g0-vk header enforcement (PAR-ROUTE-030).
 func (h *ChatHandler) SetVKGate(g *VKGate) { h.vkGate = g }
 
-// SetVKPinnedResolver wires a resolver that overrides the selected connection
-// when a virtual-key config pins specific KeyIDs (PAR-ROUTE-030).
+// PinnedResolver setter wires the resolver for virtual-key KeyID pinning
+// (PAR-ROUTE-030).
 func (h *ChatHandler) SetVKPinnedResolver(r VKPinnedKeyResolver) { h.pinnedResolver = r }
 
 // classifyProviderError maps a provider error to the verdict used by the
