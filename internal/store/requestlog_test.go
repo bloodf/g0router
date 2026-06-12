@@ -454,3 +454,81 @@ func TestAggregateEntryToDay(t *testing.T) {
 		t.Errorf("byEndpoint meta endpoint = %v, want Unknown", endpointEntry["endpoint"])
 	}
 }
+
+// TestSumCostByAPIKey exercises the real SQL behind the quota engine
+// (PAR-ROUTE-031) at the store boundary. It seeds a controlled mix of rows
+// and asserts the sum, the unknown-key empty result, and the inclusivity of
+// the sinceISO lower bound (the SQL uses `timestamp >= ?`).
+func TestSumCostByAPIKey(t *testing.T) {
+	st := newTestStore(t)
+
+	sinceISO := "2026-06-12T09:00:00Z"
+
+	// Seed: two rows for "vk-1" inside the window (0.4 + 0.6 = 1.0),
+	// one row for "vk-1" before sinceISO (must be excluded by the time filter),
+	// one row for a different key inside the window (must be excluded by the
+	// key filter), one row with empty api_key inside the window (must be
+	// excluded by the key filter).
+	rows := []struct {
+		timestamp string
+		apiKey    string
+		cost      float64
+	}{
+		{"2026-06-12T09:30:00Z", "vk-1", 0.4},
+		{"2026-06-12T10:30:00Z", "vk-1", 0.6},
+		{"2026-06-12T08:30:00Z", "vk-1", 9.9}, // before sinceISO
+		{"2026-06-12T10:00:00Z", "vk-2", 5.0}, // different key
+		{"2026-06-12T10:00:00Z", "", 7.0},     // empty api_key
+	}
+	for _, r := range rows {
+		if _, err := st.DB().Exec(
+			`INSERT INTO request_log (
+				timestamp, provider, model, connection_id, api_key, endpoint,
+				prompt_tokens, completion_tokens, cost, status, tokens, meta
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.timestamp, "openai", "gpt-4o", "conn-1", r.apiKey, "/v1",
+			0, 0, r.cost, "ok", "{}", "{}",
+		); err != nil {
+			t.Fatalf("insert seed row (%s, %q): %v", r.timestamp, r.apiKey, err)
+		}
+	}
+
+	// "vk-1" inside the window: 0.4 + 0.6 = 1.0 (the before-window 9.9 row,
+	// the vk-2 row, and the empty-api-key row must all be excluded).
+	got, err := st.SumCostByAPIKey("vk-1", sinceISO)
+	if err != nil {
+		t.Fatalf("SumCostByAPIKey(vk-1): %v", err)
+	}
+	if got != 1.0 {
+		t.Errorf("SumCostByAPIKey(vk-1) = %v, want 1.0", got)
+	}
+
+	// Unknown key: no matching rows → 0.
+	got, err = st.SumCostByAPIKey("vk-unknown", sinceISO)
+	if err != nil {
+		t.Fatalf("SumCostByAPIKey(vk-unknown): %v", err)
+	}
+	if got != 0.0 {
+		t.Errorf("SumCostByAPIKey(vk-unknown) = %v, want 0.0", got)
+	}
+
+	// Bound inclusivity: the SQL is `timestamp >= ?`, so a row at exactly
+	// sinceISO must be counted. Insert one such row for "vk-1" and re-assert.
+	if _, err := st.DB().Exec(
+		`INSERT INTO request_log (
+			timestamp, provider, model, connection_id, api_key, endpoint,
+			prompt_tokens, completion_tokens, cost, status, tokens, meta
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sinceISO, "openai", "gpt-4o", "conn-1", "vk-1", "/v1",
+		0, 0, 0.25, "ok", "{}", "{}",
+	); err != nil {
+		t.Fatalf("insert boundary row: %v", err)
+	}
+	got, err = st.SumCostByAPIKey("vk-1", sinceISO)
+	if err != nil {
+		t.Fatalf("SumCostByAPIKey(vk-1) after boundary insert: %v", err)
+	}
+	if got != 1.25 {
+		t.Errorf("SumCostByAPIKey(vk-1) with inclusive boundary = %v, want 1.25", got)
+	}
+}
