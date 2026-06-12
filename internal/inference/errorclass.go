@@ -43,27 +43,29 @@ type errorRule struct {
 	class  ErrorClass
 }
 
-// errorRules is the ordered rule table ported from ERROR_RULES in
-// open-sse/config/errorConfig.js. Declared as an array so it cannot be
-// appended to or mutated at runtime.
-var errorRules = [...]errorRule{
-	// Text-based rules (checked first, order = priority).
-	{text: "no credentials", class: ClassAuthError},
-	{text: "request not allowed", class: ClassAuthError},
-	{text: "improperly formed request", class: ClassPermanent},
-	{text: "unsupported", class: ClassUnsupportedParam},
-	{text: "rate limit", class: ClassRateLimit},
-	{text: "too many requests", class: ClassRateLimit},
-	{text: "quota exceeded", class: ClassRateLimit},
-	{text: "capacity", class: ClassRateLimit},
-	{text: "overloaded", class: ClassRateLimit},
+// classificationRules returns the ordered rule table ported from ERROR_RULES in
+// open-sse/config/errorConfig.js. Returning a fresh slice prevents callers from
+// mutating the package-level rule table.
+func classificationRules() []errorRule {
+	return []errorRule{
+		// Text-based rules from errorConfig.js (checked first, order = priority).
+		{text: "no credentials", class: ClassAuthError},
+		{text: "request not allowed", class: ClassAuthError},
+		{text: "improperly formed request", class: ClassPermanent},
+		{text: "unsupported", class: ClassUnsupportedParam},
+		{text: "rate limit", class: ClassRateLimit},
+		{text: "too many requests", class: ClassRateLimit},
+		{text: "quota exceeded", class: ClassRateLimit},
+		{text: "capacity", class: ClassRateLimit},
+		{text: "overloaded", class: ClassRateLimit},
 
-	// Status-based rules (fallback when text doesn't match).
-	{status: 401, class: ClassAuthError},
-	{status: 402, class: ClassAuthError},
-	{status: 403, class: ClassAuthError},
-	{status: 404, class: ClassPermanent},
-	{status: 429, class: ClassRateLimit},
+		// Status-based rules from errorConfig.js (fallback when text doesn't match).
+		{status: 401, class: ClassAuthError},
+		{status: 402, class: ClassAuthError},
+		{status: 403, class: ClassAuthError},
+		{status: 404, class: ClassPermanent},
+		{status: 429, class: ClassRateLimit},
+	}
 }
 
 // Classify inspects the HTTP status code and response body and returns a
@@ -74,7 +76,7 @@ func Classify(statusCode int, body []byte) Classification {
 
 	c := Classification{Class: ClassUnknown, Retryable: true}
 
-	for _, rule := range errorRules {
+	for _, rule := range classificationRules() {
 		if rule.text != "" {
 			if strings.Contains(lower, rule.text) {
 				c.Class = rule.class
