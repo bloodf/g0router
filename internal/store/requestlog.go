@@ -1,0 +1,299 @@
+package store
+
+import (
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+)
+
+// RequestLogEntry is a single persisted usage record.
+type RequestLogEntry struct {
+	Timestamp        string
+	Provider         string
+	Model            string
+	ConnectionID     string
+	APIKey           string
+	Endpoint         string
+	PromptTokens     int64
+	CompletionTokens int64
+	Cost             float64
+	Status           string
+	Tokens           map[string]int64
+	Meta             map[string]string
+}
+
+// SaveUsage atomically inserts a request log row, updates the daily rollup,
+// and increments the lifetime request counter.
+func (s *Store) SaveUsage(e *RequestLogEntry) error {
+	if e.Timestamp == "" {
+		e.Timestamp = time.Now().UTC().Format(time.RFC3339)
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin save usage tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	tokensJSON, err := json.Marshal(e.Tokens)
+	if err != nil {
+		return fmt.Errorf("marshal tokens: %w", err)
+	}
+	metaJSON, err := json.Marshal(e.Meta)
+	if err != nil {
+		return fmt.Errorf("marshal meta: %w", err)
+	}
+
+	if _, err := tx.Exec(
+		`INSERT INTO request_log (
+			timestamp, provider, model, connection_id, api_key, endpoint,
+			prompt_tokens, completion_tokens, cost, status, tokens, meta
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		e.Timestamp, nullIfEmpty(e.Provider), nullIfEmpty(e.Model),
+		nullIfEmpty(e.ConnectionID), nullIfEmpty(e.APIKey), nullIfEmpty(e.Endpoint),
+		e.PromptTokens, e.CompletionTokens, e.Cost, e.Status, string(tokensJSON), string(metaJSON),
+	); err != nil {
+		return fmt.Errorf("insert request_log: %w", err)
+	}
+
+	dateKey := localDateKey(e.Timestamp)
+
+	var data string
+	row := tx.QueryRow("SELECT data FROM usage_daily WHERE date_key = ?", dateKey)
+	if err := row.Scan(&data); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("select usage_daily: %w", err)
+	}
+
+	day := map[string]any{
+		"requests":         0,
+		"promptTokens":     0,
+		"completionTokens": 0,
+		"cost":             0.0,
+		"byProvider":       map[string]any{},
+		"byModel":          map[string]any{},
+		"byAccount":        map[string]any{},
+		"byApiKey":         map[string]any{},
+		"byEndpoint":       map[string]any{},
+	}
+	if data != "" {
+		if err := json.Unmarshal([]byte(data), &day); err != nil {
+			return fmt.Errorf("unmarshal usage_daily data: %w", err)
+		}
+	}
+
+	aggregateEntryToDay(day, e)
+
+	dayJSON, err := json.Marshal(day)
+	if err != nil {
+		return fmt.Errorf("marshal usage_daily data: %w", err)
+	}
+	if _, err := tx.Exec(
+		`INSERT INTO usage_daily (date_key, data) VALUES (?, ?)
+		 ON CONFLICT(date_key) DO UPDATE SET data = excluded.data`,
+		dateKey, string(dayJSON),
+	); err != nil {
+		return fmt.Errorf("upsert usage_daily: %w", err)
+	}
+
+	var cur string
+	if err := tx.QueryRow("SELECT value FROM kv WHERE scope = 'meta' AND key = 'total_requests_lifetime'").Scan(&cur); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("select lifetime counter: %w", err)
+	}
+	next := parseCounter(cur) + 1
+	if _, err := tx.Exec(
+		`INSERT INTO kv (scope, key, value) VALUES ('meta', 'total_requests_lifetime', ?)
+		 ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value`,
+		fmt.Sprintf("%d", next),
+	); err != nil {
+		return fmt.Errorf("upsert lifetime counter: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit save usage tx: %w", err)
+	}
+	return nil
+}
+
+// ListRecentRequestLogs returns the most recent request log entries.
+func (s *Store) ListRecentRequestLogs(limit int) ([]*RequestLogEntry, error) {
+	rows, err := s.db.Query(
+		`SELECT timestamp, provider, model, connection_id, api_key, endpoint,
+		        prompt_tokens, completion_tokens, cost, status, tokens, meta
+		 FROM request_log ORDER BY id DESC LIMIT ?`,
+		limit,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list recent request logs: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*RequestLogEntry
+	for rows.Next() {
+		var e RequestLogEntry
+		var tokensJSON, metaJSON string
+		if err := rows.Scan(
+			&e.Timestamp, &e.Provider, &e.Model, &e.ConnectionID, &e.APIKey, &e.Endpoint,
+			&e.PromptTokens, &e.CompletionTokens, &e.Cost, &e.Status, &tokensJSON, &metaJSON,
+		); err != nil {
+			return nil, fmt.Errorf("scan request log: %w", err)
+		}
+		if tokensJSON != "" {
+			_ = json.Unmarshal([]byte(tokensJSON), &e.Tokens)
+		}
+		if metaJSON != "" {
+			_ = json.Unmarshal([]byte(metaJSON), &e.Meta)
+		}
+		out = append(out, &e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate request logs: %w", err)
+	}
+	return out, nil
+}
+
+func localDateKey(timestamp string) string {
+	t, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil {
+		// Fallback: treat as local date if already YYYY-MM-DD or malformed.
+		if idx := strings.Index(timestamp, "T"); idx > 0 {
+			return timestamp[:idx]
+		}
+		return timestamp
+	}
+	return t.Format("2006-01-02")
+}
+
+func nullIfEmpty(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{Valid: false}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
+
+func parseCounter(s string) int64 {
+	var n int64
+	fmt.Sscanf(s, "%d", &n)
+	return n
+}
+
+func aggregateEntryToDay(day map[string]any, e *RequestLogEntry) {
+	promptTokens := e.PromptTokens
+	completionTokens := e.CompletionTokens
+	cost := e.Cost
+
+	day["requests"] = toFloat64(day["requests"]) + 1
+	day["promptTokens"] = toFloat64(day["promptTokens"]) + float64(promptTokens)
+	day["completionTokens"] = toFloat64(day["completionTokens"]) + float64(completionTokens)
+	day["cost"] = toFloat64(day["cost"]) + cost
+
+	ensureMap(day, "byProvider")
+	ensureMap(day, "byModel")
+	ensureMap(day, "byAccount")
+	ensureMap(day, "byApiKey")
+	ensureMap(day, "byEndpoint")
+
+	vals := counterValues{promptTokens: promptTokens, completionTokens: completionTokens, cost: cost}
+
+	if e.Provider != "" {
+		addToCounter(day["byProvider"].(map[string]any), e.Provider, vals, nil)
+	}
+
+	modelKey := e.Model
+	if e.Provider != "" {
+		modelKey = e.Model + "|" + e.Provider
+	}
+	addToCounter(day["byModel"].(map[string]any), modelKey, vals, map[string]any{
+		"rawModel": e.Model,
+		"provider": e.Provider,
+	})
+
+	if e.ConnectionID != "" {
+		addToCounter(day["byAccount"].(map[string]any), e.ConnectionID, vals, map[string]any{
+			"rawModel": e.Model,
+			"provider": e.Provider,
+		})
+	}
+
+	apiKeyVal := e.APIKey
+	if apiKeyVal == "" {
+		apiKeyVal = "local-no-key"
+	}
+	apiKeyKey := fmt.Sprintf("%s|%s|%s", apiKeyVal, e.Model, providerOrUnknown(e.Provider))
+	addToCounter(day["byApiKey"].(map[string]any), apiKeyKey, vals, map[string]any{
+		"rawModel": e.Model,
+		"provider": e.Provider,
+		"apiKey":   e.APIKey,
+	})
+
+	endpoint := e.Endpoint
+	if endpoint == "" {
+		endpoint = "Unknown"
+	}
+	endpointKey := fmt.Sprintf("%s|%s|%s", endpoint, e.Model, providerOrUnknown(e.Provider))
+	addToCounter(day["byEndpoint"].(map[string]any), endpointKey, vals, map[string]any{
+		"endpoint": endpoint,
+		"rawModel": e.Model,
+		"provider": e.Provider,
+	})
+}
+
+type counterValues struct {
+	requests         float64
+	promptTokens     int64
+	completionTokens int64
+	cost             float64
+}
+
+func addToCounter(target map[string]any, key string, vals counterValues, meta map[string]any) {
+	counter, ok := target[key].(map[string]any)
+	if !ok {
+		counter = map[string]any{
+			"requests":         0.0,
+			"promptTokens":     0.0,
+			"completionTokens": 0.0,
+			"cost":             0.0,
+		}
+		target[key] = counter
+	}
+	counter["requests"] = toFloat64(counter["requests"]) + 1
+	counter["promptTokens"] = toFloat64(counter["promptTokens"]) + float64(vals.promptTokens)
+	counter["completionTokens"] = toFloat64(counter["completionTokens"]) + float64(vals.completionTokens)
+	counter["cost"] = toFloat64(counter["cost"]) + vals.cost
+	if meta != nil {
+		for k, v := range meta {
+			counter[k] = v
+		}
+	}
+}
+
+func ensureMap(day map[string]any, key string) {
+	if _, ok := day[key].(map[string]any); !ok {
+		day[key] = map[string]any{}
+	}
+}
+
+func toFloat64(v any) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case float32:
+		return float64(n)
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case int32:
+		return float64(n)
+	}
+	return 0
+}
+
+func providerOrUnknown(p string) string {
+	if p == "" {
+		return "unknown"
+	}
+	return p
+}
