@@ -19,7 +19,10 @@ func NewAdminHandlers(st *store.Store) *admin.Handlers {
 	flows := map[string]*auth.OAuthFlow{
 		"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
 	}
-	return admin.New(st, sessions, flows)
+	h := admin.New(st, sessions, flows)
+	stats, resolver := admin.BuildUsageServices(st)
+	h.SetUsageServices(stats, resolver)
+	return h
 }
 
 // RegisterAdminRoutes adds the /api/* management routes to the router.
@@ -66,4 +69,14 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.POST("/api/combos", h.RequireSession(h.CreateCombo))
 	r.PUT("/api/combos/{name}", h.RequireSession(h.UpdateCombo))
 	r.DELETE("/api/combos/{name}", h.RequireSession(h.DeleteCombo))
+
+	r.GET("/api/usage/stats", h.RequireSession(h.GetUsageStats))
+	r.GET("/api/usage/chart", h.RequireSession(h.GetUsageChart))
+	r.GET("/api/usage/request-logs", h.RequireSession(h.GetUsageRequestLogs))
+	r.GET("/api/usage/logs", h.RequireSession(h.GetUsageRequestLogs))
+	r.GET("/api/usage/request-details", h.RequireSession(h.GetRequestDetails))
+
+	r.GET("/api/pricing", h.RequireSession(h.GetPricing))
+	r.PATCH("/api/pricing", h.RequireSession(h.PatchPricing))
+	r.DELETE("/api/pricing", h.RequireSession(h.DeletePricing))
 }

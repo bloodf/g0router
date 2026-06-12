@@ -5,14 +5,17 @@ import (
 
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/store"
+	"github.com/bloodf/g0router/internal/usage"
 )
 
 // Handlers bundles the management API endpoints and their dependencies.
 type Handlers struct {
-	store    *store.Store
-	sessions *auth.Sessions
-	flows    map[string]*auth.OAuthFlow
-	limiter  *auth.LoginLimiter
+	store      *store.Store
+	sessions   *auth.Sessions
+	flows      map[string]*auth.OAuthFlow
+	limiter    *auth.LoginLimiter
+	stats      *usage.StatsService
+	resolver   *usage.Resolver
 }
 
 // New creates the admin handler set. flows maps provider type → OAuth flow
@@ -35,6 +38,13 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 		return key, machineID, nil
 	})
 	return &Handlers{store: st, sessions: sessions, flows: flows, limiter: auth.NewLoginLimiter()}
+}
+
+// SetUsageServices wires the usage stats service and pricing resolver.
+// It is called by the server bootstrap after New.
+func (h *Handlers) SetUsageServices(stats *usage.StatsService, resolver *usage.Resolver) {
+	h.stats = stats
+	h.resolver = resolver
 }
 
 // pathID returns the {id} route parameter.
