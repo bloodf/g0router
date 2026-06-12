@@ -665,6 +665,56 @@ func contains(s, sub string) bool {
 	return false
 }
 
+// TestVKSpendAttribution verifies Fix 3: when the x-g0-vk gate admits a request,
+// the resulting UsageEntry carries the virtual key in APIKey so downstream spend
+// attribution (request_log.api_key, usage stats byApiKey, quota SumCostByAPIKey)
+// sees production spend.
+func TestVKSpendAttribution(t *testing.T) {
+	vkKey := "g0vk-spend-test"
+	vkResolver := newFakeVKResolver()
+	vkResolver.set(vkKey, &VKInfo{
+		Key: vkKey,
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4"}},
+		},
+		IsActive: true,
+	})
+
+	rec := &recordingProvider{
+		providerName: "openai",
+		connectionID: "conn-1",
+		response: &schemas.ChatResponse{
+			ID:    "r1",
+			Model: "gpt-4",
+			Usage: &schemas.Usage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+		},
+	}
+	resolver := &recordingResolver{providers: map[string]schemas.Provider{"gpt-4": rec}}
+
+	recorder := &fakeUsageRecorder{}
+	h := &ChatHandler{router: resolver}
+	h.SetUsageRecorder(recorder)
+	h.SetVKGate(NewVKGate(vkResolver, newFakeVKQuotaChecker()))
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.Header.Set("x-g0-vk", vkKey)
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+	entries := recorder.snapshot()
+	if len(entries) != 1 {
+		t.Fatalf("recorder entries = %d, want 1", len(entries))
+	}
+	if entries[0].APIKey != vkKey {
+		t.Errorf("entry.APIKey = %q, want %q", entries[0].APIKey, vkKey)
+	}
+}
+
 // TestRecordStreamClaudeUsageKeys verifies that recordStream maps Claude-shaped
 // usage keys (input_tokens/output_tokens) onto the OpenAI-shaped entry fields,
 // preserving the raw key set in entry.Tokens.

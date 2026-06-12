@@ -124,6 +124,7 @@ type recordGlue struct {
 	recorder UsageRecorder
 	tracker  PendingTracker
 	detail   DetailCapture
+	apiKey   string // populated by handlers after the x-g0-vk gate admits the request
 }
 
 // recordError terminates pending tracking and persists a usage entry + detail
@@ -142,6 +143,7 @@ func (g *recordGlue) recordError(endpoint, model, provider, connID string, body 
 			Provider:     provider,
 			Model:        model,
 			ConnectionID: connID,
+			APIKey:       g.apiKey,
 			Endpoint:     endpoint,
 			Status:       "error",
 			Tokens:       map[string]int64{},
@@ -173,6 +175,7 @@ func (g *recordGlue) recordNonStream(endpoint, model, provider, connID string, b
 		Provider:     provider,
 		Model:        model,
 		ConnectionID: connID,
+		APIKey:       g.apiKey,
 		Endpoint:     endpoint,
 		Status:       "ok",
 	}
@@ -260,6 +263,7 @@ func (g *recordGlue) recordStream(endpoint, model, provider, connID string, body
 		Provider:     provider,
 		Model:        model,
 		ConnectionID: connID,
+		APIKey:       g.apiKey,
 		Endpoint:     endpoint,
 		Status:       status,
 	}

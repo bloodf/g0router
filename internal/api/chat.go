@@ -398,6 +398,7 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	src := &translation.EstimateSource{Body: bodyMap, Format: translation.FormatOpenAI}
 
 	g := h.recordGlue()
+	g.apiKey = vkHeader
 	headers := requestHeadersFromCtx(ctx)
 
 	if useStream {

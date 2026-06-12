@@ -74,6 +74,7 @@ func (h *EmbeddingsHandler) Handle(ctx *fasthttp.RequestCtx) {
 			writeError(ctx, status, errType, reason, nil)
 			return
 		}
+		g.apiKey = vkHeader
 	}
 
 	// Pending-tracker start (PAR-USAGE-018 wiring half).
