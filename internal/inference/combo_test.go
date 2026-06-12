@@ -136,14 +136,14 @@ func TestComboRecursionGuard(t *testing.T) {
 func TestComboTransientCooldownCap5s(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	t.Run("wait_and_retry", func(t *testing.T) {
+	t.Run("wait_then_next", func(t *testing.T) {
 		mr := newFakeModelRunner()
 		mr.failMap["modelA"] = []error{errors.New("transient")}
-		mr.retryAfters["modelA"] = now.Add(3 * time.Second) // ≤5s → wait and retry
+		mr.retryAfters["modelA"] = now.Add(3 * time.Second) // ≤5s → sleep then fall to next model
 
 		var slept []time.Duration
 		cs := &fakeComboStore{combos: map[string]*store.Combo{
-			"c1": {Name: "c1", Models: []string{"modelA"}},
+			"c1": {Name: "c1", Models: []string{"modelA", "modelB"}},
 		}}
 		engine := NewComboEngine(cs, &fakeSettingStore{}, mr, func() time.Time { return now }, func(d time.Duration) {
 			slept = append(slept, d)
@@ -153,7 +153,7 @@ func TestComboTransientCooldownCap5s(t *testing.T) {
 			return VerdictUnknown, nil
 		})
 		if err != nil {
-			t.Fatalf("expected success after wait, got: %v", err)
+			t.Fatalf("expected success via modelB after wait, got: %v", err)
 		}
 		if len(slept) != 1 {
 			t.Fatalf("expected 1 sleep call, got %d", len(slept))
@@ -161,8 +161,12 @@ func TestComboTransientCooldownCap5s(t *testing.T) {
 		if slept[0] > 5*time.Second {
 			t.Errorf("sleep duration %v > 5s cap", slept[0])
 		}
-		if mr.callCounts["modelA"] != 2 {
-			t.Errorf("modelA called %d times, want 2", mr.callCounts["modelA"])
+		// modelA tried once (failed + slept), then modelB tried once (succeeded).
+		if len(mr.calls) != 2 || mr.calls[0] != "modelA" || mr.calls[1] != "modelB" {
+			t.Errorf("calls = %v, want [modelA, modelB]", mr.calls)
+		}
+		if mr.callCounts["modelA"] != 1 {
+			t.Errorf("modelA called %d times, want 1 (no retry of same model)", mr.callCounts["modelA"])
 		}
 	})
 

@@ -74,7 +74,7 @@ func TestComboNameValidation(t *testing.T) {
 		call(t, env.handlers.DeleteCombo, "DELETE", "/api/combos/"+name, "", map[string]any{"name": name}, nil)
 	}
 
-	invalid := []string{"", "my combo", "combo/1", "combo@1", "combo#1"}
+	invalid := []string{"", "my combo", "combo/1", "combo@1", "combo#1", `combo\1`}
 	for _, name := range invalid {
 		body := `{"name":"` + name + `","models":["gpt-4"]}`
 		status, _ := call(t, env.handlers.CreateCombo, "POST", "/api/combos", body, nil, nil)

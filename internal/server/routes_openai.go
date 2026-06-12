@@ -16,6 +16,7 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 	models := api.NewModelsHandler(router_)
 	if st != nil {
 		models.SetDisabledChecker(st)
+		models.SetComboLister(st)
 	}
 
 	r.POST("/v1/chat/completions", chat.Handle)

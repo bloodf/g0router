@@ -10,7 +10,7 @@ import (
 
 // comboNameRe validates combo names per the API-route rule (PAR-ROUTE-004).
 // Mirrors /^[a-zA-Z0-9_.\-]+$/ in src/app/api/combos/route.js:7.
-var comboNameRe = regexp.MustCompile(`^[a-zA-Z0-9_.\\-]+$`)
+var comboNameRe = regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`)
 
 func comboResponse(c *store.Combo) map[string]any {
 	models := c.Models

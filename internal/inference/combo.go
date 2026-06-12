@@ -182,16 +182,11 @@ func (e *ComboEngine) executeCombo(name string, fn func(model string, conn *stor
 			return nil
 		}
 
-		// Transient cooldown ≤5s: wait and retry the same model once. (combo.js:161-165)
+		// Transient cooldown ≤5s: sleep before falling back to the next model. (combo.js:161-165)
 		now := e.clock()
 		if retryAt, ok, _ := e.mr.ModelRetryAfter(model, now); ok {
 			if wait := retryAt.Sub(now); wait <= 5*time.Second {
 				e.sleep(wait)
-				if e.mr.RunModel(model, func(conn *store.Connection) (Verdict, error) {
-					return fn(model, conn)
-				}) == nil {
-					return nil
-				}
 			}
 		}
 	}
