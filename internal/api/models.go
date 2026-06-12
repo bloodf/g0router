@@ -55,6 +55,35 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 
 // Get handles GET /v1/models/:id.
 func (h *ModelsHandler) Get(ctx *fasthttp.RequestCtx) {
-	// Phase 4: delegate to list and filter. Full catalog lookup in Phase 9.
-	h.List(ctx)
+	id, ok := ctx.UserValue("id").(string)
+	if !ok || id == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid_request_error", "missing model id", nil)
+		return
+	}
+
+	for providerID := range catalog.Providers {
+		for _, m := range catalog.ModelsFor(providerID) {
+			if m.ID != id {
+				continue
+			}
+			entry := schemas.ModelEntry{
+				ID:      m.ID,
+				Object:  "model",
+				OwnedBy: providerID,
+			}
+			b, err := jsonMarshal(entry)
+			if err != nil {
+				ctx.SetStatusCode(fasthttp.StatusInternalServerError)
+				ctx.SetContentTypeBytes([]byte("text/plain"))
+				ctx.SetBodyString("internal error")
+				return
+			}
+			ctx.SetStatusCode(fasthttp.StatusOK)
+			ctx.SetContentTypeBytes([]byte("application/json"))
+			ctx.SetBody(b)
+			return
+		}
+	}
+
+	writeError(ctx, fasthttp.StatusNotFound, "not_found_error", "model not found", nil)
 }

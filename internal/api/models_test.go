@@ -101,6 +101,70 @@ func TestListModelsAggregatesCatalog(t *testing.T) {
 	}
 }
 
+// TestModelsGetByID verifies GET /v1/models/:id returns a single model entry
+// matching the requested ID.
+func TestModelsGetByID(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models/deepseek-chat")
+	ctx.SetUserValue("id", "deepseek-chat")
+	h.Get(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		ID      string `json:"id"`
+		Object  string `json:"object"`
+		OwnedBy string `json:"owned_by"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.ID != "deepseek-chat" {
+		t.Errorf("id = %q, want deepseek-chat", resp.ID)
+	}
+	if resp.Object != "model" {
+		t.Errorf("object = %q, want model", resp.Object)
+	}
+	if resp.OwnedBy != "deepseek" {
+		t.Errorf("owned_by = %q, want deepseek", resp.OwnedBy)
+	}
+}
+
+// TestModelsGetUnknown404 verifies GET /v1/models/:id returns a 404 JSON
+// envelope when the requested model does not exist.
+func TestModelsGetUnknown404(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models/nonexistent-model")
+	ctx.SetUserValue("id", "nonexistent-model")
+	h.Get(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusNotFound {
+		t.Errorf("status = %d, want 404", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Error *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal response: %v", err)
+	}
+	if resp.Error == nil || resp.Error.Message == "" {
+		t.Errorf("expected error envelope, got %s", string(ctx.Response.Body()))
+	}
+}
+
 func TestListModelsDeterministicOrder(t *testing.T) {
 	router := inference.NewRouter(translation.NewRegistry())
 	h := NewModelsHandler(router)
