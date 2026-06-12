@@ -41,6 +41,11 @@ func PreprocessChatRequest(req *schemas.ChatRequest) {
 	EnsureToolCallIDs(req)
 	FixMissingToolResponses(req)
 	DedupeTools(req)
+
+	// Provider-agnostic content stripping; per-provider stripping is Wave 5.
+	StripContentTypes(req, false, false)
+	ExpandDeepseekModel(req)
+	InjectReasoningContent(req)
 }
 
 // NormalizeThinkingConfig removes Thinking and ReasoningEffort when the
