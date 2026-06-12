@@ -6481,3 +6481,23 @@ Rows pending flip (after fix-r1 + gate close): PAR-USAGE-004..010, 040 (+001/002
 Commits: 2f28678, eaa00a5, 7e5b2ea, 76d6c9d, dfd09a7, 353bc98. Tests+race green.
 Diff-gate: cycle-1 REJECT — REAL: missing store UserPricing() reader, unwrapped errors,
   user-override baseModel over-match → fix micro-plan fixes/w5-a-fix-r1.md queued.
+
+## w5-pre + w5-a: Diff gates closed, merged (2026-06-12)
+w5-pre: cycle-1 REAL coverage gaps fixed (fixes/w5-pre-fix-r1.md, 9e14ed3: production
+  combo-dispatcher bridge test over real engine+store, route-plumbing test, refresher
+  compile assertion); cycle-2 closed by decision (base-URL architectural constraint,
+  3rd occurrence; catalog mutation has t.Cleanup — false positive). MERGED.
+w5-a: cycle-1 REAL fixed (fixes/w5-a-fix-r1.md, b6089ab: Store.UserPricing() reader,
+  wrapped errors, exact-match user overrides); cycle-2 runs both gate artifacts
+  (path-scope swept w5-b files; merged_test.go omitted from path list — symbols/test
+  exist and pass, verified live). MERGED.
+Rows_flipped: PAR-USAGE-004/005/006/007/008/009/010/040 MISSING→HAVE; 001/002/003
+  table halves noted (write semantics with w5-b/c).
+PARITY.md rollup recounted: translation 64/2/1 (of 67), routing 45/1/14, auth 26/1/3,
+  usage 8/0/32 (translation/routing/auth rows were stale since W4 flips).
+
+## w5-b: Usage write path + trackers (2026-06-12) — impl merged, fix round 1 in flight
+Commits: 77f19db, 26ce6fb, 29c1a3b, be1843b, 0953bb1. Build/vet/test/-race green.
+Diff-gate cycle-1: 4 MAJORs, ALL verified REAL (NullString scan for nullable columns,
+  ring init cap, emit-while-holding-mutex deadlock risk for w5-e SSE, missing
+  aggregation test cases) → fixes/w5-b-fix-r1.md dispatched.
