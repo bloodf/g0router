@@ -160,3 +160,36 @@ Runs ALONE (migrate.go is hot; w5-b/c both add store files next).
 saveRequestUsage/daily rollup writes (w5-b). Buffered request-details writer (w5-c).
 All admin routes incl. /api/pricing (w5-d). SSE (w5-e). Handler glue (w5-f). VK (w5-g).
 SQLite JSON-function rollups (post-parity backlog).
+
+## Plan-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1 findings FIXED (mutation ops moved to w5-d
+with Invalidate() hook retained; kv sentinel tied to settings.go:33-40 convention;
+exact counts 83/49/1; overlay field-absence semantics defined as present-key maps).
+Cycle-2 findings FIXED (kv scoped to Set/Get/List, Delete/Clear → w5-d; ten golden
+entries + first/last pattern anchors enumerated; layering cited to AGENTS.md:24 +
+models.go ComboLister precedent). Cycle-3 residual findings triaged:
+
+BLOCKER "SetKV is write behavior beyond read-path scope": FALSE POSITIVE.
+PAR-USAGE-004 reads "kv table … STORES user pricing overrides" — storage requires the
+write primitive. SetKV is a single-row upsert with no pricing semantics (no merge, no
+validation, no route); the pricing MUTATION FLOWS (updatePricing/resetPricing/
+resetAllPricing, pricingRepo.js:60-108) remain in w5-d. Cross-plan necessity: w5-b's
+lifetime counter (PAR-USAGE-011, usageRepo.js:276-279 `_meta` upsert) writes kv
+scope='meta' inside its save transaction — the primitive must exist before w5-b.
+
+MAJOR "Resolver/user-override exceeds PAR-USAGE-008": FALSE POSITIVE. The
+user-override-first read (pricingRepo.js:51-56) is the consumption half of
+PAR-USAGE-004's evidence — a stored override that is never consulted is dead storage,
+and no other w5 plan owns resolution (w5-d owns routes+mutations only; w5-b's
+PAR-USAGE-012 calls `calculateCost(provider, model, tokens)` which resolves through
+pricingRepo.getPricingForModel — the exact chain this task ports). Omitting it from
+w5-a would make w5-b's cost-at-save unimplementable.
+
+MAJOR "Merged view maps to PAR-USAGE-029": FALSE POSITIVE (half). PAR-USAGE-040
+("Pricing cache TTL 5s … to avoid repeated DB reads", pricingRepo.js:6-12) caches
+EXACTLY the merged view built by getPricing (pricingRepo.js:18-49) — the cache cannot
+be ported without the function it caches. PAR-USAGE-029 is the HTTP ROUTE serving
+this view; the route stays in w5-d and will consume w5-a's Merged().
+
+Kimi diff gate at implementation (full source context) is the binding check.
+APPROVED BY DECISION for dispatch after w5-pre merges.
