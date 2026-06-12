@@ -1,6 +1,8 @@
 package usage
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -85,11 +87,43 @@ func TestRingInitEnforcesCap(t *testing.T) {
 	}
 }
 
+func TestRingInitPushConcurrent(t *testing.T) {
+	lister := func() ([]*store.RequestLogEntry, error) {
+		// Sleep long enough for the concurrent Push to run while Init is in
+		// progress; the subsequent append loop inside initOnce.Do races with
+		// Push unless Init holds r.mu.
+		time.Sleep(100 * time.Millisecond)
+		items := make([]*store.RequestLogEntry, 10000)
+		for i := range items {
+			items[i] = &store.RequestLogEntry{Timestamp: fmt.Sprintf("%d", i), Model: "x"}
+		}
+		return items, nil
+	}
+
+	ring := NewRing(10)
+	go func() {
+		if err := ring.Init(lister); err != nil {
+			t.Errorf("Init: %v", err)
+		}
+	}()
+
+	// Let Init enter the lister sleep before pushing.
+	time.Sleep(50 * time.Millisecond)
+	ring.Push(&store.RequestLogEntry{Timestamp: "now", Model: "p"})
+
+	// Wait for Init to finish its append loop.
+	time.Sleep(200 * time.Millisecond)
+}
+
 func TestConnNameCacheTTL(t *testing.T) {
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)
 	calls := 0
+	failNext := false
 	lister := func() ([]ConnInfo, error) {
 		calls++
+		if failNext {
+			return nil, errors.New("boom")
+		}
 		return []ConnInfo{
 			{ID: "c1", Name: "Alice", Email: "alice@example.com"},
 			{ID: "c2", Name: "", Email: "bob@example.com"},
@@ -98,10 +132,7 @@ func TestConnNameCacheTTL(t *testing.T) {
 	}
 
 	cache := NewConnNameCache(lister, 30*time.Second, func() time.Time { return now })
-	m, err := cache.Get()
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
+	m := cache.Get()
 	if calls != 1 {
 		t.Errorf("lister calls = %d, want 1", calls)
 	}
@@ -117,10 +148,7 @@ func TestConnNameCacheTTL(t *testing.T) {
 
 	// Within TTL: no re-list.
 	now = now.Add(29 * time.Second)
-	m, err = cache.Get()
-	if err != nil {
-		t.Fatalf("Get within TTL: %v", err)
-	}
+	m = cache.Get()
 	if calls != 1 {
 		t.Errorf("lister calls within TTL = %d, want 1", calls)
 	}
@@ -130,11 +158,22 @@ func TestConnNameCacheTTL(t *testing.T) {
 
 	// After TTL: re-list.
 	now = now.Add(2 * time.Second)
-	m, err = cache.Get()
-	if err != nil {
-		t.Fatalf("Get after TTL: %v", err)
-	}
+	m = cache.Get()
 	if calls != 2 {
 		t.Errorf("lister calls after TTL = %d, want 2", calls)
+	}
+
+	// After TTL with a failing lister: return the prior cached map, no panic.
+	failNext = true
+	now = now.Add(31 * time.Second)
+	m = cache.Get()
+	if calls != 3 {
+		t.Errorf("lister calls after TTL failure = %d, want 3", calls)
+	}
+	if m == nil {
+		t.Fatalf("Get returned nil map on lister error, want prior map")
+	}
+	if m["c1"] != "Alice" {
+		t.Errorf("stale c1 = %q, want Alice", m["c1"])
 	}
 }

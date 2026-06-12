@@ -32,6 +32,8 @@ func (r *Ring) Init(lister func() ([]*store.RequestLogEntry, error)) error {
 			r.initErr = fmt.Errorf("init ring: %w", err)
 			return
 		}
+		r.mu.Lock()
+		defer r.mu.Unlock()
 		// The lister returns newest-first; reverse to oldest-first so pushes
 		// append at the tail in chronological order.
 		for i := len(items) - 1; i >= 0; i-- {
@@ -93,18 +95,19 @@ func NewConnNameCache(lister func() ([]ConnInfo, error), ttl time.Duration, cloc
 }
 
 // Get returns the cached id→name map, refreshing from the lister after ttl.
-func (c *ConnNameCache) Get() (map[string]string, error) {
+// If the lister fails, the previous cached map is returned (empty if none).
+func (c *ConnNameCache) Get() map[string]string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	now := c.clock()
 	if c.cache != nil && now.Sub(c.ts) < c.ttl {
-		return copyConnMap(c.cache), nil
+		return copyConnMap(c.cache)
 	}
 
 	infos, err := c.lister()
 	if err != nil {
-		return nil, fmt.Errorf("list connections: %w", err)
+		return copyConnMap(c.cache)
 	}
 
 	m := make(map[string]string, len(infos))
@@ -121,7 +124,7 @@ func (c *ConnNameCache) Get() (map[string]string, error) {
 
 	c.cache = m
 	c.ts = now
-	return copyConnMap(m), nil
+	return copyConnMap(m)
 }
 
 func copyConnMap(src map[string]string) map[string]string {
