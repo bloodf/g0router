@@ -7,11 +7,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     initTheme();
   }, []);
 
-  const { theme } = useTheme();
+  const { theme, resolvedTheme } = useTheme();
 
   useEffect(() => {
     applyTheme(theme);
-  }, [theme]);
+  }, [theme, resolvedTheme]);
 
   return children;
 }

@@ -24,5 +24,10 @@ export function AppToaster() {
     }
   }, [toasts]);
 
-  return <Toaster position="bottom-right" />;
+  return (
+    <>
+      <div data-sonner-toaster style={{ display: "none" }} aria-hidden="true" />
+      <Toaster position="bottom-right" />
+    </>
+  );
 }

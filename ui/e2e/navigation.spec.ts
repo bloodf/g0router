@@ -9,7 +9,7 @@ test.describe("Navigation", () => {
   test("sidebar renders logo, traffic lights, and all 29 nav items", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page.getByTestId("traffic-lights")).toBeVisible();
-    const navLinks = page.locator("nav a[href^='/']");
+    const navLinks = page.locator('[data-testid="desktop-sidebar"] nav a[href^="/"]');
     await expect(navLinks).toHaveCount(29);
 
     for (const href of ["/dashboard", "/virtual-keys", "/mcp", "/console"]) {
