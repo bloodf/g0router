@@ -87,10 +87,98 @@ type resolvedCache struct {
 	expiresAt int64
 }
 
+const cacheTTLMs = 5000
+
 // NewResolver creates a pricing resolver with the given override store and clock.
 // clock returns the current time in milliseconds.
 func NewResolver(store OverrideStore, clock func() int64) *Resolver {
 	return &Resolver{store: store, clock: clock}
+}
+
+// Merged returns the merged provider→model→pricing view, caching it for 5s.
+func (r *Resolver) Merged() (map[string]map[string]Pricing, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := r.clock()
+	if r.cache != nil && r.cache.expiresAt > now {
+		return copyMerged(r.cache.value), nil
+	}
+
+	user, err := r.store.UserPricing()
+	if err != nil {
+		return nil, err
+	}
+
+	merged := make(map[string]map[string]Pricing)
+
+	// Seed canonical provider pricing.
+	for provider, models := range ProviderPricing {
+		out := make(map[string]Pricing, len(models))
+		for model, p := range models {
+			out[model] = p
+		}
+		merged[provider] = out
+	}
+
+	// Overlay user pricing.
+	for provider, models := range user {
+		out, ok := merged[provider]
+		if !ok {
+			out = make(map[string]Pricing)
+			merged[provider] = out
+		}
+		for model, rates := range models {
+			base := Pricing{}
+			if existing, ok := out[model]; ok {
+				base = existing
+			}
+			out[model] = overlayPricing(base, rates)
+		}
+	}
+
+	r.cache = &resolvedCache{value: merged, expiresAt: now + cacheTTLMs}
+	return copyMerged(merged), nil
+}
+
+// Invalidate clears the cached merged view so the next call re-reads the store.
+func (r *Resolver) Invalidate() {
+	r.mu.Lock()
+	r.cache = nil
+	r.mu.Unlock()
+}
+
+// overlayPricing applies present user rate keys over the canonical pricing.
+func overlayPricing(base Pricing, rates map[string]float64) Pricing {
+	if v, ok := rates["input"]; ok {
+		base.Input = v
+	}
+	if v, ok := rates["output"]; ok {
+		base.Output = v
+	}
+	if v, ok := rates["cached"]; ok {
+		base.Cached = v
+	}
+	if v, ok := rates["reasoning"]; ok {
+		base.Reasoning = v
+	}
+	if v, ok := rates["cache_creation"]; ok {
+		base.CacheCreation = v
+	}
+	return base
+}
+
+// copyMerged returns a shallow copy of the merged view.
+func copyMerged(src map[string]map[string]Pricing) map[string]map[string]Pricing {
+	out := make(map[string]map[string]Pricing, len(src))
+	for provider, models := range src {
+		mcopy := make(map[string]Pricing, len(models))
+		for model, p := range models {
+			mcopy[model] = p
+		}
+		out[provider] = mcopy
+	}
+	return out
 }
 
 // PricingForModel resolves pricing for a provider/model, checking user overrides first.
