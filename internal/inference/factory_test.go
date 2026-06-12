@@ -149,6 +149,19 @@ func TestPassthroughLookupByProviderID(t *testing.T) {
 	}
 }
 
+// TestProviderAliasNonBuildableIdFallsThrough verifies that a model like "cc/claude-3-5-sonnet"
+// (alias "cc" → "claude", which is not a Stage-1 provider) falls through to the legacy heuristic
+// and routes to "anthropic" via the "claude-" prefix.
+func TestProviderAliasNonBuildableIdFallsThrough(t *testing.T) {
+	id, ok := providerForModel("cc/claude-3-5-sonnet")
+	if !ok {
+		t.Fatal("expected a provider, got none")
+	}
+	if id != "anthropic" {
+		t.Errorf("providerForModel(cc/claude-3-5-sonnet) = %q, want anthropic", id)
+	}
+}
+
 func TestFactoryCatalogPrecedenceUnchanged(t *testing.T) {
 	// Catalog lookup must still win over prefix-based inference.
 	got, ok := providerForModel("deepseek-chat")

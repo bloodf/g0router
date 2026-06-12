@@ -39,7 +39,12 @@ func providerForModel(model string) (providerID string, ok bool) {
 	if prefix, bare := ParseModelPrefix(model); prefix != "" {
 		// 2a. Resolve known provider alias to provider ID.
 		if id, ok := catalog.ResolveProviderAlias(prefix); ok {
-			return id, true
+			// Only use if the resolved provider exists in this stage.
+			if _, exists := catalog.Lookup(id); exists || isBuiltinProvider(id) {
+				return id, true
+			}
+			// Provider alias resolved to a future-stage provider (e.g. "claude" in Stage-1).
+			// Fall through to legacy heuristics on the bare model name.
 		}
 		// PR-485: passthrough lookup by providerId.
 		if _, ok := catalog.Lookup(prefix); ok {
@@ -102,4 +107,13 @@ func buildProvider(providerID string, reg *translation.Registry) (schemas.Provid
 		}
 		return generic.New(providerID)
 	}
+}
+
+// isBuiltinProvider reports whether id is handled by the built-in switch in buildProvider.
+func isBuiltinProvider(id string) bool {
+	switch id {
+	case "openai", "anthropic", "gemini", "ollama", "ollama-local":
+		return true
+	}
+	return false
 }
