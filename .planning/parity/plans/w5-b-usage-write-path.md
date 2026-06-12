@@ -173,3 +173,30 @@ Cycle-3 residual findings triaged:
   would be an incomplete port. PAR-USAGE-034 (SSE consumer) remains w5-e.
 Kimi diff gate at implementation is the binding check. APPROVED BY DECISION for
 dispatch after w5-a merges.
+
+## Diff-gate disposition (cycle 3, Fable 5, 2026-06-12) — CLOSED BY DECISION
+Three substantive cycles complete. Cycle-1: 4 REAL findings FIXED (fix-r1, 80679a9:
+NullString scans, ring init cap, emit-after-unlock, exact aggregation key tests).
+Cycle-2: 2 REAL FIXED (fix-r2, cdefa31: ring init under mutex, ref-faithful
+`Get() map[string]string` returning stale map on lister error) + 2 rebutted
+(tokens/meta parse tolerance = ref's parseJson(value, default), usageRepo.js:108).
+Cycle-3 residual triage — three findings contradict the frozen reference itself:
+- MAJOR "missing-provider byModel should be model|provider": FALSE POSITIVE —
+  `usageRepo.js:63` `entry.provider ? `${model}|${provider}` : entry.model` — bare
+  model IS the ref shape (and fix-r1's Finding 4 instructed exactly this).
+- MAJOR "'unknown' provider segment breaks compatibility": FALSE POSITIVE — the ref
+  writes `${provider || "unknown"}` in BOTH byApiKey (`:71`) and byEndpoint (`:75`)
+  composites; "unknown" IS the importer-compatible shape.
+- MAJOR "timeout corrupts byModel for other connections": FALSE POSITIVE — ref
+  timeout behavior verbatim: `usageRepo.js:176-181` zeroes the GLOBAL
+  byModel[modelKey] (and the timer connection's account entry) on a single
+  connection's 60s timeout. A 9router quirk, ported faithfully (parity program
+  ports behavior, including quirks — recorded matrix §Edge cases notes the timer
+  semantics).
+- MAJOR "no ORDER BY id DESC test": residual test nit accepted — the ordering is
+  exercised through TestRingInitOnceFromStore (newest-first reversal contract);
+  follow-up coverage lands with w5-d's TestRecentLogsFormat which asserts exact
+  ordered lines over the same query.
+Build/vet/test/-race green post-fix-r2 (verified live). MERGED.
+Rows flip: PAR-USAGE-001/002 (write semantics complete), 011, 012, 018, 019, 020,
+038 → HAVE.

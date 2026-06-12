@@ -9,8 +9,8 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router`
 
 | ID | Behavior | Evidence (file:line) | g0router status | Notes |
 |---|---|---|---|---|
-| PAR-USAGE-001 | `usageHistory` table stores per-request timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens JSON, meta JSON | `src/lib/db/schema.js:105-127` | MISSING | g0router migrate.go creates no usage tables — request_log table+indexes created (w5-a); write path w5-b |
-| PAR-USAGE-002 | `usageDaily` table stores dateKey + aggregated JSON (byProvider, byModel, byAccount, byApiKey, byEndpoint) | `src/lib/db/schema.js:128-133` | MISSING | No daily rollup table in g0router — usage_daily table created (w5-a); rollup writes w5-b |
+| PAR-USAGE-001 | `usageHistory` table stores per-request timestamp, provider, model, connectionId, apiKey, endpoint, promptTokens, completionTokens, cost, status, tokens JSON, meta JSON | `src/lib/db/schema.js:105-127` | HAVE | request_log table (w5-a) + transactional SaveUsage write path (w5-b) |
+| PAR-USAGE-002 | `usageDaily` table stores dateKey + aggregated JSON (byProvider, byModel, byAccount, byApiKey, byEndpoint) | `src/lib/db/schema.js:128-133` | HAVE | usage_daily table (w5-a) + aggregateEntryToDay rollup upsert in same tx (w5-b) |
 | PAR-USAGE-003 | `requestDetails` table stores observability records with id, timestamp, provider, model, connectionId, status, data JSON | `src/lib/db/schema.js:134-150` | MISSING | g0router has no request-details schema — request_details table+indexes created (w5-a); writer w5-c |
 | PAR-USAGE-004 | `kv` table with scope='pricing' stores user pricing overrides per provider | `src/lib/db/schema.js:96-104` | HAVE | kv table + Store.UserPricing() reader + SetKV/GetKV/ListKV (internal/store/kv.go); scope=pricing overrides consumed by usage.Resolver (w5-a) |
 | PAR-USAGE-005 | Provider-specific pricing overrides merged with canonical model pricing and pattern pricing | `src/shared/constants/pricing.js:124-129` | HAVE | ProviderPricing override map ported; gh/gpt-5.3-codex golden-tested (internal/usage/pricingdata.go) (w5-a) |
@@ -19,16 +19,16 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router`
 | PAR-USAGE-008 | Three-step pricing resolution: PROVIDER_PRICING → MODEL_PRICING → PATTERN_PRICING | `src/shared/constants/pricing.js:227-248` | HAVE | 3-step resolution ResolvePricing + user-override-first PricingForModel (exact provider/model match per fix-r1) (w5-a) |
 | PAR-USAGE-009 | Cost calculation supports input, output, cached, reasoning, cache_creation rates per 1M tokens | `src/shared/constants/pricing.js:274-303` | HAVE | CalculateCost: 5 rate categories per 1M, cached-subtraction, reasoning/cache_creation fallbacks, golden-tested (internal/usage/cost.go) (w5-a) |
 | PAR-USAGE-010 | Token field normalization: prompt_tokens / input_tokens, completion_tokens / output_tokens, cached_tokens / cache_read_input_tokens | `src/lib/db/repos/usageRepo.js:121-122` | HAVE | NormalizeTokens accepts prompt|input, completion|output, cached|cache_read synonyms (internal/usage/tokens.go) (w5-a) |
-| PAR-USAGE-011 | Usage entry saved atomically in transaction: insert history, upsert daily, increment lifetime counter in `_meta` | `src/lib/db/repos/usageRepo.js:243-287` | MISSING | No transaction writes for usage |
-| PAR-USAGE-012 | `saveRequestUsage` computes cost before persisting via `calculateCost(provider, model, tokens)` | `src/lib/db/repos/usageRepo.js:248` | MISSING | Chat/embed handlers do not extract usage |
+| PAR-USAGE-011 | Usage entry saved atomically in transaction: insert history, upsert daily, increment lifetime counter in `_meta` | `src/lib/db/repos/usageRepo.js:243-287` | HAVE | SaveUsage: history insert + daily upsert + kv meta lifetime counter in ONE tx; rollback-tested (w5-b) |
+| PAR-USAGE-012 | `saveRequestUsage` computes cost before persisting via `calculateCost(provider, model, tokens)` | `src/lib/db/repos/usageRepo.js:248` | HAVE | usage.Recorder computes cost via Resolver.CostFor before SaveUsage; emits update (w5-b) |
 | PAR-USAGE-013 | `getUsageStats` supports periods: today, 24h, 7d, 30d, 60d, all | `src/app/api/usage/stats/route.js:4` | MISSING | No usage stats API in g0router |
 | PAR-USAGE-014 | Daily-summary path used for periods >24h; live-history path used for today/24h | `src/lib/db/repos/usageRepo.js:418` | MISSING | No aggregation strategy exists |
 | PAR-USAGE-015 | Stats include totalRequests, totalPromptTokens, totalCompletionTokens, totalCost | `src/lib/db/repos/usageRepo.js:367-370` | MISSING | No stats computation |
 | PAR-USAGE-016 | Stats break down byProvider, byModel, byAccount, byApiKey, byEndpoint | `src/lib/db/repos/usageRepo.js:370` | MISSING | No multi-dimensional aggregation |
 | PAR-USAGE-017 | last10Minutes bucket array computed from usageHistory with 1-minute buckets | `src/lib/db/repos/usageRepo.js:394-416` | MISSING | No minute-level bucketing |
-| PAR-USAGE-018 | Active requests tracked in-memory with pending timeout (60s) and automatic cleanup | `src/lib/db/repos/usageRepo.js:6,153-196` | MISSING | No pending request tracker |
-| PAR-USAGE-019 | Recent request ring buffer capped at 50 entries, initialized from DB on first access | `src/lib/db/repos/usageRepo.js:7,79-111` | MISSING | No in-memory ring buffer |
-| PAR-USAGE-020 | Connection name cache with 30s TTL for display labels | `src/lib/db/repos/usageRepo.js:8,86-97` | MISSING | No connection map cache |
+| PAR-USAGE-018 | Active requests tracked in-memory with pending timeout (60s) and automatic cleanup | `src/lib/db/repos/usageRepo.js:6,153-196` | HAVE | usage.Tracker: 60s timer timeout, clamp, error-provider 10s window, reentrant-safe emit (w5-b) |
+| PAR-USAGE-019 | Recent request ring buffer capped at 50 entries, initialized from DB on first access | `src/lib/db/repos/usageRepo.js:7,79-111` | HAVE | usage.Ring cap 50, lazy init-once from store, mutex-guarded (w5-b) |
+| PAR-USAGE-020 | Connection name cache with 30s TTL for display labels | `src/lib/db/repos/usageRepo.js:8,86-97` | HAVE | ConnNameCache 30s TTL, name→email→id fallback, stale-on-error per ref (w5-b) |
 | PAR-USAGE-021 | `getChartData` returns 24 hourly buckets for today/24h, daily buckets for 7d/30d/60d | `src/app/api/usage/chart/route.js:4` | MISSING | No chart data API |
 | PAR-USAGE-022 | Chart bucket labels use locale time strings for hours, short date for days | `src/lib/db/repos/usageRepo.js:631,673` | MISSING | No chart formatting |
 | PAR-USAGE-023 | `getRecentLogs` derives logs from usageHistory with formatted string output | `src/lib/db/repos/usageRepo.js:701-730` | MISSING | No log API |
@@ -46,7 +46,7 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router`
 | PAR-USAGE-035 | Usage SSE stream sends keepalive ping every 25s | `src/app/api/usage/stream/route.js:53-61` | MISSING | No SSE endpoint for usage |
 | PAR-USAGE-036 | Dashboard UsageStats component fetches `/api/usage/stats?period=`, subscribes to `/api/usage/stream` | `src/shared/components/UsageStats.js:242-278` | MISSING | UI has no usage stats page |
 | PAR-USAGE-037 | Dashboard RequestLogger polls `/api/usage/request-logs` every 3s with auto-refresh toggle | `src/shared/components/RequestLogger.js:15-23` | MISSING | UI has no request logger component |
-| PAR-USAGE-038 | Usage history dedupes recent requests by (model + provider + promptTokens + completionTokens + minute) | `src/lib/db/repos/usageRepo.js:229-237` | MISSING | No deduplication logic |
+| PAR-USAGE-038 | Usage history dedupes recent requests by (model + provider + promptTokens + completionTokens + minute) | `src/lib/db/repos/usageRepo.js:229-237` | HAVE | DedupeRecent: zero-token drop + minute composite key, cap 20 (w5-b) |
 | PAR-USAGE-039 | Usage daily aggregation overlays precise lastUsed timestamps from history rows | `src/lib/db/repos/usageRepo.js:506-530` | MISSING | No lastUsed overlay |
 | PAR-USAGE-040 | Pricing cache TTL 5s in memory to avoid repeated DB reads | `src/lib/db/repos/pricingRepo.js:6-12` | HAVE | Resolver.Merged() 5s TTL cache + Invalidate() hook, injected clock (w5-a) |
 
