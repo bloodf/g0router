@@ -1,7 +1,9 @@
 package inference
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -338,9 +340,48 @@ func TestFallbackTerminatesAllExcluded(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when all accounts excluded, got nil")
 	}
+	if !errors.Is(err, ErrAllUnavailable) {
+		t.Errorf("expected ErrAllUnavailable, got: %v", err)
+	}
 	if callCount != 2 {
 		t.Errorf("expected exactly 2 calls (one per connection), got %d", callCount)
 	}
+}
+
+// fakeCooldownWithRetryAfter returns a specific retry-after time from GroupRetryAfter.
+type fakeCooldownWithRetryAfter struct {
+	fakeCooldownForSelection
+	retryAt time.Time
+}
+
+func (f *fakeCooldownWithRetryAfter) GroupRetryAfter(providerID, model string, now time.Time) (time.Time, bool, error) {
+	return f.retryAt, true, nil
+}
+
+func TestFallbackExhaustionReturnsGroupRetryAfter(t *testing.T) {
+	cs := &fakeConnStore{
+		conns: []*store.Connection{makeConn("c1", "p1")},
+	}
+	wantRetry := time.Date(2026, 1, 1, 0, 5, 0, 0, time.UTC)
+	cd := &fakeCooldownWithRetryAfter{retryAt: wantRetry}
+	engine := NewSelectionEngine(cs, &fakeSettingStore{}, cd, time.Now)
+
+	err := engine.WithAccountFallback("p1", "gpt-4", func(conn *store.Connection) (Verdict, error) {
+		return VerdictRateLimit, nil // exhaust the single connection
+	})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, ErrAllUnavailable) {
+		t.Errorf("expected ErrAllUnavailable, got: %v", err)
+	}
+	if got := err.Error(); !containsRetryTime(got, wantRetry) {
+		t.Errorf("error %q should mention retry time %v", got, wantRetry)
+	}
+}
+
+func containsRetryTime(msg string, t time.Time) bool {
+	return strings.Contains(msg, "retry after") || strings.Contains(msg, t.Format("2006"))
 }
 
 func TestFallbackSuccessMarksReset(t *testing.T) {
