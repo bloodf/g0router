@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -17,6 +18,28 @@ type fakeOverrideStore struct {
 func (f *fakeOverrideStore) UserPricing() (map[string]map[string]map[string]float64, error) {
 	f.calls++
 	return f.data, f.err
+}
+
+func (f *fakeOverrideStore) SetKV(scope, key, value string) error {
+	if f.data == nil {
+		f.data = make(map[string]map[string]map[string]float64)
+	}
+	var models map[string]map[string]float64
+	if err := json.Unmarshal([]byte(value), &models); err != nil {
+		return err
+	}
+	f.data[key] = models
+	return nil
+}
+
+func (f *fakeOverrideStore) DeleteKV(scope, key string) error {
+	delete(f.data, key)
+	return nil
+}
+
+func (f *fakeOverrideStore) ClearKVScope(scope string) error {
+	f.data = make(map[string]map[string]map[string]float64)
+	return nil
 }
 
 func TestMergedPricingAndCache(t *testing.T) {

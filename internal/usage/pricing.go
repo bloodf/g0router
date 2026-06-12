@@ -1,6 +1,7 @@
 package usage
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -72,6 +73,12 @@ type OverrideStore interface {
 	// UserPricing returns provider → model → rate-name → value.
 	// Only present keys are included; absent keys inherit the canonical value.
 	UserPricing() (map[string]map[string]map[string]float64, error)
+	// SetKV upserts a single key→value pair within a scope.
+	SetKV(scope, key, value string) error
+	// DeleteKV removes a single key from a scope.
+	DeleteKV(scope, key string) error
+	// ClearKVScope removes every key in a scope.
+	ClearKVScope(scope string) error
 }
 
 // Resolver resolves pricing with user overrides and a 5s TTL cache.
@@ -147,6 +154,97 @@ func (r *Resolver) Invalidate() {
 	r.mu.Lock()
 	r.cache = nil
 	r.mu.Unlock()
+}
+
+// Update merges the supplied provider→model→rates data into the existing user
+// pricing overrides and invalidates the cache.
+func (r *Resolver) Update(updates map[string]map[string]map[string]float64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	current, err := r.store.UserPricing()
+	if err != nil {
+		return fmt.Errorf("read user pricing: %w", err)
+	}
+	if current == nil {
+		current = make(map[string]map[string]map[string]float64)
+	}
+
+	for provider, models := range updates {
+		merged, ok := current[provider]
+		if !ok {
+			merged = make(map[string]map[string]float64)
+			current[provider] = merged
+		}
+		for model, rates := range models {
+			merged[model] = rates
+		}
+		value, err := json.Marshal(merged)
+		if err != nil {
+			return fmt.Errorf("marshal pricing %s: %w", provider, err)
+		}
+		if err := r.store.SetKV("pricing", provider, string(value)); err != nil {
+			return fmt.Errorf("set pricing %s: %w", provider, err)
+		}
+	}
+
+	r.cache = nil
+	return nil
+}
+
+// Reset removes a provider-level override, or a single model override when
+// model is non-empty. If the provider becomes empty it is deleted.
+func (r *Resolver) Reset(provider, model string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	current, err := r.store.UserPricing()
+	if err != nil {
+		return fmt.Errorf("read user pricing: %w", err)
+	}
+
+	if model == "" {
+		if err := r.store.DeleteKV("pricing", provider); err != nil {
+			return fmt.Errorf("delete pricing %s: %w", provider, err)
+		}
+		r.cache = nil
+		return nil
+	}
+
+	models, ok := current[provider]
+	if !ok {
+		r.cache = nil
+		return nil
+	}
+	delete(models, model)
+	if len(models) == 0 {
+		if err := r.store.DeleteKV("pricing", provider); err != nil {
+			return fmt.Errorf("delete pricing %s: %w", provider, err)
+		}
+	} else {
+		value, err := json.Marshal(models)
+		if err != nil {
+			return fmt.Errorf("marshal pricing %s: %w", provider, err)
+		}
+		if err := r.store.SetKV("pricing", provider, string(value)); err != nil {
+			return fmt.Errorf("set pricing %s: %w", provider, err)
+		}
+	}
+
+	r.cache = nil
+	return nil
+}
+
+// ResetAll clears all user pricing overrides.
+func (r *Resolver) ResetAll() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if err := r.store.ClearKVScope("pricing"); err != nil {
+		return fmt.Errorf("clear pricing: %w", err)
+	}
+	r.cache = nil
+	return nil
 }
 
 // overlayPricing applies present user rate keys over the canonical pricing.

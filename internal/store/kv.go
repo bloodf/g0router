@@ -55,6 +55,22 @@ func (s *Store) ListKV(scope string) (map[string]string, error) {
 	return out, nil
 }
 
+// DeleteKV removes a single key from a scope.
+func (s *Store) DeleteKV(scope, key string) error {
+	if _, err := s.db.Exec("DELETE FROM kv WHERE scope = ? AND key = ?", scope, key); err != nil {
+		return fmt.Errorf("delete kv %s/%s: %w", scope, key, err)
+	}
+	return nil
+}
+
+// ClearKVScope removes every key in a scope.
+func (s *Store) ClearKVScope(scope string) error {
+	if _, err := s.db.Exec("DELETE FROM kv WHERE scope = ?", scope); err != nil {
+		return fmt.Errorf("clear kv scope %s: %w", scope, err)
+	}
+	return nil
+}
+
 // UserPricing returns provider → model → rate-name → value overrides stored
 // in the kv table under scope='pricing'. It implements usage.OverrideStore.
 func (s *Store) UserPricing() (map[string]map[string]map[string]float64, error) {

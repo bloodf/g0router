@@ -108,3 +108,43 @@ func TestUserPricingReadsKV(t *testing.T) {
 		t.Errorf("UserPricing corrupt error = %v, want mention of provider key 'bad'", err)
 	}
 }
+
+func TestKVDeleteAndClear(t *testing.T) {
+	st := newTestStore(t)
+
+	if err := st.SetKV("pricing", "openai", `{"gpt-4o":{"input":1}}`); err != nil {
+		t.Fatalf("SetKV openai: %v", err)
+	}
+	if err := st.SetKV("pricing", "anthropic", `{"claude":{"input":2}}`); err != nil {
+		t.Fatalf("SetKV anthropic: %v", err)
+	}
+
+	if err := st.DeleteKV("pricing", "openai"); err != nil {
+		t.Fatalf("DeleteKV: %v", err)
+	}
+	v, err := st.GetKV("pricing", "openai")
+	if err != nil {
+		t.Fatalf("GetKV after delete: %v", err)
+	}
+	if v != "" {
+		t.Errorf("GetKV after delete = %q, want empty", v)
+	}
+	v, err = st.GetKV("pricing", "anthropic")
+	if err != nil {
+		t.Fatalf("GetKV anthropic: %v", err)
+	}
+	if v == "" {
+		t.Errorf("GetKV anthropic = empty after deleting openai")
+	}
+
+	if err := st.ClearKVScope("pricing"); err != nil {
+		t.Fatalf("ClearKVScope: %v", err)
+	}
+	all, err := st.ListKV("pricing")
+	if err != nil {
+		t.Fatalf("ListKV after clear: %v", err)
+	}
+	if len(all) != 0 {
+		t.Errorf("ListKV after clear = %v, want empty", all)
+	}
+}
