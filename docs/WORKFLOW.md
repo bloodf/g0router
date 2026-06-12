@@ -6627,3 +6627,14 @@ PAR-UI-074 MISSING→HAVE, PAR-UI-075 MISSING→HAVE, PAR-UI-076 MISSING→HAVE,
 PAR-UI-077 MISSING→HAVE, PAR-UI-078 MISSING→HAVE, PAR-UI-079 PARTIAL→HAVE,
 PAR-UI-080 MISSING→HAVE.
 Diff gate: pending orchestrator push.
+
+## w6-a — MERGED (2026-06-12)
+10 implementation commits + 2 fix rounds. UI foundation complete: root redirect,
+dashboard layout (sidebar/header/toasts), theming (Tailwind v4 @theme inline, brand
+colors, themeStore, useTheme, ThemeProvider, .dark class), 6 Zustand stores, lib
+(cn, apiFetch TQ adapter), 29-item NAV_ITEMS nav, mobile sidebar, sonner toaster.
+TDD: navigation.spec.ts 9/9, vitest 10/10, npm build green, go test green.
+Diff gate: 3 cycles, closed by decision — pre-existing login spec failures (not regressions),
+Sonner v2 toaster pattern, w6-pre scope artifact. Rows flipped: PAR-UI-001/026/030/031/
+073/074/075/076/077/078/079/080 HAVE; PAR-UI-028/029 PARTIAL; PAR-UI-081 HAVE (variant).
+UI track: frozen foundation. Next: w6-b (shadcn primitives) ∥ w6-d (i18n).
