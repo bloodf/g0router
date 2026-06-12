@@ -278,6 +278,50 @@ func TestChatRecordsUsageStream(t *testing.T) {
 	}
 }
 
+// TestChatStreamRecorderErrorDoesNotFailRequest verifies that a failing usage
+// recorder is logged but does not abort a successful stream response.
+func TestChatStreamRecorderErrorDoesNotFailRequest(t *testing.T) {
+	ch := make(chan *schemas.StreamChunk, 2)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hi"}}}}
+	ch <- &schemas.StreamChunk{ID: "c2", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}, FinishReason: strPtr("stop")}}, Usage: &schemas.Usage{PromptTokens: 10, CompletionTokens: 5}}
+	close(ch)
+
+	rec := &recordingProvider{
+		providerName: "openai",
+		connectionID: "conn-1",
+		streamCh:     ch,
+	}
+	resolver := &recordingResolver{providers: map[string]schemas.Provider{"gpt-4": rec}}
+
+	recorder := &fakeUsageRecorder{err: errors.New("recorder full")}
+	tracker := &fakePendingTracker{}
+	detail := &fakeDetailCapture{}
+
+	h := &ChatHandler{router: resolver}
+	h.SetUsageRecorder(recorder)
+	h.SetPendingTracker(tracker)
+	h.SetDetailCapture(detail)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4","messages":[{"role":"user","content":"hi"}],"stream":true}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200; recorder error must not fail the client request", ctx.Response.StatusCode())
+	}
+	if got := tracker.startCount(); got != 1 {
+		t.Errorf("tracker starts = %d, want 1", got)
+	}
+	if len(tracker.ends) != 1 {
+		t.Errorf("tracker ends = %d, want 1", len(tracker.ends))
+	}
+	if tracker.ends[0].IsError {
+		t.Error("tracker end should not be flagged as error")
+	}
+}
+
 // TestChatRecordsErrorStatus: provider error → tracker End(error=true), entry status != "ok".
 func TestChatRecordsErrorStatus(t *testing.T) {
 	rec := &recordingProvider{
@@ -619,4 +663,41 @@ func contains(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// TestRecordStreamClaudeUsageKeys verifies that recordStream maps Claude-shaped
+// usage keys (input_tokens/output_tokens) onto the OpenAI-shaped entry fields,
+// preserving the raw key set in entry.Tokens.
+func TestRecordStreamClaudeUsageKeys(t *testing.T) {
+	recorder := &fakeUsageRecorder{}
+	g := &recordGlue{recorder: recorder}
+
+	summary := translation.StreamSummary{
+		Usage: map[string]any{
+			"input_tokens":  123,
+			"output_tokens": 45,
+		},
+	}
+	g.recordStream("/v1/messages", "claude-3", "anthropic", "conn-1", nil, nil, summary, nil)
+
+	entries := recorder.snapshot()
+	if len(entries) != 1 {
+		t.Fatalf("recorder entries = %d, want 1", len(entries))
+	}
+	e := entries[0]
+	if e.PromptTokens != 123 {
+		t.Errorf("PromptTokens = %d, want 123", e.PromptTokens)
+	}
+	if e.CompletionTokens != 45 {
+		t.Errorf("CompletionTokens = %d, want 45", e.CompletionTokens)
+	}
+	if e.Tokens == nil {
+		t.Fatal("expected Tokens map")
+	}
+	if e.Tokens["input_tokens"] != 123 {
+		t.Errorf("Tokens[input_tokens] = %d, want 123", e.Tokens["input_tokens"])
+	}
+	if e.Tokens["output_tokens"] != 45 {
+		t.Errorf("Tokens[output_tokens] = %d, want 45", e.Tokens["output_tokens"])
+	}
 }

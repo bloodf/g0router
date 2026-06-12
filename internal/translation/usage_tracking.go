@@ -17,15 +17,9 @@ func NormalizeUsage(usage map[string]any) map[string]any {
 	if usage == nil {
 		return nil
 	}
-	if _, isArr := usage["_"]; isArr { // cheap array check via type guard below
-		// unreachable: arrays can't be top-level keys; defensive.
-	}
-	// Arrays are not handled in the JS reference either; reject them.
-	if isArrayish(usage) {
-		return nil
-	}
 
 	normalized := map[string]any{}
+
 	assignNumber := func(key string, value any) {
 		if value == nil {
 			return
@@ -351,12 +345,6 @@ var (
 		"estimated",
 	}
 )
-
-func isArrayish(m map[string]any) bool {
-	// Defensive: maps in Go cannot be arrays; the JS reference rejects
-	// array inputs. Keep this hook so future ref changes can be ported.
-	return false
-}
 
 func parseFiniteNumber(s string) (float64, bool) {
 	if s == "" {

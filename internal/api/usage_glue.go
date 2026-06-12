@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/bloodf/g0router/internal/schemas"
@@ -137,24 +138,28 @@ func (g *recordGlue) recordError(endpoint, model, provider, connID string, body 
 	}
 	statusLabel := fmt.Sprintf("%d", statusCode)
 	if g.recorder != nil {
-		_ = g.recorder.Record(&UsageEntry{
+		if err := g.recorder.Record(&UsageEntry{
 			Provider:     provider,
 			Model:        model,
 			ConnectionID: connID,
 			Endpoint:     endpoint,
 			Status:       "error",
 			Tokens:       map[string]int64{},
-		})
+		}); err != nil {
+			log.Printf("usage record error on %s: %v", endpoint, err)
+		}
 	}
 	if g.detail != nil {
-		_ = g.detail.Save(RequestDetailCapture{
+		if err := g.detail.Save(RequestDetailCapture{
 			Provider:     provider,
 			Model:        model,
 			ConnectionID: connID,
 			Status:       "error",
 			Request:      captureRequest(body, headers),
 			Response:     map[string]any{"error": map[string]any{"message": perr.Message, "status": statusLabel}},
-		})
+		}); err != nil {
+			log.Printf("detail save error on %s: %v", endpoint, err)
+		}
 	}
 }
 
@@ -180,10 +185,12 @@ func (g *recordGlue) recordNonStream(endpoint, model, provider, connID string, b
 		}
 	}
 	if g.recorder != nil {
-		_ = g.recorder.Record(entry)
+		if err := g.recorder.Record(entry); err != nil {
+			log.Printf("usage record error on %s: %v", endpoint, err)
+		}
 	}
 	if g.detail != nil {
-		_ = g.detail.Save(RequestDetailCapture{
+		if err := g.detail.Save(RequestDetailCapture{
 			Provider:     provider,
 			Model:        model,
 			ConnectionID: connID,
@@ -191,7 +198,9 @@ func (g *recordGlue) recordNonStream(endpoint, model, provider, connID string, b
 			Request:      captureRequest(body, headers),
 			Tokens:       entry.Tokens,
 			Response:     response,
-		})
+		}); err != nil {
+			log.Printf("detail save error on %s: %v", endpoint, err)
+		}
 	}
 }
 
@@ -226,6 +235,15 @@ func toFloat(v any) float64 {
 	return 0
 }
 
+func firstNonZero(vals ...int) int {
+	for _, v := range vals {
+		if v != 0 {
+			return v
+		}
+	}
+	return 0
+}
+
 // recordStream terminates pending tracking and persists a usage entry + detail
 // capture for a streaming request. The summary carries accumulated/estimated
 // usage from the stream processor.
@@ -246,18 +264,17 @@ func (g *recordGlue) recordStream(endpoint, model, provider, connID string, body
 		Status:       status,
 	}
 	if summary.Usage != nil {
-		entry.PromptTokens = int64(extractInt(summary.Usage, "prompt_tokens"))
-		entry.CompletionTokens = int64(extractInt(summary.Usage, "completion_tokens"))
+		entry.PromptTokens = int64(firstNonZero(extractInt(summary.Usage, "prompt_tokens"), extractInt(summary.Usage, "input_tokens")))
+		entry.CompletionTokens = int64(firstNonZero(extractInt(summary.Usage, "completion_tokens"), extractInt(summary.Usage, "output_tokens")))
 		entry.Tokens = map[string]int64{}
-		if v, ok := summary.Usage["prompt_tokens"]; ok {
-			entry.Tokens["prompt_tokens"] = int64(toFloat(v))
-		}
-		if v, ok := summary.Usage["completion_tokens"]; ok {
-			entry.Tokens["completion_tokens"] = int64(toFloat(v))
+		for k, v := range summary.Usage {
+			entry.Tokens[k] = int64(toFloat(v))
 		}
 	}
 	if g.recorder != nil {
-		_ = g.recorder.Record(entry)
+		if err := g.recorder.Record(entry); err != nil {
+			log.Printf("usage record error on %s: %v", endpoint, err)
+		}
 	}
 	if g.detail != nil {
 		capture := RequestDetailCapture{
@@ -271,6 +288,8 @@ func (g *recordGlue) recordStream(endpoint, model, provider, connID string, body
 		if isError {
 			capture.Response = map[string]any{"error": sErr.Error()}
 		}
-		_ = g.detail.Save(capture)
+		if err := g.detail.Save(capture); err != nil {
+			log.Printf("detail save error on %s: %v", endpoint, err)
+		}
 	}
 }

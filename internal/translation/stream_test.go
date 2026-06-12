@@ -479,6 +479,46 @@ func TestPassthroughStreamEstimatesOnFinish(t *testing.T) {
 	}
 }
 
+// TestPassthroughSummaryUsage verifies that passthrough mode preserves real
+// provider usage from upstream chunks instead of falling back to estimation.
+func TestPassthroughSummaryUsage(t *testing.T) {
+	w := &fakeWriter{}
+	ch := make(chan *schemas.StreamChunk, 2)
+	ch <- &schemas.StreamChunk{ID: "c1", Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{Content: "hello"}}}}
+	ch <- &schemas.StreamChunk{
+		ID: "c2",
+		Choices: []schemas.StreamChoice{{Index: 0, Delta: schemas.Message{}, FinishReason: strPtr("stop")}},
+		Usage: &schemas.Usage{PromptTokens: 100, CompletionTokens: 50, TotalTokens: 150},
+	}
+	close(ch)
+
+	summary, err := ProcessPassthroughStream(context.Background(), w, ch, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if summary.Usage == nil {
+		t.Fatal("expected usage in summary")
+	}
+	if summary.Usage["estimated"] == true {
+		t.Errorf("summary.Usage.estimated = %v, want false for real provider usage", summary.Usage["estimated"])
+	}
+	if summary.Usage["prompt_tokens"] != 100 {
+		t.Errorf("summary.Usage.prompt_tokens = %v, want 100", summary.Usage["prompt_tokens"])
+	}
+	if summary.Usage["completion_tokens"] != 50 {
+		t.Errorf("summary.Usage.completion_tokens = %v, want 50", summary.Usage["completion_tokens"])
+	}
+
+	out := w.buf.String()
+	if !strings.Contains(out, `"prompt_tokens":2100`) {
+		t.Errorf("finish chunk should carry buffered real usage; output: %q", out)
+	}
+	if strings.Contains(out, `"estimated":true`) {
+		t.Errorf("finish chunk should not carry estimated flag for real usage; output: %q", out)
+	}
+}
+
 func TestStreamNilEstimateSourceSkipsEstimation(t *testing.T) {
 	// No EstimateSource → no estimation runs, summary.Usage is nil.
 	w := &fakeWriter{}
