@@ -4,6 +4,7 @@ import { useHeaderSearchStore } from "@/stores/header-search";
 import { useUserStore } from "@/stores/user";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { LogoutButton } from "@/components/auth/logout-button";
 
 function formatTitle(segment: string) {
   return segment
@@ -26,8 +27,8 @@ function LanguageSwitcherSlot() {
   return <span data-testid="language-switcher-slot"><LanguageSwitcher /></span>;
 }
 
-function LogoutSlot() {
-  return <span data-testid="logout-slot" />;
+function LogoutSlot({ user }: { user: unknown }) {
+  return <span data-testid="logout-slot">{user ? <LogoutButton /> : null}</span>;
 }
 
 interface HeaderProps {
@@ -74,7 +75,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         ) : null}
         <ThemeToggleSlot />
         <LanguageSwitcherSlot />
-        <LogoutSlot />
+        <LogoutSlot user={user} />
       </div>
     </header>
   );
