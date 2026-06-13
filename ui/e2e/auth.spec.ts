@@ -64,44 +64,32 @@ test.describe("Auth flow", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
-  test("callback relays code+state via BroadcastChannel and localStorage", async ({ page }) => {
-    // Subscribe to the BroadcastChannel on an app-origin page first.
-    await page.goto("/login");
-    const received = page.evaluate(
-      () =>
-        new Promise<{ code?: string; state?: string }>((resolve) => {
-          const ch = new BroadcastChannel("oauth_callback");
-          ch.onmessage = (ev) => resolve(ev.data);
-        })
-    );
-    // Navigate the SAME page to /callback so the BroadcastChannel shares context.
-    await page.goto("/callback?code=abc&state=xyz");
-    // localStorage fallback is written synchronously on the callback page.
-    const stored = await page.evaluate(() =>
-      localStorage.getItem("oauth_callback")
-    );
-    expect(stored).toContain("abc");
-
-    // Reopen the listener page to assert the broadcast on a fresh subscriber.
+  test("callback relays code+state via BroadcastChannel (and localStorage fallback)", async ({
+    page,
+  }) => {
+    // BroadcastChannel: subscribe on an app-origin page, then open /callback in a
+    // popup that shares the same browsing-context group so the channel delivers.
     await page.goto("/login");
     const got = await page.evaluate(
       () =>
         new Promise<{ code?: string; state?: string }>((resolve) => {
           const ch = new BroadcastChannel("oauth_callback");
-          ch.onmessage = (ev) => resolve(ev.data);
-          const w = window.open("/callback?code=abc&state=xyz", "_blank");
-          setTimeout(() => {
-            try {
-              w?.close();
-            } catch {
-              /* ignore */
-            }
-          }, 1800);
+          ch.onmessage = (ev) => {
+            ch.close();
+            resolve(ev.data);
+          };
+          window.open("/callback?code=abc&state=xyz", "_blank");
         })
     );
     expect(got.code).toBe("abc");
     expect(got.state).toBe("xyz");
-    void received;
+
+    // localStorage fallback: the callback page writes it synchronously on load.
+    await page.goto("/callback?code=abc&state=xyz");
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("oauth_callback")
+    );
+    expect(stored).toContain("abc");
   });
 
   test("callback shows manual-copy state when no code/error present", async ({ page }) => {

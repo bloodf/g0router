@@ -36,6 +36,7 @@ import { Route as ConsoleRouteImport } from './routes/console'
 import { Route as ConnectionsRouteImport } from './routes/connections'
 import { Route as CombosRouteImport } from './routes/combos'
 import { Route as ChatRouteImport } from './routes/chat'
+import { Route as CallbackRouteImport } from './routes/callback'
 import { Route as AuditRouteImport } from './routes/audit'
 import { Route as AliasesRouteImport } from './routes/aliases'
 import { Route as AlertsRouteImport } from './routes/alerts'
@@ -176,6 +177,11 @@ const ChatRoute = ChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CallbackRoute = CallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuditRoute = AuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/alerts': typeof AlertsRoute
   '/aliases': typeof AliasesRoute
   '/audit': typeof AuditRoute
+  '/callback': typeof CallbackRoute
   '/chat': typeof ChatRoute
   '/combos': typeof CombosRoute
   '/connections': typeof ConnectionsRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/alerts': typeof AlertsRoute
   '/aliases': typeof AliasesRoute
   '/audit': typeof AuditRoute
+  '/callback': typeof CallbackRoute
   '/chat': typeof ChatRoute
   '/combos': typeof CombosRoute
   '/connections': typeof ConnectionsRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/alerts': typeof AlertsRoute
   '/aliases': typeof AliasesRoute
   '/audit': typeof AuditRoute
+  '/callback': typeof CallbackRoute
   '/chat': typeof ChatRoute
   '/combos': typeof CombosRoute
   '/connections': typeof ConnectionsRoute
@@ -303,6 +312,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/aliases'
     | '/audit'
+    | '/callback'
     | '/chat'
     | '/combos'
     | '/connections'
@@ -336,6 +346,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/aliases'
     | '/audit'
+    | '/callback'
     | '/chat'
     | '/combos'
     | '/connections'
@@ -369,6 +380,7 @@ export interface FileRouteTypes {
     | '/alerts'
     | '/aliases'
     | '/audit'
+    | '/callback'
     | '/chat'
     | '/combos'
     | '/connections'
@@ -403,6 +415,7 @@ export interface RootRouteChildren {
   AlertsRoute: typeof AlertsRoute
   AliasesRoute: typeof AliasesRoute
   AuditRoute: typeof AuditRoute
+  CallbackRoute: typeof CallbackRoute
   ChatRoute: typeof ChatRoute
   CombosRoute: typeof CombosRoute
   ConnectionsRoute: typeof ConnectionsRoute
@@ -623,6 +636,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/callback': {
+      id: '/callback'
+      path: '/callback'
+      fullPath: '/callback'
+      preLoaderRoute: typeof CallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/audit': {
       id: '/audit'
       path: '/audit'
@@ -668,6 +688,7 @@ const rootRouteChildren: RootRouteChildren = {
   AlertsRoute: AlertsRoute,
   AliasesRoute: AliasesRoute,
   AuditRoute: AuditRoute,
+  CallbackRoute: CallbackRoute,
   ChatRoute: ChatRoute,
   CombosRoute: CombosRoute,
   ConnectionsRoute: ConnectionsRoute,
