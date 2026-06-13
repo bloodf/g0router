@@ -35,26 +35,26 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-024 | Route `/dashboard/media-providers/web` web search/fetch combos | `src/app/(dashboard)/dashboard/media-providers/web/page.js` | MISSING | Not in g0router e2e |
 | PAR-UI-025 | Route `/dashboard/settings/pricing` pricing management | `src/app/dashboard/settings/pricing/page.js` | MISSING | g0router e2e expects `/pricing` |
 | PAR-UI-026 | Dashboard layout wraps all routes with sidebar + header + toasts | `ui/src/routes/__root.tsx` | HAVE | `ThemeProvider > I18nMount > flex shell [Sidebar | MobileSidebar | Header + Outlet] + Toaster` |
-| PAR-UI-027 | Root layout loads Inter font, ThemeProvider, RuntimeI18nProvider | `src/app/layout.js:1-49` | MISSING | g0router `main.tsx` only mounts `<App />` in StrictMode |
+| PAR-UI-027 | Root layout loads Inter font, ThemeProvider, RuntimeI18nProvider | `ui/src/routes/__root.tsx` | HAVE | Inter font (w6-a `ui/src/index.css:1,16`); `ThemeProvider > I18nProvider` shell; `I18nProvider` from w6-d mounted by w6-b T8 |
 | PAR-UI-028 | Sidebar renders traffic lights, logo, nav items, media accordion, update checker | `ui/src/components/layout/sidebar.tsx` | PARTIAL | Traffic lights, logo, 29 nav items, update badge present; media accordion + live update-check deferred |
 | PAR-UI-029 | Header renders breadcrumbs, page title, search bar, auth badge, donate, theme/lang toggles, logout | `ui/src/components/layout/header.tsx` | PARTIAL | Breadcrumbs, title, search bound to store, auth badge present; theme/lang toggles + logout + donate slots null (w6-b/c/j) |
 | PAR-UI-030 | Toast notifications via Zustand store with auto-dismiss | `ui/src/stores/notification.ts`, `ui/src/components/layout/toaster.tsx` | HAVE | Zustand `notificationStore` with auto-dismiss; sonner bridge via `AppToaster` |
 | PAR-UI-031 | Mobile sidebar with overlay and slide-in animation | `ui/src/components/layout/mobile-sidebar.tsx` | HAVE | Reuses `NAV_ITEMS`, overlay closes panel, hamburger-driven |
-| PAR-UI-032 | Button component with variants (primary, secondary, ghost, outline, danger), sizes, icon, loading | `src/shared/components/Button.js` | MISSING | g0router uses shadcn/ui via `components.json` |
-| PAR-UI-033 | Input component with label, error, hint | `src/shared/components/Input.js` | MISSING | g0router uses shadcn/ui via `components.json` |
-| PAR-UI-034 | Select component with options array | `src/shared/components/Select.js` | MISSING | g0router uses shadcn/ui via `components.json` |
-| PAR-UI-035 | Card component with padding variants | `src/shared/components/Card.js` | MISSING | g0router uses shadcn/ui via `components.json` |
-| PAR-UI-036 | Modal component with traffic lights, sizes, overlay click, Escape key, body scroll lock | `src/shared/components/Modal.js:8-146` | MISSING | g0router uses Radix Dialog via shadcn/ui |
-| PAR-UI-037 | ConfirmModal wrapper with danger/primary variants | `src/shared/components/Modal.js:115-146` | MISSING | g0router uses Radix AlertDialog via shadcn/ui |
-| PAR-UI-038 | Badge component with success/error/default/neutral/primary variants, dot, size | `src/shared/components/Badge.js` | MISSING | g0router uses shadcn/ui badge |
-| PAR-UI-039 | Toggle component with sm/md sizes | `src/shared/components/Toggle.js` | MISSING | g0router uses Radix Switch via shadcn/ui |
-| PAR-UI-040 | SegmentedControl component for tab-like selection | `src/shared/components/SegmentedControl.js` | MISSING | Not found in g0router dependencies |
-| PAR-UI-041 | ProviderIcon component with fallback text/color | `src/shared/components/ProviderIcon.js` | MISSING | g0router has provider PNGs in `public/providers/` |
-| PAR-UI-042 | Loading/Spinner/Skeleton/CardSkeleton components | `src/shared/components/Loading.js` | MISSING | g0router uses shadcn/ui skeleton |
-| PAR-UI-043 | Tooltip component with position and color | `src/shared/components/Tooltip.js` | MISSING | g0router uses Radix Tooltip via shadcn/ui |
-| PAR-UI-044 | Pagination component | `src/shared/components/Pagination.js` | MISSING | Not found in g0router dependencies |
-| PAR-UI-045 | LanguageSwitcher shows flag emoji grid, POSTs to `/api/locale` | `src/shared/components/LanguageSwitcher.js` | MISSING | g0router `package.json` has `react-i18next` |
-| PAR-UI-046 | ThemeToggle cycles light/dark/system | `src/shared/components/ThemeToggle.js` | MISSING | g0router e2e tests theme toggle |
+| PAR-UI-032 | Button component with variants (primary, secondary, ghost, outline, danger), sizes, icon, loading | `ui/src/components/ui/button.tsx` | HAVE | w6-b: CVA 5 variants, sizes sm/md/lg/icon, `icon`/`loading` (spinner + aria-busy), Radix Slot `asChild` |
+| PAR-UI-033 | Input component with label, error, hint | `ui/src/components/ui/input.tsx` | HAVE | w6-b: label/error/hint, generated id + htmlFor, aria-invalid + aria-describedby |
+| PAR-UI-034 | Select component with options array | `ui/src/components/ui/select.tsx` | HAVE | w6-b: styled native `<select>`, `options` array, label/error a11y wiring (variant-HAVE) |
+| PAR-UI-035 | Card component with padding variants | `ui/src/components/ui/card.tsx` | HAVE | w6-b: `Card`/`CardHeader`/`CardTitle`/`CardContent`, padding none/sm/md/lg |
+| PAR-UI-036 | Modal component with traffic lights, sizes, overlay click, Escape key, body scroll lock | `ui/src/components/ui/modal.tsx` | HAVE | w6-b: portal-free, traffic lights, sizes sm/md/lg/xl, overlay click + Escape close, body scroll lock |
+| PAR-UI-037 | ConfirmModal wrapper with danger/primary variants | `ui/src/components/ui/confirm-modal.tsx` | HAVE | w6-b: wraps Modal + Button, danger/primary variant mapping |
+| PAR-UI-038 | Badge component with success/error/default/neutral/primary variants, dot, size | `ui/src/components/ui/badge.tsx` | HAVE | w6-b: CVA 5 variants, optional dot, sizes sm/md |
+| PAR-UI-039 | Toggle component with sm/md sizes | `ui/src/components/ui/toggle.tsx` | HAVE | w6-b: Radix Switch (`@radix-ui/react-switch`), sizes sm/md, role=switch + aria-checked |
+| PAR-UI-040 | SegmentedControl component for tab-like selection | `ui/src/components/ui/segmented-control.tsx` | HAVE | w6-b: role=tablist + role=tab + aria-selected, options array |
+| PAR-UI-041 | ProviderIcon component with fallback text/color | `ui/src/components/ui/provider-icon.tsx` | HAVE | w6-b: `/providers/<slug>.png` img + onError fallback, `providerInitials`/`providerColor` helpers |
+| PAR-UI-042 | Loading/Spinner/Skeleton/CardSkeleton components | `ui/src/components/ui/loading.tsx`, `ui/src/components/ui/skeleton.tsx` | HAVE | w6-b: `Spinner`/`Loading` (role=status), `Skeleton`/`CardSkeleton` (aria-hidden pulse) |
+| PAR-UI-043 | Tooltip component with position and color | `ui/src/components/ui/tooltip.tsx` | HAVE | w6-b: Radix Tooltip (`@radix-ui/react-tooltip`), `side` position + `color` variants, exports `TooltipProvider` |
+| PAR-UI-044 | Pagination component | `ui/src/components/ui/pagination.tsx` | HAVE | w6-b: prev/next bounds-disabled, nav aria-label + aria-current, exported `paginationRange` helper |
+| PAR-UI-045 | LanguageSwitcher shows flag emoji grid, POSTs to `/api/locale` | `ui/src/components/ui/language-switcher.tsx` | HAVE | w6-b: trigger → Modal flag-emoji grid, POST `/api/locale` via `apiFetch`, `DEFAULT_LOCALES` |
+| PAR-UI-046 | ThemeToggle cycles light/dark/system | `ui/src/components/ui/theme-toggle.tsx` | HAVE | w6-b: cycles light→dark→system via w6-a `useThemeStore`, Sun/Moon/Monitor icon, aria-label names theme |
 | PAR-UI-047 | UsageStats component: period selector, overview cards, provider topology, usage table, SSE updates | `src/shared/components/UsageStats.js:192-505` | MISSING | g0router e2e expects dashboard metrics |
 | PAR-UI-048 | RequestLogger auto-refreshing table (3s poll) | `src/shared/components/RequestLogger.js` | MISSING | g0router e2e expects `/logs` table |
 | PAR-UI-049 | ModelSelectModal hierarchical model picker with combos + custom models | `src/shared/components/ModelSelectModal.js` | MISSING | g0router e2e expects model selection dialogs |
