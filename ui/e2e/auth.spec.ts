@@ -1,12 +1,18 @@
 import { test, expect } from "./mocks/fixture";
 import { login } from "./helpers";
 
-// Spec-only helper: drive the auth mock's control surface (auth_mode / lockout).
+// Spec-only helper: drive the auth mock via request headers the auth handler
+// reads (x-mock-auth-mode / x-mock-force-lockout). Headers reach the handler
+// because page.route intercepts page-context navigations and fetches.
 async function setMockAuth(
   page: import("@playwright/test").Page,
   body: { auth_mode?: "password" | "oidc" | "both"; force_lockout?: number }
 ) {
-  await page.request.post("/__mock__/auth", { data: body });
+  const headers: Record<string, string> = {};
+  if (body.auth_mode) headers["x-mock-auth-mode"] = body.auth_mode;
+  if (typeof body.force_lockout === "number")
+    headers["x-mock-force-lockout"] = String(body.force_lockout);
+  await page.setExtraHTTPHeaders(headers);
 }
 
 test.describe("Auth flow", () => {

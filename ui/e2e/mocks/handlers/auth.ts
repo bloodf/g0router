@@ -2,39 +2,34 @@ import type { Page } from "@playwright/test";
 import type { MockStore } from "../store";
 import { json, error } from "./utils";
 
-// Auth-mode + rate-limit are control knobs the spec drives via the
-// `/__mock__/auth` route below. They mirror the real Go contract:
+// Auth-mode + rate-limit are control knobs the spec drives via request headers
+// (x-mock-auth-mode / x-mock-force-lockout) set with page.setExtraHTTPHeaders,
+// since page.route intercepts page-context requests but not APIRequestContext.
+// They mirror the real Go contract:
 //   - GET /api/auth/status returns ONLY { auth_mode } (internal/admin/auth.go:177-179)
 //   - 429 lockout returns { data:null, error:{ message, retry_after, reset_hint } }
 //     plus a Retry-After header (internal/admin/auth.go:126-140)
-// They live in the handler closure (never on the frozen MockStore/types.ts).
+// No frozen MockStore/types.ts field is added.
 const resetHint =
   "Forgot password? Reset to default via g0router CLI: g0router reset-password";
 
 export function registerAuthHandlers(page: Page, store: MockStore) {
-  let authMode: "password" | "oidc" | "both" = "password";
-  let forceLockout = 0; // when > 0, the next login returns 429 with this retry_after
-
-  // Spec-only control surface (no real backend route). Lets tests set the
-  // auth_mode the status endpoint reports and arm the rate-limit lockout.
-  page.route("**/__mock__/auth", async (route) => {
-    const body = await route.request().postDataJSON();
-    if (body.auth_mode) authMode = body.auth_mode;
-    if (typeof body.force_lockout === "number") forceLockout = body.force_lockout;
-    return json(route, { auth_mode: authMode, force_lockout: forceLockout });
-  });
-
   page.route("/api/auth/status", async (route) => {
     // Real Go Status returns ONLY { auth_mode } (auth.go:177-179).
-    if (route.request().method() === "GET") return json(route, { auth_mode: authMode });
+    if (route.request().method() === "GET") {
+      const mode = route.request().headers()["x-mock-auth-mode"] ?? "password";
+      return json(route, { auth_mode: mode });
+    }
     return route.continue();
   });
   page.route("/api/auth/login", async (route) => {
     if (route.request().method() === "POST") {
       // 429 lockout branch (auth.go:126-140): { error:{ message, retry_after, reset_hint } }
+      const forceLockout = Number(
+        route.request().headers()["x-mock-force-lockout"] ?? "0"
+      );
       if (forceLockout > 0) {
         const retryAfter = forceLockout;
-        forceLockout = 0;
         return route.fulfill({
           status: 429,
           headers: {
