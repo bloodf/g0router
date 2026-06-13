@@ -1,7 +1,9 @@
 {
   "name": "g0router-ui",
   "private": true,
-  "sideEffects": ["src/lib/i18n.ts"],
+  "sideEffects": [
+    "src/lib/i18n.ts"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -96,6 +98,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "jsdom": "^29.1.1",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
