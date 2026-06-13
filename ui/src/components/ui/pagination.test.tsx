@@ -8,7 +8,7 @@ describe("paginationRange", () => {
   });
 
   it("windows the start with a trailing ellipsis (1, 10)", () => {
-    expect(paginationRange(1, 10)).toEqual([1, 2, 3, "ellipsis", 10]);
+    expect(paginationRange(1, 10)).toEqual([1, 2, 3, 4, 5, "ellipsis", 10]);
   });
 
   it("windows the middle with both ellipses (5, 10)", () => {
@@ -24,7 +24,7 @@ describe("paginationRange", () => {
   });
 
   it("windows the end with a leading ellipsis (10, 10)", () => {
-    expect(paginationRange(10, 10)).toEqual([1, "ellipsis", 8, 9, 10]);
+    expect(paginationRange(10, 10)).toEqual([1, "ellipsis", 6, 7, 8, 9, 10]);
   });
 });
 
