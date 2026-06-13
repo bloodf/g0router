@@ -10,8 +10,8 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | ID | Behavior | Evidence (file:line) | g0router status | Notes |
 |---|---|---|---|---|
 | PAR-UI-001 | Route `/` redirects to `/dashboard` | `ui/src/routes/__root.tsx` | HAVE | `beforeLoad` throws `redirect({ to: '/dashboard' })` |
-| PAR-UI-002 | Route `/login` renders password + OIDC login form | `src/app/login/page.js:7-197` | MISSING | g0router e2e expects `/login` but no page exists in `src/` |
-| PAR-UI-003 | Route `/callback` handles OAuth callback via postMessage, BroadcastChannel, localStorage | `src/app/callback/page.js:9-147` | MISSING | g0router has no OAuth callback page |
+| PAR-UI-002 | Route `/login` renders password + OIDC login form | `ui/src/routes/login.tsx`, `ui/src/components/auth/login-form.tsx` | HAVE | w6-c: status-driven password + OIDC login form (`#username`/`#password`, OIDC button when `auth_mode ∈ {oidc,both}`) |
+| PAR-UI-003 | Route `/callback` handles OAuth callback via postMessage, BroadcastChannel, localStorage | `ui/src/routes/callback.tsx`, `ui/src/lib/auth.ts` | HAVE | w6-c: `relayOAuthCallback` (postMessage origin-allowlist + BroadcastChannel `oauth_callback` + localStorage) + manual-copy fallback |
 | PAR-UI-004 | Route `/landing` marketing page | `src/app/landing/page.js` | MISSING | Not referenced in g0router e2e |
 | PAR-UI-005 | Route `/dashboard` alias to `/dashboard/endpoint` | `src/app/(dashboard)/dashboard/page.js` | MISSING | g0router e2e expects `/dashboard` |
 | PAR-UI-006 | Route `/dashboard/endpoint` shows API endpoint config + API key management | `src/app/(dashboard)/dashboard/endpoint/page.js:1-7` | MISSING | g0router e2e has `/endpoint` route |
@@ -73,10 +73,10 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-062 | AddCustomEmbeddingModal custom embedding provider | `src/shared/components/AddCustomEmbeddingModal.js` | MISSING | Not in g0router e2e |
 | PAR-UI-063 | NoAuthProxyCard proxy pool selector for no-auth mode | `src/shared/components/NoAuthProxyCard.js` | MISSING | Not in g0router e2e |
 | PAR-UI-064 | ProviderInfoCard provider info display | `src/shared/components/ProviderInfoCard.js` | MISSING | Not in g0router e2e |
-| PAR-UI-065 | Auth: password login POST `/api/auth/login` with bcrypt, rate limit, retry countdown | `src/app/login/page.js:61-92` | MISSING | g0router e2e mocks `POST /api/auth/login` |
-| PAR-UI-066 | Auth: OIDC flow with PKCE, state, nonce, JWKS verification | `src/app/login/page.js:90-92`, callback page | MISSING | g0router e2e has no OIDC tests |
-| PAR-UI-067 | Auth: `GET /api/auth/status` on mount to check requireLogin, authMode, oidcConfigured | `src/app/login/page.js:26-59` | MISSING | g0router e2e mocks `GET /api/auth/status` |
-| PAR-UI-068 | Auth: logout POST `/api/auth/logout` clears cookies, redirects to `/login` | `src/shared/components/Header.js:211-221` | MISSING | g0router e2e tests logout flow |
+| PAR-UI-065 | Auth: password login POST `/api/auth/login` with bcrypt, rate limit, retry countdown | `ui/src/lib/auth.ts`, `ui/src/routes/login.tsx` | HAVE (variant) | w6-c §1.4: `loginWithPassword` POSTs `/api/auth/login`; 429 reads `error.retry_after` (g0router envelope) → 1s `setInterval` "Wait {n}s" countdown disabling submit; bcrypt is Go-side |
+| PAR-UI-066 | Auth: OIDC flow with PKCE, state, nonce, JWKS verification | `ui/src/lib/auth.ts`, `ui/src/routes/callback.tsx` | HAVE (variant) | w6-c §1.4/§1.3: UI entry = `startOidc` navigation to Go `/api/auth/oidc/start`; `/callback` covers the provider-OAuth relay half; PKCE/state/nonce/JWKS are correctly server-owned (Go) |
+| PAR-UI-067 | Auth: `GET /api/auth/status` on mount to check requireLogin, authMode, oidcConfigured | `ui/src/lib/auth.ts`, `ui/src/routes/login.tsx` | HAVE (variant) | w6-c §1.4: `getAuthStatus` on mount drives `authMode` visibility; real Go status returns only `auth_mode` (auth.go:177-179), so `oidc_configured`/`require_login` are absent and UI degrades to static OIDC label |
+| PAR-UI-068 | Auth: logout POST `/api/auth/logout` clears cookies, redirects to `/login` | `ui/src/components/auth/logout-button.tsx`, `ui/src/lib/auth.ts` | HAVE | w6-c: `LogoutButton` (header LogoutSlot) → `logout()` POSTs `/api/auth/logout` → `useUserStore.clear()` → navigate `/login` |
 | PAR-UI-069 | i18n: 33 locales configured in `LOCALES` array | `src/i18n/config.js:1` | HAVE | `ui/src/i18n/locales.ts` mirrors ref exactly (33 codes) |
 | PAR-UI-070 | i18n: runtime DOM translation via MutationObserver, stores `_originalText` per node | `src/i18n/runtime.js` | PARTIAL | variant: `react-i18next` hook-based init in `ui/src/i18n/index.ts`; DOM scan not ported |
 | PAR-UI-071 | i18n: `RuntimeI18nProvider` re-processes DOM on route change (double RAF) | `src/i18n/RuntimeI18nProvider.js:7-27` | PARTIAL | variant: `I18nProvider` subscribes to `router.subscribe('onResolved', ...)`; mounted by w6-b |
