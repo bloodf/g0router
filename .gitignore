@@ -60,3 +60,7 @@ coverage.out
 # CLI harness ephemera
 .planning/harness/artifacts/
 .planning/harness/jobs/
+
+# Local tooling artifacts (per-developer, not source)
+.serena/
+.claude/scheduled_tasks.lock

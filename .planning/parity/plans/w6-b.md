@@ -562,3 +562,24 @@ navigation.spec.ts TDD red start. FALSE: MAJOR 3 again (Tooltip deferred) — sa
 cycle 2.
 
 Plan is actionable for kimi dispatch after w6-a and w6-d are merged.
+
+## Runtime dispositions (orchestrator, 2026-06-13)
+
+Preconditions P1–P9 all PASS at dispatch time. Recorded substitutions (binding,
+per plan header §line 13-15 and T8 prose):
+
+- **`<base>` = `bb072fa`** (current `git rev-parse HEAD`; main advanced past the
+  authored `a5de2ad` because w6-d merged). Use `bb072fa` everywhere §5 references
+  `<base>`.
+- **w6-d i18n provider export is `I18nProvider`** (NOT `RuntimeI18nProvider`).
+  Verified in merged `ui/src/providers/i18n.tsx:28`. Per T8 prose, T8 imports the
+  ACTUAL name: `import { I18nProvider } from "@/providers/i18n"`. The §5 grep at
+  line 457 (`grep "RuntimeI18nProvider"`) is stale text — the binding acceptance
+  is that `__root.tsx` imports `I18nProvider` and no longer references `I18nMount`.
+- **Locale endpoint matches the e2e mock** — no T8 escalation. `internal/admin/locale.go`
+  POST `/api/locale` accepts `{locale}` and returns `{data:{locale},error:null}`;
+  cookie `locale=<code>; Path=/; SameSite=Lax`. Test 4's `{locale:<code>}` body +
+  `{data:{locale:'pt-BR'},error:null}` mock are consistent.
+- P8 clean-tree: untracked local artifacts (`.serena/`, `.claude/scheduled_tasks.lock`)
+  were added to `.gitignore`; worker MUST use explicit `git add <file>` (never
+  `git add -A`) so no tooling artifact is swept into a commit.
