@@ -5,10 +5,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import { Header } from "@/components/layout/header";
 import { AppToaster } from "@/components/layout/toaster";
-
-function I18nMount({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
+import { I18nProvider } from "@/providers/i18n";
 
 export const Route = createRootRoute({
   beforeLoad: ({ location }) => {
@@ -24,7 +21,7 @@ function RootComponent() {
 
   return (
     <ThemeProvider>
-      <I18nMount>
+      <I18nProvider>
         <div className="flex h-screen bg-background text-foreground">
           <Sidebar />
           <MobileSidebar open={mobileOpen} onClose={() => setMobileOpen(false)} />
@@ -36,7 +33,7 @@ function RootComponent() {
           </div>
         </div>
         <AppToaster />
-      </I18nMount>
+      </I18nProvider>
     </ThemeProvider>
   );
 }

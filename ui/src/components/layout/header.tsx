@@ -2,6 +2,8 @@ import { useLocation } from "@tanstack/react-router";
 import { Menu, User } from "lucide-react";
 import { useHeaderSearchStore } from "@/stores/header-search";
 import { useUserStore } from "@/stores/user";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
 
 function formatTitle(segment: string) {
   return segment
@@ -17,11 +19,11 @@ function usePageTitle() {
 }
 
 function ThemeToggleSlot() {
-  return <span data-testid="theme-toggle-slot" />;
+  return <span data-testid="theme-toggle-slot"><ThemeToggle /></span>;
 }
 
 function LanguageSwitcherSlot() {
-  return <span data-testid="language-switcher-slot" />;
+  return <span data-testid="language-switcher-slot"><LanguageSwitcher /></span>;
 }
 
 function LogoutSlot() {

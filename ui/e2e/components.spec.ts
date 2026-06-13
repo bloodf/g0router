@@ -36,11 +36,15 @@ test.describe("Shared UI primitives", () => {
   });
 
   test('theme choice persists to themeStore key "theme"', async ({ page }) => {
+    // Seed only once: the init script re-runs on reload, so guard it to avoid
+    // clobbering the value the toggle persists below.
     await page.addInitScript(() => {
-      localStorage.setItem(
-        "theme",
-        JSON.stringify({ state: { theme: "light" }, version: 0 })
-      );
+      if (!localStorage.getItem("theme")) {
+        localStorage.setItem(
+          "theme",
+          JSON.stringify({ state: { theme: "light" }, version: 0 })
+        );
+      }
     });
     await page.goto("/dashboard");
 
@@ -83,10 +87,13 @@ test.describe("Shared UI primitives", () => {
     await expect(dialog).toHaveCount(0);
     await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
 
-    // reopen, overlay click closes
+    // reopen, overlay click closes (click a corner so the press lands on the
+    // overlay backdrop, not the centered dialog panel).
     await trigger.click();
     await expect(page.locator('[role="dialog"]')).toBeVisible();
-    await page.locator('[data-testid="modal-overlay"]').click();
+    await page
+      .locator('[data-testid="modal-overlay"]')
+      .click({ position: { x: 5, y: 5 } });
     await expect(page.locator('[role="dialog"]')).toHaveCount(0);
   });
 

@@ -43,11 +43,14 @@ test.describe("Navigation", () => {
     await page.getByPlaceholder(/search/i).fill("hello");
     await expect(page.getByPlaceholder(/search/i)).toHaveValue("hello");
 
-    for (const id of ["theme-toggle-slot", "language-switcher-slot", "logout-slot"]) {
+    for (const id of ["theme-toggle-slot", "language-switcher-slot"]) {
       const slot = page.getByTestId(id);
       await expect(slot).toBeAttached();
-      await expect(slot).toHaveText("");
+      await expect(slot.getByRole("button")).toBeVisible();
     }
+    const logoutSlot = page.getByTestId("logout-slot");
+    await expect(logoutSlot).toBeAttached();
+    await expect(logoutSlot).toHaveText("");
   });
 
   test("toaster is mounted", async ({ page }) => {
