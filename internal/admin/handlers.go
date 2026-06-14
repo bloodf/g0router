@@ -6,6 +6,7 @@ import (
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/governance"
 	"github.com/bloodf/g0router/internal/platform"
+	"github.com/bloodf/g0router/internal/platform/tunnel"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
 )
@@ -20,6 +21,7 @@ type Handlers struct {
 	resolver     *usage.Resolver
 	audit        *governance.AuditService
 	proxyPools   *platform.ProxyPoolService
+	tunnels      *tunnel.Service
 	version      string
 	buildDate    string
 	shutdownFunc func()
@@ -51,6 +53,7 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 		limiter:    auth.NewLoginLimiter(),
 		audit:      governance.NewAuditService(st),
 		proxyPools: platform.NewProxyPoolService(st),
+		tunnels:    tunnel.NewService(st),
 	}
 }
 
@@ -87,6 +90,14 @@ func (h *Handlers) SetShutdownFunc(fn func()) {
 // Production wires the real proxied dial; tests inject a deterministic fake.
 func (h *Handlers) SetProxyProber(p platform.Prober) {
 	h.proxyPools.SetProber(p)
+}
+
+// SetTunnelRunner overrides the runner for a tunnel type. Production uses the
+// real cloudflared/tailscale runners constructed in New; tests inject a
+// deterministic fake so the tunnel admin API runs without spawning a process.
+// Mirrors SetProxyProber.
+func (h *Handlers) SetTunnelRunner(typ string, r tunnel.Runner) {
+	h.tunnels.SetRunner(typ, r)
 }
 
 // pathID returns the {id} route parameter.
