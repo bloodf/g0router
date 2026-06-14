@@ -424,10 +424,14 @@ func TestProbeEndpointPublic(t *testing.T) {
 
 func TestOIDCConfigured(t *testing.T) {
 	env := newTestEnv(t)
+	// The client secret is encrypted at rest now; seed it via the store accessor
+	// rather than the plaintext settings map (w7-misc OIDC secret-at-rest).
+	if err := env.store.SetOIDCSecret("client-secret"); err != nil {
+		t.Fatalf("SetOIDCSecret: %v", err)
+	}
 	settings := map[string]string{
-		"oidc_issuer_url":    "https://idp.example.com",
-		"oidc_client_id":     "client-id",
-		"oidc_client_secret": "client-secret",
+		"oidc_issuer_url": "https://idp.example.com",
+		"oidc_client_id":  "client-id",
 	}
 	if !env.handlers.oidcConfigured(settings) {
 		t.Fatal("expected oidcConfigured true")

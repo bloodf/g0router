@@ -31,9 +31,15 @@ func toUserDTO(u *store.User) userDTO {
 const resetHint = "Forgot password? Reset to default via g0router CLI: g0router reset-password"
 
 func (h *Handlers) oidcConfigured(settings map[string]string) bool {
+	// The client secret is encrypted at rest (oidc_secret_enc); consult the
+	// encrypted accessor rather than the plaintext settings map.
+	secret, err := h.store.GetOIDCSecret()
+	if err != nil {
+		return false
+	}
 	return strings.TrimSpace(settings["oidc_issuer_url"]) != "" &&
 		strings.TrimSpace(settings["oidc_client_id"]) != "" &&
-		strings.TrimSpace(settings["oidc_client_secret"]) != ""
+		strings.TrimSpace(secret) != ""
 }
 
 // Login handles POST /api/auth/login.

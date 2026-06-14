@@ -176,10 +176,19 @@ func (h *Handlers) OIDCCallback(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	// The client secret is encrypted at rest (oidc_secret_enc); read it from the
+	// encrypted accessor rather than the plaintext settings map.
+	clientSecret, err := h.store.GetOIDCSecret()
+	if err != nil {
+		deleteAllOIDCCookies(ctx)
+		writeError(ctx, fasthttp.StatusInternalServerError, "load oidc secret")
+		return
+	}
+
 	tokenData, err := auth.ExchangeOIDCCode(auth.OIDCCodeExchangeParams{
 		TokenEndpoint: discovery.TokenEndpoint,
 		ClientID:      strings.TrimSpace(settings["oidc_client_id"]),
-		ClientSecret:  strings.TrimSpace(settings["oidc_client_secret"]),
+		ClientSecret:  strings.TrimSpace(clientSecret),
 		Code:          code,
 		RedirectURI:   publicOrigin(ctx) + "/api/auth/oidc/callback",
 		CodeVerifier:  codeVerifier,
