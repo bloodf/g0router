@@ -8579,3 +8579,55 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   voyageai tests + 1 dispatch test + 3 catalog tests + alias-count). Matrix: PAR-PROV-066 MISSING → HAVE;
   053/054/055/058/059/060/061/062/063/064/065 stay MISSING annotated DEFERRED (ESC-M1/M2/M3). Escalations
   appended to open-questions.md (ESC-M1/M2/M3 + ESC-M4 media-transport-route open question).
+
+## w7-misc — W6-deferred small backends: console-logs SSE + translator + models + OIDC secret-at-rest (Go) — 2026-06-14
+- **Base.** `<base>` = `2f6fb00`. P-checks GREEN: P1 gaps real (no Go for any built domain); P6
+  base GREEN + HERMETIC (`go test ./...` 1787 passed / 43 packages, vet + build clean). P5 serial
+  slot FREE: last `routes_admin.go` toucher was `c9872e1 phase-1/w7-prov-oauth` (merged) — w7-misc
+  TOOK the slot and is the LAST chain holder (releases to nobody / to w7-prov-oauth's trivial append).
+- **BUILD-vs-DEFER decisions (§0, grounded per the w7-prov-media dead-route lesson).**
+  - **console-logs SSE — BUILT.** NEW capture seam (`internal/logging/console.go` ring buffer +
+    broadcaster) + SSE handler (`internal/admin/console.go` mirroring usagestream). **ESC-CONSOLE-SRC:**
+    the `MultiWriter` capture (`log.SetOutput(io.MultiWriter(os.Stderr, consoleLogWriter))`) is wired
+    in `NewAdminHandlers` (`routes_admin.go`), NOT `main.go` — main.go has no admin-handler handle and
+    `server.go` is out of scope; the serial-slot file already owns the construction, so the wiring is
+    additive there. Deviation from the plan's literal "main.go" wiring, recorded.
+  - **translator load+translate — BUILT; save+send — DEFERRED.** `internal/admin/translator.go` over the
+    in-tree `translation.Registry.TranslateRequest` (lazy `NewRegistry()` per handler — cheap+stateless,
+    no setter/handlers.go change). **ESC-TRANS-SCOPE:** save/send have no consumer = dead code; deferred,
+    recorded in open-questions.
+  - **models test/availability/custom — ALL BUILT.** NEW `internal/store/custommodels.go` (`custom_models`
+    table) + `internal/admin/models.go`. **ESC-MODELS-TEST:** injectable `ModelProber` (hermetic); default
+    impl = network-free catalog resolve (`defaultModelProber` in routes_admin.go).
+  - **OIDC secret-at-rest — BUILT.** Singleton `oidc_secret` table (`oidc_secret_enc`) +
+    `internal/store/oidcsecret.go` (encrypt round-trip + idempotent legacy-plaintext migration). **The
+    THREE sanctioned read/write redirects (ESC-OIDC-READSITE):** `auth.go` `oidcConfigured` + `oidc.go`
+    callback `ClientSecret` read `GetOIDCSecret()`; `settings.go` `PutSettings` routes `oidc_client_secret`
+    to `SetOIDCSecret` + strips it from the plaintext map. OIDC TEST handler UNTOUCHED. Secret never echoed.
+  - **chat-sessions CRUD — DEFERRED (ESC-CHATSESS).** No consuming requirement (9router keeps sessions in
+    localStorage; the chat turn uses the real `/v1/chat/completions`) = dead code. Stays OPEN in
+    open-questions.
+- **Strict TDD, EXACT commits (`phase-1/w7-misc:` prefix; footer Co-Authored-By Claude Fable 5; explicit
+  `git add <file>`, never -A).** RED→GREEN per domain, then the single serial-slot routes commit, then close:
+  1. `ede6023` failing console-log capture + SSE tests (TDD red)
+  2. `46dc6ed` console-log ring buffer + SSE stream endpoint
+  3. `10a25fe` failing translator load/translate tests (TDD red)
+  4. `b4adc07` translator load + translate over translation registry
+  5. `28c7c8e` failing models test/availability/custom tests (TDD red)
+  6. `315121f` models test/availability + custom-model store & admin
+  7. `87f7c2a` failing OIDC secret-at-rest tests (TDD red)
+  8. `87c9a8d` OIDC client secret encrypted at rest (oidc_secret_enc)
+  9. `9b7fcd9` register console/translator/models admin routes (serial slot) — ONE additive routes_admin.go
+     commit (8 routes + the ConsoleLog/MultiWriter/ModelProber wiring); zero deletions.
+- **T-mocks: verification-only, no body change.** `translator.ts` (`{file,payload}`/`{payload}` with
+  `gpt-4o`/`translated:true`), `nodes.ts` (`{ok,latency_ms}` / `{available:[{id,available}]}`), `models.ts`
+  (custom GET array / POST `{id,...,is_custom:true,is_disabled:false}` / DELETE `{}`) ALREADY mirror the
+  real Go DTOs — recorded "verified, no change". `fixture.ts` FROZEN (untouched).
+- **Gates GREEN + HERMETIC.** `go test ./... && go vet && go build` exit 0 (1807 passed / 43 packages,
+  +20 over base, no net/sleep). e2e ISOLATED (UI built SEPARATELY; plain playwright, one run, dist/index.html
+  never reverted): console.spec (3) + translator.spec (4) PASS 7/0; models.spec PASS 3/0. `npm run build` exit 0.
+- **Closeout.** Matrix `9router-ui.md`: PAR-UI-017/018/086/117/119/120 variant-HAVE → true-HAVE.
+  open-questions: w6-i ESC-1 (console) + ESC-2 (translator), w6-f ESC-3 (models), w6-j ESC-4 (OIDC) RESOLVED;
+  w6-i ESC-1a (chat-sessions) stays OPEN with DEFER rationale; NEW translator save/send DEFER follow-up
+  appended. Serial slot RELEASED (LAST chain holder). NOT committed: `.planning/parity/plans/w7-misc.md`,
+  `ui/dist/index.html`.
