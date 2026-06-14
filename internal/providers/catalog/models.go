@@ -89,6 +89,144 @@ var Models = map[string][]ModelEntry{
 		{ID: "google/imagen-3.0-generate-002", Name: "Imagen 3 (via OpenRouter)", Type: "image", Params: []string{"n", "size"}, UpstreamModelID: "google/imagen-3.0-generate-002"},
 		{ID: "black-forest-labs/FLUX.1-schnell", Name: "FLUX.1 Schnell (via OpenRouter)", Type: "image", Params: []string{"n", "size"}, UpstreamModelID: "black-forest-labs/FLUX.1-schnell"},
 	},
+	// --- w7-prov-openai: Free-tier openai model blocks (PAR-PROV-067) ---
+	"aimlapi": {
+		{ID: "gpt-4o", Name: "GPT-4o", UpstreamModelID: "gpt-4o"},
+		{ID: "gpt-4o-mini", Name: "GPT-4o Mini", UpstreamModelID: "gpt-4o-mini"},
+		{ID: "claude-3-5-sonnet-20241022", Name: "Claude 3.5 Sonnet", UpstreamModelID: "claude-3-5-sonnet-20241022"},
+		{ID: "gemini-2.0-flash-exp", Name: "Gemini 2.0 Flash", UpstreamModelID: "gemini-2.0-flash-exp"},
+		{ID: "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo", Name: "Llama 3.1 70B", UpstreamModelID: "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"},
+	},
+	"novita": {
+		{ID: "deepseek/deepseek-r1", Name: "DeepSeek R1", UpstreamModelID: "deepseek/deepseek-r1"},
+		{ID: "deepseek/deepseek-v3", Name: "DeepSeek V3", UpstreamModelID: "deepseek/deepseek-v3"},
+		{ID: "meta-llama/llama-3.3-70b-instruct", Name: "Llama 3.3 70B", UpstreamModelID: "meta-llama/llama-3.3-70b-instruct"},
+		{ID: "qwen/qwen-2.5-72b-instruct", Name: "Qwen 2.5 72B", UpstreamModelID: "qwen/qwen-2.5-72b-instruct"},
+	},
+	"modal": {
+		{ID: "auto", Name: "Auto (User-hosted)", UpstreamModelID: "auto"},
+	},
+	"reka": {
+		{ID: "reka-flash-3", Name: "Reka Flash 3", UpstreamModelID: "reka-flash-3"},
+		{ID: "reka-edge-2603", Name: "Reka Edge 2603", UpstreamModelID: "reka-edge-2603"},
+	},
+	"nlpcloud": {
+		{ID: "chatdolphin", Name: "ChatDolphin", UpstreamModelID: "chatdolphin"},
+		{ID: "dolphin", Name: "Dolphin", UpstreamModelID: "dolphin"},
+		{ID: "finetuned-llama-3-70b", Name: "Llama 3 70B (Finetuned)", UpstreamModelID: "finetuned-llama-3-70b"},
+	},
+	"bazaarlink": {
+		{ID: "auto:free", Name: "Auto Free (Zero Cost)", UpstreamModelID: "auto:free"},
+		{ID: "auto", Name: "Auto (Best Model)", UpstreamModelID: "auto"},
+	},
+	"completions": {
+		{ID: "claude-opus-4", Name: "Claude Opus 4", UpstreamModelID: "claude-opus-4"},
+		{ID: "claude-sonnet-4", Name: "Claude Sonnet 4", UpstreamModelID: "claude-sonnet-4"},
+		{ID: "gpt-4o", Name: "GPT-4o", UpstreamModelID: "gpt-4o"},
+		{ID: "gemini-2.0-flash", Name: "Gemini 2.0 Flash", UpstreamModelID: "gemini-2.0-flash"},
+	},
+	"enally": {
+		{ID: "gpt-4o", Name: "GPT-4o", UpstreamModelID: "gpt-4o"},
+		{ID: "gpt-4o-mini", Name: "GPT-4o Mini", UpstreamModelID: "gpt-4o-mini"},
+		{ID: "claude-3-5-sonnet", Name: "Claude 3.5 Sonnet", UpstreamModelID: "claude-3-5-sonnet"},
+	},
+	"freetheai": {
+		{ID: "gpt-4o", Name: "GPT-4o", UpstreamModelID: "gpt-4o"},
+		{ID: "claude-3-5-sonnet", Name: "Claude 3.5 Sonnet", UpstreamModelID: "claude-3-5-sonnet"},
+		{ID: "gemini-1.5-pro", Name: "Gemini 1.5 Pro", UpstreamModelID: "gemini-1.5-pro"},
+		{ID: "deepseek-chat", Name: "DeepSeek Chat", UpstreamModelID: "deepseek-chat"},
+	},
+	"llm7": {
+		{ID: "gpt-4o-mini", Name: "GPT-4o Mini", UpstreamModelID: "gpt-4o-mini"},
+		{ID: "gpt-4.1-mini", Name: "GPT-4.1 Mini", UpstreamModelID: "gpt-4.1-mini"},
+		{ID: "gemini-1.5-flash", Name: "Gemini 1.5 Flash", UpstreamModelID: "gemini-1.5-flash"},
+	},
+	"lepton": {
+		{ID: "llama3-1-405b", Name: "Llama 3.1 405B", UpstreamModelID: "llama3-1-405b"},
+		{ID: "llama3-1-70b", Name: "Llama 3.1 70B", UpstreamModelID: "llama3-1-70b"},
+		{ID: "llama3-1-8b", Name: "Llama 3.1 8B", UpstreamModelID: "llama3-1-8b"},
+		{ID: "mixtral-8x7b", Name: "Mixtral 8x7B", UpstreamModelID: "mixtral-8x7b"},
+	},
+	"kluster": {
+		{ID: "deepseek-ai/DeepSeek-R1", Name: "DeepSeek R1", UpstreamModelID: "deepseek-ai/DeepSeek-R1"},
+		{ID: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8", Name: "Llama 4 Maverick", UpstreamModelID: "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"},
+		{ID: "meta-llama/Llama-4-Scout-17B-16E-Instruct", Name: "Llama 4 Scout", UpstreamModelID: "meta-llama/Llama-4-Scout-17B-16E-Instruct"},
+		{ID: "Qwen/Qwen3-235B-A22B-Instruct", Name: "Qwen3 235B", UpstreamModelID: "Qwen/Qwen3-235B-A22B-Instruct"},
+	},
+	"ai21": {
+		{ID: "jamba-large", Name: "Jamba 1.5 Large", UpstreamModelID: "jamba-large"},
+		{ID: "jamba-mini", Name: "Jamba 1.5 Mini", UpstreamModelID: "jamba-mini"},
+	},
+	"inference-net": {
+		{ID: "meta-llama/llama-3.3-70b-instruct/fp-16", Name: "Llama 3.3 70B", UpstreamModelID: "meta-llama/llama-3.3-70b-instruct/fp-16"},
+		{ID: "deepseek/deepseek-v3-0324", Name: "DeepSeek V3", UpstreamModelID: "deepseek/deepseek-v3-0324"},
+		{ID: "mistralai/mistral-nemo-12b-instruct/fp-16", Name: "Mistral Nemo 12B", UpstreamModelID: "mistralai/mistral-nemo-12b-instruct/fp-16"},
+	},
+	"predibase": {
+		{ID: "llama-3-2-3b-instruct", Name: "Llama 3.2 3B", UpstreamModelID: "llama-3-2-3b-instruct"},
+		{ID: "llama-3-1-8b-instruct", Name: "Llama 3.1 8B", UpstreamModelID: "llama-3-1-8b-instruct"},
+		{ID: "qwen2-5-7b-instruct", Name: "Qwen 2.5 7B", UpstreamModelID: "qwen2-5-7b-instruct"},
+	},
+	"bytez": {
+		{ID: "meta-llama/Llama-3.3-70B-Instruct", Name: "Llama 3.3 70B", UpstreamModelID: "meta-llama/Llama-3.3-70B-Instruct"},
+		{ID: "mistralai/Mistral-7B-Instruct-v0.3", Name: "Mistral 7B v0.3", UpstreamModelID: "mistralai/Mistral-7B-Instruct-v0.3"},
+		{ID: "Qwen/Qwen2.5-72B-Instruct", Name: "Qwen 2.5 72B", UpstreamModelID: "Qwen/Qwen2.5-72B-Instruct"},
+	},
+	"morph": {
+		{ID: "morph-v3-large", Name: "Morph V3 Large", UpstreamModelID: "morph-v3-large"},
+		{ID: "morph-v3-fast", Name: "Morph V3 Fast", UpstreamModelID: "morph-v3-fast"},
+	},
+	"longcat": {
+		{ID: "LongCat-Flash-Chat", Name: "LongCat Flash Chat", UpstreamModelID: "LongCat-Flash-Chat"},
+		{ID: "LongCat-Flash-Thinking", Name: "LongCat Flash Thinking", UpstreamModelID: "LongCat-Flash-Thinking"},
+		{ID: "LongCat-Flash-Lite", Name: "LongCat Flash Lite", UpstreamModelID: "LongCat-Flash-Lite"},
+	},
+	"puter": {
+		{ID: "gpt-5", Name: "GPT-5", UpstreamModelID: "gpt-5"},
+		{ID: "claude-opus-4", Name: "Claude Opus 4", UpstreamModelID: "claude-opus-4"},
+		{ID: "gemini-3-pro-preview", Name: "Gemini 3 Pro", UpstreamModelID: "gemini-3-pro-preview"},
+		{ID: "grok-4", Name: "Grok 4", UpstreamModelID: "grok-4"},
+		{ID: "deepseek-chat", Name: "DeepSeek V3", UpstreamModelID: "deepseek-chat"},
+	},
+	"uncloseai": {
+		{ID: "auto", Name: "Auto (Free)", UpstreamModelID: "auto"},
+		{ID: "gpt-4o-mini", Name: "GPT-4o Mini", UpstreamModelID: "gpt-4o-mini"},
+	},
+	"scaleway": {
+		{ID: "qwen3-235b-a22b-instruct-2507", Name: "Qwen3 235B", UpstreamModelID: "qwen3-235b-a22b-instruct-2507"},
+		{ID: "llama-3.3-70b-instruct", Name: "Llama 3.3 70B", UpstreamModelID: "llama-3.3-70b-instruct"},
+		{ID: "mistral-small-3.1-24b-instruct-2503", Name: "Mistral Small 3.1", UpstreamModelID: "mistral-small-3.1-24b-instruct-2503"},
+	},
+	"deepinfra": {
+		{ID: "meta-llama/Meta-Llama-3.1-70B-Instruct", Name: "Llama 3.1 70B", UpstreamModelID: "meta-llama/Meta-Llama-3.1-70B-Instruct"},
+		{ID: "deepseek-ai/DeepSeek-V3", Name: "DeepSeek V3", UpstreamModelID: "deepseek-ai/DeepSeek-V3"},
+		{ID: "Qwen/Qwen2.5-72B-Instruct", Name: "Qwen 2.5 72B", UpstreamModelID: "Qwen/Qwen2.5-72B-Instruct"},
+	},
+	"sambanova": {
+		{ID: "Meta-Llama-3.1-405B-Instruct", Name: "Llama 3.1 405B", UpstreamModelID: "Meta-Llama-3.1-405B-Instruct"},
+		{ID: "Meta-Llama-3.1-70B-Instruct", Name: "Llama 3.1 70B", UpstreamModelID: "Meta-Llama-3.1-70B-Instruct"},
+		{ID: "Meta-Llama-3.1-8B-Instruct", Name: "Llama 3.1 8B", UpstreamModelID: "Meta-Llama-3.1-8B-Instruct"},
+	},
+	"nscale": {
+		{ID: "meta-llama/Llama-3.3-70B-Instruct", Name: "Llama 3.3 70B", UpstreamModelID: "meta-llama/Llama-3.3-70B-Instruct"},
+		{ID: "Qwen/Qwen2.5-Coder-32B-Instruct", Name: "Qwen 2.5 Coder 32B", UpstreamModelID: "Qwen/Qwen2.5-Coder-32B-Instruct"},
+	},
+	"baseten": {
+		{ID: "deepseek-ai/DeepSeek-R1", Name: "DeepSeek R1", UpstreamModelID: "deepseek-ai/DeepSeek-R1"},
+		{ID: "meta-llama/Llama-3.3-70B-Instruct", Name: "Llama 3.3 70B", UpstreamModelID: "meta-llama/Llama-3.3-70B-Instruct"},
+	},
+	"publicai": {
+		{ID: "auto", Name: "Auto (Community)", UpstreamModelID: "auto"},
+	},
+	"nous-research": {
+		{ID: "Hermes-4-405B", Name: "Hermes 4 405B", UpstreamModelID: "Hermes-4-405B"},
+		{ID: "Hermes-4-70B", Name: "Hermes 4 70B", UpstreamModelID: "Hermes-4-70B"},
+	},
+	"glhf": {
+		{ID: "hf:meta-llama/Meta-Llama-3.1-405B-Instruct", Name: "Llama 3.1 405B", UpstreamModelID: "hf:meta-llama/Meta-Llama-3.1-405B-Instruct"},
+		{ID: "hf:meta-llama/Meta-Llama-3.1-70B-Instruct", Name: "Llama 3.1 70B", UpstreamModelID: "hf:meta-llama/Meta-Llama-3.1-70B-Instruct"},
+		{ID: "hf:Qwen/Qwen2.5-72B-Instruct", Name: "Qwen 2.5 72B", UpstreamModelID: "hf:Qwen/Qwen2.5-72B-Instruct"},
+	},
 	// --- w7-prov-openai: Western openai-format model blocks ---
 	"nvidia": {
 		{ID: "minimaxai/minimax-m2.7", Name: "Minimax M2.7", UpstreamModelID: "minimaxai/minimax-m2.7"},

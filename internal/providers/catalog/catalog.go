@@ -144,6 +144,151 @@ var Providers = map[string]ProviderConfig{
 		BaseURL: "https://llm.chutes.ai/v1/chat/completions",
 		Format:  "openai",
 	},
+	// --- w7-prov-openai: Free-tier openai bundle (PAR-PROV-067, 28 providers) ---
+	// agentrouter excluded: format:"claude" (ESC-4).
+	"aimlapi": {
+		Name:    "aimlapi",
+		BaseURL: "https://api.aimlapi.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"novita": {
+		Name:    "novita",
+		BaseURL: "https://api.novita.ai/v3/openai/chat/completions",
+		Format:  "openai",
+	},
+	"modal": {
+		Name:    "modal",
+		BaseURL: "https://api.modal.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"reka": {
+		Name:    "reka",
+		BaseURL: "https://api.reka.ai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"nlpcloud": {
+		Name:    "nlpcloud",
+		BaseURL: "https://api.nlpcloud.io/v1/gpu/chatbot",
+		Format:  "openai",
+	},
+	"bazaarlink": {
+		Name:    "bazaarlink",
+		BaseURL: "https://bazaarlink.ai/api/v1/chat/completions",
+		Format:  "openai",
+	},
+	"completions": {
+		Name:    "completions",
+		BaseURL: "https://completions.me/api/v1/chat/completions",
+		Format:  "openai",
+	},
+	"enally": {
+		// Uses X-API-Key header instead of Bearer (first AuthHeader use in catalog).
+		Name:       "enally",
+		BaseURL:    "https://ai.enally.in/v1/chat/completions",
+		Format:     "openai",
+		AuthHeader: "x-api-key",
+	},
+	"freetheai": {
+		Name:    "freetheai",
+		BaseURL: "https://api.freetheai.xyz/v1/chat/completions",
+		Format:  "openai",
+	},
+	"llm7": {
+		Name:    "llm7",
+		BaseURL: "https://api.llm7.io/v1/chat/completions",
+		Format:  "openai",
+	},
+	"lepton": {
+		Name:    "lepton",
+		BaseURL: "https://api.lepton.ai/api/v1/chat/completions",
+		Format:  "openai",
+	},
+	"kluster": {
+		Name:    "kluster",
+		BaseURL: "https://api.kluster.ai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"ai21": {
+		Name:    "ai21",
+		BaseURL: "https://api.ai21.com/studio/v1/chat/completions",
+		Format:  "openai",
+	},
+	"inference-net": {
+		Name:    "inference-net",
+		BaseURL: "https://api.inference.net/v1/chat/completions",
+		Format:  "openai",
+	},
+	"predibase": {
+		Name:    "predibase",
+		BaseURL: "https://serving.app.predibase.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"bytez": {
+		Name:    "bytez",
+		BaseURL: "https://api.bytez.com/models/v2",
+		Format:  "openai",
+	},
+	"morph": {
+		Name:    "morph",
+		BaseURL: "https://api.morphllm.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"longcat": {
+		Name:    "longcat",
+		BaseURL: "https://api.longcat.chat/openai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"puter": {
+		Name:    "puter",
+		BaseURL: "https://api.puter.com/puterai/openai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"uncloseai": {
+		Name:    "uncloseai",
+		BaseURL: "https://hermes.ai.unturf.com/v1/chat/completions",
+		Format:  "openai",
+		NoAuth:  true,
+	},
+	"scaleway": {
+		Name:    "scaleway",
+		BaseURL: "https://api.scaleway.ai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"deepinfra": {
+		Name:    "deepinfra",
+		BaseURL: "https://api.deepinfra.com/v1/openai/chat/completions",
+		Format:  "openai",
+	},
+	"sambanova": {
+		Name:    "sambanova",
+		BaseURL: "https://api.sambanova.ai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"nscale": {
+		Name:    "nscale",
+		BaseURL: "https://inference.api.nscale.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"baseten": {
+		Name:    "baseten",
+		BaseURL: "https://inference.baseten.co/v1/chat/completions",
+		Format:  "openai",
+	},
+	"publicai": {
+		Name:    "publicai",
+		BaseURL: "https://api.publicai.co/v1/chat/completions",
+		Format:  "openai",
+	},
+	"nous-research": {
+		Name:    "nous-research",
+		BaseURL: "https://inference-api.nousresearch.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"glhf": {
+		Name:    "glhf",
+		BaseURL: "https://glhf.chat/api/openai/v1/chat/completions",
+		Format:  "openai",
+	},
 	// --- w7-prov-openai: Chinese openai-format providers ---
 	"glm-cn": {
 		Name:    "glm-cn",

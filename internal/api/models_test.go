@@ -86,7 +86,7 @@ func TestListModelsAggregatesCatalog(t *testing.T) {
 		{"deepseek-v4-pro", "deepseek"},
 		{"deepseek-reasoner", "deepseek"},
 		{"llama-3.3-70b-versatile", "groq"},
-		{"grok-4", "xai"},
+		{"grok-4-fast-reasoning", "xai"},
 		{"grok-3", "xai"},
 		{"gpt-oss:120b", "ollama"},
 		{"glm-4.7-flash", "ollama"},
@@ -111,8 +111,8 @@ func TestModelsGetByID(t *testing.T) {
 
 	var ctx fasthttp.RequestCtx
 	ctx.Request.Header.SetMethod(http.MethodGet)
-	ctx.Request.SetRequestURI("/v1/models/deepseek-chat")
-	ctx.SetUserValue("id", "deepseek-chat")
+	ctx.Request.SetRequestURI("/v1/models/deepseek-v4-pro")
+	ctx.SetUserValue("id", "deepseek-v4-pro")
 	h.Get(&ctx)
 
 	if ctx.Response.StatusCode() != fasthttp.StatusOK {
@@ -127,8 +127,8 @@ func TestModelsGetByID(t *testing.T) {
 	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
 		t.Fatalf("unmarshal response: %v", err)
 	}
-	if resp.ID != "deepseek-chat" {
-		t.Errorf("id = %q, want deepseek-chat", resp.ID)
+	if resp.ID != "deepseek-v4-pro" {
+		t.Errorf("id = %q, want deepseek-v4-pro", resp.ID)
 	}
 	if resp.Object != "model" {
 		t.Errorf("object = %q, want model", resp.Object)
