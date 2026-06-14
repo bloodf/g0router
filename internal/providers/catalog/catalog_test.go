@@ -226,6 +226,132 @@ func TestWesternOpenAIModels(t *testing.T) {
 	}
 }
 
+func TestFreeTierProviders(t *testing.T) {
+	// 28 openai free-tier providers (agentrouter excluded — ESC-4, format:claude).
+	cases := map[string]string{
+		"aimlapi":       "https://api.aimlapi.com/v1/chat/completions",
+		"novita":        "https://api.novita.ai/v3/openai/chat/completions",
+		"modal":         "https://api.modal.com/v1/chat/completions",
+		"reka":          "https://api.reka.ai/v1/chat/completions",
+		"nlpcloud":      "https://api.nlpcloud.io/v1/gpu/chatbot",
+		"bazaarlink":    "https://bazaarlink.ai/api/v1/chat/completions",
+		"completions":   "https://completions.me/api/v1/chat/completions",
+		"enally":        "https://ai.enally.in/v1/chat/completions",
+		"freetheai":     "https://api.freetheai.xyz/v1/chat/completions",
+		"llm7":          "https://api.llm7.io/v1/chat/completions",
+		"lepton":        "https://api.lepton.ai/api/v1/chat/completions",
+		"kluster":       "https://api.kluster.ai/v1/chat/completions",
+		"ai21":          "https://api.ai21.com/studio/v1/chat/completions",
+		"inference-net": "https://api.inference.net/v1/chat/completions",
+		"predibase":     "https://serving.app.predibase.com/v1/chat/completions",
+		"bytez":         "https://api.bytez.com/models/v2",
+		"morph":         "https://api.morphllm.com/v1/chat/completions",
+		"longcat":       "https://api.longcat.chat/openai/v1/chat/completions",
+		"puter":         "https://api.puter.com/puterai/openai/v1/chat/completions",
+		"uncloseai":     "https://hermes.ai.unturf.com/v1/chat/completions",
+		"scaleway":      "https://api.scaleway.ai/v1/chat/completions",
+		"deepinfra":     "https://api.deepinfra.com/v1/openai/chat/completions",
+		"sambanova":     "https://api.sambanova.ai/v1/chat/completions",
+		"nscale":        "https://inference.api.nscale.com/v1/chat/completions",
+		"baseten":       "https://inference.baseten.co/v1/chat/completions",
+		"publicai":      "https://api.publicai.co/v1/chat/completions",
+		"nous-research": "https://inference-api.nousresearch.com/v1/chat/completions",
+		"glhf":          "https://glhf.chat/api/openai/v1/chat/completions",
+	}
+	for name, wantURL := range cases {
+		cfg, ok := Lookup(name)
+		if !ok {
+			t.Fatalf("Lookup(%q) returned ok=false", name)
+		}
+		if cfg.BaseURL != wantURL {
+			t.Errorf("Lookup(%q).BaseURL = %q, want %q", name, cfg.BaseURL, wantURL)
+		}
+		if cfg.Format != "openai" {
+			t.Errorf("Lookup(%q).Format = %q, want %q", name, cfg.Format, "openai")
+		}
+	}
+
+	// enally uses x-api-key AuthHeader (first use of that field).
+	cfg, ok := Lookup("enally")
+	if !ok {
+		t.Fatal("Lookup(\"enally\") returned ok=false")
+	}
+	if cfg.AuthHeader != "x-api-key" {
+		t.Errorf("enally AuthHeader = %q, want %q", cfg.AuthHeader, "x-api-key")
+	}
+
+	// uncloseai is NoAuth.
+	cfg, ok = Lookup("uncloseai")
+	if !ok {
+		t.Fatal("Lookup(\"uncloseai\") returned ok=false")
+	}
+	if !cfg.NoAuth {
+		t.Error("uncloseai NoAuth = false, want true")
+	}
+
+	// agentrouter must NOT be present (ESC-4 — claude format, excluded).
+	if _, ok := Lookup("agentrouter"); ok {
+		t.Error("agentrouter must NOT be in catalog (ESC-4: claude format)")
+	}
+}
+
+func TestFreeTierModels(t *testing.T) {
+	wantCount := map[string]int{
+		"aimlapi":       5,
+		"novita":        4,
+		"modal":         1,
+		"reka":          2,
+		"nlpcloud":      3,
+		"bazaarlink":    2,
+		"completions":   4,
+		"enally":        3,
+		"freetheai":     4,
+		"llm7":          3,
+		"lepton":        4,
+		"kluster":       4,
+		"ai21":          2,
+		"inference-net": 3,
+		"predibase":     3,
+		"bytez":         3,
+		"morph":         2,
+		"longcat":       3,
+		"puter":         5,
+		"uncloseai":     2,
+		"scaleway":      3,
+		"deepinfra":     3,
+		"sambanova":     3,
+		"nscale":        2,
+		"baseten":       2,
+		"publicai":      1,
+		"nous-research": 2,
+		"glhf":          3,
+	}
+	for p, n := range wantCount {
+		if got := len(ModelsFor(p)); got != n {
+			t.Errorf("ModelsFor(%q) len = %d, want %d", p, got, n)
+		}
+	}
+
+	// Spot-check aliases that must resolve.
+	aliasCases := map[string]string{
+		"aiml":  "aimlapi",
+		"enly":  "enally",
+		"unc":   "uncloseai",
+		"nous":  "nous-research",
+		"glhf":  "glhf",
+	}
+	for alias, want := range aliasCases {
+		got, ok := ResolveProviderAlias(alias)
+		if !ok {
+			t.Errorf("ResolveProviderAlias(%q) ok=false, want true", alias)
+			continue
+		}
+		if got != want {
+			t.Errorf("ResolveProviderAlias(%q) = %q, want %q", alias, got, want)
+		}
+	}
+}
+
 func TestResolveOllamaHost(t *testing.T) {
 	// override trimmed
 	if got := ResolveOllamaHost("  http://ollama.local:11434/  "); got != "http://ollama.local:11434" {
