@@ -2,28 +2,28 @@ package admin
 
 import (
 	"encoding/json"
-	"net/url"
 
+	"github.com/bloodf/g0router/internal/platform"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
 
-// providerNodeType is the provider record type that backs a "provider node": an
-// OpenAI-compatible custom endpoint (plan §1.6b). Provider nodes compose the
-// existing providers table; there is no separate node table.
+// providerNodeType is the default provider-node type for a node created without an
+// explicit type. Provider nodes compose the existing providers table; there is no
+// separate node table (w7-platnodes, PAR-PLAT-014).
 const providerNodeType = "openai-compatible"
 
-// providerNodeDTO is the dashboard-facing shape for a provider node. It is the
-// subset of the provider record relevant to the node UI; prefix/api_type from the
-// 9router client are accepted at decode but not persisted (the providers table has
-// no such columns and the node UI does not surface them — plan §1.6b, no schema
-// change).
+// providerNodeDTO is the dashboard-facing shape for a provider node. It surfaces
+// the routing prefix and api_type now persisted on the providers row
+// (w7-platnodes). It NEVER carries an api_key.
 type providerNodeDTO struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	BaseURL string `json:"base_url"`
 	Type    string `json:"type"`
 	Enabled bool   `json:"enabled"`
+	Prefix  string `json:"prefix"`
+	APIType string `json:"api_type"`
 }
 
 func toProviderNodeDTO(p *store.ProviderRecord) providerNodeDTO {
@@ -33,14 +33,18 @@ func toProviderNodeDTO(p *store.ProviderRecord) providerNodeDTO {
 		BaseURL: p.BaseURL,
 		Type:    p.Type,
 		Enabled: p.Enabled,
+		Prefix:  p.Prefix,
+		APIType: p.APIType,
 	}
 }
 
 // providerNodeRequest accepts both the 9router camelCase client body
-// ({name,prefix,apiType,baseUrl}) and the snake_case admin convention
-// ({name,prefix,api_type,base_url}); the snake_case fields win when both are set.
+// ({name,prefix,apiType,baseUrl,apiKey}) and the snake_case admin convention
+// ({name,prefix,api_type,base_url,api_key}); the snake_case fields win when both
+// are set.
 type providerNodeRequest struct {
 	Name      string `json:"name"`
+	Type      string `json:"type"`
 	Prefix    string `json:"prefix"`
 	APIType   string `json:"api_type"`
 	APITypeCC string `json:"apiType"`
@@ -48,6 +52,8 @@ type providerNodeRequest struct {
 	BaseURLCC string `json:"baseUrl"`
 	APIKey    string `json:"api_key"`
 	APIKeyCC  string `json:"apiKey"`
+	ModelID   string `json:"model_id"`
+	ModelIDCC string `json:"modelId"`
 }
 
 func (r providerNodeRequest) baseURL() string {
@@ -57,27 +63,53 @@ func (r providerNodeRequest) baseURL() string {
 	return r.BaseURLCC
 }
 
-// ListProviderNodes handles GET /api/provider-nodes (PAR-UI-109). It lists the
-// providers filtered to the openai-compatible type, mapped to the node DTO.
-func (h *Handlers) ListProviderNodes(ctx *fasthttp.RequestCtx) {
-	providers, err := h.store.ListProviders()
-	if err != nil {
-		writeError(ctx, fasthttp.StatusInternalServerError, "list providers")
-		return
+func (r providerNodeRequest) apiType() string {
+	if r.APIType != "" {
+		return r.APIType
 	}
-	nodes := make([]providerNodeDTO, 0)
-	for _, p := range providers {
-		if p.Type != providerNodeType {
-			continue
-		}
-		nodes = append(nodes, toProviderNodeDTO(p))
-	}
-	writeData(ctx, fasthttp.StatusOK, map[string]any{"nodes": nodes})
+	return r.APITypeCC
 }
 
-// CreateProviderNode handles POST /api/provider-nodes (PAR-UI-110). It creates a
-// providers row of the openai-compatible type. prefix/api_type are accepted but
-// not persisted (no schema change, plan §1.6b).
+func (r providerNodeRequest) apiKey() string {
+	if r.APIKey != "" {
+		return r.APIKey
+	}
+	return r.APIKeyCC
+}
+
+func (r providerNodeRequest) modelID() string {
+	if r.ModelID != "" {
+		return r.ModelID
+	}
+	return r.ModelIDCC
+}
+
+// nodeType returns the requested node type, defaulting to openai-compatible.
+func (r providerNodeRequest) nodeType() string {
+	if r.Type != "" {
+		return r.Type
+	}
+	return providerNodeType
+}
+
+// ListProviderNodes handles GET /api/provider-nodes (PAR-PLAT-010). It lists the
+// providers filtered to the node-type set, mapped to the node DTO.
+func (h *Handlers) ListProviderNodes(ctx *fasthttp.RequestCtx) {
+	nodes, err := h.providerNodes.List()
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "list provider nodes")
+		return
+	}
+	out := make([]providerNodeDTO, 0, len(nodes))
+	for _, p := range nodes {
+		out = append(out, toProviderNodeDTO(p))
+	}
+	writeData(ctx, fasthttp.StatusOK, map[string]any{"nodes": out})
+}
+
+// CreateProviderNode handles POST /api/provider-nodes (PAR-PLAT-010). It persists
+// prefix/api_type, sanitizes the base URL, optionally provisions a bound api_key
+// connection, and records an audit entry. The api_key is never echoed.
 func (h *Handlers) CreateProviderNode(ctx *fasthttp.RequestCtx) {
 	var req providerNodeRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
@@ -90,48 +122,110 @@ func (h *Handlers) CreateProviderNode(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	rec := &store.ProviderRecord{
+	node, err := h.providerNodes.Create(platform.NodeCreate{
 		Name:    req.Name,
-		Type:    providerNodeType,
+		Type:    req.nodeType(),
+		Prefix:  req.Prefix,
+		APIType: req.apiType(),
 		BaseURL: baseURL,
-		Enabled: true,
-	}
-	if err := h.store.CreateProvider(rec); err != nil {
+		APIKey:  req.apiKey(),
+	})
+	if err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, "create provider node")
 		return
 	}
-	writeData(ctx, fasthttp.StatusCreated, map[string]any{"node": toProviderNodeDTO(rec)})
+	h.recordAudit(ctx, "provider_node.create", node.ID, node.Name)
+	writeData(ctx, fasthttp.StatusCreated, map[string]any{"node": toProviderNodeDTO(node)})
 }
 
-// ValidateProviderNode handles POST /api/provider-nodes/validate (PAR-UI-111). It
-// performs a best-effort reachability check; under test it is deterministic on URL
-// well-formedness. The supplied api_key is used transiently and NEVER persisted or
-// echoed (plan §1.6b).
-func (h *Handlers) ValidateProviderNode(ctx *fasthttp.RequestCtx) {
+// GetProviderNode handles GET /api/provider-nodes/{id} (PAR-PLAT-010).
+func (h *Handlers) GetProviderNode(ctx *fasthttp.RequestCtx) {
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid id")
+		return
+	}
+	node, err := h.providerNodes.Get(id)
+	if err != nil {
+		writeError(ctx, fasthttp.StatusNotFound, "provider node not found")
+		return
+	}
+	writeData(ctx, fasthttp.StatusOK, map[string]any{"node": toProviderNodeDTO(node)})
+}
+
+// UpdateProviderNode handles PUT /api/provider-nodes/{id} (PAR-PLAT-010/012). It
+// re-sanitizes the base URL and cascades prefix/baseUrl/apiType onto the providers
+// row, from which bound connections resolve transitively.
+func (h *Handlers) UpdateProviderNode(ctx *fasthttp.RequestCtx) {
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid id")
+		return
+	}
 	var req providerNodeRequest
 	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON body")
 		return
 	}
 	baseURL := req.baseURL()
-	if !isWellFormedURL(baseURL) {
-		writeData(ctx, fasthttp.StatusOK, map[string]any{"valid": false, "error": "invalid url"})
+	if req.Name == "" || baseURL == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "name and base_url are required")
 		return
 	}
-	writeData(ctx, fasthttp.StatusOK, map[string]any{"valid": true})
+	node, err := h.providerNodes.Update(platform.NodeUpdate{
+		ID:      id,
+		Name:    req.Name,
+		Type:    req.Type,
+		Prefix:  req.Prefix,
+		APIType: req.apiType(),
+		BaseURL: baseURL,
+	})
+	if err != nil {
+		writeError(ctx, fasthttp.StatusNotFound, "provider node not found")
+		return
+	}
+	h.recordAudit(ctx, "provider_node.update", node.ID, node.Name)
+	writeData(ctx, fasthttp.StatusOK, map[string]any{"node": toProviderNodeDTO(node)})
 }
 
-// isWellFormedURL reports whether s is an absolute http(s) URL with a host.
-func isWellFormedURL(s string) bool {
-	if s == "" {
-		return false
+// DeleteProviderNode handles DELETE /api/provider-nodes/{id} (PAR-PLAT-010).
+func (h *Handlers) DeleteProviderNode(ctx *fasthttp.RequestCtx) {
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid id")
+		return
 	}
-	u, err := url.Parse(s)
+	if err := h.providerNodes.Delete(id); err != nil {
+		writeError(ctx, fasthttp.StatusNotFound, "provider node not found")
+		return
+	}
+	h.recordAudit(ctx, "provider_node.delete", id, "")
+	writeData(ctx, fasthttp.StatusOK, map[string]any{"message": "Provider node deleted successfully"})
+}
+
+// ValidateProviderNode handles POST /api/provider-nodes/validate (PAR-PLAT-013).
+// It runs the real reachability probe through an injectable seam (hermetic in
+// tests), SSRF-guarded before dialing. The supplied api_key is used transiently
+// and NEVER persisted or echoed.
+func (h *Handlers) ValidateProviderNode(ctx *fasthttp.RequestCtx) {
+	var req providerNodeRequest
+	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	res, err := h.providerNodes.Validate(platform.NodeProbeRequest{
+		APIType: req.nodeType(),
+		BaseURL: req.baseURL(),
+		APIKey:  req.apiKey(),
+		ModelID: req.modelID(),
+	})
 	if err != nil {
-		return false
+		writeError(ctx, fasthttp.StatusInternalServerError, "validate provider node")
+		return
 	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return false
+	out := map[string]any{"valid": res.Valid}
+	if res.Error != "" {
+		out["error"] = res.Error
 	}
-	return u.Host != ""
+	writeData(ctx, fasthttp.StatusOK, out)
 }

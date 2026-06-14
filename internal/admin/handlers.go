@@ -21,9 +21,10 @@ type Handlers struct {
 	limiter      *auth.LoginLimiter
 	stats        *usage.StatsService
 	resolver     *usage.Resolver
-	audit        *governance.AuditService
-	proxyPools   *platform.ProxyPoolService
-	tunnels      *tunnel.Service
+	audit         *governance.AuditService
+	proxyPools    *platform.ProxyPoolService
+	providerNodes *platform.ProviderNodeService
+	tunnels       *tunnel.Service
 	mitm         *mitm.Service
 	mcpLauncher  *mcp.Launcher
 	mcpEngine    *mcp.Engine
@@ -57,10 +58,11 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 		sessions:   sessions,
 		flows:      flows,
 		limiter:    auth.NewLoginLimiter(),
-		audit:      governance.NewAuditService(st),
-		proxyPools: platform.NewProxyPoolService(st),
-		tunnels:    tunnel.NewService(st),
-		mitm:       mitm.NewService(st),
+		audit:         governance.NewAuditService(st),
+		proxyPools:    platform.NewProxyPoolService(st),
+		providerNodes: platform.NewProviderNodeService(st),
+		tunnels:       tunnel.NewService(st),
+		mitm:          mitm.NewService(st),
 	}
 }
 
@@ -97,6 +99,20 @@ func (h *Handlers) SetShutdownFunc(fn func()) {
 // Production wires the real proxied dial; tests inject a deterministic fake.
 func (h *Handlers) SetProxyProber(p platform.Prober) {
 	h.proxyPools.SetProber(p)
+}
+
+// SetNodeProber injects the provider-node validation probe used by
+// ValidateProviderNode. Production wires the real /models→/chat/completions dial;
+// tests inject a deterministic fake. Mirrors SetProxyProber.
+func (h *Handlers) SetNodeProber(p platform.NodeProber) {
+	h.providerNodes.SetProber(p)
+}
+
+// SetNodeResolver injects the DNS resolver used by the provider-node validation
+// SSRF guard. Production uses the system resolver; tests inject a deterministic
+// fake so validation runs without network access.
+func (h *Handlers) SetNodeResolver(r platform.IPResolver) {
+	h.providerNodes.SetResolver(r)
 }
 
 // SetTunnelRunner overrides the runner for a tunnel type. Production uses the

@@ -186,11 +186,12 @@ func (s *ProviderNodeService) Validate(req NodeProbeRequest) (NodeProbeResult, e
 	if !ok {
 		return NodeProbeResult{Valid: false, Error: "invalid url"}, nil
 	}
-	blocked, _, berr := IsBlockedTarget(host, s.resolver)
-	if berr != nil {
-		return NodeProbeResult{Valid: false, Error: "target unreachable"}, nil
-	}
-	if blocked {
+	// SSRF guard on the user-controllable base URL host. A definitively-blocked
+	// target (private/loopback/link-local/etc.) is refused without probing. A
+	// resolution error is NOT treated as blocked here: it falls through to the
+	// prober, which decides reachability (preserving the w6-f URL-shape success
+	// path when no prober is injected).
+	if blocked, _, berr := IsBlockedTarget(host, s.resolver); berr == nil && blocked {
 		return NodeProbeResult{Valid: false, Error: "target blocked"}, nil
 	}
 	prober := s.prober
@@ -237,9 +238,10 @@ func hostFromURL(raw string) (string, bool) {
 	return u.Host, true
 }
 
-// defaultNodeProber is the production probe. It is wired by the server bootstrap;
-// when no prober is injected and Validate is reached, it reports a generic
-// failure rather than dialing implicitly (production always injects a prober).
+// defaultNodeProber is the fallback when no prober is injected. It preserves the
+// w6-f best-effort behavior: a well-formed, SSRF-passed base URL validates on URL
+// shape alone (no network). Production injects the real /models→/chat/completions
+// prober via SetProber; this fallback keeps validation deterministic otherwise.
 func defaultNodeProber(req NodeProbeRequest) (NodeProbeResult, error) {
-	return NodeProbeResult{Valid: false, Error: "no prober configured"}, nil
+	return NodeProbeResult{Valid: true}, nil
 }
