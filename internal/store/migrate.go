@@ -331,6 +331,13 @@ func migrate(db *sql.DB) error {
 			config_json TEXT NOT NULL DEFAULT '{}',
 			created_at INTEGER NOT NULL
 		)`},
+		// OIDC client secret at rest (w7-misc). A dedicated single-row table (id=1)
+		// holding the encrypted secret in oidc_secret_enc (the *_enc precedent),
+		// keeping the secret out of the plaintext settings flat map.
+		{"oidc_secret", `CREATE TABLE IF NOT EXISTS oidc_secret (
+			id INTEGER PRIMARY KEY,
+			oidc_secret_enc TEXT NOT NULL DEFAULT ''
+		)`},
 	}
 
 	for _, t := range tables {
