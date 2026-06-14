@@ -63,13 +63,21 @@ func NewSelectionEngine(cs ConnStore, ss SettingStore, cd Cooldown, clock func()
 }
 
 // SetProxyResolver wires the optional per-connection proxy resolver (PAR-PLAT-009).
-// Stub: real wiring lands in T-proxywire STEP(b).
-func (e *SelectionEngine) SetProxyResolver(pr ProxyResolver) {}
+// Additive: NewSelectionEngine's signature is unchanged; when no resolver is set,
+// ResolveProxy is a no-op and selection behavior is identical.
+func (e *SelectionEngine) SetProxyResolver(pr ProxyResolver) {
+	e.pr = pr
+}
 
-// ResolveProxy returns the outbound proxy URL for the selected connection.
-// Stub: real wiring lands in T-proxywire STEP(b).
+// ResolveProxy returns the outbound proxy URL for the selected connection, if any.
+// It is an additive hook for the provider-build path to call after a connection is
+// selected; it does not affect selection/eligibility/cooldown logic. When no
+// resolver is wired it returns ("", false).
 func (e *SelectionEngine) ResolveProxy(conn *store.Connection) (proxyURL string, ok bool) {
-	return "", false
+	if e.pr == nil || conn == nil {
+		return "", false
+	}
+	return e.pr.ResolveProxyForConnection(conn)
 }
 
 type providerStrategyConfig struct {

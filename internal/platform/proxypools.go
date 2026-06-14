@@ -44,9 +44,20 @@ func (s *ProxyPoolService) SetResolver(r IPResolver) {
 }
 
 // ResolveProxyForConnection returns the outbound proxy URL for a connection
-// bound to an active proxy pool. Stub: real wiring lands in T-proxywire STEP(b).
+// bound to an active proxy pool (PAR-PLAT-009). It returns ("", false) when the
+// connection has no proxy_pool_id, the pool is missing, or the pool is inactive.
 func (s *ProxyPoolService) ResolveProxyForConnection(conn *store.Connection) (string, bool) {
-	return "", false
+	if conn == nil || conn.ProxyPoolID == "" {
+		return "", false
+	}
+	pool, err := s.st.GetProxyPoolByID(conn.ProxyPoolID)
+	if err != nil {
+		return "", false
+	}
+	if !pool.IsActive {
+		return "", false
+	}
+	return proxyURLForPool(pool), true
 }
 
 // ProxyTestResult is the outcome of a connectivity probe through a proxy pool.

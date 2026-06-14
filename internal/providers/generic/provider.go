@@ -40,7 +40,10 @@ func (p *Provider) GetProvider() schemas.ModelProvider {
 	return p.id
 }
 
-// SetNetworkConfig updates the network configuration.
+// SetNetworkConfig updates the network configuration and pushes the per-instance
+// proxy override into the client pool (PAR-PLAT-009). A SetProxyURL error is
+// ignored: an invalid proxy URL falls back to the default (env-proxy) path.
 func (p *Provider) SetNetworkConfig(config schemas.NetworkConfig) {
 	p.networkConfig = config
+	_ = p.client.SetProxyURL(config.ProxyURL)
 }

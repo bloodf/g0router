@@ -12,15 +12,31 @@ import (
 
 // ClientPool wraps a fasthttp.Client with common configuration.
 type ClientPool struct {
-	client    *fasthttp.Client
-	proxyFunc func(*url.URL) (*url.URL, error)
-	mu        sync.Mutex
-	proxies   map[string]*fasthttp.Client
+	client        *fasthttp.Client
+	proxyFunc     func(*url.URL) (*url.URL, error)
+	mu            sync.Mutex
+	proxies       map[string]*fasthttp.Client
+	proxyOverride *url.URL // per-instance proxy override (PAR-PLAT-009); nil = use env proxyFunc
 }
 
-// SetProxyURL sets a per-instance proxy override. Stub: real wiring lands in
-// T-proxywire STEP(b).
-func (p *ClientPool) SetProxyURL(proxyURL string) error { return nil }
+// SetProxyURL sets a per-instance proxy override that takes precedence over the
+// environment proxyFunc for all subsequent Do calls. An empty string clears the
+// override (restoring the env-proxy behavior). Additive and backward-compatible:
+// when no override is set, Do is unchanged.
+func (p *ClientPool) SetProxyURL(proxyURL string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if proxyURL == "" {
+		p.proxyOverride = nil
+		return nil
+	}
+	u, err := url.Parse(proxyURL)
+	if err != nil {
+		return fmt.Errorf("parse proxy url %q: %w", proxyURL, err)
+	}
+	p.proxyOverride = u
+	return nil
+}
 
 // NewClientPool creates a shared fasthttp client with sensible defaults.
 func NewClientPool() *ClientPool {
@@ -46,6 +62,18 @@ func (p *ClientPool) Do(req *fasthttp.Request, resp *fasthttp.Response) error {
 		scheme = "http"
 	}
 	target := &url.URL{Scheme: scheme, Host: string(uri.Host())}
+
+	// Per-instance proxy override (PAR-PLAT-009) takes precedence over env proxy.
+	p.mu.Lock()
+	override := p.proxyOverride
+	p.mu.Unlock()
+	if override != nil {
+		client := p.clientForProxy(override)
+		if err := client.Do(req, resp); err != nil {
+			return fmt.Errorf("do via proxy %s: %w", override, err)
+		}
+		return nil
+	}
 
 	proxyURL, err := p.proxyFunc(target)
 	if err != nil {
