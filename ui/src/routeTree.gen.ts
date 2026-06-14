@@ -15,6 +15,7 @@ import { Route as TunnelsRouteImport } from './routes/tunnels'
 import { Route as TranslatorRouteImport } from './routes/translator'
 import { Route as TrafficRouteImport } from './routes/traffic'
 import { Route as TeamsRouteImport } from './routes/teams'
+import { Route as SkillsRouteImport } from './routes/skills'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as RoutingRulesRouteImport } from './routes/routing-rules'
 import { Route as QuotaRouteImport } from './routes/quota'
@@ -71,6 +72,11 @@ const TrafficRoute = TrafficRouteImport.update({
 const TeamsRoute = TeamsRouteImport.update({
   id: '/teams',
   path: '/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SkillsRoute = SkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -236,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/quota': typeof QuotaRoute
   '/routing-rules': typeof RoutingRulesRoute
   '/settings': typeof SettingsRoute
+  '/skills': typeof SkillsRoute
   '/teams': typeof TeamsRoute
   '/traffic': typeof TrafficRoute
   '/translator': typeof TranslatorRoute
@@ -271,6 +278,7 @@ export interface FileRoutesByTo {
   '/quota': typeof QuotaRoute
   '/routing-rules': typeof RoutingRulesRoute
   '/settings': typeof SettingsRoute
+  '/skills': typeof SkillsRoute
   '/teams': typeof TeamsRoute
   '/traffic': typeof TrafficRoute
   '/translator': typeof TranslatorRoute
@@ -307,6 +315,7 @@ export interface FileRoutesById {
   '/quota': typeof QuotaRoute
   '/routing-rules': typeof RoutingRulesRoute
   '/settings': typeof SettingsRoute
+  '/skills': typeof SkillsRoute
   '/teams': typeof TeamsRoute
   '/traffic': typeof TrafficRoute
   '/translator': typeof TranslatorRoute
@@ -344,6 +353,7 @@ export interface FileRouteTypes {
     | '/quota'
     | '/routing-rules'
     | '/settings'
+    | '/skills'
     | '/teams'
     | '/traffic'
     | '/translator'
@@ -379,6 +389,7 @@ export interface FileRouteTypes {
     | '/quota'
     | '/routing-rules'
     | '/settings'
+    | '/skills'
     | '/teams'
     | '/traffic'
     | '/translator'
@@ -414,6 +425,7 @@ export interface FileRouteTypes {
     | '/quota'
     | '/routing-rules'
     | '/settings'
+    | '/skills'
     | '/teams'
     | '/traffic'
     | '/translator'
@@ -450,6 +462,7 @@ export interface RootRouteChildren {
   QuotaRoute: typeof QuotaRoute
   RoutingRulesRoute: typeof RoutingRulesRoute
   SettingsRoute: typeof SettingsRoute
+  SkillsRoute: typeof SkillsRoute
   TeamsRoute: typeof TeamsRoute
   TrafficRoute: typeof TrafficRoute
   TranslatorRoute: typeof TranslatorRoute
@@ -500,6 +513,13 @@ declare module '@tanstack/react-router' {
       path: '/teams'
       fullPath: '/teams'
       preLoaderRoute: typeof TeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/skills': {
+      id: '/skills'
+      path: '/skills'
+      fullPath: '/skills'
+      preLoaderRoute: typeof SkillsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -731,6 +751,7 @@ const rootRouteChildren: RootRouteChildren = {
   QuotaRoute: QuotaRoute,
   RoutingRulesRoute: RoutingRulesRoute,
   SettingsRoute: SettingsRoute,
+  SkillsRoute: SkillsRoute,
   TeamsRoute: TeamsRoute,
   TrafficRoute: TrafficRoute,
   TranslatorRoute: TranslatorRoute,
