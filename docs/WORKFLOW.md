@@ -7686,3 +7686,123 @@ to w7-gov-3 on this close.
 - T-routes: `2f8f533` — register feature-flags + prompt-templates admin routes (serial slot).
 - T-mocks: `021ed57` — correct feature-flags/prompts mocks to mirror real Go DTOs (drop updated_at).
 - T-close: matrix flip (PAR-UI-130/131), open-questions ESC-1c/1e resolutions, this entry.
+
+## w7-gov-3 — Governance backends C: guardrails + alert-channels (Go)
+
+```yaml
+plan: w7-gov-3
+status: DONE
+summary: "Real Go backends for the final two governance domains, layered
+  handler→governance(evaluator/dispatcher seam)→store, strict TDD (RED commit
+  before GREEN per domain). guardrails: a SINGLETON config (GET/PUT /api/guardrails)
+  over NEW internal/store/guardrails.go (single-row `guardrails` table, fixed id=1,
+  default-on-first-read, blocklist/PII-types as JSON arrays — NO secret fields) +
+  internal/governance/guardrails.go (GuardrailEngine.Evaluate — a PURE evaluator)
+  + internal/admin/guardrails.go (4-field configDTO). POST /api/guardrails/test is a
+  STANDALONE blocklist/PII evaluator (NOT an inference-pipeline hook): blocked =
+  enabled && case-insensitive-substring-of-blocklist, matches in blocklist order,
+  returns {blocked,redacted_prompt,matches}; 'my secret password' → blocked:true under
+  the seed (deterministic unit + admin tests). update writes best-effort audit.
+  alert-channels: full CRUD (GET/POST list+create, GET/PUT/DELETE/{id}) + POST
+  /{id}/test over NEW internal/store/alertchannels.go (table `alert_channels`,
+  INTEGER-PK numeric ids; config blob ENCRYPTED at rest via config_enc using s.cipher
+  — the connections.go precedent; events as JSON) + internal/governance/alertchannels.go
+  (AlertDispatcher with an injectable Sender seam + real httpSender) + internal/admin/
+  alerts.go (7-field alertChannelDTO echoing config for the edit form). The /{id}/test
+  notification does a best-effort POST and NEVER echoes the secret config (runtime
+  no-leak test); deterministic in tests via a fake Sender. create/update/delete/test
+  write best-effort audit. 9 additive admin routes registered (serial slot); guardrails
+  /test static-before bare, alert /{id}/test deeper than /{id} — no fasthttp/router
+  conflict. e2e mocks + seeds VERIFIED already mirroring the Go DTOs — no body change.
+  guardrails + alert-channels flip variant-HAVE → true-HAVE (PAR-UI-130/131); w6-k
+  ESC-1d/1f RESOLVED. With this the ENTIRE w6-k governance cluster (teams/audit/
+  feature-flags/guardrails/prompts/alerts) is real-Go-backed. NO New() sig change, no
+  new global state, no init(), additive DDL only, no inference-pipeline edit."
+p0_base_sha: "bd420b2"
+commit_range: "7741f7b..<close>"
+completed_at: "2026-06-14"
+```
+
+**P6 base observation:** Go gates green at base (1404 tests, vet/build clean). The two
+e2e specs (`guardrails.spec.ts`+`alerts.spec.ts`) PASS 8/8 (3+5) isolated in ~7s after the
+documented `dist`-consistency workflow (`npm run build` THEN run playwright; never
+`git checkout`/revert `ui/dist/index.html` — it points index.html at stale asset hashes →
+broken JS → login() timeout). routes_admin.go slot was FREE at P5 (last touch w7-gov-2
+`2f8f533`, merged; no unmerged W7 holder). `ui/dist/index.html` is a tracked build artifact —
+never `git add`ed by this plan.
+
+**Decisions applied (all recommended defaults, see open-questions.md):**
+- ESC-GR-STORE: a dedicated single-row `guardrails` table (fixed id=1 sentinel;
+  GetGuardrails default-on-first-read inserts a zero-value row; SetGuardrails upserts).
+  Typed columns mirroring the 4-field mock; not the kv/settings JSON-blob fallback.
+- ESC-GR-PIPELINE: STANDALONE evaluator (`GuardrailEngine.Evaluate`, pure/dependency-free)
+  over the stored config; NO `internal/inference` edit. Live request-pipeline integration
+  is a tracked follow-up (open-questions w6-k).
+- ESC-GR-EVAL: blocked-computation mirrors the mock EXACTLY (enabled && case-insensitive
+  blocklist substring; matches in blocklist order). PII redaction (email/phone/ssn →
+  [REDACTED], dependency-free regex) applies only when pii_redaction_enabled; else the
+  prompt is echoed verbatim (keeps both specs green; PII-on is forward-compatible, no spec
+  rides on it).
+- ESC-IDTYPE: `alert_channels` uses `INTEGER PRIMARY KEY AUTOINCREMENT` (int64); handlers
+  parse `{id}` via the existing `flagID()` (`strconv.ParseInt`). Guardrails has no surfaced
+  id (singleton; the table's id=1 is an internal sentinel).
+- ESC-ALERT-SECRET: the whole `config` blob is encrypted at rest in `config_enc` via
+  s.cipher.Encrypt/Decrypt (connections.go precedent — no per-field allow-list). Raw column
+  proven not-plaintext by a store test.
+- ESC-ALERT-CONFIG-ECHO: the read DTO (LIST/GET) echoes `config` (the edit form re-displays
+  the URL); the test-notification response does NOT.
+- ESC-ALERT-TEST: `internal/governance/alertchannels.go` defines a `Sender` interface; the
+  real `httpSender` does a best-effort POST (5s timeout); tests inject a fake Sender (no
+  network). `/{id}/test` returns {data:{ok,message}}; message NEVER carries the secret config.
+- ESC-DOMAIN-WIRING: handlers reach the engines via thin free accessors
+  (`guardrailEngine()`, `alertDispatcher()`) — NO New() signature change, NO new global state,
+  NO h.guardrails/h.alerts field, NO handlers.go edit (the auditService() accessor precedent).
+- ESC-ROUTE: no collision — fasthttp/router accepted all 9 routes without a conflict panic
+  (server tests exercise RegisterAdminRoutes); guardrails `/test` and alert `/{id}/test`
+  resolve to their dedicated handlers via static-before-param ordering.
+- ESC-AUDIT-REUSE: consumed the w7-gov-1 `h.recordAudit` seam read-only on mutations
+  (guardrails.update; alert_channel.create/update/delete/test); NO edit to audit.go /
+  governance/audit.go / handlers.go. Details are human-readable summaries (channel name,
+  enabled/blocklist-count), never raw config/blocklist payloads.
+
+**Implementation note (outbound context):** the `/{id}/test` handler passes
+`context.Background()` (not the fasthttp RequestCtx) to `AlertDispatcher.Dispatch` — the
+outbound delivery owns its own timeout and is decoupled from the inbound request lifecycle.
+Passing the fasthttp RequestCtx to net/http's `NewRequestWithContext` panics
+(`RequestCtx.Done()` nil-deref in a test/unstarted ctx); the standalone context is both
+correct and avoids that.
+
+**Serial slot:** routes_admin.go slot was FREE at P5 (last touch w7-gov-2 `2f8f533`, merged;
+no unmerged W7 holder). w7-gov-3 TOOK the slot for ONE additive commit (`9347869`) and, as the
+LAST gov holder, RELEASES it to the next chain holder (w7-mcp-3) on this close.
+
+**Gate Results (T-close):**
+- `go test ./... && go vet ./... && go build ./...`: PASS (1425 tests, vet/build clean)
+- `go test ./internal/admin/ -run 'Guardrail|Alert'`: PASS (7)
+- `go test ./internal/governance/ -run 'Guardrail|Alert'`: PASS (9)
+- `go test ./internal/store/ -run 'Guardrail|Alert'`: PASS (5)
+- `cd ui && npx playwright test e2e/guardrails.spec.ts e2e/alerts.spec.ts`: 8/8 PASS (isolated)
+- `cd ui && npx vitest run src/components/governance/guardrails-tester.test.tsx`: 4/4 PASS
+- `cd ui && npx playwright test` (full): 150 pass / 1 fail — the single failure is the
+  PRE-EXISTING `comprehensive.spec.ts:48` ("unauthenticated → /login" toHaveURL timeout),
+  PROVEN red at base bd420b2 in a throwaway worktree (PASS 0/FAIL 1); zero w7-gov-3 regression
+  (this plan touches no UI src, auth, or routing). Same failure noted by w7-gov-2.
+- `cd ui && npx vitest run src/`: 192/192 PASS
+- `cd ui && npm run build`: PASS
+
+**Mock reconciliation:** guardrails.ts (4-field config GET/PUT + /test {blocked,redacted_prompt,
+matches} substring logic), alert-channels.ts (7-field DTO + /{id}/test {ok,message} + DELETE {}),
+and both seeds VERIFIED to already mirror the Go DTOs — NO body change. The w6-k path-B
+`seed/guardrails.ts` (enabled + blocklist password/secret/badword1) preserved (keeps the tester
+green). No T-mocks commit (verified, no change).
+
+**Tasks / commits:**
+- T-guardrails RED: `7741f7b` — failing guardrails store+domain+admin tests + `guardrails` +
+  `alert_channels` tables (migrate, additive).
+- T-guardrails GREEN: `54d61d8` — guardrails singleton config + standalone evaluator + admin.
+- T-alerts RED: `b263102` — failing alert-channels store+domain+admin tests.
+- T-alerts GREEN: `9df93ab` — alert-channels store (config_enc) + dispatcher + admin CRUD + test.
+- T-routes: `9347869` — register guardrails + alert-channels admin routes (serial slot).
+- T-mocks: verified, no change (mocks already mirror the Go DTOs).
+- T-close: matrix flip (PAR-UI-130/131), open-questions ESC-1d/1f resolutions + pipeline-integration
+  deferral, this entry; serial slot released to the next chain holder.
