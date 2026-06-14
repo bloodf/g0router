@@ -1,8 +1,9 @@
 package admin
 
 import (
-	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -10,15 +11,6 @@ import (
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
-
-// stubSender records dispatch calls without network I/O.
-type stubSender struct {
-	err error
-}
-
-func (s *stubSender) Send(_ context.Context, _ string, _ map[string]any) error {
-	return s.err
-}
 
 func TestAlertChannelCRUDHandlers(t *testing.T) {
 	env := newTestEnv(t)
@@ -150,13 +142,19 @@ func TestCreateAlertChannelWritesAudit(t *testing.T) {
 
 func TestTestAlertChannelDeterministicAndNoSecretLeak(t *testing.T) {
 	env := newTestEnv(t)
-	env.handlers.SetAlertSender(&stubSender{}) // deterministic, no network
 	admin, err := env.store.GetUserByUsername("admin")
 	if err != nil {
 		t.Fatalf("GetUserByUsername: %v", err)
 	}
 
-	secretURL := "https://hooks.example.com/SUPERSECRETTOKEN"
+	// Deterministic loopback target (no external network); the URL path embeds a
+	// secret so the no-leak assertion is meaningful.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	secretURL := srv.URL + "/SUPERSECRETTOKEN"
 	created, err := env.store.CreateAlertChannel(&store.AlertChannel{
 		Name:        "Webhook",
 		ChannelType: "webhook",
