@@ -100,6 +100,51 @@ func TestProviderRetryOverride(t *testing.T) {
 	}
 }
 
+func TestChineseOpenAIProviders(t *testing.T) {
+	cases := map[string]string{
+		"glm-cn":         "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions",
+		"alicode":        "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
+		"alicode-intl":   "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
+		"volcengine-ark": "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions",
+		"byteplus":       "https://ark.ap-southeast.bytepluses.com/api/coding/v3/chat/completions",
+		"xiaomi-mimo":    "https://api.xiaomimimo.com/v1/chat/completions",
+		"opencode-go":    "https://opencode.ai/zen/go/v1/chat/completions",
+	}
+	for name, wantURL := range cases {
+		cfg, ok := Lookup(name)
+		if !ok {
+			t.Fatalf("Lookup(%q) returned ok=false", name)
+		}
+		if cfg.Name != name {
+			t.Errorf("Lookup(%q).Name = %q, want %q", name, cfg.Name, name)
+		}
+		if cfg.BaseURL != wantURL {
+			t.Errorf("Lookup(%q).BaseURL = %q, want %q", name, cfg.BaseURL, wantURL)
+		}
+		if cfg.Format != "openai" {
+			t.Errorf("Lookup(%q).Format = %q, want %q", name, cfg.Format, "openai")
+		}
+	}
+
+	// opencode is openai-shaped but NoAuth with a custom client header.
+	cfg, ok := Lookup("opencode")
+	if !ok {
+		t.Fatalf("Lookup(\"opencode\") returned ok=false")
+	}
+	if cfg.BaseURL != "https://opencode.ai" {
+		t.Errorf("opencode BaseURL = %q, want %q", cfg.BaseURL, "https://opencode.ai")
+	}
+	if cfg.Format != "openai" {
+		t.Errorf("opencode Format = %q, want %q", cfg.Format, "openai")
+	}
+	if !cfg.NoAuth {
+		t.Errorf("opencode NoAuth = false, want true")
+	}
+	if got, want := cfg.Headers["x-opencode-client"], "desktop"; got != want {
+		t.Errorf("opencode header x-opencode-client = %q, want %q", got, want)
+	}
+}
+
 func TestResolveOllamaHost(t *testing.T) {
 	// override trimmed
 	if got := ResolveOllamaHost("  http://ollama.local:11434/  "); got != "http://ollama.local:11434" {

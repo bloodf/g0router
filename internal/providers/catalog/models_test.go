@@ -123,6 +123,48 @@ func TestModelsForOllama(t *testing.T) {
 	}
 }
 
+func TestChineseOpenAIModels(t *testing.T) {
+	wantCount := map[string]int{
+		"glm-cn":         5,
+		"alicode":        8,
+		"alicode-intl":   7,
+		"volcengine-ark": 9,
+		"byteplus":       7,
+		"xiaomi-mimo":    4,
+		"opencode-go":    10,
+	}
+	for p, n := range wantCount {
+		if got := len(ModelsFor(p)); got != n {
+			t.Errorf("ModelsFor(%q) len = %d, want %d", p, got, n)
+		}
+	}
+
+	wantFirst := map[string]string{
+		"glm-cn":         "glm-5.1",
+		"alicode":        "qwen3.5-plus",
+		"alicode-intl":   "qwen3.5-plus",
+		"volcengine-ark": "Doubao-Seed-2.0-Code",
+		"byteplus":       "seed-2-0-pro-260328",
+		"xiaomi-mimo":    "mimo-v2.5-pro",
+		"opencode-go":    "kimi-k2.6",
+	}
+	for p, first := range wantFirst {
+		models := ModelsFor(p)
+		if len(models) == 0 {
+			t.Errorf("ModelsFor(%q) is empty", p)
+			continue
+		}
+		if models[0].ID != first {
+			t.Errorf("ModelsFor(%q)[0].ID = %q, want %q", p, models[0].ID, first)
+		}
+	}
+
+	// opencode has an empty ref model block.
+	if got := len(ModelsFor("opencode")); got != 0 {
+		t.Errorf("ModelsFor(\"opencode\") len = %d, want 0", got)
+	}
+}
+
 func TestModelsForUnknown(t *testing.T) {
 	models := ModelsFor("nonexistent")
 	if len(models) != 0 {
