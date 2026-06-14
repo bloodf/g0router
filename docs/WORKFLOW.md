@@ -8166,3 +8166,71 @@ routes_admin.go serial slot (MAP §182/§208).
   → HAVE with integration-only-spawn footnotes; PAR-MCP-033 → PARTIAL, store half shipped /
   handlers w7-mcp-3), open-questions ESC dispositions, this entry. No routes_admin.go serial
   slot held or released (foundation only). MCP track foundation complete; w7-mcp-2 next.
+
+## w7-mcp-2 — MCP client: SSE/message transport + probe + registry + OAuth engine (Go)
+
+```yaml
+plan: w7-mcp-2
+status: DONE
+summary: "MCP client/engine library consumed by w7-mcp-3. NO routes, NO admin
+  handler, NO UI (holds NO routes_admin.go serial slot). Ships: the CLIENT
+  SSE/message transport (pure parseSSEFrame/parseSSEDataFrames + postMessage,
+  integration-only Stream), the probe handshake (initialize +
+  notifications/initialized + tools/list; MCP-Protocol-Version 2025-06-18;
+  session-id replay; 8s ctx timeout; requiresAuth on 401/403; SSE/JSON tools
+  parse), the Anthropic registry client (≤20-page pagination + 1h injectable-clock
+  cache + isDirectConnect filter + requiredFields-skip + URL dedupe), the MCP
+  OAuth account engine (PKCE start/complete/refresh REUSING the additive
+  auth.GeneratePKCE helper + RFC 9728/8414 discovery + the SHIPPED mcpoauth store,
+  tokens *_enc + MASKED), the health monitor (pure derivations + integration-only
+  ticker), and the discovery/compact-injection cache. All HTTP I/O is hermetically
+  unit-tested via an injected http.RoundTripper; no real network/sleep/clock."
+base: ca152974dc46a0bd68828f243394ea721756c9d9
+```
+
+**P0 base observation:** clean tree at `ca15297` except a gitignored `ui/dist/index.html`
+(untouched) and a pre-staged `open-questions.md` w7-mcp-2 section (authored from plan §8);
+base gate `go build/vet/test ./...` green (1539 tests). No surprises.
+
+**ESC decisions:**
+- ESC-HTTP-SEAM (RESOLVED) — injected `*http.Client` field per component (Probe/Registry/
+  Engine), nil→default, mirroring `auth/oauth.go:128`. Tests pass a fake `http.RoundTripper`
+  + a fake clock + a short ctx. No real network/sleep/clock anywhere in the unit suite.
+- ESC-MCP-OAUTH-PROTOCOL (RESOLVED via default) — engine authored against the MCP
+  authorization spec (RFC 9728 PRM discovery, RFC 8414 ASM discovery, RFC 7636 PKCE S256);
+  no discovery ambiguity hit, no protocol fabricated.
+- ESC-PKCE-GENERALIZE (RESOLVED via path 2) — `pkceChallenge`/`randomURLSafe` are unexported
+  in package `auth` and unreachable from `mcp`; added the ADDITIVE exported helper
+  `auth.GeneratePKCE() (verifier, challenge string, err error)` wrapping the existing
+  private funcs with ZERO existing-signature/body change. No PKCE crypto copied into
+  `internal/mcp` (grep-proven: no `crypto/sha256` there).
+- ESC-STORE-ADD (NO METHOD ADDED) — the SHIPPED `UpsertMCPOAuthAccount` (status-updating) +
+  `ListMCPOAuthAccounts` covered the engine + health monitor; no additive store method
+  needed; `internal/store/mcpoauth.go` untouched.
+- ESC-REG-DTO (RESOLVED) — new `RegistryServer` DTO (not a `PluginDefinition` reuse).
+- ESC-SSE-STREAM (RESOLVED) — live SSE `Stream` reader + health-monitor ticker are
+  integration-only; pure parsers + postMessage + pure health derivations fully unit-tested.
+
+**Constructors w7-mcp-3 consumes:** `NewProbe(client)`/`Probe.Run(ctx,url) ProbeResult`;
+`NewRegistry(client)`/`Registry.List(ctx,force) []RegistryServer` + `RegistryServer`;
+`NewEngine(st,client)`/`Engine.Start`/`Complete`/`Refresh` + `StartResult`; the SSE/message
+client transport + `parseSSEFrame`/`parseSSEDataFrames`; `accountHealth`/
+`accountsNeedingRefresh`/`needsRefresh`; the `toolsCache` + `buildCompactManifest`. Keep
+exported+stable; mcp-3 EXTENDS `internal/mcp` with NEW files (agent.go) + adds the SERVER
+SSE/message routes + admin handlers — no edits to this plan's files.
+
+**Tasks / commits (in order):**
+- T-transport RED: `a816bab` — failing SSE parse + message-POST tests (TDD red).
+- T-transport GREEN: `6e8d462` — SSE/message client transport (pure frame parse).
+- T-probe RED: `99945de` — failing MCP probe handshake tests (TDD red).
+- T-probe GREEN: `5f7d669` — MCP probe (initialize+initialized+tools/list, 8s, requiresAuth).
+- T-registry RED: `50e34b2` — failing MCP registry pagination/cache/dedupe tests (TDD red).
+- T-registry GREEN: `0970ed0` — MCP registry client (pagination + 1h cache + direct-connect + dedupe).
+- T-oauth RED: `e6e2bd3` — failing MCP OAuth engine tests (TDD red; incl. auth.GeneratePKCE RED).
+- T-oauth GREEN: `9310798` — MCP OAuth engine (PKCE reuse + PRM/ASM discovery + token refresh).
+- T-health-discovery RED: `86dfc62` — failing health-monitor + discovery tests (TDD red).
+- T-health-discovery GREEN: `89eb954` — MCP health monitor + discovery/compact-injection.
+- T-close: matrix flip (PAR-MCP-009/010/011/012/013/014/015/016/017/037/038/039/057/058/059
+  → HAVE; PAR-MCP-001/002/055/056 → PARTIAL, client transport shipped / server routes +
+  handshake-event emission w7-mcp-3), open-questions ESC dispositions, this entry. No
+  routes_admin.go serial slot held. MCP client/engine complete; w7-mcp-3 next.
