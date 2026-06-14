@@ -31,6 +31,58 @@ func TestGenericChatURL(t *testing.T) {
 	}
 }
 
+// TestGenericChatURLsSingle verifies the additive multi-URL builder
+// (PAR-ROUTE-035) returns a one-element list for a single-URL provider, and
+// that chatURL() == chatURLs()[0] (the existing single-URL callers are
+// unchanged).
+func TestGenericChatURLsSingle(t *testing.T) {
+	p, err := New("deepseek")
+	if err != nil {
+		t.Fatalf("New(deepseek) error: %v", err)
+	}
+	urls := p.chatURLs()
+	if len(urls) != 1 {
+		t.Fatalf("chatURLs() len = %d, want 1; got %v", len(urls), urls)
+	}
+	want := "https://api.deepseek.com/chat/completions"
+	if urls[0] != want {
+		t.Errorf("chatURLs()[0] = %q, want %q", urls[0], want)
+	}
+	if p.chatURL() != urls[0] {
+		t.Errorf("chatURL() = %q, want chatURLs()[0] = %q", p.chatURL(), urls[0])
+	}
+}
+
+// TestGenericChatURLsFallbackOrder verifies the index-based fallback URL list
+// (PAR-ROUTE-035, mirrors provider.js:155-209 / base.js:20-42): a provider
+// configured with multiple whitespace/newline-separated URLs yields them in
+// order, primary first, and chatURL() returns the primary (index 0).
+func TestGenericChatURLsFallbackOrder(t *testing.T) {
+	p, err := New("groq")
+	if err != nil {
+		t.Fatalf("New(groq) error: %v", err)
+	}
+	p.config.BaseURL = "https://primary.example/v1/chat/completions\nhttps://fallback1.example/v1/chat/completions https://fallback2.example/v1/chat/completions"
+
+	urls := p.chatURLs()
+	want := []string{
+		"https://primary.example/v1/chat/completions",
+		"https://fallback1.example/v1/chat/completions",
+		"https://fallback2.example/v1/chat/completions",
+	}
+	if len(urls) != len(want) {
+		t.Fatalf("chatURLs() = %v (len %d), want %v (len %d)", urls, len(urls), want, len(want))
+	}
+	for i := range want {
+		if urls[i] != want[i] {
+			t.Errorf("chatURLs()[%d] = %q, want %q", i, urls[i], want[i])
+		}
+	}
+	if p.chatURL() != want[0] {
+		t.Errorf("chatURL() = %q, want primary %q", p.chatURL(), want[0])
+	}
+}
+
 func TestGenericChatBearerAuth(t *testing.T) {
 	var gotAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
