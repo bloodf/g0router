@@ -7339,3 +7339,68 @@ guardrails prompt-tester (`guardrails.spec.ts:15-21`) FAILS at base (no
 `ui/src/routes/{teams,audit,feature-flags,guardrails,prompts,alerts}.tsx` and
 `ui/src/components/governance/**` are now consume-only for later plans. **w6-k holds
 NO serial slot — nothing to release.**
+
+## phase-1/w6-l — MCP + skills cluster (mcp page, mcp/tools page, McpMarketplaceModal, skills NEW route) — UI-only, ZERO new Go
+
+Page wave 2; the wave-2 new-route plan (analogue of w6-i). REWRITES the existing
+`/mcp` + `/mcp/tools` stubs and ADDS a NEW `/skills` route (which regenerates
+`ui/src/routeTree.gen.ts` — the SOLE difference from sibling wave-2 plans). **ZERO
+Go** — w6-l holds NO serial slot; the chain was already closed on w6-j.
+
+> **MAP assumption recorded as INCORRECT (binding finding, w6-l §1.2).** The
+> WAVE-6-MAP w6-l row claims "MCP gateway backend in-tree". This was VERIFIED FALSE:
+> `internal/mcp/` is a Phase-1 PLACEHOLDER (only `doc.go` + a no-op
+> `TestPackageCompiles`); there are NO `/api/mcp/*` or `/api/skills` admin routes and
+> NO `internal/admin/{mcp,skills}.go`. The only in-tree MCP reference is
+> `guard.go:46` (a forward-looking `LOCAL_ONLY_PATHS` entry with no live route behind
+> it). All four surfaces ship variant-HAVE against the registered e2e MOCKS with the
+> Go backends as serial follow-ups (§8 ESC-1a/1b/1c). The orchestrator should update
+> the MAP and schedule the three serial Go follow-ups.
+
+**Base spec observations (P8, base = 561a8d9):** `e2e/mcp.spec.ts` had 2 smoke tests
+at base — `/mcp` "MCP" PASSED (stub `<h1>MCP</h1>` + sidebar chrome), but
+`/mcp/tools` "Tools" FAILED at base because the `/mcp` stub rendered no `<Outlet>`,
+so navigating to `/mcp/tools` swallowed the nested child and rendered only the
+parent's "MCP". The rewrite fixes this: `mcp.tsx` now renders an `<Outlet>` for the
+nested `/mcp/tools` route (§1.8). `e2e/skills.spec.ts` did not exist (CREATED RED
+in T1).
+
+**Backend-absent finding (serial Go follow-ups, §8):**
+- MCP clients/instances + marketplace (PAR-UI-130 `/mcp`, PAR-UI-054): no Go
+  `/api/mcp/clients|instances`; variant-HAVE vs mock. Serial: `internal/mcp/` gateway
+  + admin clients/instances + instance OAuth `…/auth/start`.
+- MCP tools/tool-groups (PAR-UI-130 `/mcp/tools`): no Go `/api/mcp/tools|tool-groups`;
+  variant-HAVE vs mock. Serial: tools list + execute + tool-groups CRUD.
+- Skills (PAR-UI-020): no Go `/api/skills`, no `internal/admin/skills.go`;
+  variant-HAVE vs mock. Serial: real `GET /api/skills`.
+
+**New-route / routeTree regen (§1.7):** `ui/src/routes/skills.tsx` was CREATED and
+`npm run build` regenerated `ui/src/routeTree.gen.ts` to register `/skills`
+(`SkillsRoute`); the generated file was committed in the route-adding commit, never
+hand-edited (w6-i/w6-c precedent). The two MCP stubs were rewritten in place and did
+NOT change the tree (already registered).
+
+**ZERO mock-layer edits (§1.4/§1.5):** the mcp + skills handlers/seeds were already
+registered (`handlers/index.ts:6,30,41,65`; `seed/index.ts:21,24`; `store.ts`),
+so w6-l CONSUMED them unchanged — no `index.ts`/`seed/index.ts`/`store.ts`/
+`fixture.ts`/handler-body/seed edit (the w6-i sanctioned-index-edit exception was NOT
+invoked). No new cli-tools registry mock — the marketplace was remapped to the mcp
+mock.
+
+**Gate counts (T5, fresh):** `e2e/mcp.spec.ts` + `e2e/skills.spec.ts` = 9 passed;
+`vitest run src/` = 187 passed (177 base + 5 skills-format + 5 mcp-install);
+`npm run build` = green (routeTree regenerated with `/skills`); `go test ./... &&
+go vet ./...` = green (1370 Go tests, ZERO new Go); regression
+`navigation/teams/settings` = 25 passed → ZERO w6-l regressions.
+
+**Rows flipped:**
+- PAR-UI-020 → HAVE (variant — NEW `/skills` route; mock-served; copy-to-clipboard;
+  NO Go; §1.3/§1.7/§8 ESC-1c).
+- PAR-UI-054 → HAVE (variant — marketplace remapped to mcp mock; NO Go; §1.6/§8
+  ESC-1a).
+- PAR-UI-130 → APPEND `/mcp`,`/mcp/tools` HAVE (variant — mock-contract; NO Go;
+  §1.2/§1.4/§8 ESC-1a/1b; sibling partials preserved — §1 note).
+
+`ui/src/routes/{mcp,mcp.tools,skills}.tsx`, `ui/src/components/mcp/**`, and
+`ui/src/lib/{skills-format,mcp-install}.ts` are now consume-only for later plans.
+**w6-l holds NO serial slot — nothing to release.**
