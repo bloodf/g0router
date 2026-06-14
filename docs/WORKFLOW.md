@@ -7404,3 +7404,90 @@ go vet ./...` = green (1370 Go tests, ZERO new Go); regression
 `ui/src/routes/{mcp,mcp.tools,skills}.tsx`, `ui/src/components/mcp/**`, and
 `ui/src/lib/{skills-format,mcp-install}.ts` are now consume-only for later plans.
 **w6-l holds NO serial slot — nothing to release.**
+
+## phase-1/w6-m — Platform pages cluster (mitm/proxy-pools/tunnels) — THE designated PARTIAL plan; UI-only, ZERO new Go
+
+Page wave 2 (page wave 2 of wave 6, COMPLETING the wave-6 page wave). REWRITES the
+three existing `/mitm`, `/proxy-pools`, `/tunnels` stubs in place — `routeTree.gen.ts`
+UNCHANGED (all three already registered; w6-m is NOT a new-route plan — the SOLE
+diff-gate difference from w6-l). **ZERO Go** — w6-m holds NO serial slot; the
+routes_admin.go chain (w6-pre→w6-d→w6-e→w6-j) had already CLOSED on w6-j.
+
+> **PARTIAL disposition is the binding call (NOT variant-HAVE).** w6-m is THE
+> designated PARTIAL plan of wave 6. The WAVE-6-MAP w6-m row explicitly pre-declares
+> the Go backends for mitm/proxy-pools/tunnels as W7 work. §1.2 VERIFIED all three
+> ABSENT: route-table + `grep -rniE '"/api/mitm|"/api/proxy-pools|"/api/tunnels|
+> MitmHandler|ProxyPoolHandler|TunnelHandler' internal/ cmd/` → ZERO; no
+> `internal/admin/{mitm,proxy_pools,tunnels}.go`; the only tunnel reference is
+> `guard.go:135-141` (a settings host-access guard, NOT a CRUD route; never edited).
+> So w6-m flips PAR-UI-013/019/104/105/112/113/114 MISSING → **PARTIAL** (UI half done
+> vs the registered mocks, specs green; Go half is a tracked W7 follow-up that flips
+> each → HAVE). Unlike w6-k/w6-l (variant-HAVE), w6-m records PARTIAL so the matrix
+> honestly reflects "UI done, backend pending W7."
+
+**Base spec observations (P9, base = 2978d2bc):** `e2e/{mitm,proxy-pools,tunnels}.spec.ts`
+each had 1 smoke test at base — all 3 PASSED (the stub `<h1>` + sidebar chrome carry
+the asserted page-name text). The RED arc is the ADDED status/list/toggle/modal
+assertions (T1), red until the page rewrites (T3/T4) greened them.
+
+**Backend-absent finding (W7 Go follow-ups, §8 ESC-1a/1b/1c):**
+- mitm (PAR-UI-013): no Go `/api/mitm/*`; PARTIAL vs the
+  `/api/mitm/{status,toggle,ca-cert,tools/{id}}` mock. W7: real MITM proxy config +
+  CA-cert serving + per-tool enable/DNS-override. Flips PARTIAL → HAVE.
+- proxy-pools (PAR-UI-019/104/105): no Go `/api/proxy-pools*`; PARTIAL vs the mock
+  (list/create/batch/get/put/delete/test). W7: proxy-pool store + admin CRUD + batch
+  + real connectivity-test. Flips PARTIAL → HAVE.
+- tunnels (PAR-UI-112/113/114 + `/tunnels` page): no Go `/api/tunnels*` (only the
+  `guard.go:135-141` settings-guard); PARTIAL vs the mock (`GET /api/tunnels` +
+  `/health`, `POST/DELETE /api/tunnels/{type}`). W7: real tunnel status/enable/disable
+  over Cloudflare + Tailscale. Flips PARTIAL → HAVE.
+
+**tunnels live-status = REST-poll, NOT SSE (RESOLVED, §1.5):** both the 9router ref
+(`setInterval` poll on `/api/tunnel/status`, ZERO `EventSource`) and the in-tree mock
+(`GET /api/tunnels` + `/api/tunnels/health`, no `/stream`) are REST. The e2e
+`MockEventSource` (`fixture.ts:35-111`) has branches ONLY for traffic + console
+streams — NO tunnels branch, and none is needed. The tunnels page reads status via
+`apiFetch` REST on mount (+ optional health read); NO `EventSource`, NO `fixture.ts`
+edit. A streaming status endpoint is a W7 follow-up, NOT w6-m. The tunnel paths are
+REMAPPED from the ref's `/api/tunnel/{enable,disable,tailscale-*}` to the in-tree mock
+`/api/tunnels/{type}` (POST enable / DELETE disable).
+
+**mitm CA-cert plain-fetch (§1.2 caveat / §1.3):** `GET /api/mitm/ca-cert` returns a
+RAW PEM body (`application/x-pem-file`), NOT a `{data}` envelope, so the download
+control bypasses `apiFetch` (which unwraps `{data}`) and uses a plain `fetch` →
+`Blob` → anchor download. All other mitm reads/writes go through `apiFetch`.
+
+**ZERO mock-layer edits (§1.4):** all three handlers + seeds were already registered
+(`handlers/index.ts:54,66,67`; `seed/index.ts`; `store.ts`), so w6-m CONSUMED them
+unchanged — no `index.ts`/`seed/index.ts`/`store.ts`/`fixture.ts`/handler-body/seed
+edit. The pure `toProxyPoolPayload` helper (`ui/src/lib/proxy-pool-form.ts`) is the
+unit-tested create-contract seam (port string→number coercion); the form modal +
+list/status/toggle surfaces are e2e-proven. One spec-hardening note: the tunnels
+"disabling" test was made state-agnostic (reads the toggle `data-state` before
+acting) because the e2e mock store is worker-scoped and a prior test enables the
+first tunnel — the fix is test-side only (no production/mock change).
+
+**Gate counts (T5, fresh):** `e2e/mitm.spec.ts` = 5 passed; `e2e/proxy-pools.spec.ts`
+= 5 passed; `e2e/tunnels.spec.ts` = 4 passed (14 total: 3 original + 11 added);
+`vitest run src/lib/proxy-pool-form.test.ts` = 5 passed; `vitest run src/` = 192
+passed (187 base + 5 proxy-pool-form); `npm run build` = green (routeTree.gen.ts NOT
+regenerated); `go test ./... && go vet ./...` = green (1370 Go tests, ZERO new Go);
+regression `navigation/mcp/settings` = 25 passed → ZERO w6-m regressions.
+
+**Rows flipped (MISSING → PARTIAL, NOT HAVE):**
+- PAR-UI-013 → PARTIAL (`/mitm` UI; CA-cert plain-fetch; §1.3/§8 ESC-1a; HAVE in W7).
+- PAR-UI-019 → PARTIAL (`/proxy-pools` UI + form modal + helper; §1.4/§8 ESC-1b).
+- PAR-UI-104 → PARTIAL (mock-served `GET /api/proxy-pools`; §8 ESC-1b).
+- PAR-UI-105 → PARTIAL (mock-served `POST /api/proxy-pools`; §8 ESC-1b).
+- PAR-UI-112 → PARTIAL (mock-served tunnel status, REST-poll; §1.5/§8 ESC-1c).
+- PAR-UI-113 → PARTIAL (mock-served cloudflare enable/disable, REMAPPED; §8 ESC-1c).
+- PAR-UI-114 → PARTIAL (mock-served tailscale enable/disable + `/tunnels` page; §8
+  ESC-1c).
+
+The three W7 Go backends (mitm, proxy-pools, tunnels) are recorded in
+`.planning/parity/plans/open-questions.md` (ESC-1a/1b/1c) for the orchestrator to
+schedule; each flips its row PARTIAL → HAVE when it lands.
+
+`ui/src/routes/{mitm,proxy-pools,tunnels}.tsx`, `ui/src/components/platform/**`, and
+`ui/src/lib/proxy-pool-form.ts` are now consume-only for later plans. **w6-m holds NO
+serial slot — nothing to release. This COMPLETES Wave 6 page wave 2.**
