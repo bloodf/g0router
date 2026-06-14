@@ -35,19 +35,21 @@ test.describe("Tunnels", () => {
 
   test("disabling an enabled tunnel fires a DELETE", async ({ page }) => {
     await page.goto("/tunnels");
-    await expect(
-      page.locator("[data-testid='tunnel-card']").first()
-    ).toBeVisible({ timeout: 10000 });
-    // Enable first (POST), then toggle again to disable (DELETE).
-    const postPromise = page.waitForRequest(
-      (r) => /\/api\/tunnels\/[^/]+$/.test(r.url()) && r.method() === "POST",
-    );
-    await page.locator("[data-testid='tunnel-toggle']").first().click();
-    await postPromise;
+    const toggle = page.locator("[data-testid='tunnel-toggle']").first();
+    await expect(toggle).toBeVisible({ timeout: 10000 });
+    // The mock store is worker-scoped, so the tunnel may already be enabled from
+    // a prior test. Ensure it is enabled first (idempotent POST), then toggle off
+    // and assert the DELETE fires.
+    if ((await toggle.getAttribute("data-state")) !== "checked") {
+      await toggle.click();
+      await expect(toggle).toHaveAttribute("data-state", "checked", {
+        timeout: 10000,
+      });
+    }
     const deletePromise = page.waitForRequest(
       (r) => /\/api\/tunnels\/[^/]+$/.test(r.url()) && r.method() === "DELETE",
     );
-    await page.locator("[data-testid='tunnel-toggle']").first().click();
+    await toggle.click();
     await deletePromise;
   });
 });
