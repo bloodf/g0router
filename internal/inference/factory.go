@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/bloodf/g0router/internal/providers/anthropic"
+	"github.com/bloodf/g0router/internal/providers/antigravity"
 	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/providers/commandcode"
 	"github.com/bloodf/g0router/internal/providers/gemini"
@@ -120,6 +121,9 @@ func buildProvider(providerID string, reg *translation.Registry) (schemas.Provid
 		case "kiro":
 			// w7-prov-special-b: AWS-eventstream binary-protocol adapter.
 			return kiro.New(providerID, reg)
+		case "antigravity":
+			// w7-prov-special-b: multi-backend (gemini/claude/gpt-oss) adapter.
+			return antigravity.New(providerID, reg)
 		}
 		// URL-template/build openai providers compute their endpoint at request
 		// time; dispatch them before the generic catalog adapter (their Format

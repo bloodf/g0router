@@ -91,6 +91,18 @@ var Providers = map[string]ProviderConfig{
 			"X-Amz-User-Agent":         "aws-sdk-js/3.0.0 kiro-ide/1.0.0",
 		},
 	},
+	// --- w7-prov-special-b: antigravity multi-backend provider (PAR-PROV-020) ---
+	// providers.js:105-113. The ref carries a baseUrls fallback list; the primary
+	// host is stored here and the sandbox fallback is built by the executor. The
+	// User-Agent platform/arch suffix is omitted (it is host-runtime metadata).
+	"antigravity": {
+		Name:    "antigravity",
+		BaseURL: "https://daily-cloudcode-pa.googleapis.com",
+		Format:  "antigravity",
+		Headers: map[string]string{
+			"User-Agent": "antigravity/1.107.0",
+		},
+	},
 	// --- w7-prov-openai: Western openai-format providers ---
 	"nvidia": {
 		Name:    "nvidia",

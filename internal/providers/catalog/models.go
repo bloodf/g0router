@@ -470,6 +470,20 @@ var Models = map[string][]ModelEntry{
 		{ID: "claude-sonnet-4.5-thinking-agentic", Name: "Claude Sonnet 4.5 (Thinking + Agentic)"},
 		{ID: "claude-haiku-4.5-thinking-agentic", Name: "Claude Haiku 4.5 (Thinking + Agentic)"},
 	},
+	// w7-prov-special-b: antigravity multi-backend provider (PAR-PROV-020).
+	// Verbatim from providerModels.js:84-94 — one provider id fronting the
+	// gemini / claude / gpt-oss backends (selected per model by the executor).
+	"antigravity": {
+		{ID: "gemini-3-flash-agent", Name: "Gemini 3.5 Flash (High)"},
+		{ID: "gemini-3.5-flash-low", Name: "Gemini 3.5 Flash (Medium)"},
+		{ID: "gemini-3.5-flash-extra-low", Name: "Gemini 3.5 Flash (Low)"},
+		{ID: "gemini-pro-agent", Name: "Gemini 3.1 Pro (High)"},
+		{ID: "gemini-3.1-pro-low", Name: "Gemini 3.1 Pro (Low)"},
+		{ID: "claude-sonnet-4-6", Name: "Claude Sonnet 4.6 (Thinking)"},
+		{ID: "claude-opus-4-6-thinking", Name: "Claude Opus 4.6 (Thinking)"},
+		{ID: "gpt-oss-120b-medium", Name: "GPT-OSS 120B (Medium)"},
+		{ID: "gemini-3-flash", Name: "Gemini 3 Flash"},
+	},
 }
 
 // ModelsFor returns the static model catalog for the given provider.
