@@ -1,0 +1,6 @@
+
+## w6-e (Providers + Connections + Models cluster) - 2026-06-14
+- [ ] Catalog path naming — `/api/providers/catalog` + `/{id}/catalog` chosen to avoid colliding with the existing `GET /api/providers` CRUD; confirm fasthttp/router static-vs-`{id}` precedence holds, else rename to `/api/provider-catalog` (ESCALATION-1/-3). — Determines page+mock+Go path agreement; a wrong choice silently 404s the providers page.
+- [ ] Connections page data source — consume existing `GET /api/connections` CRUD DTO (`provider_id`/`kind`/`secret_set`) with client-side mapping, OR require the new UI-shaped read; decide at T5 (ESCALATION-2). — Existing CRUD DTO field names diverge from the UI `Connection` type; the wrong path forces a forbidden existing-Go edit.
+- [ ] `card-elev` class — providers.spec asserts `[class*='card-elev']` but the class exists nowhere in ui/src; ProviderCard must introduce it. — Hard contract marker; without it the pre-existing spec stays red.
+- [ ] TanStack Query is installed but unwired (no QueryClientProvider in frozen __root.tsx/main.tsx); w6-e uses plain apiFetch. — MAP decision 2 (TanStack Query) deferred to an orchestrator follow-up; record so PAR-UI-081 (w6-g) is not assumed satisfied by w6-e.
