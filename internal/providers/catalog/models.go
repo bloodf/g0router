@@ -246,6 +246,17 @@ var Models = map[string][]ModelEntry{
 		{ID: "meta-llama/Llama-3.3-70B-Instruct", Name: "Llama 3.3 70B Instruct", UpstreamModelID: "meta-llama/Llama-3.3-70B-Instruct"},
 		{ID: "Qwen/Qwen3-Embedding-8B", Name: "Qwen3 Embedding 8B", Type: "embedding", UpstreamModelID: "Qwen/Qwen3-Embedding-8B"},
 	},
+	// voyage-ai (w7-prov-media, PAR-PROV-066): ported verbatim from
+	// providerModels.js:524-532. All entries Type "embedding".
+	"voyage-ai": {
+		{ID: "voyage-3-large", Name: "Voyage 3 Large", Type: "embedding", UpstreamModelID: "voyage-3-large"},
+		{ID: "voyage-3.5", Name: "Voyage 3.5", Type: "embedding", UpstreamModelID: "voyage-3.5"},
+		{ID: "voyage-3.5-lite", Name: "Voyage 3.5 Lite", Type: "embedding", UpstreamModelID: "voyage-3.5-lite"},
+		{ID: "voyage-code-3", Name: "Voyage Code 3", Type: "embedding", UpstreamModelID: "voyage-code-3"},
+		{ID: "voyage-finance-2", Name: "Voyage Finance 2", Type: "embedding", UpstreamModelID: "voyage-finance-2"},
+		{ID: "voyage-law-2", Name: "Voyage Law 2", Type: "embedding", UpstreamModelID: "voyage-law-2"},
+		{ID: "voyage-multilingual-2", Name: "Voyage Multilingual 2", Type: "embedding", UpstreamModelID: "voyage-multilingual-2"},
+	},
 	"siliconflow": {
 		{ID: "deepseek-ai/DeepSeek-V3.2", Name: "DeepSeek V3.2", UpstreamModelID: "deepseek-ai/DeepSeek-V3.2"},
 		{ID: "deepseek-ai/DeepSeek-V3.1", Name: "DeepSeek V3.1", UpstreamModelID: "deepseek-ai/DeepSeek-V3.1"},

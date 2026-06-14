@@ -135,6 +135,14 @@ var Providers = map[string]ProviderConfig{
 		BaseURL: "https://api.studio.nebius.ai/v1/chat/completions",
 		Format:  "openai",
 	},
+	// voyage-ai (w7-prov-media, PAR-PROV-066): OpenAI-compatible embedding
+	// provider. BaseURL is the full embeddings endpoint (embeddingProviders/
+	// openai.js:8), consumed directly by the voyageai adapter.
+	"voyage-ai": {
+		Name:    "voyage-ai",
+		BaseURL: "https://api.voyageai.com/v1/embeddings",
+		Format:  "openai",
+	},
 	"siliconflow": {
 		Name:    "siliconflow",
 		BaseURL: "https://api.siliconflow.cn/v1/chat/completions",

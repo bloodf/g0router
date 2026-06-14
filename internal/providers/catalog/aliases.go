@@ -149,6 +149,9 @@ var providerAliases = map[string]string{
 	"glhf":          "glhf",
 	"bb":            "blackbox",
 	"blackbox":      "blackbox",
+	// Embedding providers (w7-prov-media)
+	"voyage-ai": "voyage-ai",
+	"voyage":    "voyage-ai",
 }
 
 // ResolveProviderAlias returns the provider ID for the given alias.
