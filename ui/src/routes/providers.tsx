@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { apiFetch } from "@/lib/api";
 import { ProviderCard } from "@/components/providers/provider-card";
 import { ProviderDetailPanel } from "@/components/providers/provider-detail-panel";
+import { OAuthModal } from "@/components/providers/oauth-modal";
+import { ManualConfigModal } from "@/components/providers/manual-config-modal";
 import { CardSkeleton } from "@/components/ui/skeleton";
 import { useNotificationStore } from "@/stores/notification";
 import type { Provider } from "@/lib/types";
@@ -38,6 +40,8 @@ function ProvidersPage() {
   const [providers, setProviders] = React.useState<Provider[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [selected, setSelected] = React.useState<Provider | null>(null);
+  const [oauthProvider, setOAuthProvider] = React.useState<Provider | null>(null);
+  const [manualProvider, setManualProvider] = React.useState<Provider | null>(null);
 
   React.useEffect(() => {
     let active = true;
@@ -73,12 +77,11 @@ function ProvidersPage() {
   }, [providers]);
 
   function handleAddConnection(provider: Provider) {
-    // The auth/config modal flow lands in T5; surface the intent for now.
-    pushToast({ message: `Add a connection for ${provider.display_name}` });
+    setManualProvider(provider);
   }
 
   function handleOAuth(provider: Provider) {
-    pushToast({ message: `Connect ${provider.display_name} via OAuth` });
+    setOAuthProvider(provider);
   }
 
   return (
@@ -129,6 +132,17 @@ function ProvidersPage() {
           );
         })
       )}
+
+      <OAuthModal
+        open={oauthProvider !== null}
+        provider={oauthProvider}
+        onClose={() => setOAuthProvider(null)}
+      />
+      <ManualConfigModal
+        open={manualProvider !== null}
+        provider={manualProvider}
+        onClose={() => setManualProvider(null)}
+      />
     </div>
   );
 }
