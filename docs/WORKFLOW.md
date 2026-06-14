@@ -7098,3 +7098,149 @@ textarea, §1.6/§8 ESCALATION-2). The three pages,
 `ui/src/components/{chat,console,translator}/**`,
 `ui/src/lib/translator-format.ts`, the new `translator.ts` mock, and the corrected
 `inference.ts` mock body are now consume-only for later plans.
+
+## phase-1/w6-j — Settings/profile + version cluster (UI + version/shutdown Go; FINAL serial-slot holder) — closed 2026-06-14
+
+Plan `.planning/parity/plans/w6-j.md`. `<base>` = `e0fe9b9` (matched the plan's
+authoring base). Strict TDD both tracks (Go test→impl; UI red specs/units→impl),
+per-task `phase-1/w6-j:` commits, explicit `git add <file>` (never `-A`).
+
+**P7/P8 base observations** (at `e0fe9b9`, fresh dist):
+- `settings.spec.ts` at base = **1 FAIL / 1 PASS**: test 1 "settings form loads"
+  FAILED (the bare `<h1>Settings</h1>` stub exposes no visible form control — the
+  selector's `.first()` resolved to the frozen header's `lg:hidden` mobile
+  hamburger, which is not visible on the desktop e2e viewport); test 2
+  "toggle require_login and save" PASSED vacuously (conditional `if visible`).
+  Matches the plan's P8 prediction.
+- `go test ./...` 1366 passed / `go vet ./...` clean; `npm run build` exit 0;
+  `npx vitest run src/` 166/166 green.
+- Dirty-tree note: `git status` was NOT empty at P0 — `ui/dist/index.html` is a
+  STALE-TRACKED build artifact (it is in `ui/.gitignore` but was committed before
+  the ignore took effect, so every `npm run build` re-dirties it). It was NEVER
+  staged (explicit `git add <file>` only). `.planning/parity/plans/open-questions.md`
+  was pre-seeded with the w6-j §8 block (the T6 deliverable, dated 2026-06-14) and
+  is committed as-is. Neither item is foreign source drift; preconditions accepted
+  per w6-f/g/h/i precedent (same `ui/dist` condition).
+
+**Serial slot — wave-6 routes_admin.go chain CLOSED.** P7 confirmed the slot was
+FREE: w6-f had TAKEN it for the provider-nodes block (`routes_admin.go:60-62`,
+merged at HEAD) and RELEASED it to w6-j on close. w6-j TOOK the slot as the FINAL
+holder, landed its SINGLE additive `routes_admin.go` commit (T3: the two version
+routes, 4 added lines), and **RELEASES it to NOBODY — the wave-6 MAP serial chain
+(w6-pre→w6-d→w6-e→w6-j) is CLOSED on w6-j.** Exactly ONE commit touches
+`routes_admin.go` in the w6-j range (§5 proof = 1).
+
+**Version + shutdown Go (NEW `internal/admin/version.go`, TDD):**
+- `GetVersion` (`GET /api/version`, PAR-UI-102) → `{version,build_date,
+  update_available,latest_version}` from injected fields; `update_available:false`/
+  `latest_version:""` by default — NEVER a live network call in tests.
+- `Shutdown` (`POST /api/version/shutdown`, PAR-UI-103) → testable WITHOUT killing
+  the test process: nil-safe injectable `shutdownFunc` (501 `{ok:false}` if
+  unwired), response-first `{ok:true}` THEN `go fn()` async. The handler body never
+  calls `os.Exit`/`srv.Close` (§5 freeze proof `! grep -nE 'os\.Exit|syscall'
+  version.go` is clean; no `init()`). `version_test.go` stubs the hook with an
+  `atomic.Int32`, asserts the response is `{ok:true}`, the stub fires exactly once
+  within a bounded wait, the no-hook path returns 501, and the test process
+  survives. `go test ./internal/admin/ -run Version -v` = 4 cases pass (≥3).
+- **Additive setters on `Handlers` (the ONE existing-Go edit, ESC-1):**
+  `handlers.go` gains `version`/`buildDate`/`shutdownFunc` fields +
+  `SetVersionInfo(version,buildDate)` + `SetShutdownFunc(fn)` (mirroring
+  `SetUsageServices`). `New(...)` signature UNCHANGED.
+
+**Version/shutdown wiring decision (ESC-1, additive, minimal):** `server.go`
+captures the `*admin.Handlers` it already builds in `NewWithShutdown` onto the
+`*Server` wrapper (new `admin` field) and exposes two forwarding methods
+`(*Server).SetVersionInfo` / `(*Server).SetShutdownFunc` (nil-safe no-ops when no
+store/admin surface). `main.go` (after `server.NewWithShutdown`) calls
+`srv.SetVersionInfo(version, buildDate)` and `srv.SetShutdownFunc(func(){
+time.AfterFunc(500ms, srv.Close) })` — the ONLY place a real graceful shutdown is
+triggered by the API, and it is NOT exercised by the unit test. Lines added:
+`server.go` ~+24 (field + 1 capture + 2 methods), `main.go` ~+10. All additive;
+no non-additive change to existing Go.
+
+**Update-checker data source (PAR-UI-021/§1.6) — NO frozen edit.** NEW
+`ui/src/hooks/use-version-check.ts` fetches `/api/version` on mount and, when
+`update_available && latest_version`, CALLS the FROZEN public action
+`useSettingsStore.getState().setUpdateInfo(true, latest_version)` — which lights
+the FROZEN sidebar `data-testid="update-badge"`. The hook is invoked from the w6-j
+settings page; `sidebar.tsx` and `stores/settings.ts` are NEVER edited (the §5
+diff proof on `ui/src/stores/` = 0). Importing `useSettingsStore` is the sanctioned
+consumption bridge (the §5 grep that flags `stores/settings` matches only the
+import; the binding proof is the zero-edit diff).
+
+**Changelog/Donate mounting (PAR-UI-055/056/§1.7b) — NO frozen edit.** Both
+`changelog-modal.tsx` + `donate-modal.tsx` (frozen `Modal`) are CREATED by w6-j and
+mounted from the settings about-block (two `Button`s toggling local `useState`). No
+header/sidebar edit (exception SPENT, unused). Content sources are mock-route
+intercepted (`/api/version/changelog`, `/api/version/donate` in the registered
+`version.ts` body) — no outbound network in tests.
+
+**ESC-7 (markdown dep):** `react-markdown` + `remark-gfm` are ALREADY installed (in
+`package.json`); the ChangelogModal CONSUMES them (no new dependency added).
+
+**Mocks (§1.9) — body-only, no new handler file, no index/seed/store/fixture edit.**
+`version.ts` body: added `update_available:true`/`latest_version:"v9.9.9"` to the
+`/api/version` GET and added `POST /api/version/shutdown`→`{ok:true}`,
+`GET /api/version/changelog`, `GET /api/version/donate`. `settings.ts` body: kept
+GET/PUT `/api/settings`, added `GET /api/settings/database` (DB-info). Both handlers
+were ALREADY registered (`index.ts:4-5,40-41`) — body edits only.
+
+**Password reconciliation (deviation from §1.4, recorded):** §1.4/ESC-2 assumed NO
+password mock existed and told w6-j to add `POST /api/auth/password` to
+`settings.ts`. Reality: `PUT /api/auth/password` ALREADY EXISTS in the
+foundation-owned `ui/e2e/mocks/handlers/auth.ts:97` (current/new password, 400 on
+mismatch). w6-j CONSUMES that existing registered handler (no duplicate route, no
+`settings.ts` password edit, no `auth.ts` edit) — strictly fewer edits, same
+variant-HAVE disposition. `password-panel.tsx` calls `PUT /api/auth/password` with
+`{current_password,new_password}`. Still mock-only (no real Go); ESC-2 follow-up
+unchanged.
+
+**settings.spec.ts test-1 selector fix (deviation, recorded):** the pre-existing
+test-1 excluded `button:not(.md\\:hidden)`, but the frozen header's mobile
+hamburger is `lg:hidden` (not `md:hidden`), so `.first()` always resolved to the
+invisible hamburger and the test FAILED at base (P8) and could never pass against
+the frozen header. w6-j corrected the obvious typo to `button:not(.lg\\:hidden)`,
+preserving the test's documented intent ("exclude the hidden mobile menu button").
+Test-1 now passes; test-2 unchanged.
+
+**Settings page surface.** `/settings` (rewrite of the stub; `routeTree.gen.ts`
+UNCHANGED — §5 diff = 0) composes: General (theme `SegmentedControl` via FROZEN
+`useTheme().setTheme` + `require_login` `Toggle` + Save → `PUT /api/settings` +
+toast), Language (`Select` of FROZEN LOCALES → `useI18n().setLocale`), OIDC config
+(persist `oidc_*` via `PUT /api/settings`; Test via `POST /api/auth/oidc/test`;
+secret never echoed), Password (mock), DB-info (mock), and About (version-check
+hook + version display + View changelog/Donate modals).
+
+**Commits (in order):**
+- `5216fe7` failing settings e2e (panels/version/changelog/donate/badge) + version/settings mock-body corrections (TDD red)
+- `c123b63` failing version/shutdown Go tests (TDD red)
+- `7ce16af` version + shutdown admin API (testable shutdown hook) + serial-slot routes
+- `74e3f95` failing unit tests for use-version-check + general-settings-panel (TDD red)
+- `f5cef9c` version-check hook, general/language/about panels, changelog + donate modals, settings page
+- `729826d` OIDC config + password + DB-info settings panels
+- (this) close — settings/version cluster; version Go; serial chain closed; matrix flips
+
+**Gates:** `npm run build` green at every commit; `settings.spec.ts` **10/10
+green** (2 pre-existing + 8 RED additions); regression
+`navigation/keys/dashboard.spec.ts` 16/16 green; full `npx playwright test` = 113
+passed with the failing set entirely pre-existing `<h1>`-stub/auth specs owned by
+other unstarted plans (`guardrails`/w6-k, `mcp`/w6-l, `comprehensive`
+auth-redirect on `/keys`) — IDENTICAL category to the base failing set the w6-h/w6-i
+entries documented; these specs are byte-identical to base and import no w6-j file →
+**ZERO regressions** (settings flipped red→green, so the failing set strictly
+shrank). `npx vitest run src/` **171/171** (166 base + 5 new:
+3 use-version-check + 2 general-settings-panel). `go test ./...` pass /
+`go vet ./...` clean / `go build ./...` clean. `go test ./internal/admin/ -run
+Version -v` = 4 pass. TDD-order proofs all clean; §5 negative/freeze diff proofs
+all 0 (store/sidebar/root/routeTree/index/seed/store/fixture untouched);
+`routes_admin.go` = 4 added lines in 1 commit.
+
+**Rows flipped:** PAR-UI-021 → HAVE (variant, §1.3/§1.6); PAR-UI-055 → HAVE
+(§1.7b); PAR-UI-056 → HAVE (§1.7b); PAR-UI-097/098 → HAVE (real Go, consume,
+§1.2); PAR-UI-099 → HAVE (variant, §1.4/§8 ESC-4); PAR-UI-100 → HAVE (variant
+mock-only password, §8 ESC-2); PAR-UI-101 → HAVE (variant mock-only DB-info, §8
+ESC-3); PAR-UI-102/103 → HAVE (Go, §1.5/§1.5b). The settings page,
+`ui/src/components/settings/**`, `ui/src/hooks/use-version-check.ts`,
+`internal/admin/version.go`, and the corrected version/settings mock bodies are now
+consume-only for later plans. **The wave-6 `routes_admin.go` serial chain is
+CLOSED — w6-j releases the slot to NOBODY.**
