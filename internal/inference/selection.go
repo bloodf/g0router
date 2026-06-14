@@ -46,6 +46,15 @@ type rrState struct {
 	count         int // consecutive use count for currentConnID
 }
 
+// wrrState holds the smooth weighted round-robin accumulator per connection for
+// a "providerID:model" key (PAR-ROUTE-027). current is the running weighted
+// counter; the connection with the highest current is picked each round, then
+// its current is reduced by the total weight. This is fully deterministic (no
+// math/rand), so weighted selection is reproducible in tests.
+type wrrState struct {
+	current map[string]int // connID → accumulated weight
+}
+
 // SelectionEngine selects eligible connections and orchestrates account-level fallback.
 // Mirrors open-sse/services/auth.js getProviderCredentials + the fallback loop in chat.js.
 type SelectionEngine struct {
@@ -55,6 +64,11 @@ type SelectionEngine struct {
 	clock    func() time.Time
 	rrStates map[string]*rrState // "providerID:model" → round-robin state
 	pr       ProxyResolver       // optional, additive (PAR-PLAT-009); nil = no proxy
+
+	// wrrStates holds per-"providerID:model" weighted round-robin accumulators
+	// (PAR-ROUTE-027). It is separated from the original field block so the
+	// existing fields keep their formatting; lazily initialized on first use.
+	wrrStates map[string]*wrrState
 }
 
 // NewSelectionEngine creates a SelectionEngine with injected dependencies.
@@ -137,6 +151,26 @@ func (e *SelectionEngine) resolveStrategy(providerID string) (strategy string, s
 	return
 }
 
+// connMetadataWeight is the metadata shape carrying a per-connection selection
+// weight (PAR-ROUTE-027), read from the existing free-form Connection.Metadata
+// seam — no schema change (ESC-WEIGHT-SRC).
+type connMetadataWeight struct {
+	Weight int `json:"weight"`
+}
+
+// connWeight returns the connection's selection weight from its Metadata JSON,
+// defaulting to 1 when absent, unparseable, or non-positive.
+func connWeight(c *store.Connection) int {
+	if c == nil || c.Metadata == "" {
+		return 1
+	}
+	var m connMetadataWeight
+	if json.Unmarshal([]byte(c.Metadata), &m) != nil || m.Weight <= 0 {
+		return 1
+	}
+	return m.Weight
+}
+
 // isConnLocked reports whether the connection has an active lock for the given model
 // or the account-level "__all" sentinel.
 func isConnLocked(cs ConnStore, connID, model string, now int64) (bool, error) {
@@ -187,6 +221,14 @@ func (e *SelectionEngine) SelectConnection(providerID, model string, exclude []s
 	}
 
 	if len(eligible) == 0 {
+		// PAR-ROUTE-039: a free (noAuth) provider with no real eligible
+		// connection gets a synthetic no-auth virtual connection so the request
+		// still routes (auth.js:36-53). Non-free providers keep the existing
+		// "no eligible connections" error. This is additive: it only fires when
+		// the existing eligibility build yields empty for a free provider.
+		if isFreeProvider(providerID) {
+			return syntheticFreeConnection(providerID), nil
+		}
 		return nil, errors.New("no eligible connections")
 	}
 
@@ -207,6 +249,45 @@ func (e *SelectionEngine) SelectConnection(providerID, model string, exclude []s
 	key := providerID + ":" + model
 
 	switch strategy {
+	case "weighted":
+		// PAR-ROUTE-027: deterministic smooth weighted round-robin over eligible
+		// connections. Each connection's weight is read from its Metadata JSON
+		// ({"weight":N}), defaulting to 1 (ESC-WEIGHT-SRC). No math/rand — the
+		// accumulator is reproducible.
+		if e.wrrStates == nil {
+			e.wrrStates = make(map[string]*wrrState)
+		}
+		st, ok := e.wrrStates[key]
+		if !ok {
+			st = &wrrState{current: make(map[string]int)}
+			e.wrrStates[key] = st
+		}
+		eligibleIDs := make(map[string]bool, len(eligible))
+		total := 0
+		for _, c := range eligible {
+			eligibleIDs[c.ID] = true
+			total += connWeight(c)
+		}
+		// Drop accumulator entries for connections no longer eligible.
+		for id := range st.current {
+			if !eligibleIDs[id] {
+				delete(st.current, id)
+			}
+		}
+		// Advance each eligible connection's counter by its static weight.
+		var best *store.Connection
+		bestVal := 0
+		for _, c := range eligible {
+			st.current[c.ID] += connWeight(c)
+			if best == nil || st.current[c.ID] > bestVal {
+				best = c
+				bestVal = st.current[c.ID]
+			}
+		}
+		// Reduce the winner by the total weight (smooth WRR).
+		st.current[best.ID] -= total
+		return best, nil
+
 	case "round-robin":
 		state, ok := e.rrStates[key]
 		if !ok {
