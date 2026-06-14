@@ -7492,3 +7492,48 @@ schedule; each flips its row PARTIAL → HAVE when it lands.
 `ui/src/routes/{mitm,proxy-pools,tunnels}.tsx`, `ui/src/components/platform/**`, and
 `ui/src/lib/proxy-pool-form.ts` are now consume-only for later plans. **w6-m holds NO
 serial slot — nothing to release. This COMPLETES Wave 6 page wave 2.**
+
+---
+
+## w7-prov-openai — Catalog-only openai-format provider parity
+
+```yaml
+plan: w7-prov-openai
+status: DONE
+summary: "Catalog-only Go data entries for 39 config-only openai-format providers across three
+  families: Western (nvidia/cerebras/nebius/siliconflow/hyperbolic/blackbox/gitlab/codebuddy/
+  vercel-ai-gateway/chutes), free-tier bundle (28 providers, PAR-PROV-067), and Chinese
+  (glm-cn/alicode/alicode-intl/volcengine-ark/byteplus/xiaomi-mimo/opencode-go/opencode).
+  Strict TDD: RED commit before GREEN per family. Preflight: sorted provider-key iteration in
+  /v1/models aggregator to eliminate non-deterministic owned_by. Alias count 133→138 (+5).
+  PAR rows flipped: 035/037/038/039/041/042/043/044/045/046/048/049/050/051/052/056/057/067 → HAVE."
+p0_base_sha: "69f4981"
+commit_range: "2378a46..8d92656"
+alias_delta: "133 → 138 (+5: glm-cn, alicode, alicode-intl, gitlab, codebuddy)"
+completed_at: "2026-06-14"
+```
+
+**Gate Results:**
+- `go test ./... -count=1`: PASS
+- `go vet ./...`: PASS
+- `go build ./cmd/g0router`: PASS
+
+**Tasks:**
+- T0 (preflight): Fix non-deterministic `owned_by` in `/v1/models` aggregator — sorted key iteration in `internal/api/models.go`; updated 5 spot-checks in `internal/api/models_test.go` to provider-unique model IDs. Commit: `5d50c3f`.
+- T1 (Chinese providers RED): Failing catalog/model tests for 8 Chinese openai providers. Commit: `2378a46`.
+- T1 (Chinese providers GREEN): `catalog.go` + `models.go` + `aliases.go` entries for glm-cn, alicode, alicode-intl, volcengine-ark, byteplus, xiaomi-mimo, opencode-go, opencode. Commit: `4693954`.
+- T2 (Western providers RED): Failing catalog/model tests for 10 Western providers. Commit: `ac4ca93`.
+- T2 (Western providers GREEN): `catalog.go` + `models.go` entries for nvidia, cerebras, nebius, siliconflow, hyperbolic, blackbox, gitlab, codebuddy, vercel-ai-gateway, chutes. Commit: `8b3853d`.
+- T3 (free-tier RED): Failing catalog/model tests for 28 free-tier providers. Commit: `133b5ac`.
+- T3 (free-tier GREEN): `catalog.go` + `models.go` entries for all 28 openai free-tier providers (agentrouter excluded per ESC-4). Commit: `8d92656`.
+
+**Escalations (all resolved):**
+- ESC-1: minimax/minimax-cn (PAR-PROV-013), glm/kimi (PAR-PROV-034/036) use format:"claude" — stay MISSING; tracked in open-questions.md for the claude-format wave.
+- ESC-2: opencode-go subscription token-exchange auth — catalog HAVE satisfied; OAuth acquisition is w7-prov-oauth concern.
+- ESC-3: codebuddy device-code OAuth — catalog HAVE satisfied; OAuth acquisition is w7-prov-oauth concern.
+- ESC-4: agentrouter format:"claude" — excluded from PAR-PROV-067 free-tier set; 28/29 providers flipped HAVE.
+- ESC-5: ModelEntry has no TargetFormat field — opencode-go minimax-* models ported without it; read-site/Stage-2 concern.
+- ESC-6: gitlab/codebuddy/vercel-ai-gateway/chutes have no static model block in ref — no Models entries; tests assert ModelsFor returns empty.
+
+**PAR matrix rows flipped HAVE:** 035, 037, 038, 039, 041, 042, 043, 044, 045, 046, 048, 049, 050, 051, 052, 056, 057, 067
+**PAR matrix rows annotated ESC-1 (stay MISSING):** 013, 034, 036
