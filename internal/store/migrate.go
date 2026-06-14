@@ -212,6 +212,14 @@ func migrate(db *sql.DB) error {
 			last_error TEXT NOT NULL DEFAULT '',
 			updated_at INTEGER NOT NULL DEFAULT 0
 		)`},
+		{"mitm_tools", `CREATE TABLE IF NOT EXISTS mitm_tools (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			enabled INTEGER NOT NULL DEFAULT 0,
+			dns_override TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'inactive',
+			updated_at INTEGER NOT NULL DEFAULT 0
+		)`},
 	}
 
 	for _, t := range tables {
