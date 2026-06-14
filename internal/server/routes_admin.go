@@ -36,9 +36,28 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/auth/oidc/callback", h.OIDCCallback)
 	r.POST("/api/auth/oidc/test", h.OIDCTest)
 
+	// Public first-user onboarding (self-guards on CountUsers()==0).
+	r.POST("/api/auth/setup", h.AuthSetup)
+
 	// Protected.
 	r.POST("/api/auth/logout", h.RequireSession(h.Logout))
 	r.GET("/api/auth/me", h.RequireSession(h.Me))
+
+	// Protected user-management.
+	r.PUT("/api/auth/password", h.RequireSession(h.ChangePassword))
+	r.GET("/api/auth/users", h.RequireSession(h.ListUsers))
+	r.POST("/api/auth/users", h.RequireSession(h.CreateUser))
+	r.DELETE("/api/auth/users/{id}", h.RequireSession(h.DeleteUser))
+
+	// Teams CRUD (static collection before {id}).
+	r.GET("/api/teams", h.RequireSession(h.ListTeams))
+	r.POST("/api/teams", h.RequireSession(h.CreateTeam))
+	r.GET("/api/teams/{id}", h.RequireSession(h.GetTeam))
+	r.PUT("/api/teams/{id}", h.RequireSession(h.UpdateTeam))
+	r.DELETE("/api/teams/{id}", h.RequireSession(h.DeleteTeam))
+
+	// Audit read.
+	r.GET("/api/audit", h.RequireSession(h.GetAudit))
 
 	r.GET("/api/settings", h.RequireSession(h.GetSettings))
 	r.PUT("/api/settings", h.RequireSession(h.PutSettings))
