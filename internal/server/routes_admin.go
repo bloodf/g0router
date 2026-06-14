@@ -136,6 +136,12 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.DELETE("/api/proxy-pools/{id}", h.RequireSession(h.DeleteProxyPool))
 	r.POST("/api/proxy-pools/{id}/test", h.RequireSession(h.TestProxyPool))
 
+	// Tunnels (static collection + /health before the {type} param route).
+	r.GET("/api/tunnels", h.RequireSession(h.ListTunnels))
+	r.GET("/api/tunnels/health", h.RequireSession(h.TunnelHealth))
+	r.POST("/api/tunnels/{type}", h.RequireSession(h.EnableTunnel))
+	r.DELETE("/api/tunnels/{type}", h.RequireSession(h.DisableTunnel))
+
 	r.GET("/api/oauth/{provider}/start", h.RequireSession(h.OAuthStart))
 	r.POST("/api/oauth/{provider}/callback", h.RequireSession(h.OAuthCallback))
 
