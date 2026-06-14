@@ -145,6 +145,87 @@ func TestChineseOpenAIProviders(t *testing.T) {
 	}
 }
 
+func TestWesternOpenAIProviders(t *testing.T) {
+	cases := map[string]string{
+		"nvidia":            "https://integrate.api.nvidia.com/v1/chat/completions",
+		"cerebras":          "https://api.cerebras.ai/v1/chat/completions",
+		"nebius":            "https://api.studio.nebius.ai/v1/chat/completions",
+		"siliconflow":       "https://api.siliconflow.cn/v1/chat/completions",
+		"hyperbolic":        "https://api.hyperbolic.xyz/v1/chat/completions",
+		"blackbox":          "https://api.blackbox.ai/chat/completions",
+		"gitlab":            "https://gitlab.com/api/v4/chat/completions",
+		"codebuddy":         "https://copilot.tencent.com/v1/chat/completions",
+		"vercel-ai-gateway": "https://ai-gateway.vercel.sh/v1/chat/completions",
+		"chutes":            "https://llm.chutes.ai/v1/chat/completions",
+	}
+	for name, wantURL := range cases {
+		cfg, ok := Lookup(name)
+		if !ok {
+			t.Fatalf("Lookup(%q) returned ok=false", name)
+		}
+		if cfg.BaseURL != wantURL {
+			t.Errorf("Lookup(%q).BaseURL = %q, want %q", name, cfg.BaseURL, wantURL)
+		}
+		if cfg.Format != "openai" {
+			t.Errorf("Lookup(%q).Format = %q, want %q", name, cfg.Format, "openai")
+		}
+	}
+}
+
+func TestWesternOpenAIModels(t *testing.T) {
+	wantCount := map[string]int{
+		"nvidia":      4,
+		"cerebras":    6,
+		"nebius":      2,
+		"siliconflow": 10,
+		"hyperbolic":  8,
+		"blackbox":    17,
+	}
+	for p, n := range wantCount {
+		if got := len(ModelsFor(p)); got != n {
+			t.Errorf("ModelsFor(%q) len = %d, want %d", p, got, n)
+		}
+	}
+
+	// No-catalog providers must have empty model list.
+	for _, p := range []string{"gitlab", "codebuddy", "vercel-ai-gateway", "chutes"} {
+		if got := len(ModelsFor(p)); got != 0 {
+			t.Errorf("ModelsFor(%q) len = %d, want 0 (no-catalog provider)", p, got)
+		}
+	}
+
+	// nvidia: assert embedding and stt typed entries with Params.
+	var hasEmbedding, hasSTT bool
+	for _, m := range ModelsFor("nvidia") {
+		if m.Type == "embedding" {
+			hasEmbedding = true
+		}
+		if m.Type == "stt" {
+			hasSTT = true
+			if len(m.Params) == 0 {
+				t.Errorf("nvidia stt entry %q has empty Params", m.ID)
+			}
+		}
+	}
+	if !hasEmbedding {
+		t.Error("nvidia: missing embedding-type model")
+	}
+	if !hasSTT {
+		t.Error("nvidia: missing stt-type model")
+	}
+
+	// nebius: assert embedding entry present.
+	var nebiusHasEmbedding bool
+	for _, m := range ModelsFor("nebius") {
+		if m.Type == "embedding" {
+			nebiusHasEmbedding = true
+		}
+	}
+	if !nebiusHasEmbedding {
+		t.Error("nebius: missing embedding-type model")
+	}
+}
+
 func TestResolveOllamaHost(t *testing.T) {
 	// override trimmed
 	if got := ResolveOllamaHost("  http://ollama.local:11434/  "); got != "http://ollama.local:11434" {
