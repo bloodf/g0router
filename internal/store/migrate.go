@@ -321,6 +321,11 @@ func migrate(db *sql.DB) error {
 		{"connections", "proxy_pool_id", "TEXT NOT NULL DEFAULT ''"},
 		{"users", "display_name", "TEXT NOT NULL DEFAULT ''"},
 		{"users", "role", "TEXT NOT NULL DEFAULT 'user'"},
+		// Provider-node prefix-routing columns (w7-platnodes, PAR-PLAT-014). A
+		// provider node is a providers row carrying a routing prefix and an API
+		// type (openai/anthropic); non-node providers keep the '' defaults.
+		{"providers", "prefix", "TEXT NOT NULL DEFAULT ''"},
+		{"providers", "api_type", "TEXT NOT NULL DEFAULT ''"},
 	} {
 		if err := ensureColumn(db, col.table, col.column, col.decl); err != nil {
 			return fmt.Errorf("ensure column %s.%s: %w", col.table, col.column, err)
