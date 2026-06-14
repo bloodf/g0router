@@ -270,6 +270,17 @@ func migrate(db *sql.DB) error {
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL DEFAULT ''
 		)`},
+		// Aliases admin table (w7-route-a, ESC-ALIAS-SHAPE). Distinct from the
+		// gateway model_aliases resolver table: this carries the id-keyed UI
+		// {id,alias,provider,model} shape the frozen /aliases page reads.
+		{"aliases", `CREATE TABLE IF NOT EXISTS aliases (
+			id TEXT PRIMARY KEY,
+			alias TEXT NOT NULL,
+			provider TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
