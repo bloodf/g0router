@@ -127,6 +127,15 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.PUT("/api/virtual-keys/{id}", h.RequireSession(h.UpdateVirtualKey))
 	r.DELETE("/api/virtual-keys/{id}", h.RequireSession(h.DeleteVirtualKey))
 
+	// Proxy-pools CRUD (static collection + batch before {id}; {id}/test deepest).
+	r.GET("/api/proxy-pools", h.RequireSession(h.ListProxyPools))
+	r.POST("/api/proxy-pools", h.RequireSession(h.CreateProxyPool))
+	r.POST("/api/proxy-pools/batch", h.RequireSession(h.BatchProxyPools))
+	r.GET("/api/proxy-pools/{id}", h.RequireSession(h.GetProxyPool))
+	r.PUT("/api/proxy-pools/{id}", h.RequireSession(h.UpdateProxyPool))
+	r.DELETE("/api/proxy-pools/{id}", h.RequireSession(h.DeleteProxyPool))
+	r.POST("/api/proxy-pools/{id}/test", h.RequireSession(h.TestProxyPool))
+
 	r.GET("/api/oauth/{provider}/start", h.RequireSession(h.OAuthStart))
 	r.POST("/api/oauth/{provider}/callback", h.RequireSession(h.OAuthCallback))
 
