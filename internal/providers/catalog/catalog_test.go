@@ -487,3 +487,22 @@ func TestResolveOllamaHost(t *testing.T) {
 		t.Errorf("ResolveOllamaHost(multiple slashes) = %q, want %q", got, "http://host:11434")
 	}
 }
+
+// TestAntigravityProvider (w7-prov-special-b) verifies the antigravity catalog
+// entry: Format "antigravity", the primary daily-cloudcode-pa base URL, and the
+// antigravity/1.107.0 User-Agent header (providers.js:105-113).
+func TestAntigravityProvider(t *testing.T) {
+	cfg, ok := Lookup("antigravity")
+	if !ok {
+		t.Fatal("Lookup(antigravity) returned ok=false")
+	}
+	if cfg.Format != "antigravity" {
+		t.Errorf("antigravity Format = %q, want antigravity", cfg.Format)
+	}
+	if cfg.BaseURL != "https://daily-cloudcode-pa.googleapis.com" {
+		t.Errorf("antigravity BaseURL = %q, want the primary daily-cloudcode-pa host", cfg.BaseURL)
+	}
+	if got := cfg.Headers["User-Agent"]; got != "antigravity/1.107.0" {
+		t.Errorf("antigravity User-Agent = %q, want antigravity/1.107.0", got)
+	}
+}

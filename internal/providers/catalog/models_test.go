@@ -263,6 +263,24 @@ func TestKiroModels(t *testing.T) {
 	}
 }
 
+// TestAntigravityModels (w7-prov-special-b) verifies the antigravity model block
+// (providerModels.js:84-94): 9 entries spanning the gemini/claude/gpt-oss
+// backends behind one provider.
+func TestAntigravityModels(t *testing.T) {
+	models := ModelsFor("antigravity")
+	if len(models) != 9 {
+		t.Fatalf("ModelsFor(antigravity) len = %d, want 9", len(models))
+	}
+	if models[0].ID != "gemini-3-flash-agent" {
+		t.Errorf("ModelsFor(antigravity)[0].ID = %q, want gemini-3-flash-agent", models[0].ID)
+	}
+	for _, id := range []string{"claude-sonnet-4-6", "gpt-oss-120b-medium", "gemini-pro-agent"} {
+		if _, ok := ResolveModel("antigravity", id); !ok {
+			t.Errorf("ResolveModel(antigravity, %q) not found", id)
+		}
+	}
+}
+
 func TestModelsForUnknown(t *testing.T) {
 	models := ModelsFor("nonexistent")
 	if len(models) != 0 {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/providers/anthropic"
+	"github.com/bloodf/g0router/internal/providers/antigravity"
 	"github.com/bloodf/g0router/internal/providers/commandcode"
 	"github.com/bloodf/g0router/internal/providers/gemini"
 	"github.com/bloodf/g0router/internal/providers/generic"
@@ -207,6 +208,22 @@ func TestKiroDispatch(t *testing.T) {
 	}
 	if p.GetProvider() != schemas.ModelProvider("kiro") {
 		t.Errorf("GetProvider() = %q, want kiro", p.GetProvider())
+	}
+}
+
+// TestAntigravityDispatch (w7-prov-special-b) verifies the additive factory arm
+// dispatching the antigravity multi-backend provider to its adapter.
+func TestAntigravityDispatch(t *testing.T) {
+	reg := translation.NewRegistry()
+	p, err := buildProvider("antigravity", reg)
+	if err != nil {
+		t.Fatalf("buildProvider(antigravity) error: %v", err)
+	}
+	if _, ok := p.(*antigravity.Provider); !ok {
+		t.Fatalf("buildProvider(antigravity) type = %T, want *antigravity.Provider", p)
+	}
+	if p.GetProvider() != schemas.ModelProvider("antigravity") {
+		t.Errorf("GetProvider() = %q, want antigravity", p.GetProvider())
 	}
 }
 
