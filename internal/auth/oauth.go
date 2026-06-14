@@ -31,6 +31,31 @@ type OAuthConfig struct {
 	TokenURL     string
 	RedirectURI  string
 	Scopes       []string
+
+	// Additive per-provider quirk fields (w7-prov-oauth). All zero-default so
+	// the pre-existing anthropic/gemini/xai configs and flows are byte-identical.
+
+	// ExtraAuthParams are appended to the authorize URL query (codex extras,
+	// gemini-cli access_type=offline/prompt=consent, iflow loginMethod/type,
+	// cline client_type=extension). An empty map is a no-op.
+	ExtraAuthParams map[string]string
+	// RefreshMode selects the refresh transport: "" (form, default),
+	// "basic" (iflow Basic-auth header + form), "json" (cline JSON body to
+	// RefreshURL), "none" (no refresh supported — kilocode/github).
+	RefreshMode string
+	// RefreshURL overrides TokenURL for the refresh request ("" falls back to
+	// TokenURL). Used by cline whose refresh endpoint differs from exchange.
+	RefreshURL string
+	// CodeEncoding selects the exchange decode path: "" (plain, default) or
+	// "base64-json" (cline encodes the token data as base64-JSON in the code).
+	CodeEncoding string
+	// DeviceCodeURL marks a device-code provider (qwen/github/kilocode). When
+	// non-empty the device-code path (StartDevice/PollDevice) is used.
+	DeviceCodeURL string
+	// DeviceVariant selects the device-code poll mechanics: "" (standard
+	// OAuth device-code token-poll, qwen/github) or "kilocode" (custom
+	// GET pollUrlBase/{code} with status-coded responses).
+	DeviceVariant string
 }
 
 // AnthropicOAuth returns the production OAuth configuration for Anthropic
