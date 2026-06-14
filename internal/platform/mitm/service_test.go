@@ -15,8 +15,8 @@ import (
 // fakeProxy is a deterministic MitmProxy that records Start/Stop WITHOUT binding
 // any port or performing a real TLS handshake.
 type fakeProxy struct {
-	started bool
-	stopped bool
+	started  bool
+	stopped  bool
 	startErr error
 }
 
