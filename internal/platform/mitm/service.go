@@ -85,8 +85,12 @@ func (s *Service) ensureProxy() (MitmProxy, error) {
 	return s.proxy, nil
 }
 
-// Status overlays the stored global flag + tool rows.
+// Status overlays the stored global flag + tool rows. It lazily seeds the two
+// named tools so the list always surfaces >=2 entries (ESC-SEED-ROWS).
 func (s *Service) Status() (bool, []store.MitmTool, error) {
+	if err := s.st.EnsureMitmTools(); err != nil {
+		return false, nil, err
+	}
 	enabled, err := s.st.GetMitmEnabled()
 	if err != nil {
 		return false, nil, err
@@ -141,8 +145,13 @@ func (s *Service) startWithBackoff(proxy MitmProxy, addr string) {
 	}
 }
 
-// ToggleTool flips a tool's enabled flag (deriving status) and persists it.
+// ToggleTool flips a tool's enabled flag (deriving status) and persists it. It
+// lazily seeds the named tools so a fresh store can toggle them; an unknown id
+// still returns store.ErrNotFound (→ 404).
 func (s *Service) ToggleTool(id string) (store.MitmTool, error) {
+	if err := s.st.EnsureMitmTools(); err != nil {
+		return store.MitmTool{}, err
+	}
 	cur, err := s.st.GetMitmTool(id)
 	if err != nil {
 		return store.MitmTool{}, err
