@@ -59,6 +59,19 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	// Audit read.
 	r.GET("/api/audit", h.RequireSession(h.GetAudit))
 
+	// Feature flags (GET list + PUT toggle only — no create/delete).
+	r.GET("/api/feature-flags", h.RequireSession(h.ListFeatureFlags))
+	r.GET("/api/feature-flags/{id}", h.RequireSession(h.GetFeatureFlag))
+	r.PUT("/api/feature-flags/{id}", h.RequireSession(h.ToggleFeatureFlag))
+
+	// Prompt templates CRUD (+ test). Static /test registered before {id}.
+	r.GET("/api/prompt-templates", h.RequireSession(h.ListPromptTemplates))
+	r.POST("/api/prompt-templates", h.RequireSession(h.CreatePromptTemplate))
+	r.POST("/api/prompt-templates/test", h.RequireSession(h.TestPromptTemplate))
+	r.GET("/api/prompt-templates/{id}", h.RequireSession(h.GetPromptTemplate))
+	r.PUT("/api/prompt-templates/{id}", h.RequireSession(h.UpdatePromptTemplate))
+	r.DELETE("/api/prompt-templates/{id}", h.RequireSession(h.DeletePromptTemplate))
+
 	r.GET("/api/settings", h.RequireSession(h.GetSettings))
 	r.PUT("/api/settings", h.RequireSession(h.PutSettings))
 
