@@ -13,6 +13,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/ollama"
 	"github.com/bloodf/g0router/internal/providers/openai"
 	"github.com/bloodf/g0router/internal/providers/urltemplate"
+	"github.com/bloodf/g0router/internal/providers/voyageai"
 	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/bloodf/g0router/internal/translation"
 )
@@ -241,6 +242,23 @@ func TestCursorDispatch(t *testing.T) {
 	}
 	if p.GetProvider() != schemas.ModelProvider("cursor") {
 		t.Errorf("GetProvider() = %q, want cursor", p.GetProvider())
+	}
+}
+
+// TestVoyageAIDispatch (w7-prov-media) verifies the additive factory arm
+// dispatching the voyage-ai embedding provider to its adapter (ahead of the
+// generic openai default which would 501 on Embedding).
+func TestVoyageAIDispatch(t *testing.T) {
+	reg := translation.NewRegistry()
+	p, err := buildProvider("voyage-ai", reg)
+	if err != nil {
+		t.Fatalf("buildProvider(voyage-ai) error: %v", err)
+	}
+	if _, ok := p.(*voyageai.Provider); !ok {
+		t.Fatalf("buildProvider(voyage-ai) type = %T, want *voyageai.Provider", p)
+	}
+	if p.GetProvider() != schemas.ModelProvider("voyage-ai") {
+		t.Errorf("GetProvider() = %q, want voyage-ai", p.GetProvider())
 	}
 }
 
