@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GeneralSettingsPanel } from "@/components/settings/general-settings-panel";
 import { LanguageSettingsPanel } from "@/components/settings/language-settings-panel";
+import { OidcConfigPanel } from "@/components/settings/oidc-config-panel";
+import { PasswordPanel } from "@/components/settings/password-panel";
+import { DbInfoPanel } from "@/components/settings/db-info-panel";
 import { ChangelogModal } from "@/components/settings/changelog-modal";
 import { DonateModal } from "@/components/settings/donate-modal";
 import { useVersionCheck } from "@/hooks/use-version-check";
@@ -29,6 +32,9 @@ function SettingsPage() {
 
       <GeneralSettingsPanel />
       <LanguageSettingsPanel />
+      <OidcConfigPanel />
+      <PasswordPanel />
+      <DbInfoPanel />
 
       <Card>
         <CardHeader>
