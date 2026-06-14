@@ -162,6 +162,15 @@ func migrate(db *sql.DB) error {
 			description TEXT NOT NULL DEFAULT '',
 			created_at TEXT NOT NULL
 		)`},
+		{"prompt_templates", `CREATE TABLE IF NOT EXISTS prompt_templates (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			system_prompt TEXT NOT NULL DEFAULT '',
+			models_json TEXT NOT NULL DEFAULT '[]',
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
