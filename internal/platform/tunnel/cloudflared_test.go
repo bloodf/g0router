@@ -50,6 +50,36 @@ https://second-two-0002.trycloudflare.com`,
 	}
 }
 
+func TestExtractTailscaleLoginURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		out     string
+		wantURL string
+		wantOK  bool
+	}{
+		{
+			name:    "login url present",
+			out:     "To authenticate, visit:\n\n\thttps://login.tailscale.com/a/abc123def456\n",
+			wantURL: "https://login.tailscale.com/a/abc123def456",
+			wantOK:  true,
+		},
+		{
+			name:    "already authenticated",
+			out:     "Success.",
+			wantURL: "",
+			wantOK:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotURL, gotOK := extractTailscaleLoginURL(tt.out)
+			if gotURL != tt.wantURL || gotOK != tt.wantOK {
+				t.Fatalf("extractTailscaleLoginURL() = (%q, %v), want (%q, %v)", gotURL, gotOK, tt.wantURL, tt.wantOK)
+			}
+		})
+	}
+}
+
 func TestIsValidExecutable(t *testing.T) {
 	elf := []byte{0x7f, 'E', 'L', 'F', 0x02, 0x01, 0x01, 0x00}
 	machO := []byte{0xcf, 0xfa, 0xed, 0xfe, 0x07, 0x00, 0x00, 0x01}
