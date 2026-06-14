@@ -5,6 +5,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/governance"
+	"github.com/bloodf/g0router/internal/platform"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
 )
@@ -18,6 +19,7 @@ type Handlers struct {
 	stats        *usage.StatsService
 	resolver     *usage.Resolver
 	audit        *governance.AuditService
+	proxyPools   *platform.ProxyPoolService
 	version      string
 	buildDate    string
 	shutdownFunc func()
@@ -43,11 +45,12 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 		return key, machineID, nil
 	})
 	return &Handlers{
-		store:    st,
-		sessions: sessions,
-		flows:    flows,
-		limiter:  auth.NewLoginLimiter(),
-		audit:    governance.NewAuditService(st),
+		store:      st,
+		sessions:   sessions,
+		flows:      flows,
+		limiter:    auth.NewLoginLimiter(),
+		audit:      governance.NewAuditService(st),
+		proxyPools: platform.NewProxyPoolService(st),
 	}
 }
 

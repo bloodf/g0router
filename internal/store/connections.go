@@ -20,6 +20,7 @@ type Connection struct {
 	RefreshToken string
 	ExpiresAt    int64
 	Metadata     string
+	ProxyPoolID  string
 	CreatedAt    int64
 	UpdatedAt    int64
 }
@@ -40,9 +41,9 @@ func (s *Store) CreateConnection(c *Connection) error {
 	c.UpdatedAt = now
 	_, err = s.db.Exec(
 		`INSERT INTO connections
-		 (id, provider_id, name, kind, secret_enc, access_token_enc, refresh_token_enc, expires_at, metadata, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, c.ProviderID, c.Name, c.Kind, enc.secret, enc.access, enc.refresh, c.ExpiresAt, c.Metadata, c.CreatedAt, c.UpdatedAt,
+		 (id, provider_id, name, kind, secret_enc, access_token_enc, refresh_token_enc, expires_at, metadata, proxy_pool_id, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.ProviderID, c.Name, c.Kind, enc.secret, enc.access, enc.refresh, c.ExpiresAt, c.Metadata, c.ProxyPoolID, c.CreatedAt, c.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert connection %s: %w", c.Name, err)
@@ -53,7 +54,7 @@ func (s *Store) CreateConnection(c *Connection) error {
 // ListConnections returns all connections with secrets decrypted.
 func (s *Store) ListConnections() ([]*Connection, error) {
 	rows, err := s.db.Query(
-		`SELECT id, provider_id, name, kind, secret_enc, access_token_enc, refresh_token_enc, expires_at, metadata, created_at, updated_at
+		`SELECT id, provider_id, name, kind, secret_enc, access_token_enc, refresh_token_enc, expires_at, metadata, proxy_pool_id, created_at, updated_at
 		 FROM connections ORDER BY created_at, id`)
 	if err != nil {
 		return nil, fmt.Errorf("query connections: %w", err)
@@ -77,7 +78,7 @@ func (s *Store) ListConnections() ([]*Connection, error) {
 // GetConnection returns the connection with the given ID, secrets decrypted.
 func (s *Store) GetConnection(id string) (*Connection, error) {
 	row := s.db.QueryRow(
-		`SELECT id, provider_id, name, kind, secret_enc, access_token_enc, refresh_token_enc, expires_at, metadata, created_at, updated_at
+		`SELECT id, provider_id, name, kind, secret_enc, access_token_enc, refresh_token_enc, expires_at, metadata, proxy_pool_id, created_at, updated_at
 		 FROM connections WHERE id = ?`, id)
 	return s.scanConnection(row)
 }
@@ -90,8 +91,8 @@ func (s *Store) UpdateConnection(c *Connection) error {
 	}
 	res, err := s.db.Exec(
 		`UPDATE connections SET provider_id = ?, name = ?, kind = ?, secret_enc = ?, access_token_enc = ?,
-		 refresh_token_enc = ?, expires_at = ?, metadata = ?, updated_at = ? WHERE id = ?`,
-		c.ProviderID, c.Name, c.Kind, enc.secret, enc.access, enc.refresh, c.ExpiresAt, c.Metadata, time.Now().Unix(), c.ID,
+		 refresh_token_enc = ?, expires_at = ?, metadata = ?, proxy_pool_id = ?, updated_at = ? WHERE id = ?`,
+		c.ProviderID, c.Name, c.Kind, enc.secret, enc.access, enc.refresh, c.ExpiresAt, c.Metadata, c.ProxyPoolID, time.Now().Unix(), c.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update connection %s: %w", c.ID, err)
@@ -131,7 +132,7 @@ func (s *Store) scanConnection(row rowScanner) (*Connection, error) {
 	var c Connection
 	var secretEnc, accessEnc, refreshEnc string
 	err := row.Scan(&c.ID, &c.ProviderID, &c.Name, &c.Kind, &secretEnc, &accessEnc, &refreshEnc,
-		&c.ExpiresAt, &c.Metadata, &c.CreatedAt, &c.UpdatedAt)
+		&c.ExpiresAt, &c.Metadata, &c.ProxyPoolID, &c.CreatedAt, &c.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

@@ -188,6 +188,20 @@ func migrate(db *sql.DB) error {
 			is_active INTEGER NOT NULL DEFAULT 1,
 			created_at TEXT NOT NULL
 		)`},
+		{"proxy_pools", `CREATE TABLE IF NOT EXISTS proxy_pools (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			protocol TEXT NOT NULL DEFAULT 'http',
+			host TEXT NOT NULL,
+			port INTEGER NOT NULL DEFAULT 0,
+			username TEXT NOT NULL DEFAULT '',
+			password_enc TEXT NOT NULL DEFAULT '',
+			is_active INTEGER NOT NULL DEFAULT 1,
+			last_check_status TEXT NOT NULL DEFAULT '',
+			last_check_at TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
@@ -236,6 +250,7 @@ func migrate(db *sql.DB) error {
 		{"connections", "backoff_level", "INTEGER NOT NULL DEFAULT 0"},
 		{"connections", "rate_limited_until", "INTEGER NOT NULL DEFAULT 0"},
 		{"connections", "last_error", "TEXT NOT NULL DEFAULT ''"},
+		{"connections", "proxy_pool_id", "TEXT NOT NULL DEFAULT ''"},
 		{"users", "display_name", "TEXT NOT NULL DEFAULT ''"},
 		{"users", "role", "TEXT NOT NULL DEFAULT 'user'"},
 	} {
