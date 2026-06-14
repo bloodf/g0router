@@ -99,6 +99,104 @@ func TestFillFirstDefault(t *testing.T) {
 	}
 }
 
+// TestWeightedSelectionRatio verifies PAR-ROUTE-027: with strategy "weighted"
+// and two connections weighted 3:1 (via Connection.Metadata {"weight":N}), over
+// four selects the heavier connection is picked 3× and the lighter 1×. The pick
+// uses a deterministic smooth weighted round-robin accumulator (no math/rand),
+// so the outcome is reproducible.
+func TestWeightedSelectionRatio(t *testing.T) {
+	cA := makeConn("cA", "p1")
+	cA.Metadata = `{"weight":3}`
+	cB := makeConn("cB", "p1")
+	cB.Metadata = `{"weight":1}`
+	cs := &fakeConnStore{conns: []*store.Connection{cA, cB}}
+	ss := &fakeSettingStore{settings: map[string]string{
+		"fallbackStrategy": "weighted",
+	}}
+	engine := NewSelectionEngine(cs, ss, &fakeCooldownForSelection{}, time.Now)
+
+	counts := map[string]int{}
+	for i := 0; i < 4; i++ {
+		conn, err := engine.SelectConnection("p1", "gpt-4", nil, "")
+		if err != nil {
+			t.Fatalf("select %d: %v", i, err)
+		}
+		counts[conn.ID]++
+	}
+	if counts["cA"] != 3 || counts["cB"] != 1 {
+		t.Errorf("weighted 3:1 over 4 selects = %v, want cA:3 cB:1", counts)
+	}
+}
+
+// TestWeightedSelectionDefaultEqual verifies PAR-ROUTE-027: connections with no
+// weight in metadata default to weight 1, so a 1:1 pair alternates evenly.
+func TestWeightedSelectionDefaultEqual(t *testing.T) {
+	cs := &fakeConnStore{conns: []*store.Connection{
+		makeConn("c1", "p1"),
+		makeConn("c2", "p1"),
+	}}
+	ss := &fakeSettingStore{settings: map[string]string{"fallbackStrategy": "weighted"}}
+	engine := NewSelectionEngine(cs, ss, &fakeCooldownForSelection{}, time.Now)
+
+	counts := map[string]int{}
+	for i := 0; i < 4; i++ {
+		conn, err := engine.SelectConnection("p1", "gpt-4", nil, "")
+		if err != nil {
+			t.Fatalf("select %d: %v", i, err)
+		}
+		counts[conn.ID]++
+	}
+	if counts["c1"] != 2 || counts["c2"] != 2 {
+		t.Errorf("weighted default-equal over 4 = %v, want c1:2 c2:2", counts)
+	}
+}
+
+// TestFreeConnInjectedWhenNoStoredConn verifies PAR-ROUTE-039: a free (noAuth)
+// provider with zero stored connections yields a synthetic no-auth virtual
+// connection rather than a "no eligible connections" error.
+func TestFreeConnInjectedWhenNoStoredConn(t *testing.T) {
+	cs := &fakeConnStore{conns: nil}
+	engine := NewSelectionEngine(cs, &fakeSettingStore{}, &fakeCooldownForSelection{}, time.Now)
+
+	conn, err := engine.SelectConnection("opencode", "some-model", nil, "")
+	if err != nil {
+		t.Fatalf("free provider selection: %v", err)
+	}
+	if conn == nil || conn.ProviderID != "opencode" {
+		t.Fatalf("expected synthetic opencode conn, got %+v", conn)
+	}
+	if conn.Secret != "" {
+		t.Errorf("synthetic free conn Secret = %q, want empty", conn.Secret)
+	}
+}
+
+// TestNonFreeProviderNoStoredConnErrors verifies PAR-ROUTE-039 boundary: a
+// non-free provider with zero connections keeps the existing "no eligible
+// connections" error (no synthetic injection).
+func TestNonFreeProviderNoStoredConnErrors(t *testing.T) {
+	cs := &fakeConnStore{conns: nil}
+	engine := NewSelectionEngine(cs, &fakeSettingStore{}, &fakeCooldownForSelection{}, time.Now)
+
+	if _, err := engine.SelectConnection("deepseek", "deepseek-chat", nil, ""); err == nil {
+		t.Fatal("expected 'no eligible connections' for non-free provider, got nil")
+	}
+}
+
+// TestRealConnPreferredOverSyntheticFree verifies a free provider that DOES have
+// a real eligible connection uses it (synthetic injection only fills the gap).
+func TestRealConnPreferredOverSyntheticFree(t *testing.T) {
+	cs := &fakeConnStore{conns: []*store.Connection{makeConn("real1", "opencode")}}
+	engine := NewSelectionEngine(cs, &fakeSettingStore{}, &fakeCooldownForSelection{}, time.Now)
+
+	conn, err := engine.SelectConnection("opencode", "m", nil, "")
+	if err != nil {
+		t.Fatalf("select: %v", err)
+	}
+	if conn.ID != "real1" {
+		t.Errorf("got %q, want the real connection real1 (not synthetic)", conn.ID)
+	}
+}
+
 func TestPinnedPreferred(t *testing.T) {
 	cs := &fakeConnStore{
 		conns: []*store.Connection{
