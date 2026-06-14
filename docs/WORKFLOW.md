@@ -8371,3 +8371,54 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   SLOT RELEASED**: `internal/server/routes_admin.go` slot released to **w7-gov-1** (already
   merged ahead — the chain has advanced; the slot is free for the next holder). Routing
   admin backends + quota COMPLETE.
+
+## w7-route-b (Dynamic routing engine: weighted + free-conn + proxy-verify + live-catalog + pseudo-models + upstream + project-ID + multi-URL) — 2026-06-14
+- Base @ P0: `76338c1` (clean tree except the gitignored-but-tracked stale
+  `ui/dist/index.html` build artifact — intentionally NEVER staged nor reverted).
+  P4 green at base: `go build/vet/test` exit 0 (1653 tests across the touched packages
+  + 37 packages full). P3 selection.go micro-serial FREE: last touch = merged w7-plat-1
+  (`4bd0dd3` per-connection proxy hook); w7-route-b is the sole unmerged selection.go
+  holder (w7-route-a touches NO inference files). Held NO `routes_admin.go` slot (all
+  surfaces are `/v1/models` + inference-internal, not admin routes).
+- Decisions: **ESC-WEIGHT-SRC** = per-connection weight from `Connection.Metadata`
+  `{"weight":N}` (default 1, zero migration) + a deterministic smooth weighted
+  round-robin accumulator (`connWeight` + `wrrState`), no math/rand. **ESC-FREE-SET** =
+  free/noAuth provider set sourced from the catalog `NoAuth` flag (`catalog.Lookup(id).NoAuth`).
+  **ESC-055-OVERLAP** = VERIFIED w7-plat-1's `ResolveProxyForConnection` fully covers
+  ROUTE-055 (typed `proxy_pool_id` linkage = the equivalent of 9router's
+  `providerSpecificData` proxy config); NO code added, flipped citing w7-plat-1.
+  **ESC-MODELS-HOOK** = cite correction confirmed: `ModelsHandler` (+ the `Set*Lister`
+  adapter pattern) lives in `internal/api/models.go` (NOT routes_openai.go as the brief
+  said); 056/059 interfaces+setters landed there, concrete adapters in routes_openai.go.
+  **ESC-PROJ-PERSIST** = project ID persisted to `Connection.Metadata` `{"projectId":...}`
+  (no schema change). **053 build-site** = `AccountRunner.RunModel` (the sanctioned
+  alternative to factory.go), additive nil-manager no-op. **ESC-WEB-EXEC / ESC-LIVE-FETCH /
+  ESC-PROJ-FETCH / ESC-035-RETRY-WIRING** = the seams are shipped + hermetically
+  fake-tested; the live network executions are integration-only follow-ups (open-questions).
+- T-upstream (060) RED `9ea30fc` / GREEN `…` — `IsUpstreamConnection` + `upstreamConnectionRE`
+  (anchored canonical UUID); `upstream.go` (+_test, 9 cases).
+- T-fallback (035) RED / GREEN — additive `chatURLs() []string` index-based fallback list
+  in `internal/providers/generic/chat.go`; `chatURL()` preserved as `chatURLs()[0]`.
+- T-livecatalog (056) + T-pseudo (059) + T-upstream-gate (060) RED / GREEN — `LiveCatalogResolver`
+  (`internal/inference/livecatalog.go`, injectable `LiveCatalogFetcher`, skips upstream
+  conns) + additive `LiveCatalogLister`/`PseudoModelLister` + setters on `ModelsHandler`
+  (`internal/api/models.go`); concrete `liveCatalogAdapter` (nil fetcher default) +
+  `pseudoModelsAdapter` (reads connection `webSearchConfig`/`webFetchConfig`) wired in
+  `routes_openai.go`. Live-catalog error degrades to static-only SILENTLY (NOT a 500).
+- T-projectid (053) RED / GREEN — `ProjectIDManager.EnsureProjectID` (`internal/inference/projectid.go`,
+  injectable resolver+persister) wired additively into `AccountRunner.RunModel` (nil = no-op).
+- T-weighted (027) + T-freeconn (039) RED / GREEN `4e7b62b` (selection.go micro-serial
+  TAKE→RELEASE) — additive `case "weighted"` in `SelectConnection` + free-conn consult
+  after empty-eligible + `freeconn.go`. **selection.go strictly additive (0 deletions vs
+  base, 0 NewSelectionEngine signature change).** Existing fill-first/round-robin/strategy/
+  pinned tests UNCHANGED-green.
+- T-proxy-verify (055): VERIFIED w7-plat-1 coverage; NO code; flipped citing w7-plat-1.
+- T-close: matrix flips (`9router-routing.md`) — PAR-ROUTE-027/039/053/056/059/060
+  MISSING→HAVE, 035 PARTIAL→HAVE, 055 MISSING→HAVE (w7-plat-1 + verify), each citing the
+  covering hermetic Go test. Gates green: `go test ./... && go vet && go build` exit 0
+  (1676 tests, fully hermetic — no real network in any new test); scoped runs:
+  `internal/inference` Weighted|FreeConn|Upstream|LiveCatalog|ProjectID|Select|Proxy|Strategy
+  = 30 pass, `internal/api`+`internal/server` Models|LiveCatalog|Pseudo|Upstream = 34 pass,
+  `internal/providers/generic` ChatURL|Fallback = 3 pass. TDD-order proof + additive +
+  no-init + freeze proofs (no admin/store/routes_admin/UI touched) all pass. selection.go
+  micro-serial RELEASED. Dynamic routing engine COMPLETE.
