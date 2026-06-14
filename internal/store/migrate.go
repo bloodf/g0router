@@ -320,6 +320,17 @@ func migrate(db *sql.DB) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`},
+		// Custom-model metadata (w7-misc). User-defined model rows the
+		// ModelSelectModal manages; config_json carries misc fields (cost/context).
+		// No secret fields — custom-model metadata is not sensitive.
+		{"custom_models", `CREATE TABLE IF NOT EXISTS custom_models (
+			id TEXT PRIMARY KEY,
+			provider TEXT NOT NULL DEFAULT '',
+			model_id TEXT NOT NULL,
+			name TEXT NOT NULL DEFAULT '',
+			config_json TEXT NOT NULL DEFAULT '{}',
+			created_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
