@@ -14,12 +14,20 @@ import (
 // 502/503/504 failures with ErrModelTransient so combo fallback can apply a
 // short cooldown before trying the next model.
 type AccountRunner struct {
-	sel *SelectionEngine
+	sel       *SelectionEngine
+	projectID *ProjectIDManager // optional, additive (PAR-ROUTE-053); nil = no-op
 }
 
 // NewAccountRunner creates an AccountRunner backed by the given selection engine.
 func NewAccountRunner(sel *SelectionEngine) *AccountRunner {
 	return &AccountRunner{sel: sel}
+}
+
+// SetProjectIDManager wires the optional project-ID cold-miss manager
+// (PAR-ROUTE-053). Additive: NewAccountRunner's signature is unchanged; when no
+// manager is set, EnsureProjectID is a no-op and the run path is identical.
+func (a *AccountRunner) SetProjectIDManager(m *ProjectIDManager) {
+	a.projectID = m
 }
 
 // RunModel resolves the model to a provider and executes fn against successive
@@ -34,6 +42,14 @@ func (a *AccountRunner) RunModel(model string, fn func(*store.Connection) (Verdi
 
 	var lastErr error
 	err := a.sel.WithAccountFallback(providerID, model, func(conn *store.Connection) (Verdict, error) {
+		// PAR-ROUTE-053: resolve+persist the project ID on a cold miss for
+		// providers that need it (antigravity/gemini-cli) before dispatch.
+		// Additive: a nil manager is a no-op. A resolution failure is treated
+		// as a permanent verdict for this connection's attempt.
+		if _, pErr := a.projectID.EnsureProjectID(conn); pErr != nil {
+			lastErr = pErr
+			return VerdictPermanent, pErr
+		}
 		verdict, fnErr := fn(conn)
 		if fnErr != nil {
 			lastErr = fnErr
