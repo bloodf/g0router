@@ -275,3 +275,15 @@ func pkceChallenge(verifier string) string {
 	sum := sha256.Sum256([]byte(verifier))
 	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
+
+// GeneratePKCE returns a fresh PKCE code verifier and its S256 code challenge
+// (RFC 7636), reusing the in-tree randomURLSafe + pkceChallenge primitives. It is
+// an ADDITIVE helper so other packages (e.g. internal/mcp) can reuse the PKCE
+// engine without re-implementing the crypto. It changes no existing signature.
+func GeneratePKCE() (verifier, challenge string, err error) {
+	verifier, err = randomURLSafe(64)
+	if err != nil {
+		return "", "", fmt.Errorf("generate pkce verifier: %w", err)
+	}
+	return verifier, pkceChallenge(verifier), nil
+}
