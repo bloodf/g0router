@@ -8503,3 +8503,46 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   (kiro) -> HAVE, PAR-PROV-020 (antigravity) -> HAVE, PAR-PROV-023 (cursor) -> HAVE (ESC-B1 BUILT).
   ESC-B3 (OAuth acquisition) flagged cross-plan to w7-prov-oauth. **factory.go MICRO-SERIAL slot
   RELEASED** (special-b held it after special-a; key-disjoint kiro/cursor/antigravity arms).
+
+## w7-prov-oauth (OAuth provider flows: 8 providers) — 2026-06-14
+- P0 `<base>` = `dc5957a` (clean tree except gitignored `ui/dist/index.html` + untracked plan file).
+  §2 preconditions GREEN: w3-f OAuth engine + admin surface present; secret-at-rest `*_enc` present;
+  device-code gap REAL (`grep device_code internal/` empty; no `oauth_device.go`); routes_admin.go
+  SERIAL SLOT FREE (all prior holders merged on main; working tree clean for that file); P6 baseline
+  `go test ./... && go vet && go build` exit 0 (1761 tests, hermetic). 9router ref pinned @ `827e5c3`.
+- **All 8 brief providers soundly buildable from the ref — NONE deferred.** Every clientId/authUrl/
+  tokenUrl/deviceCodeUrl copied verbatim from `src/lib/oauth/constants/oauth.js`.
+- **Decisions.** (1) `oauth.go` ALREADY generalized → ADDITIVE only: 8 config factories + 5 additive
+  `OAuthConfig` quirk fields (`ExtraAuthParams`/`RefreshMode`/`RefreshURL`/`CodeEncoding`/`DeviceCodeURL`
+  + `DeviceVariant`) + additive branches; the anthropic/gemini/xai paths byte-identical (regression
+  golden + the pre-existing oauth_test.go stay GREEN). NO `RegisterFlow` registry — the flows map IS
+  the registry. (2) Device-code = `StartDevice`/`PollDevice` METHODS on `OAuthFlow` gated by
+  `DeviceCodeURL`; injectable clock (`nowFunc`/`afterFunc` flow fields, real defaults set in
+  `NewOAuthFlow` — signature UNCHANGED; fakes in tests → no real sleep). (3) Refresh quirks live in
+  the `RefreshMode` branch in oauth.go, NOT credentials.go. (4) ESC-DEVICE-ENDPOINT: device admin
+  transport DEFERRED (w6-e has no provider-OAuth device modal to mirror — UI gap recorded). (5)
+  ESC-GH-COPILOT: store the GitHub access_token; Copilot-token mint deferred.
+- Per-provider flow types: PKCE-redirect = claude, codex. redirect (non-PKCE) = gemini-cli, iflow,
+  cline. device-code = qwen (PKCE), github, kilocode (custom GET-status variant).
+- T-configs RED `dbed7aa` / GREEN `b238ed4` — `internal/auth/oauth_providers.go` 8 factories
+  (`ClaudeOAuth`/`CodexOAuth`/`GeminiCLIOAuth`/`QwenOAuth`/`IflowOAuth`/`GithubOAuth`/`KilocodeOAuth`/
+  `ClineOAuth`); clientSecrets split-literal + env-overridable; additive `OAuthConfig` fields added.
+- T-engine RED `a80e453` / GREEN `aeb1024` — additive branches in `oauth.go`: ExtraAuthParams append
+  in `StartWithRedirect` (empty map → byte-identical); `RefreshMode` switch (form/basic/json/none);
+  `CodeEncoding=="base64-json"` early-decode in exchange; cline nested-`data` refresh parse. Shared
+  `parseTokenResponse` helper extracted (requestToken delegates; refreshBasic reuses).
+- T-device RED `3821540` / GREEN `46f368f` — `internal/auth/oauth_device.go`: `DeviceCodeResponse`,
+  `StartDevice` (qwen PKCE form variant + kilocode JSON-initiate variant), `PollDevice` (standard
+  token-poll with authorization_pending/slow_down/expired_token/access_denied branches + interval
+  bump; kilocode GET pollUrlBase/{code} 202/403/410/approved branches; deadline timeout). Injectable
+  clock — 12 hermetic tests, NO real network, NO real sleep (`grep time.Sleep` empty).
+- T-register `c9872e1` (SERIAL SLOT) — `routes_admin.go` flows map +8 entries
+  (claude/codex/gemini-cli/qwen/iflow/github/kilocode/cline). ONE additive commit. Redirect providers
+  drive the existing `/api/oauth/{provider}/{start,callback}` handlers immediately; device-code
+  providers expose the engine for the deferred admin transport. **SERIAL SLOT RELEASED on close.**
+- T-close: §5 gates GREEN + HERMETIC — `go test ./internal/auth/... ./internal/admin/ -run
+  'OAuth|Flow|Device'` exit 0 (41 tests); `go test ./... && go vet && go build` exit 0 (1779 tests,
+  42 packages, no net/sleep). Anthropic regression GREEN (additive-only). Matrix flips: PAR-PROV-015/
+  016/017/018/019/021/025/026 MISSING → HAVE-partial (OAuth-flow scope; catalog/adapter = catalog
+  plans); PAR-PLAT-047 PARTIAL → HAVE-advanced; PAR-AUTH-019 coverage 3→11 flows. Deferrals appended
+  to open-questions.md (ESC-DEVICE-ENDPOINT, w6-e UI gap, ESC-GH-COPILOT, kilocode-orgId, kimi-coding).
