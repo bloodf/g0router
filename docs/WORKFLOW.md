@@ -7970,3 +7970,107 @@ process spawn/kill, tailscale install (OS-privileged), tailscaled daemon + login
 - T-close: matrix flip (PAR-PLAT-015..023 → HAVE with integration-only/OS-privileged footnotes;
   PAR-UI-112/113/114 PARTIAL→HAVE), open-questions ESC-1c resolution + ESC-* dispositions, this
   entry; routes_admin.go serial slot released to w7-plat-3.
+
+## w7-plat-3 — Platform: MITM backend (root CA + CA-cert serving + MITM proxy + per-tool toggle) (Go)
+
+```yaml
+plan: w7-plat-3
+status: DONE
+summary: "Real Go MITM backend — GET /api/mitm/status ({enabled,tools}), POST
+  /api/mitm/toggle, GET /api/mitm/ca-cert (raw PEM application/x-pem-file, NOT
+  {data}), POST /api/mitm/tools/{id}. Root CA gen + leaf-cert minting + CA signing
+  + chain verify (x509.Verify) + leaf cache + the GetCertificate SNI closure + the
+  pure nextBackoff policy + the full status/toggle/tool/ca-cert admin API are FULLY
+  unit-tested hermetically (no port bind, no real TLS handshake, no network, no
+  OS-privileged op). The live TLS reverse-proxy listener (proxy.go) is
+  integration-only; OS-privileged trust-store/hosts-file are deferred/escalated.
+  CA private key at rest as a 0o600 file under the data dir, NEVER served/logged/
+  DTO'd. Layered transport->domain->repository. Mock verified to already mirror
+  real Go DTOs (no correction needed). Platform track (plat-1/2/3) complete."
+base: b6736b82ce206ceb70aa38b59962b62f5e26956e
+```
+
+**Base observation (P7):** Go green at base (build/vet/test exit 0 — 1488 tests).
+`mitm.spec.ts` 5/5 PASS at base against the w6-m mock. Working tree at P0 had two
+pre-existing entries left untouched per hard rules: `ui/dist/index.html` (gitignored
+build artifact — never reverted, never staged) and the orchestrator plan file
+`.planning/parity/plans/w7-plat-3.md` (untracked — never committed). P1 greenfield
+confirmed (no `/api/mitm` Go, no `internal/{store,admin}/mitm.go`, no
+`internal/platform/mitm`, no `mitm_tools` table, ZERO `x509`/`crypto/tls` in tree).
+
+**Decisions as implemented:**
+- ESC-CA-STORE → (A) cert+key files under the data dir: `mitm-ca.key` (0o600) +
+  `mitm-ca.crt` (0o644), generate-on-first-use, mirroring `internal/store/secret.go`.
+  `LoadOrCreateCA(store.DataDir())`. Private key NEVER served/logged/DTO'd; only
+  `CertPEM()` (public) is served. Flag: switch to (B) `key_enc` for single-store backup.
+- ESC-GLOBAL-FLAG → settings: `mitmEnabled` via `store.GetSetting`/`SetSetting`.
+- ESC-SCHEMA → typed columns; `mitm_tools(id,name,enabled,dns_override,status,updated_at)`
+  additive table in the migrate `tables` slice (no DROP/RENAME).
+- ESC-KEYTYPE → ECDSA P-256 (fast deterministic key-gen for hermetic tests).
+- ESC-SEED-ROWS → `EnsureMitmTools()` (INSERT ... ON CONFLICT DO NOTHING, idempotent)
+  seeds mitm-1 Request Inspector + mitm-2 Response Modifier; called lazily by the
+  service Status/ToggleTool so a fresh store always surfaces >=2 (keeps the 2-row spec green).
+- ESC-BACKOFF → pure `nextBackoff(attempt)` = 1s doubling capped 30s, max 5, unit-tested;
+  the retry loop's real sleeps are integration-only. (9router uses [5s,10s,20s,30s,60s];
+  parity is the backoff behavior — adjust constants if exact 9router timing is later required.)
+- ESC-CACHE → unbounded `map[host]tls.Certificate` under `sync.RWMutex`, minted-on-miss.
+- THE CENTRAL DESIGN — pure-crypto core (unit-tested) vs live listener (integration-only):
+  `internal/platform/mitm/ca.go` (GenerateCA/LoadOrCreateCA/CertPEM/MintLeaf/getLeaf — PURE),
+  `service.go` (Status/Toggle/ToggleTool/CACertPEM + pure nextBackoff; NewService(st) WITHOUT
+  binding; SetProxy test override), `proxy.go` (MitmProxy interface + listenerProxy whose
+  certForClientHello closure is unit-testable + Start/Stop/serve/handleIntercepted
+  integration-only). On `Handlers`: additive `mitm *mitm.Service` field constructed in `New`
+  via `mitm.NewService(st)` (mirrors `tunnels` @ handlers.go:56) + additive
+  `SetMitmProxy(p)` forwarding to the service (mirrors `SetTunnelRunner`). NO `New(...)` sig change.
+- ESC-MOCK / ESC-ROUTE → mock VERIFIED to already mirror the Go (`json()` wraps `{data}`;
+  status = `{enabled,tools}`; tool = 5-field DTO; ca-cert = `route.fulfill` raw PEM
+  `application/x-pem-file`; seed = 2 named tools). NO correction → T-mocks verify-only, NO commit.
+  The 3 static `/api/mitm/<word>` routes + `/api/mitm/tools/{id}` param register with NO
+  router collision (server tests green).
+
+**The raw-PEM exception (§1.5):** `MitmCACert` writes raw PEM via
+`ctx.SetContentType("application/x-pem-file")` + `ctx.SetBody(pem)` (NOT writeData); the
+error path uses `writeError`. Asserted in `mitm_test.go` (content-type + `-----BEGIN
+CERTIFICATE-----` prefix + `x509.ParseCertificate` accepts + NO `PRIVATE KEY`).
+
+**Secret handling / no-key-echo:** the CA private key is at rest as a 0o600 file, never
+served/logged/DTO'd. `mitmToolDTO` is the 5-field shape (id/name/enabled/dns_override/status)
+with no key material. `TestMitmResponsesNeverLeakKeyMaterial` + `TestMitmCACertServesRawPEM`
+assert no `PRIVATE KEY` / no `key`/`private_key`/`ca_key` json field in any response.
+
+**Integration-only disposition (NOT unit-tested — §1.9):** `proxy.go`
+`listenerProxy.Start`/`Stop`/`serve`/`handleIntercepted` (real `net.Listen` +
+`tls.NewListener` + intercept loop) and the restart-backoff loop's real sleeps. The
+`GetCertificate` closure (`certForClientHello`) is factored out and unit-tested with a
+synthetic `*tls.ClientHelloInfo` (no bind). Unit suite fully hermetic (zero
+`net.Listen`/`tls.NewListener`/`tls.Dial`/`exec.Command` in any `_test.go`).
+
+**Deferred / escalated (ESC-OS-PRIV):** system-trust-store auto-install (PAR-PLAT-025 trust
+half) + hosts-file patching / `dns_override` OS-enforcement (PAR-PLAT-026/027) + AES sudo
+store (PAR-PLAT-029) are OS-privileged, out of scope for the server binary. `dns_override`
+is stored + surfaced as config, not OS-enforced. handleIntercepted currently drains the
+connection; the live forward target is part of the desktop/agent escalation.
+
+**What is unit-tested vs integration-only:**
+- UNIT-TESTED (hermetic): GenerateCA (IsCA/KeyUsage CertSign), CertPEM (valid PEM, no key),
+  MintLeaf + x509.Verify against pool{CA} + DNSNames + leaf-not-CA, leaf cache miss/hit,
+  LoadOrCreateCA persist+reload, the GetCertificate closure (synthetic ClientHello),
+  nextBackoff doubling+cap, the full mitm store (list/get/upsert/tool-toggle/global flag/seed),
+  and the admin status(2 tools)/toggle(+audit)/tool-toggle(+status)/unknown-404/ca-cert-raw-PEM/
+  no-key-leak API via newTestEnv + fake MitmProxy + real cheap CA in a temp dir.
+- INTEGRATION-ONLY: the live listener bind/handshake/intercept-forward + the backoff sleeps.
+
+**Tasks / commits (in order):**
+- T-ca RED: `8595113` — failing MITM CA-gen + leaf-mint + chain-verify tests (TDD red).
+- T-ca GREEN: `6f8a1ed` — MITM root CA generation + leaf-cert minting + CA signing.
+- T-mitmstore RED: `866aa61` — failing MITM store tests + additive `mitm_tools` table.
+- T-mitmstore GREEN: `a0b57e9` — MITM tool store + global enable flag.
+- T-service RED: `91c3346` — failing MITM service tests (fake proxy + real CA).
+- T-service GREEN: `4a68fef` — MITM service + SNI cert cache + injectable proxy listener.
+- T-admin RED: `aa34c04` — failing MITM admin handler tests + additive handlers.go field/setter.
+- T-admin GREEN: `b184113` — MITM admin API (status/toggle/ca-cert/tool-toggle) + lazy seed.
+- T-routes: `eda28b3` — register MITM admin routes (serial slot).
+- T-mocks: verify-only — mock already mirrors the Go `{data}` 5-field DTO + raw-PEM ca-cert; NO commit.
+- T-close: matrix flip (PAR-PLAT-024/025/028 → HAVE with integration-only/OS-privileged
+  footnotes; PAR-UI-013 PARTIAL→HAVE), open-questions ESC-1a resolution + ESC-* dispositions,
+  this entry; routes_admin.go serial slot released to w7-misc. Platform track complete.
