@@ -47,6 +47,7 @@ func TestCommandCodeChatCompletion(t *testing.T) {
 		io.WriteString(w, "data: {\"type\":\"text-delta\",\"text\":\"hello\"}\n\n")
 		io.WriteString(w, "data: {\"type\":\"text-delta\",\"text\":\" world\"}\n\n")
 		io.WriteString(w, "data: {\"type\":\"finish-step\",\"finishReason\":\"stop\",\"usage\":{\"inputTokens\":3,\"outputTokens\":2}}\n\n")
+		io.WriteString(w, "data: {\"type\":\"finish\",\"totalUsage\":{\"inputTokens\":3,\"outputTokens\":2}}\n\n")
 	}))
 	defer srv.Close()
 

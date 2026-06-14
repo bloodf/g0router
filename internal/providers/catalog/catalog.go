@@ -378,6 +378,16 @@ var Providers = map[string]ProviderConfig{
 			"Anthropic-Beta":    "claude-code-20250219,interleaved-thinking-2025-05-14",
 		},
 	},
+	// --- w7-prov-special-a: commandcode (custom-JSON via existing converters) ---
+	"commandcode": {
+		Name:    "commandcode",
+		BaseURL: "https://api.commandcode.ai/alpha/generate",
+		Format:  "commandcode",
+		Headers: map[string]string{
+			"x-command-code-version": "0.25.7",
+			"x-cli-environment":      "cli",
+		},
+	},
 	"ollama": {
 		Name:    "ollama",
 		BaseURL: "https://ollama.com/api/chat",

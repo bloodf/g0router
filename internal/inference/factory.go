@@ -6,6 +6,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/providers/anthropic"
 	"github.com/bloodf/g0router/internal/providers/catalog"
+	"github.com/bloodf/g0router/internal/providers/commandcode"
 	"github.com/bloodf/g0router/internal/providers/gemini"
 	"github.com/bloodf/g0router/internal/providers/generic"
 	"github.com/bloodf/g0router/internal/providers/ollama"
@@ -112,6 +113,8 @@ func buildProvider(providerID string, reg *translation.Registry) (schemas.Provid
 		switch cfg.Format {
 		case "claude":
 			return anthropic.NewForProvider(providerID, cfg.BaseURL), nil
+		case "commandcode":
+			return commandcode.New(providerID, reg)
 		}
 		return generic.New(providerID)
 	}

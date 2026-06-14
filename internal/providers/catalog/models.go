@@ -386,6 +386,20 @@ var Models = map[string][]ModelEntry{
 		{ID: "MiniMax-M2.1", Name: "MiniMax M2.1"},
 		{ID: "minimax-image-01", Name: "MiniMax Image 01", Type: "image", Params: []string{"n", "size", "response_format"}},
 	},
+	// commandcode model block (providerModels.js @827e5c3).
+	"commandcode": {
+		{ID: "deepseek/deepseek-v4-pro", Name: "DeepSeek V4 Pro"},
+		{ID: "deepseek/deepseek-v4-flash", Name: "DeepSeek V4 Flash"},
+		{ID: "moonshotai/Kimi-K2.6", Name: "Kimi K2.6"},
+		{ID: "moonshotai/Kimi-K2.5", Name: "Kimi K2.5"},
+		{ID: "zai-org/GLM-5.1", Name: "GLM 5.1"},
+		{ID: "zai-org/GLM-5", Name: "GLM 5"},
+		{ID: "MiniMaxAI/MiniMax-M2.7", Name: "MiniMax M2.7"},
+		{ID: "MiniMaxAI/MiniMax-M2.5", Name: "MiniMax M2.5"},
+		{ID: "Qwen/Qwen3.6-Max-Preview", Name: "Qwen 3.6 Max Preview"},
+		{ID: "Qwen/Qwen3.6-Plus", Name: "Qwen 3.6 Plus"},
+		{ID: "stepfun/Step-3.5-Flash", Name: "Step 3.5 Flash"},
+	},
 }
 
 // ModelsFor returns the static model catalog for the given provider.
