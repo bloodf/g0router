@@ -8234,3 +8234,39 @@ SSE/message routes + admin handlers — no edits to this plan's files.
   → HAVE; PAR-MCP-001/002/055/056 → PARTIAL, client transport shipped / server routes +
   handshake-event emission w7-mcp-3), open-questions ESC dispositions, this entry. No
   routes_admin.go serial slot held. MCP client/engine complete; w7-mcp-3 next.
+
+## w7-mcp-3 — MCP admin transport + tools + skills + agent loop (Go) — 2026-06-14
+plan: w7-mcp-3 (COMPLETE — MCP track closed). base `<base>` = `0907979`.
+Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-mcp-2
+(probe/registry/oauth-engine/sse/health/discovery) engine; consumed, not edited.
+- **Casing decision (as implemented):** clientDTO/instanceDTO PascalCase json tags
+  (deliberate ESC-CASING exception — the FROZEN w6-l page consumes PascalCase);
+  toolGroupDTO snake_case, toolDTO OpenAI-shape, skillDTO flat-lowercase, accountDTO
+  snake_case (tokens stripped). RESULT: ZERO mock-body change — all four w6-l surfaces
+  flipped variant-HAVE → true-HAVE with no mock/seed correction.
+- **Agent-loop scope:** loop primitive `Agent.Run` (bounded multi-turn, injected
+  `ModelStep`/`ToolExecutor`, hard maxTurns cap default 8) + the shared real
+  bridge-backed `ToolExecutor` (`ExecuteTool` uses the same); NO new agent HTTP route;
+  LLM round-trip integration-only behind `ModelStep` (ESC-AGENT-DEPTH).
+- T-toolgroups RED: `2bb16b1` — failing mcp tool-groups store tests (TDD red).
+- T-toolgroups GREEN: `f168293` — mcp tool-groups store (additive numeric-id table).
+- T-agent RED: `7809ce7` — failing agent-loop + tool-policy tests (TDD red).
+- T-agent GREEN: `a9ebf7a` — mcp agent loop (bounded multi-turn) + tool-policy builders.
+- T-mcp RED: `ebc991a` — failing mcp admin handler tests (TDD red; + additive
+  SetMCPLauncher/SetMCPEngine/SetMCPProbe + nil-able fields on handlers.go).
+- T-mcp GREEN: `96bea55` — mcp admin transport (clients/instances/tools/tool-groups + oauth start).
+- T-skills RED: `518f81c` — failing skills handler tests (TDD red).
+- T-skills GREEN: `948d9f8` — skills catalog admin endpoint.
+- T-routes: `3390e95` — register mcp + skills admin routes (serial slot) + additive
+  bootstrap wiring (`NewAdminHandlers` SetMCPLauncher/Engine/Probe). 16 additive route
+  lines; static collections + deeper sub-paths before bare `{id}`.
+- T-mocks: NO mock change needed (casing matched per §1.2); mcp.spec + skills.spec green
+  (9/9), zero correction.
+- T-close: matrix flip — PAR-MCP-022/040/041/045/046/047 → HAVE; 018/019/050/060 →
+  HAVE-SUBSET; PAR-MCP-048/049 → HAVE; PAR-UI-020/054 → true-HAVE + PAR-UI-130 w7-mcp-3
+  UPDATE (/mcp + /mcp/tools true-HAVE). open-questions w6-l ESC-1a/1b/1c RESOLVED + the
+  ESC-CASING/AGENT-DEPTH/TOOLPOLICY-SCOPE/ANTIGRAVITY/COWORK-CONFIG/CLIENT-SRC/SKILLS-SRC/
+  OAUTH-REDIRECT/PROBE-FIELD/BOOTSTRAP outcomes appended. Hermetic: `go test ./...`
+  green (no real spawn/network/LLM/port-bind). **SERIAL SLOT RELEASED**:
+  `internal/server/routes_admin.go` slot released to the next holder on this close. MCP
+  track COMPLETE.
