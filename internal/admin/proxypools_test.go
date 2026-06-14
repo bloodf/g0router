@@ -179,7 +179,8 @@ func TestProxyPoolDeleteBoundReturns409(t *testing.T) {
 
 func TestProxyPoolTestEndpointPersistsStatus(t *testing.T) {
 	e := newTestEnv(t)
-	env := createPool(t, e, `{"name":"x","protocol":"http","host":"proxy.example.com","port":8080}`)
+	// Use a literal public IP host so the SSRF guard allows it without DNS.
+	env := createPool(t, e, `{"name":"x","protocol":"http","host":"93.184.216.34","port":8080}`)
 	id := dataField[map[string]any](t, env)["id"].(string)
 
 	// Force a deterministic reachable probe through the service prober.

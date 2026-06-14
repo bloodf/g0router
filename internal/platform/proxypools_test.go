@@ -2,11 +2,18 @@ package platform
 
 import (
 	"errors"
+	"net"
 	"path/filepath"
 	"testing"
 
 	"github.com/bloodf/g0router/internal/store"
 )
+
+// publicResolver resolves any host to a public IP so the SSRF guard allows it
+// deterministically without touching DNS.
+func publicResolver(host string) ([]net.IP, error) {
+	return []net.IP{net.ParseIP("93.184.216.34")}, nil
+}
 
 func newProxyService(t *testing.T) (*ProxyPoolService, *store.Store) {
 	t.Helper()
@@ -30,6 +37,7 @@ func TestTestConnectivityReachable(t *testing.T) {
 		t.Fatalf("CreateProxyPool: %v", err)
 	}
 
+	svc.SetResolver(publicResolver)
 	svc.SetProber(func(proxyURL, target string) (int, error) {
 		return 42, nil
 	})
@@ -54,6 +62,7 @@ func TestTestConnectivityUnreachable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProxyPool: %v", err)
 	}
+	svc.SetResolver(publicResolver)
 	svc.SetProber(func(proxyURL, target string) (int, error) {
 		return 0, errors.New("connection refused")
 	})
