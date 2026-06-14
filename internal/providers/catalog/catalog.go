@@ -402,6 +402,15 @@ var Providers = map[string]ProviderConfig{
 		BaseURL: "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions",
 		Format:  "openai",
 	},
+	"vertex": {
+		// Partner-openai path (vertex.js:49-53): the endpoint is built at
+		// request time from providerSpecificData.projectId. The native
+		// gemini-on-vertex format is deferred (ESC-A1). BaseURL is the API host
+		// seed kept for introspection.
+		Name:    "vertex",
+		BaseURL: "https://aiplatform.googleapis.com",
+		Format:  "openai",
+	},
 	// --- w7-prov-special-a: commandcode (custom-JSON via existing converters) ---
 	"commandcode": {
 		Name:    "commandcode",

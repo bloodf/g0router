@@ -428,6 +428,15 @@ var Models = map[string][]ModelEntry{
 		{ID: "mimo-v2.5-tts-voiceclone", Name: "MiMo V2.5 TTS Voice Clone"},
 		{ID: "mimo-v2.5-tts-voicedesign", Name: "MiMo V2.5 TTS Voice Design"},
 	},
+	// vertex partner model block (providerModels.js "vertex-partner" @827e5c3).
+	// Registered under "vertex" because this plan ships the partner-openai path
+	// (native gemini-on-vertex deferred — ESC-A1).
+	"vertex": {
+		{ID: "deepseek-ai/deepseek-v3.2-maas", Name: "DeepSeek V3.2 (Vertex)"},
+		{ID: "qwen/qwen3-next-80b-a3b-thinking-maas", Name: "Qwen3 Next 80B Thinking (Vertex)"},
+		{ID: "qwen/qwen3-next-80b-a3b-instruct-maas", Name: "Qwen3 Next 80B Instruct (Vertex)"},
+		{ID: "zai-org/glm-5-maas", Name: "GLM-5 (Vertex)"},
+	},
 	// commandcode model block (providerModels.js @827e5c3).
 	"commandcode": {
 		{ID: "deepseek/deepseek-v4-pro", Name: "DeepSeek V4 Pro"},

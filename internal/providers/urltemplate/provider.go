@@ -65,10 +65,11 @@ func New(providerID string) (*Provider, error) {
 }
 
 // isURLTemplateProvider reports whether the provider id is handled by this
-// adapter.
+// adapter. vertex is the partner-openai path only (native gemini-on-vertex
+// format deferred — ESC-A1).
 func isURLTemplateProvider(id string) bool {
 	switch id {
-	case "cloudflare-ai", "azure", "xiaomi-tokenplan":
+	case "cloudflare-ai", "azure", "xiaomi-tokenplan", "vertex":
 		return true
 	}
 	return false
@@ -127,6 +128,15 @@ func (p *Provider) buildURL(key schemas.Key, model string) string {
 			base = xiaomiTokenplanRegions[xiaomiTokenplanDefaultRegion]
 		}
 		return base + "/chat/completions"
+	case "vertex":
+		// Partner-openai path only (vertex.js:49-53). The native
+		// gemini-on-vertex format + SA-JSON->GCP-token exchange are deferred
+		// (ESC-A1); auth here is the Bearer token carried by schemas.Key.
+		projectID := psd["projectId"]
+		if projectID == "" {
+			return ""
+		}
+		return fmt.Sprintf("https://aiplatform.googleapis.com/v1/projects/%s/locations/global/endpoints/openapi/chat/completions", projectID)
 	default:
 		return p.config.BaseURL
 	}
