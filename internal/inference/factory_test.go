@@ -7,6 +7,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/commandcode"
 	"github.com/bloodf/g0router/internal/providers/gemini"
 	"github.com/bloodf/g0router/internal/providers/generic"
+	"github.com/bloodf/g0router/internal/providers/kiro"
 	"github.com/bloodf/g0router/internal/providers/ollama"
 	"github.com/bloodf/g0router/internal/providers/openai"
 	"github.com/bloodf/g0router/internal/providers/urltemplate"
@@ -190,6 +191,22 @@ func TestVertexDispatch(t *testing.T) {
 	}
 	if p.GetProvider() != schemas.ModelProvider("vertex") {
 		t.Errorf("GetProvider() = %q, want vertex", p.GetProvider())
+	}
+}
+
+// TestKiroDispatch (w7-prov-special-b) verifies the additive factory arm
+// dispatching the kiro AWS-eventstream provider to its adapter.
+func TestKiroDispatch(t *testing.T) {
+	reg := translation.NewRegistry()
+	p, err := buildProvider("kiro", reg)
+	if err != nil {
+		t.Fatalf("buildProvider(kiro) error: %v", err)
+	}
+	if _, ok := p.(*kiro.Provider); !ok {
+		t.Fatalf("buildProvider(kiro) type = %T, want *kiro.Provider", p)
+	}
+	if p.GetProvider() != schemas.ModelProvider("kiro") {
+		t.Errorf("GetProvider() = %q, want kiro", p.GetProvider())
 	}
 }
 

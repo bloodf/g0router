@@ -245,6 +245,24 @@ func TestVertexModels(t *testing.T) {
 	}
 }
 
+// TestKiroModels (w7-prov-special-b) verifies the kiro model block
+// (providerModels.js:127-146): 12 entries (the commented-out opus-4.5 excluded),
+// including thinking + agentic variants and the strip-list entries.
+func TestKiroModels(t *testing.T) {
+	models := ModelsFor("kiro")
+	if len(models) != 12 {
+		t.Fatalf("ModelsFor(kiro) len = %d, want 12", len(models))
+	}
+	if models[0].ID != "claude-sonnet-4.5" {
+		t.Errorf("ModelsFor(kiro)[0].ID = %q, want claude-sonnet-4.5", models[0].ID)
+	}
+	for _, id := range []string{"claude-sonnet-4.5-thinking", "claude-haiku-4.5-agentic", "MiniMax-M2.5"} {
+		if _, ok := ResolveModel("kiro", id); !ok {
+			t.Errorf("ResolveModel(kiro, %q) not found", id)
+		}
+	}
+}
+
 func TestModelsForUnknown(t *testing.T) {
 	models := ModelsFor("nonexistent")
 	if len(models) != 0 {
