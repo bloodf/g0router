@@ -53,6 +53,22 @@ func TestLookupKnownProviders(t *testing.T) {
 	}
 }
 
+func TestVoyageAIProvider(t *testing.T) {
+	cfg, ok := Lookup("voyage-ai")
+	if !ok {
+		t.Fatal("Lookup(\"voyage-ai\") returned ok=false")
+	}
+	if got, want := cfg.Name, "voyage-ai"; got != want {
+		t.Errorf("voyage-ai Name = %q, want %q", got, want)
+	}
+	if got, want := cfg.BaseURL, "https://api.voyageai.com/v1/embeddings"; got != want {
+		t.Errorf("voyage-ai BaseURL = %q, want %q", got, want)
+	}
+	if got, want := cfg.Format, "openai"; got != want {
+		t.Errorf("voyage-ai Format = %q, want %q", got, want)
+	}
+}
+
 func TestLookupUnknown(t *testing.T) {
 	_, ok := Lookup("nonexistent")
 	if ok {

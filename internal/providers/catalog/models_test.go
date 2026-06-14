@@ -22,6 +22,23 @@ func TestModelsForDeepSeek(t *testing.T) {
 	}
 }
 
+func TestVoyageAIModels(t *testing.T) {
+	models := ModelsFor("voyage-ai")
+	if len(models) != 7 {
+		t.Fatalf("ModelsFor(\"voyage-ai\") len = %d, want 7", len(models))
+	}
+	for _, m := range models {
+		if m.Type != "embedding" {
+			t.Errorf("voyage-ai model %q Type = %q, want \"embedding\"", m.ID, m.Type)
+		}
+	}
+	for _, id := range []string{"voyage-3-large", "voyage-3.5", "voyage-code-3"} {
+		if _, ok := ResolveModel("voyage-ai", id); !ok {
+			t.Errorf("ResolveModel(\"voyage-ai\", %q) not found", id)
+		}
+	}
+}
+
 func TestModelTypeVerbatim(t *testing.T) {
 	// A model without a type field should have Type == "" (NOT defaulted to "llm").
 	m, ok := ResolveModel("deepseek", "deepseek-v4-pro")
