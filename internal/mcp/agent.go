@@ -121,6 +121,13 @@ func newBridgeToolExecutor(b *Bridge) *bridgeToolExecutor {
 	return &bridgeToolExecutor{bridge: b, nextID: 100}
 }
 
+// NewBridgeToolExecutor builds the real bridge-backed ToolExecutor over a live
+// Bridge. The admin ExecuteTool handler and the Agent loop share this one
+// implementation (drives Bridge.Send + a capturing SessionSink + smartFilterText).
+func NewBridgeToolExecutor(b *Bridge) ToolExecutor {
+	return newBridgeToolExecutor(b)
+}
+
 // jsonRPCResult is the minimal JSON-RPC frame shape the executor matches on: the
 // id correlates the request, and result.content[].text carries the tool output.
 type jsonRPCResult struct {

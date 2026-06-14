@@ -82,3 +82,11 @@ func sanitizePluginName(s string) string {
 	}
 	return s
 }
+
+// SanitizePluginName is the exported form of sanitizePluginName for the admin
+// transport's create-name sanitize surface (PAR-MCP-048).
+func SanitizePluginName(s string) string { return sanitizePluginName(s) }
+
+// StripServerPrefix is the exported form of stripServerPrefix for the admin
+// transport's tools-list prefix-strip surface (PAR-MCP-046).
+func StripServerPrefix(server, tool string) string { return stripServerPrefix(server, tool) }

@@ -69,7 +69,15 @@ func newMCPTestEnv(t *testing.T) *testEnv {
 type fakeMCPTransport struct{}
 
 func (fakeMCPTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	body := `{"authorization_endpoint":"https://auth.example.com/authorize","token_endpoint":"https://auth.example.com/token"}`
+	var body string
+	switch {
+	case strings.Contains(req.URL.Path, "oauth-protected-resource"):
+		body = `{"authorization_servers":["https://auth.example.com"]}`
+	case strings.Contains(req.URL.Path, "oauth-authorization-server"):
+		body = `{"authorization_endpoint":"https://auth.example.com/authorize","token_endpoint":"https://auth.example.com/token"}`
+	default:
+		body = `{}`
+	}
 	return &http.Response{
 		StatusCode: 200,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
