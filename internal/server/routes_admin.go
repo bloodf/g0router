@@ -21,6 +21,19 @@ func NewAdminHandlers(st *store.Store, deps admin.UsageDeps) *admin.Handlers {
 	sessions := auth.NewSessions(st, sessionTTL)
 	flows := map[string]*auth.OAuthFlow{
 		"anthropic": auth.NewOAuthFlow(auth.AnthropicOAuth(), st, nil),
+		// w7-prov-oauth: 8 provider OAuth flows. Redirect providers (claude/
+		// codex/gemini-cli/iflow/cline) drive the existing /api/oauth/{provider}/
+		// {start,callback} handlers; device-code providers (qwen/github/kilocode)
+		// expose StartDevice/PollDevice — their admin transport is a follow-up
+		// (ESC-DEVICE-ENDPOINT; see open-questions.md).
+		"claude":     auth.NewOAuthFlow(auth.ClaudeOAuth(), st, nil),
+		"codex":      auth.NewOAuthFlow(auth.CodexOAuth(), st, nil),
+		"gemini-cli": auth.NewOAuthFlow(auth.GeminiCLIOAuth(), st, nil),
+		"qwen":       auth.NewOAuthFlow(auth.QwenOAuth(), st, nil),
+		"iflow":      auth.NewOAuthFlow(auth.IflowOAuth(), st, nil),
+		"github":     auth.NewOAuthFlow(auth.GithubOAuth(), st, nil),
+		"kilocode":   auth.NewOAuthFlow(auth.KilocodeOAuth(), st, nil),
+		"cline":      auth.NewOAuthFlow(auth.ClineOAuth(), st, nil),
 	}
 	h := admin.New(st, sessions, flows)
 	stats, resolver := admin.BuildUsageServices(st, deps)
