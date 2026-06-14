@@ -616,6 +616,219 @@ func TestModelsList_DedupCustomVsCatalog(t *testing.T) {
 	}
 }
 
+// fakeLiveCatalogLister implements LiveCatalogLister for testing (PAR-ROUTE-056).
+type fakeLiveCatalogLister struct {
+	models []LiveModel
+	err    error
+}
+
+func (f *fakeLiveCatalogLister) ListLiveModels() ([]LiveModel, error) {
+	return f.models, f.err
+}
+
+// fakePseudoModelLister implements PseudoModelLister for testing (PAR-ROUTE-059).
+type fakePseudoModelLister struct {
+	models []PseudoModel
+	err    error
+}
+
+func (f *fakePseudoModelLister) ListPseudoModels() ([]PseudoModel, error) {
+	return f.models, f.err
+}
+
+// TestModelsList_MergesLiveCatalog verifies PAR-ROUTE-056: dynamic per-account
+// models returned by the live-catalog resolver are merged into /v1/models after
+// the static/custom/alias merge, with owned_by set to the resolved provider.
+func TestModelsList_MergesLiveCatalog(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetLiveCatalogLister(&fakeLiveCatalogLister{
+		models: []LiveModel{
+			{ID: "kiro-dynamic-1", Provider: "kiro"},
+			{ID: "qoder-dynamic-2", Provider: "qoder"},
+		},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	got := map[string]string{}
+	for _, m := range resp.Data {
+		got[m.ID] = m.OwnedBy
+	}
+	if got["kiro-dynamic-1"] != "kiro" {
+		t.Errorf("kiro-dynamic-1 owned_by = %q, want kiro", got["kiro-dynamic-1"])
+	}
+	if got["qoder-dynamic-2"] != "qoder" {
+		t.Errorf("qoder-dynamic-2 owned_by = %q, want qoder", got["qoder-dynamic-2"])
+	}
+}
+
+// TestModelsList_LiveCatalogErrorStaticOnly verifies PAR-ROUTE-056 silent-failure
+// semantics (matrix quirk: "Kiro live model resolver can fail silently",
+// route.js:296-298): a live-catalog resolver error degrades to static-only with a
+// 200, NOT a 500.
+func TestModelsList_LiveCatalogErrorStaticOnly(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetLiveCatalogLister(&fakeLiveCatalogLister{
+		err: errors.New("live fetch failed"),
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200 (live-catalog failure is silent)", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	// Static catalog models must still be present.
+	found := false
+	for _, m := range resp.Data {
+		if m.ID == "deepseek-reasoner" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("static catalog model missing after live-catalog error")
+	}
+}
+
+// TestModelsList_LiveCatalogDedup verifies a live model whose ID collides with a
+// catalog ID is skipped (seen set seeded by catalog first, route.js:358).
+func TestModelsList_LiveCatalogDedup(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetLiveCatalogLister(&fakeLiveCatalogLister{
+		models: []LiveModel{{ID: "deepseek-v4-pro", Provider: "kiro"}},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	count := 0
+	var owner string
+	for _, m := range resp.Data {
+		if m.ID == "deepseek-v4-pro" {
+			count++
+			owner = m.OwnedBy
+		}
+	}
+	if count != 1 {
+		t.Fatalf("deepseek-v4-pro appears %d times, want 1", count)
+	}
+	if owner != "deepseek" {
+		t.Errorf("survivor owned_by = %q, want deepseek (catalog wins)", owner)
+	}
+}
+
+// TestModelsList_ExposesPseudoModels verifies PAR-ROUTE-059: a provider with web
+// search/fetch config exposes {alias}/search and {alias}/fetch pseudo-models in
+// the list (route.js:386-401).
+func TestModelsList_ExposesPseudoModels(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+	h.SetPseudoModelLister(&fakePseudoModelLister{
+		models: []PseudoModel{
+			{ID: "exa/search", OwnedBy: "exa"},
+			{ID: "exa/fetch", OwnedBy: "exa"},
+		},
+	})
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			OwnedBy string `json:"owned_by"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	seen := map[string]string{}
+	for _, m := range resp.Data {
+		seen[m.ID] = m.OwnedBy
+	}
+	if _, ok := seen["exa/search"]; !ok {
+		t.Error("exa/search pseudo-model not exposed")
+	}
+	if _, ok := seen["exa/fetch"]; !ok {
+		t.Error("exa/fetch pseudo-model not exposed")
+	}
+}
+
+// TestModelsList_NoPseudoModelsWhenUnconfigured verifies PAR-ROUTE-059: with no
+// pseudo-model lister wired, no search/fetch entries appear.
+func TestModelsList_NoPseudoModelsWhenUnconfigured(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models")
+	h.List(&ctx)
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	for _, m := range resp.Data {
+		if strings.HasSuffix(m.ID, "/search") || strings.HasSuffix(m.ID, "/fetch") {
+			t.Errorf("unexpected pseudo-model %q with no lister wired", m.ID)
+		}
+	}
+}
+
 // TestModelsList_CustomListerError verifies that a failing custom lister returns
 // a 500 server_error, matching the combo-lister error path.
 func TestModelsList_CustomListerError(t *testing.T) {
