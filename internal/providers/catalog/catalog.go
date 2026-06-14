@@ -91,6 +91,51 @@ var Providers = map[string]ProviderConfig{
 			"X-Amz-User-Agent":         "aws-sdk-js/3.0.0 kiro-ide/1.0.0",
 		},
 	},
+	// --- w7-prov-openai: Chinese openai-format providers ---
+	"glm-cn": {
+		Name:    "glm-cn",
+		BaseURL: "https://open.bigmodel.cn/api/coding/paas/v4/chat/completions",
+		Format:  "openai",
+	},
+	"alicode": {
+		Name:    "alicode",
+		BaseURL: "https://coding.dashscope.aliyuncs.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"alicode-intl": {
+		Name:    "alicode-intl",
+		BaseURL: "https://coding-intl.dashscope.aliyuncs.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"volcengine-ark": {
+		Name:    "volcengine-ark",
+		BaseURL: "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions",
+		Format:  "openai",
+	},
+	"byteplus": {
+		Name:    "byteplus",
+		BaseURL: "https://ark.ap-southeast.bytepluses.com/api/coding/v3/chat/completions",
+		Format:  "openai",
+	},
+	"xiaomi-mimo": {
+		Name:    "xiaomi-mimo",
+		BaseURL: "https://api.xiaomimimo.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"opencode-go": {
+		Name:    "opencode-go",
+		BaseURL: "https://opencode.ai/zen/go/v1/chat/completions",
+		Format:  "openai",
+	},
+	"opencode": {
+		Name:    "opencode",
+		BaseURL: "https://opencode.ai",
+		Format:  "openai",
+		Headers: map[string]string{
+			"x-opencode-client": "desktop",
+		},
+		NoAuth: true,
+	},
 	"ollama": {
 		Name:    "ollama",
 		BaseURL: "https://ollama.com/api/chat",

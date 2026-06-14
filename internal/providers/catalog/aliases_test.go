@@ -3,18 +3,21 @@ package catalog
 import "testing"
 
 func TestProviderAliasCount(t *testing.T) {
-	if got := ProviderAliasCount(); got != 133 {
-		t.Fatalf("ProviderAliasCount() = %d, want 133", got)
+	if got := ProviderAliasCount(); got != 136 {
+		t.Fatalf("ProviderAliasCount() = %d, want 136", got)
 	}
 }
 
 func TestProviderAliasSamples(t *testing.T) {
 	cases := map[string]string{
-		"anthropic": "anthropic",
-		"ds":        "deepseek",
-		"hf":        "huggingface",
-		"vx":        "vertex",
-		"bb":        "blackbox",
+		"anthropic":    "anthropic",
+		"ds":           "deepseek",
+		"hf":           "huggingface",
+		"vx":           "vertex",
+		"bb":           "blackbox",
+		"glm-cn":       "glm-cn",
+		"alicode":      "alicode",
+		"alicode-intl": "alicode-intl",
 	}
 	for alias, want := range cases {
 		got, ok := ResolveProviderAlias(alias)
