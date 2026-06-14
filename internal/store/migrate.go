@@ -220,6 +220,27 @@ func migrate(db *sql.DB) error {
 			status TEXT NOT NULL DEFAULT 'inactive',
 			updated_at INTEGER NOT NULL DEFAULT 0
 		)`},
+		{"mcp_clients", `CREATE TABLE IF NOT EXISTS mcp_clients (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			type TEXT NOT NULL DEFAULT '',
+			config_json TEXT NOT NULL DEFAULT '{}',
+			created_at INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0
+		)`},
+		{"mcp_instances", `CREATE TABLE IF NOT EXISTS mcp_instances (
+			id TEXT PRIMARY KEY,
+			client_id TEXT NOT NULL DEFAULT '',
+			name TEXT NOT NULL,
+			transport TEXT NOT NULL DEFAULT 'stdio',
+			url TEXT NOT NULL DEFAULT '',
+			command TEXT NOT NULL DEFAULT '',
+			args_json TEXT NOT NULL DEFAULT '[]',
+			env_json TEXT NOT NULL DEFAULT '{}',
+			status TEXT NOT NULL DEFAULT 'stopped',
+			created_at INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0
+		)`},
 	}
 
 	for _, t := range tables {
