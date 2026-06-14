@@ -148,6 +148,12 @@ type OAuthFlow struct {
 	cfg    OAuthConfig
 	store  *store.Store
 	client *http.Client
+
+	// Injectable clock for the device-code poll loop (real time in prod; a fake
+	// in tests so the poll runs with no real sleep). Additive — defaulted in
+	// NewOAuthFlow so the constructor signature is unchanged.
+	nowFunc   func() time.Time
+	afterFunc func(time.Duration) <-chan time.Time
 }
 
 // NewOAuthFlow creates a flow. client may be nil to use a default HTTP client.
@@ -158,7 +164,13 @@ func NewOAuthFlow(cfg OAuthConfig, st *store.Store, client *http.Client) *OAuthF
 			Transport: &http.Transport{Proxy: http.ProxyFromEnvironment},
 		}
 	}
-	return &OAuthFlow{cfg: cfg, store: st, client: client}
+	return &OAuthFlow{
+		cfg:       cfg,
+		store:     st,
+		client:    client,
+		nowFunc:   time.Now,
+		afterFunc: time.After,
+	}
 }
 
 // Config returns the flow's provider configuration.
