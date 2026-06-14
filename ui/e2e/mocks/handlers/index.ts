@@ -31,6 +31,7 @@ import { registerProxyPoolsHandlers } from "./proxy-pools";
 import { registerMitmHandlers } from "./mitm";
 import { registerStreamsHandlers } from "./streams";
 import { registerInferenceHandlers } from "./inference";
+import { registerTranslatorHandlers } from "./translator";
 
 export function setupMockApi(page: Page, store: MockStore) {
   registerAuthHandlers(page, store);
@@ -64,4 +65,5 @@ export function setupMockApi(page: Page, store: MockStore) {
   registerMitmHandlers(page, store);
   registerStreamsHandlers(page, store);
   registerInferenceHandlers(page, store);
+  registerTranslatorHandlers(page, store);
 }
