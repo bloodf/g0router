@@ -7,12 +7,21 @@ export function registerInferenceHandlers(page: Page) {
       const messages = body.messages || [];
       const lastMsg = messages[messages.length - 1]?.content || "";
       const response = `Hello! I'm a mock assistant. You said: "${lastMsg.slice(0, 50)}..."`;
+      const created = Math.floor(Date.now() / 1000);
+      const chunk = (delta: Record<string, unknown>, finish: string | null) =>
+        `data: ${JSON.stringify({
+          id: "mock-chat",
+          object: "chat.completion.chunk",
+          created,
+          model: body.model,
+          choices: [{ index: 0, delta, finish_reason: finish }],
+        })}`;
       const sseBody = [
-        `data: {"id":"mock-chat","object":"chat.completion.chunk","created":${Math.floor(Date.now()/1000)},"model":"${body.model}","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}`,
+        chunk({ role: "assistant" }, null),
         ``,
-        `data: {"id":"mock-chat","object":"chat.completion.chunk","created":${Math.floor(Date.now()/1000)},"model":"${body.model}","choices":[{"index":0,"delta":{"content":"${response}"},"finish_reason":null}]}`,
+        chunk({ content: response }, null),
         ``,
-        `data: {"id":"mock-chat","object":"chat.completion.chunk","created":${Math.floor(Date.now()/1000)},"model":"${body.model}","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`,
+        chunk({}, "stop"),
         ``,
         `data: [DONE]`,
         ``,
