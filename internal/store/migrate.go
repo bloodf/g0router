@@ -155,6 +155,13 @@ func migrate(db *sql.DB) error {
 			target TEXT NOT NULL DEFAULT '',
 			details TEXT NOT NULL DEFAULT ''
 		)`},
+		{"feature_flags", `CREATE TABLE IF NOT EXISTS feature_flags (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			key TEXT NOT NULL UNIQUE,
+			enabled INTEGER NOT NULL DEFAULT 0,
+			description TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
