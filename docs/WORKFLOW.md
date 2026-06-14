@@ -8270,3 +8270,45 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   green (no real spawn/network/LLM/port-bind). **SERIAL SLOT RELEASED**:
   `internal/server/routes_admin.go` slot released to the next holder on this close. MCP
   track COMPLETE.
+
+## w7-platnodes (Provider-node prefix-routing engine) — 2026-06-14
+- Base @ P0: `2de2624` (clean tree except gitignored-but-tracked `ui/dist/index.html`
+  and the untracked plan file; both intentionally never staged). P6 green at base:
+  `go build/vet/test` exit 0 (1600 tests), `npm run build` exit 0. Routing serial
+  sub-chain: w7-platnodes is FIRST; the `routes_admin.go` slot was FREE (last touch =
+  merged w7-plat-1 proxy-pools + w7-mcp-3 mcp routes). selection.go NOT touched
+  (w7-route's file — no micro-serial conflict).
+- Decisions: ESC-SCHEMA = additive `prefix`/`api_type` columns on `providers`
+  (not a JSON-data table); ESC-HOOK = node override is `Router.Resolve` step-0 BEFORE
+  alias/catalog (additive, nil-safe byte-identical); ESC-NODE-PROVIDER = additive
+  `generic.NewNode(id,baseURL)` + `inference.buildNodeProvider` (both node api_types
+  routed through the generic OpenAI-compatible adapter at the node base URL;
+  per-api_type adapter = tracked follow-up); ESC-CASCADE = providers-row update
+  (connections store no base URL, resolve transitively); ESC-PROVISION = create-with-key
+  auto-provisions a bound encrypted api_key connection; ESC-MOCK-* = mirror Go
+  (toNode gains prefix/api_type, `{id}` mock route added, validate kept `{valid,error?}`,
+  `/api/models/*` untouched). DEVIATION: touched `internal/providers/generic/provider.go`
+  (additive `NewNode` only) — outside the §7 list but sanctioned by §1.5/ESC-NODE-PROVIDER.
+- T-schema RED: `2eb07e4` — failing provider-node store tests (TDD red; +the two
+  additive `ensureColumn`s).
+- T-schema GREEN: `0eb85a8` — provider-node store (additive prefix/api_type cols + node helpers).
+- T-domain RED: `81960b5` — failing provider-node domain tests (TDD red).
+- T-domain GREEN: `dc76057` — provider-node domain (sanitize + hermetic probe + cascade + resolve).
+- T-admin RED: `b38ca7a` — failing provider-node admin tests (TDD red).
+- T-admin GREEN: `993252c` — provider-node admin CRUD + real validate + cascade
+  (+additive `providerNodes` field + `SetNodeProber`/`SetNodeResolver` on handlers.go).
+- T-hook RED: `fbff87e` — failing prefix-override resolution tests (TDD red).
+- T-hook GREEN: `6c42ef9` — node-prefix override before static alias/catalog (inference
+  hook; +`generic.NewNode` additive constructor + `server.go` `SetNodeResolver` wire).
+- T-routes: `ccaf072` — register provider-node `{id}` CRUD routes (serial slot;
+  3 additive lines, static collection + /validate before the `{id}` param routes).
+- T-mocks: `d57fed0` — correct provider-node mock to mirror real Go DTOs (nodes.ts
+  `/api/provider-nodes*` branches only; `/api/models/*` untouched; ui/dist NEVER staged).
+- T-close: matrix flip — PAR-ROUTE-009/040 → HAVE (`9router-routing.md`);
+  PAR-PLAT-010/011/012/013/014 → HAVE (`9router-platform.md`). Gates green:
+  `go test ./... && go vet && go build` exit 0 (1631 tests, hermetic — no real network);
+  scoped store/platform/admin/inference Node|Prefix runs green; `npm run build` exit 0;
+  full playwright 150 expected / 1 pre-existing-at-base unexpected (auth-redirect in
+  comprehensive.spec, NOT provider-nodes — verified by stash-and-rerun). **SERIAL SLOT
+  RELEASED**: `internal/server/routes_admin.go` slot released to **w7-route**, which is
+  now UNBLOCKED (w7-platnodes is its routing prerequisite). Routing prefix engine COMPLETE.
