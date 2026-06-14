@@ -8,6 +8,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/antigravity"
 	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/providers/commandcode"
+	"github.com/bloodf/g0router/internal/providers/cursor"
 	"github.com/bloodf/g0router/internal/providers/gemini"
 	"github.com/bloodf/g0router/internal/providers/generic"
 	"github.com/bloodf/g0router/internal/providers/kiro"
@@ -124,6 +125,9 @@ func buildProvider(providerID string, reg *translation.Registry) (schemas.Provid
 		case "antigravity":
 			// w7-prov-special-b: multi-backend (gemini/claude/gpt-oss) adapter.
 			return antigravity.New(providerID, reg)
+		case "cursor":
+			// w7-prov-special-b: connect+protobuf binary-protocol adapter.
+			return cursor.New(providerID, reg)
 		}
 		// URL-template/build openai providers compute their endpoint at request
 		// time; dispatch them before the generic catalog adapter (their Format

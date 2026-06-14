@@ -103,6 +103,22 @@ var Providers = map[string]ProviderConfig{
 			"User-Agent": "antigravity/1.107.0",
 		},
 	},
+	// --- w7-prov-special-b: cursor connect+protobuf provider (PAR-PROV-023) ---
+	// providers.js:208-218. The protobuf request/response framing and the
+	// deterministic auth/checksum headers are built by the cursor executor; the
+	// BaseURL + chatPath here are the connect-RPC endpoint, and the connect+proto
+	// headers are the static request headers.
+	"cursor": {
+		Name:    "cursor",
+		BaseURL: "https://api2.cursor.sh",
+		Format:  "cursor",
+		Headers: map[string]string{
+			"connect-accept-encoding":  "gzip",
+			"connect-protocol-version": "1",
+			"Content-Type":             "application/connect+proto",
+			"User-Agent":               "connect-es/1.6.1",
+		},
+	},
 	// --- w7-prov-openai: Western openai-format providers ---
 	"nvidia": {
 		Name:    "nvidia",
