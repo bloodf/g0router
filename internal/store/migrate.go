@@ -137,6 +137,16 @@ func migrate(db *sql.DB) error {
 			value TEXT NOT NULL,
 			PRIMARY KEY (scope, key)
 		)`},
+		{"teams", `CREATE TABLE IF NOT EXISTS teams (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			budget_usd REAL NOT NULL DEFAULT 0,
+			budget_used_usd REAL NOT NULL DEFAULT 0,
+			budget_period TEXT NOT NULL DEFAULT 'monthly',
+			rate_limit_rpm INTEGER NOT NULL DEFAULT 0,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
