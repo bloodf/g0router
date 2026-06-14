@@ -18,4 +18,17 @@ test.describe("Guardrails", () => {
     await page.locator('button:has-text("Test")').first().click();
     await expect(page.locator("body")).toContainText(/blocked/i, { timeout: 5000 });
   });
+
+  test("guardrails config form renders and saves", async ({ page }) => {
+    await page.goto("/guardrails");
+    await expect(
+      page.locator('[data-testid="guardrails-enabled"]')
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-testid="guardrails-blocklist"]')).toBeVisible();
+    const putPromise = page.waitForRequest(
+      (req) => req.url().endsWith("/api/guardrails") && req.method() === "PUT"
+    );
+    await page.locator('[data-testid="guardrails-save"]').click();
+    await putPromise;
+  });
 });
