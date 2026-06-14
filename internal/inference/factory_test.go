@@ -176,6 +176,23 @@ func TestURLTemplateDispatch(t *testing.T) {
 	}
 }
 
+// TestVertexDispatch (w7-prov-special-a) verifies the additive factory arm
+// dispatching vertex (partner-openai path) to the urltemplate adapter. The
+// native gemini-on-vertex format is deferred (ESC-A1).
+func TestVertexDispatch(t *testing.T) {
+	reg := translation.NewRegistry()
+	p, err := buildProvider("vertex", reg)
+	if err != nil {
+		t.Fatalf("buildProvider(vertex) error: %v", err)
+	}
+	if _, ok := p.(*urltemplate.Provider); !ok {
+		t.Fatalf("buildProvider(vertex) type = %T, want *urltemplate.Provider", p)
+	}
+	if p.GetProvider() != schemas.ModelProvider("vertex") {
+		t.Errorf("GetProvider() = %q, want vertex", p.GetProvider())
+	}
+}
+
 func TestProviderForModelDeterministic(t *testing.T) {
 	// Run multiple times and assert stable result.
 	for i := 0; i < 5; i++ {

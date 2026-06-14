@@ -232,6 +232,19 @@ func TestURLTemplateModels(t *testing.T) {
 	}
 }
 
+// TestVertexModels (w7-prov-special-a) verifies the vertex partner model block
+// (providerModels.js "vertex-partner" @827e5c3), registered under "vertex"
+// since this plan ships the partner-openai path (native deferred ESC-A1).
+func TestVertexModels(t *testing.T) {
+	models := ModelsFor("vertex")
+	if len(models) != 4 {
+		t.Errorf("ModelsFor(vertex) len = %d, want 4", len(models))
+	}
+	if len(models) > 0 && models[0].ID != "deepseek-ai/deepseek-v3.2-maas" {
+		t.Errorf("ModelsFor(vertex)[0].ID = %q, want deepseek-ai/deepseek-v3.2-maas", models[0].ID)
+	}
+}
+
 func TestModelsForUnknown(t *testing.T) {
 	models := ModelsFor("nonexistent")
 	if len(models) != 0 {

@@ -451,6 +451,24 @@ func TestURLTemplateProviders(t *testing.T) {
 	}
 }
 
+// TestVertexProvider (w7-prov-special-a) verifies the vertex catalog entry. The
+// partner-openai path is shipped (URL built at request time from
+// providerSpecificData.projectId); the native gemini-on-vertex format is
+// deferred (ESC-A1).
+func TestVertexProvider(t *testing.T) {
+	cfg, ok := Lookup("vertex")
+	if !ok {
+		t.Fatal("Lookup(vertex) returned ok=false")
+	}
+	if cfg.Format != "openai" {
+		t.Errorf("vertex Format = %q, want openai (partner path)", cfg.Format)
+	}
+	// BaseURL is the API host seed; the partner endpoint is built per-request.
+	if cfg.BaseURL != "https://aiplatform.googleapis.com" {
+		t.Errorf("vertex BaseURL = %q, want https://aiplatform.googleapis.com", cfg.BaseURL)
+	}
+}
+
 func TestResolveOllamaHost(t *testing.T) {
 	// override trimmed
 	if got := ResolveOllamaHost("  http://ollama.local:11434/  "); got != "http://ollama.local:11434" {
