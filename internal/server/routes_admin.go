@@ -142,6 +142,12 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.POST("/api/tunnels/{type}", h.RequireSession(h.EnableTunnel))
 	r.DELETE("/api/tunnels/{type}", h.RequireSession(h.DisableTunnel))
 
+	// MITM (status/toggle/ca-cert static; tools/{id} param). ca-cert serves raw PEM.
+	r.GET("/api/mitm/status", h.RequireSession(h.MitmStatus))
+	r.POST("/api/mitm/toggle", h.RequireSession(h.MitmToggle))
+	r.GET("/api/mitm/ca-cert", h.RequireSession(h.MitmCACert))
+	r.POST("/api/mitm/tools/{id}", h.RequireSession(h.MitmToolToggle))
+
 	r.GET("/api/oauth/{provider}/start", h.RequireSession(h.OAuthStart))
 	r.POST("/api/oauth/{provider}/callback", h.RequireSession(h.OAuthCallback))
 
