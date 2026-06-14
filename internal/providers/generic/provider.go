@@ -2,6 +2,7 @@ package generic
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/providers/openai"
@@ -33,6 +34,24 @@ func New(providerID string) (*Provider, error) {
 		client:         utils.NewClientPool(),
 		errorConverter: openai.NewErrorConverter(),
 	}, nil
+}
+
+// NewNode creates a generic OpenAI-compatible provider for a dynamic provider
+// node (w7-platnodes). Unlike New, it is not catalog-bound: the node's base URL
+// (the API root, e.g. https://host/v1) is supplied at runtime and the chat
+// endpoint is appended. The id is the node's providers-row id. It is purely
+// additive and changes no existing constructor or field.
+func NewNode(id, baseURL string) *Provider {
+	return &Provider{
+		id: schemas.ModelProvider(id),
+		config: catalog.ProviderConfig{
+			Name:    id,
+			BaseURL: strings.TrimRight(baseURL, "/") + "/chat/completions",
+			Format:  "openai",
+		},
+		client:         utils.NewClientPool(),
+		errorConverter: openai.NewErrorConverter(),
+	}
 }
 
 // GetProvider returns the provider identifier.

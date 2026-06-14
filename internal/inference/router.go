@@ -18,9 +18,10 @@ type KeyResolver interface {
 type Router struct {
 	registry    *translation.Registry
 	providers   map[string]schemas.Provider
-	mu          sync.RWMutex
-	keyResolver KeyResolver
-	aliasStore  AliasStore
+	mu           sync.RWMutex
+	keyResolver  KeyResolver
+	aliasStore   AliasStore
+	nodeResolver NodeResolver
 }
 
 // NewRouter creates a router with all providers wired in.
@@ -47,10 +48,35 @@ func (r *Router) SetAliasStore(st AliasStore) {
 	r.mu.Unlock()
 }
 
+// SetNodeResolver sets an optional provider-node resolver. When non-nil, Resolve
+// consults it FIRST: a model whose prefix matches a registered node prefix routes
+// to that node's provider + base URL, overriding static alias/catalog resolution
+// (PAR-ROUTE-009/040). nil leaves behavior byte-identical to the static chain.
+func (r *Router) SetNodeResolver(nr NodeResolver) {
+	r.mu.Lock()
+	r.nodeResolver = nr
+	r.mu.Unlock()
+}
+
 // Resolve returns the provider and key for a given model request.
 // It looks up the model in the static catalog, builds the provider, and
 // resolves the key via the configured key resolver when one is present.
 func (r *Router) Resolve(model string) (schemas.Provider, schemas.Key, error) {
+	// Step 0 (additive): provider-node prefix override. A model "prefix/bare"
+	// whose prefix matches a registered node routes to that node's provider +
+	// base URL, BEFORE static alias/catalog resolution (PAR-ROUTE-009/040). When
+	// no node resolver is set or no prefix matches, behavior is unchanged.
+	r.mu.RLock()
+	nodeResolver := r.nodeResolver
+	r.mu.RUnlock()
+	if nodeResolver != nil {
+		if prefix, _ := ParseModelPrefix(model); prefix != "" {
+			if providerID, baseURL, apiType, ok := nodeResolver.ResolveByPrefix(prefix); ok {
+				return r.resolveNode(providerID, baseURL, apiType)
+			}
+		}
+	}
+
 	r.mu.RLock()
 	aliasStore := r.aliasStore
 	r.mu.RUnlock()
@@ -82,6 +108,45 @@ func (r *Router) Resolve(model string) (schemas.Provider, schemas.Key, error) {
 		return p, key, nil
 	}
 
+	return p, schemas.Key{
+		ID:       providerID + "-default",
+		Provider: providerID,
+		Value:    "",
+	}, nil
+}
+
+// resolveNode returns the provider and key for a node-routed model. The node
+// provider is built once (pointed at the node base URL) and cached by the node's
+// provider id; the key is resolved via the configured key resolver when present
+// (so a provisioned node connection's credential is used), else a default key.
+func (r *Router) resolveNode(providerID, baseURL, apiType string) (schemas.Provider, schemas.Key, error) {
+	r.mu.RLock()
+	p, ok := r.providers[providerID]
+	r.mu.RUnlock()
+	if !ok {
+		built := buildNodeProvider(providerID, baseURL, apiType)
+		r.mu.Lock()
+		if existing, exists := r.providers[providerID]; exists {
+			p = existing
+		} else {
+			r.providers[providerID] = built
+			p = built
+		}
+		r.mu.Unlock()
+	}
+
+	r.mu.RLock()
+	resolver := r.keyResolver
+	r.mu.RUnlock()
+	if resolver != nil {
+		key, psd, err := resolver.ResolveKey(providerID)
+		if err != nil {
+			return nil, schemas.Key{}, fmt.Errorf("resolve key for node %q: %w", providerID, err)
+		}
+		key.Provider = providerID
+		key.ProviderSpecificData = psd
+		return p, key, nil
+	}
 	return p, schemas.Key{
 		ID:       providerID + "-default",
 		Provider: providerID,

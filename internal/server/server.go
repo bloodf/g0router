@@ -8,6 +8,7 @@ import (
 	"github.com/bloodf/g0router/internal/api"
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/platform"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/translation"
 	"github.com/bloodf/g0router/internal/usage"
@@ -53,6 +54,10 @@ func NewWithShutdown(uiFS fs.FS, st *store.Store, allowedOrigins []string) *Serv
 		refresher = resolver
 		infRouter.SetKeyResolver(resolver)
 		infRouter.SetAliasStore(st)
+		// Provider-node prefix-routing override (w7-platnodes, PAR-ROUTE-009/040):
+		// a model "prefix/bare" whose prefix matches a registered node routes to
+		// that node's provider + base URL before static alias/catalog resolution.
+		infRouter.SetNodeResolver(platform.NewProviderNodeService(st))
 
 		cd := inference.NewCooldownEngine(st, time.Now)
 		sel := inference.NewSelectionEngine(st, st, cd, time.Now)
