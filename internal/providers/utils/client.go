@@ -18,6 +18,10 @@ type ClientPool struct {
 	proxies   map[string]*fasthttp.Client
 }
 
+// SetProxyURL sets a per-instance proxy override. Stub: real wiring lands in
+// T-proxywire STEP(b).
+func (p *ClientPool) SetProxyURL(proxyURL string) error { return nil }
+
 // NewClientPool creates a shared fasthttp client with sensible defaults.
 func NewClientPool() *ClientPool {
 	return &ClientPool{

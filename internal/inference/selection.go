@@ -33,6 +33,14 @@ type Cooldown interface {
 	GroupRetryAfter(providerID, model string, now time.Time) (time.Time, bool, error)
 }
 
+// ProxyResolver resolves the outbound proxy URL for a selected connection
+// (PAR-PLAT-009). It is an optional, additive dependency of the SelectionEngine:
+// when unset, no proxy is resolved and behavior is unchanged. Implemented by
+// platform.ProxyPoolService.
+type ProxyResolver interface {
+	ResolveProxyForConnection(conn *store.Connection) (proxyURL string, ok bool)
+}
+
 type rrState struct {
 	currentConnID string
 	count         int // consecutive use count for currentConnID
@@ -46,11 +54,22 @@ type SelectionEngine struct {
 	cd       Cooldown
 	clock    func() time.Time
 	rrStates map[string]*rrState // "providerID:model" → round-robin state
+	pr       ProxyResolver       // optional, additive (PAR-PLAT-009); nil = no proxy
 }
 
 // NewSelectionEngine creates a SelectionEngine with injected dependencies.
 func NewSelectionEngine(cs ConnStore, ss SettingStore, cd Cooldown, clock func() time.Time) *SelectionEngine {
 	return &SelectionEngine{cs: cs, ss: ss, cd: cd, clock: clock, rrStates: make(map[string]*rrState)}
+}
+
+// SetProxyResolver wires the optional per-connection proxy resolver (PAR-PLAT-009).
+// Stub: real wiring lands in T-proxywire STEP(b).
+func (e *SelectionEngine) SetProxyResolver(pr ProxyResolver) {}
+
+// ResolveProxy returns the outbound proxy URL for the selected connection.
+// Stub: real wiring lands in T-proxywire STEP(b).
+func (e *SelectionEngine) ResolveProxy(conn *store.Connection) (proxyURL string, ok bool) {
+	return "", false
 }
 
 type providerStrategyConfig struct {

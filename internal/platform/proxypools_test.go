@@ -79,6 +79,45 @@ func TestTestConnectivityUnreachable(t *testing.T) {
 	}
 }
 
+func TestResolveProxyForConnection(t *testing.T) {
+	svc, st := newProxyService(t)
+	pool, err := st.CreateProxyPool(&store.ProxyPool{
+		Name: "p", Protocol: "http", Host: "proxy.example.com", Port: 8080,
+		Username: "u", Password: "pw", IsActive: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateProxyPool: %v", err)
+	}
+
+	// Active pool → proxy URL with credentials.
+	url, ok := svc.ResolveProxyForConnection(&store.Connection{ProxyPoolID: pool.ID})
+	if !ok {
+		t.Fatalf("expected ok=true for an active bound pool")
+	}
+	if url != "http://u:pw@proxy.example.com:8080" {
+		t.Fatalf("unexpected proxy url: %q", url)
+	}
+
+	// No pool bound → no proxy.
+	if url, ok := svc.ResolveProxyForConnection(&store.Connection{}); ok || url != "" {
+		t.Fatalf("unbound connection: got (%q,%v); want empty", url, ok)
+	}
+
+	// Inactive pool → no proxy.
+	inactive, err := st.CreateProxyPool(&store.ProxyPool{Name: "i", Protocol: "http", Host: "x.example.com", Port: 1, IsActive: false})
+	if err != nil {
+		t.Fatalf("CreateProxyPool inactive: %v", err)
+	}
+	if url, ok := svc.ResolveProxyForConnection(&store.Connection{ProxyPoolID: inactive.ID}); ok || url != "" {
+		t.Fatalf("inactive pool: got (%q,%v); want empty", url, ok)
+	}
+
+	// Missing pool → no proxy (no error).
+	if url, ok := svc.ResolveProxyForConnection(&store.Connection{ProxyPoolID: "missing"}); ok || url != "" {
+		t.Fatalf("missing pool: got (%q,%v); want empty", url, ok)
+	}
+}
+
 func TestTestConnectivitySSRFRefused(t *testing.T) {
 	svc, st := newProxyService(t)
 	// A proxy host pointing at a private address must be refused before dialing.

@@ -43,6 +43,12 @@ func (s *ProxyPoolService) SetResolver(r IPResolver) {
 	s.resolver = r
 }
 
+// ResolveProxyForConnection returns the outbound proxy URL for a connection
+// bound to an active proxy pool. Stub: real wiring lands in T-proxywire STEP(b).
+func (s *ProxyPoolService) ResolveProxyForConnection(conn *store.Connection) (string, bool) {
+	return "", false
+}
+
 // ProxyTestResult is the outcome of a connectivity probe through a proxy pool.
 type ProxyTestResult struct {
 	OK        bool
