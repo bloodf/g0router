@@ -7891,3 +7891,82 @@ DELETE→{message}; /test→{ok,latency_ms,status}; /batch→{created:N}. Seed a
 - T-close: matrix flip (PAR-PLAT-001..005/009 + PAR-AUTH-020 → HAVE; PAR-UI-019/104/105
   PARTIAL→HAVE), open-questions ESC-1b resolution + w7-plat-1 deferrals, this entry; routes_admin.go
   serial slot released to w7-plat-2.
+
+## w7-plat-2 — Platform: tunnels backend (cloudflared + tailscale) (Go)
+
+```yaml
+plan: w7-plat-2
+status: DONE
+summary: "Real Go tunnels backend — GET /api/tunnels (+ /health), POST/DELETE
+  /api/tunnels/{type} over cloudflare + tailscale. enable/disable/status/health
+  state machine + injectable Runner FULLY unit-tested via a fake (hermetic — no
+  spawn/download/network); real binary download + process spawn + OS-privileged
+  tailscale install/TUN are integration-only behind Runner. token *_enc at rest,
+  never echoed. Layered transport→domain→repository. Mock verified to already
+  mirror real Go DTOs (no correction needed)."
+base: a41664063ad52347856322f661017222bfc5d1bb
+```
+
+**Base observation (P7):** Go green at base (build/vet/test exit 0 — 1449 tests).
+`tunnels.spec.ts` 4/4 PASS at base against the w6-m mock. Working tree at P0 had two
+pre-existing entries left untouched per hard rules: `ui/dist/index.html` (TRACKED but
+pre-modified — never reverted, never staged) and the orchestrator plan file
+`.planning/parity/plans/w7-plat-2.md` (untracked — never committed). The w7-plat-2
+escalations block in `open-questions.md` was pre-seeded and is in-scope for this plan's diff.
+
+**Decisions as implemented:**
+- ESC-SCHEMA → typed columns; `tunnels` additive table (type PK, is_enabled, status, url,
+  token_enc, mode, last_error, updated_at).
+- THE CENTRAL DESIGN — injectable `Runner` interface (`internal/platform/tunnel/runner.go`):
+  `Start/Stop/Status` + `StartOpts`/`RunnerStatus`. `tunnel.Service` (`service.go`) holds
+  `runners map[string]Runner`, constructed with REAL defaults at `NewService(st)`; `SetRunner`
+  overrides for tests — mirroring the SHIPPED `platform.Prober`/`SetProber` seam
+  (`proxypools.go:30,36`). On `Handlers`: additive `tunnels *tunnel.Service` field constructed
+  in `New` via `tunnel.NewService(st)` (mirrors `proxyPools` @ handlers.go:53) + additive
+  `SetTunnelRunner(typ, r)` forwarding to the service (mirrors `SetProxyProber` @ :86-89).
+  NO `New(...)` signature change.
+- ESC-CF-MODE → cloudflared token-presence selects named (`tunnel run --token`) vs quick
+  (`tunnel --url`, extract `*.trycloudflare.com`); explicit `mode` honored.
+- ESC-TS-MODE / ESC-OS-PRIV → tailscale userspace-networking default (no TUN/root); install +
+  TUN + login-poll-loop + funnel + cert are integration-only / OS-privileged (escalated).
+- ESC-MAGICBYTE → pure `isValidExecutable(head, goos)` (ELF/Mach-O/PE) unit-tested on canned
+  bytes; binary download stays integration-only (needs network).
+- ESC-SEED-ROWS → `Service.List()` overlays the 2 known types over stored rows → always exactly
+  2 entries (UI 2-card contract) with NO seed migration.
+- ESC-HEALTH-USE → RESOLVED: the page DOES call `/api/tunnels/health` (`tunnels.tsx:39`, drives
+  the healthy badge). Shipped first-class; `healthy` = no ENABLED tunnel is in `error`.
+- ESC-MOCK → mock VERIFIED to already mirror the Go (`json()` wraps `{data}`; GET array = 4-field
+  DTO; `/health` = `{healthy}`; seed cloudflare url keeps `trycloudflare.com`). NO correction
+  needed → T-mocks is verify-only, NO commit.
+- ESC-ROUTE → `/api/tunnels/health` (static) registered before `/api/tunnels/{type}` (param);
+  NO router collision (server tests green).
+- ESC-GUARD-SETTINGS → default taken: does NOT write `settings["tunnelUrl"]`/`["tailscaleUrl"]`
+  on enable; guard.go consumed unchanged. Follow-up recorded.
+
+**Secret handling:** cloudflared named-tunnel `token` stored `token_enc` via `s.cipher`; the
+admin `tunnelDTO` is the 4-field shape with NO `token`/`token_enc` field; `TestEnableTunnelWith
+TokenDoesNotLeakSecret` marshals the response + asserts no cleartext/ciphertext leak while the
+store holds the real token.
+
+**Integration-only disposition (NOT unit-tested — §1.9):** cloudflared binary download +
+magic-byte gate (the validator IS unit-tested; the download is not), cloudflared/tailscale
+process spawn/kill, tailscale install (OS-privileged), tailscaled daemon + login poll loop
+(TUN escalated), funnel, cert. All isolated behind `Runner` in
+`internal/platform/tunnel/{cloudflared,tailscale}.go`; the unit suite is fully hermetic (zero
+`exec.Command`/net/sleep in any `_test.go`).
+
+**Tasks / commits:**
+- T-runner RED: `95ed896` — failing cloudflared URL-extract + magic-byte tests (TDD red).
+- T-runner GREEN: `9a197f7` — cloudflared quick-tunnel URL extraction + magic-byte validate.
+- T-tunnelsstore RED: `889f5b1` — failing tunnels store tests + additive `tunnels` table.
+- T-tunnelsstore GREEN: `6c1ffc1` — tunnels store (token *_enc at rest).
+- T-service RED: `f5d7bbe` — failing tunnel service state-machine tests (fake runner).
+- T-service GREEN: `294625b` — tunnel service state machine + injectable runner (+ tailscale
+  runner + pure login-URL parser test).
+- T-admin RED: `4b87c6a` — failing tunnels admin handler tests + additive handlers.go field/setter.
+- T-admin GREEN: `4d9f92e` — tunnels admin API (list/health/enable/disable).
+- T-routes: `574d833` — register tunnels admin routes (serial slot).
+- T-mocks: verify-only — mock already mirrors the Go `{data}` 4-field DTO; NO commit.
+- T-close: matrix flip (PAR-PLAT-015..023 → HAVE with integration-only/OS-privileged footnotes;
+  PAR-UI-112/113/114 PARTIAL→HAVE), open-questions ESC-1c resolution + ESC-* dispositions, this
+  entry; routes_admin.go serial slot released to w7-plat-3.
