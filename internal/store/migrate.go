@@ -262,6 +262,14 @@ func migrate(db *sql.DB) error {
 			expires_at INTEGER NOT NULL DEFAULT 0,
 			created_at INTEGER NOT NULL DEFAULT 0
 		)`},
+		{"mcp_tool_groups", `CREATE TABLE IF NOT EXISTS mcp_tool_groups (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			tool_ids TEXT NOT NULL DEFAULT '[]',
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL,
+			updated_at TEXT NOT NULL DEFAULT ''
+		)`},
 	}
 
 	for _, t := range tables {
