@@ -116,8 +116,15 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 	}
 
 	// Aggregate models from all Stage-1 provider catalogs, skipping disabled ones.
+	// Iterate in sorted key order so that owned_by assignment is deterministic when
+	// the same model ID appears in multiple provider catalogs.
+	providerIDs := make([]string, 0, len(catalog.Providers))
+	for id := range catalog.Providers {
+		providerIDs = append(providerIDs, id)
+	}
+	sort.Strings(providerIDs)
 	var catalogEntries []schemas.ModelEntry
-	for providerID := range catalog.Providers {
+	for _, providerID := range providerIDs {
 		for _, m := range catalog.ModelsFor(providerID) {
 			if m.ID == "" || seen[m.ID] {
 				continue

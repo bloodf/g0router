@@ -89,7 +89,7 @@ func TestListModelsAggregatesCatalog(t *testing.T) {
 		{"grok-4", "xai"},
 		{"grok-3", "xai"},
 		{"gpt-oss:120b", "ollama"},
-		{"kimi-k2.5", "ollama"},
+		{"glm-4.7-flash", "ollama"},
 	}
 	for _, c := range checks {
 		got, ok := ownedBy[c.model]
