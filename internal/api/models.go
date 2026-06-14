@@ -49,14 +49,44 @@ type SubConfigModelReader interface {
 	ListSubConfigModels() ([]SubConfigModel, error)
 }
 
+// LiveModel is a dynamic per-account model resolved live (Kiro/Qoder) for
+// /v1/models merging (PAR-ROUTE-056).
+type LiveModel struct {
+	ID       string
+	Provider string
+}
+
+// LiveCatalogLister returns dynamic per-account models for /v1/models
+// (PAR-ROUTE-056). A non-nil error degrades to static-only silently (the live
+// resolver may fail; route.js:296-298), so List does NOT 500 on this error.
+type LiveCatalogLister interface {
+	ListLiveModels() ([]LiveModel, error)
+}
+
+// PseudoModel is a web search/fetch pseudo-model ({alias}/search, {alias}/fetch)
+// for /v1/models exposure (PAR-ROUTE-059).
+type PseudoModel struct {
+	ID      string
+	OwnedBy string
+}
+
+// PseudoModelLister returns web search/fetch pseudo-models for /v1/models
+// (PAR-ROUTE-059). It only EXPOSES the pseudo-models; serving them is a
+// follow-up (ESC-WEB-EXEC).
+type PseudoModelLister interface {
+	ListPseudoModels() ([]PseudoModel, error)
+}
+
 // ModelsHandler handles GET /v1/models and GET /v1/models/:id.
 type ModelsHandler struct {
-	router             *inference.Router
-	disabledChecker    DisabledChecker
-	comboLister        ComboLister
-	customModelLister  CustomModelLister
-	aliasModelLister   AliasModelLister
-	subConfigReader    SubConfigModelReader
+	router            *inference.Router
+	disabledChecker   DisabledChecker
+	comboLister       ComboLister
+	customModelLister CustomModelLister
+	aliasModelLister  AliasModelLister
+	subConfigReader   SubConfigModelReader
+	liveCatalogLister LiveCatalogLister
+	pseudoModelLister PseudoModelLister
 }
 
 // NewModelsHandler creates a models handler.
@@ -87,6 +117,17 @@ func (h *ModelsHandler) SetAliasModelLister(l AliasModelLister) {
 // SetSubConfigModelReader wires a sub-config model reader for /v1/models (PAR-ROUTE-058).
 func (h *ModelsHandler) SetSubConfigModelReader(r SubConfigModelReader) {
 	h.subConfigReader = r
+}
+
+// SetLiveCatalogLister wires a live-catalog lister for /v1/models (PAR-ROUTE-056).
+func (h *ModelsHandler) SetLiveCatalogLister(l LiveCatalogLister) {
+	h.liveCatalogLister = l
+}
+
+// SetPseudoModelLister wires a web search/fetch pseudo-model lister for
+// /v1/models (PAR-ROUTE-059).
+func (h *ModelsHandler) SetPseudoModelLister(l PseudoModelLister) {
+	h.pseudoModelLister = l
 }
 
 // List handles GET /v1/models.
@@ -216,6 +257,45 @@ func (h *ModelsHandler) List(ctx *fasthttp.RequestCtx) {
 				Object:  "model",
 				OwnedBy: m.ProviderID,
 			})
+		}
+	}
+
+	// Merge live-catalog dynamic models (PAR-ROUTE-056). The live resolver may
+	// fail (network); per route.js:296-298 a failure degrades to static-only
+	// SILENTLY — do NOT 500. Catalog IDs were seeded into seen first, so colliding
+	// live IDs are skipped.
+	if h.liveCatalogLister != nil {
+		if liveModels, err := h.liveCatalogLister.ListLiveModels(); err == nil {
+			for _, m := range liveModels {
+				if m.ID == "" || seen[m.ID] {
+					continue
+				}
+				seen[m.ID] = true
+				resp.Data = append(resp.Data, schemas.ModelEntry{
+					ID:      m.ID,
+					Object:  "model",
+					OwnedBy: m.Provider,
+				})
+			}
+		}
+	}
+
+	// Expose web search/fetch pseudo-models (PAR-ROUTE-059): {alias}/search and
+	// {alias}/fetch when a provider has the config. Best-effort exposure only
+	// (serving them is a follow-up, ESC-WEB-EXEC); an error degrades silently.
+	if h.pseudoModelLister != nil {
+		if pseudoModels, err := h.pseudoModelLister.ListPseudoModels(); err == nil {
+			for _, m := range pseudoModels {
+				if m.ID == "" || seen[m.ID] {
+					continue
+				}
+				seen[m.ID] = true
+				resp.Data = append(resp.Data, schemas.ModelEntry{
+					ID:      m.ID,
+					Object:  "model",
+					OwnedBy: m.OwnedBy,
+				})
+			}
 		}
 	}
 

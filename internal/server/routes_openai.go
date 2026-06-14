@@ -60,6 +60,17 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		models.SetCustomModelLister(customModelsAdapter{st: st})
 		models.SetAliasModelLister(aliasModelsAdapter{st: st})
 		models.SetSubConfigModelReader(subConfigModelsAdapter{st: st})
+		// Live model catalog override (PAR-ROUTE-056) + upstream-connection gate
+		// (PAR-ROUTE-060). The resolver skips upstream connections and fetches
+		// dynamic models via an injectable fetcher. A nil fetcher (the default
+		// here) means no live call until a real HTTP fetcher is wired — recorded
+		// as an integration follow-up (ESC-LIVE-FETCH) so /v1/models never makes
+		// an un-hermetic network call by default.
+		models.SetLiveCatalogLister(liveCatalogAdapter{
+			resolver: inference.NewLiveCatalogResolver(st, nil),
+		})
+		// Web search/fetch pseudo-model exposure (PAR-ROUTE-059).
+		models.SetPseudoModelLister(pseudoModelsAdapter{st: st})
 
 		// x-g0-vk virtual-key gate (PAR-ROUTE-030/031): resolver and quota
 		// adapters keep the api package free of store/governance imports.
@@ -260,6 +271,65 @@ type connectionMetadata struct {
 type providerSpecificData struct {
 	TTSConfig       subConfigContainer `json:"ttsConfig"`
 	EmbeddingConfig subConfigContainer `json:"embeddingConfig"`
+	WebSearchConfig webPseudoConfig    `json:"webSearchConfig"`
+	WebFetchConfig  webPseudoConfig    `json:"webFetchConfig"`
+}
+
+// webPseudoConfig carries the alias used to expose {alias}/search and
+// {alias}/fetch pseudo-models (PAR-ROUTE-059). The alias names the search/fetch
+// surface; enabled gates exposure.
+type webPseudoConfig struct {
+	Alias   string `json:"alias"`
+	Enabled bool   `json:"enabled"`
+}
+
+// liveCatalogAdapter adapts inference.LiveCatalogResolver to api.LiveCatalogLister.
+type liveCatalogAdapter struct {
+	resolver *inference.LiveCatalogResolver
+}
+
+func (a liveCatalogAdapter) ListLiveModels() ([]api.LiveModel, error) {
+	resolved, err := a.resolver.ResolveLiveModels()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]api.LiveModel, 0, len(resolved))
+	for _, m := range resolved {
+		out = append(out, api.LiveModel{ID: m.ID, Provider: m.Provider})
+	}
+	return out, nil
+}
+
+// pseudoModelsAdapter adapts connection metadata to api.PseudoModelLister: it
+// exposes {alias}/search and {alias}/fetch when a connection declares web
+// search/fetch config (PAR-ROUTE-059). No network — config only.
+type pseudoModelsAdapter struct {
+	st *store.Store
+}
+
+func (a pseudoModelsAdapter) ListPseudoModels() ([]api.PseudoModel, error) {
+	conns, err := a.st.ListConnections()
+	if err != nil {
+		return nil, fmt.Errorf("list connections: %w", err)
+	}
+	var out []api.PseudoModel
+	for _, c := range conns {
+		if c.Metadata == "" {
+			continue
+		}
+		var meta connectionMetadata
+		if err := json.Unmarshal([]byte(c.Metadata), &meta); err != nil {
+			// Unparseable metadata contributes no entries (route.js helpers/jsonCol.js).
+			continue
+		}
+		if ws := meta.ProviderSpecificData.WebSearchConfig; ws.Enabled && ws.Alias != "" {
+			out = append(out, api.PseudoModel{ID: ws.Alias + "/search", OwnedBy: ws.Alias})
+		}
+		if wf := meta.ProviderSpecificData.WebFetchConfig; wf.Enabled && wf.Alias != "" {
+			out = append(out, api.PseudoModel{ID: wf.Alias + "/fetch", OwnedBy: wf.Alias})
+		}
+	}
+	return out, nil
 }
 
 type subConfigContainer struct {
