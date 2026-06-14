@@ -8312,3 +8312,62 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   comprehensive.spec, NOT provider-nodes — verified by stash-and-rerun). **SERIAL SLOT
   RELEASED**: `internal/server/routes_admin.go` slot released to **w7-route**, which is
   now UNBLOCKED (w7-platnodes is its routing prerequisite). Routing prefix engine COMPLETE.
+
+## w7-route-a (Routing admin backends: aliases + routing-rules + model-limits + combos-DTO + /api/quota) — 2026-06-14
+- Base @ P0: `47d8e7c` (clean tree except gitignored-but-tracked `ui/dist/index.html`
+  — a stale build artifact from the w7-platnodes e2e run, intentionally NEVER staged
+  nor reverted — and the planner-pre-seeded w7-route-a/b sections already appended to
+  `open-questions.md`). P6 green at base: `go build/vet/test` exit 0 (1631 tests),
+  `npm run build` exit 0, the 5 target specs 18/18 (4 aliases + 4 routing-rules +
+  3 model-limits + 5 combos + 2 quota). Serial slot FREE: last `routes_admin.go` touch
+  = merged w7-platnodes (released to w7-route on its close). selection.go NOT touched
+  (w7-route-b's file — the split keeps zero shared Go files between -a and -b).
+- Decisions: **ESC-COMBOS = Option A** (shipped) — a NEW `combos_admin` table + handlers
+  OWN `/api/combos[/{id}]` serving the id-keyed UI shape `{id,name,strategy,steps[{provider,model}],is_active}`;
+  the engine `{name,models[]}` HTTP routes were re-registered to the admin surface after
+  the P1 grep confirmed ONLY the frozen admin pages consume those routes (`/v1/models`
+  lister reads `store.ListCombos()` directly, not via HTTP); the engine combos store +
+  lister stay intact, fed by the admin handlers' best-effort mirror-write (and a
+  best-effort engine-combo delete on admin delete). **ESC-ALIAS-SHAPE** = NEW typed
+  `aliases` admin table mirroring the UI `{id,alias,provider,model}` shape; the gateway
+  `model_aliases` resolver stays frozen + best-effort mirror-written (alias→provider/model).
+  **ESC-IDTYPE** = `model_limits` INTEGER-PK AUTOINCREMENT, `{id}` parsed via
+  `modelLimitID`/strconv.ParseInt (400 on non-numeric); routing_rules + aliases keep
+  TEXT-PK newID(). **ESC-CREATED-AT** = store int64 unix, render RFC3339 in the
+  routing-rule + model-limit DTOs. **ESC-QUOTA-SCOPE** = `/api/quota` aggregates ALL
+  connections via `ListConnections`; oauth via an injectable fetcher seam (default
+  `usage.FetchProviderUsage`, hermetic fake in tests), non-oauth zeroed; no
+  token/secret in any field. ESC-NAME = no admin-package collision (alias handlers
+  named `ListAliases`/… freely). ESC-ARCH = handler→store direct (virtualkeys
+  precedent; no arch-test forbade it). ESC-MOCK = `seed/usage.ts` seedQuota left
+  untouched (also backs usage specs).
+- T-aliases RED: `ac2c2b8` — failing aliases admin store+admin tests (TDD red; +`aliases` table).
+- T-aliases GREEN: `1476b40` — aliases admin store + CRUD (+best-effort model_aliases mirror).
+- T-routingrules RED: `60ffeb5` — failing routing-rules store+admin tests (TDD red; +`routing_rules` table).
+- T-routingrules GREEN: `a474837` — routing-rules store + admin CRUD (created_at RFC3339; admin CRUD only).
+- T-modellimits RED: `4d85188` — failing model-limits store+admin tests (TDD red; +`model_limits` INTEGER-PK table).
+- T-modellimits GREEN: `8febb7a` — model-limits store + admin CRUD (INTEGER PK; key_ids_json blob).
+- T-combos-admin RED: `e32b678` — failing combos-admin store+admin tests (TDD red; +`combos_admin` table).
+- T-combos-admin GREEN: `9c37a51` — combos admin store + id-keyed CRUD (ESC-COMBOS; engine mirror-write).
+- T-quota RED: `8c17fc5` — failing /api/quota aggregation tests (TDD red).
+- T-quota GREEN: `448a28f` — /api/quota aggregation over per-connection usage (injectable fetcher; no-secret-leak asserted).
+- T-routes: `0d144f6` — register routing-admin + quota routes (serial slot; ONE commit;
+  re-registered `/api/combos[/{id}]` to the admin surface per ESC-COMBOS Option A + added
+  aliases/routing-rules/model-limits/quota; static collections before `{id}`).
+- T-mocks: `da7aee7` — correct aliases/routing-rules/model-limits/combos/quota mocks to
+  mirror real Go (DELETE bodies → `{message}`; combos POST defaults strategy="fallback";
+  quota.ts + the 4 seeds already mirrored — verified, no body change; seedQuota untouched).
+- T-close: matrix flip (`9router-ui.md`) — PAR-UI-012 (quota) → HAVE; PAR-UI-116 (aliases),
+  PAR-UI-091..094 (combos), PAR-UI-130 `/routing-rules`+`/model-limits` subsets →
+  mock→true-HAVE. open-questions: w6-g ESC-1c + w6-h ESCALATION-1/2/3a/3b RESOLVED; the
+  four w7-route-a decision items resolved; two FOLLOW-UPs remain open (live routing-rule
+  application; combos engine HTTP-route retirement tracking). Gates green: `go test ./...
+  && go vet && go build` exit 0 (1643 tests, hermetic — no real network); scoped
+  `internal/admin` Alias|Routing|ModelLimit|Combo|Quota + `internal/store`
+  Alias|Routing|ModelLimit|Combo runs green; `npm run build` exit 0; the 5 target specs
+  18/18 ISOLATED; full playwright = same 1 pre-existing-at-base unexpected (auth-redirect
+  in `comprehensive.spec.ts`, `/keys`→`/login` under vite preview — fails IN ISOLATION,
+  zero w7-route-a code involved, identical to the w7-platnodes-recorded base flake). **SERIAL
+  SLOT RELEASED**: `internal/server/routes_admin.go` slot released to **w7-gov-1** (already
+  merged ahead — the chain has advanced; the slot is free for the next holder). Routing
+  admin backends + quota COMPLETE.
