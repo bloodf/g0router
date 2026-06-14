@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VirtualKeysRouteImport } from './routes/virtual-keys'
 import { Route as UsageRouteImport } from './routes/usage'
 import { Route as TunnelsRouteImport } from './routes/tunnels'
+import { Route as TranslatorRouteImport } from './routes/translator'
 import { Route as TrafficRouteImport } from './routes/traffic'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -55,6 +56,11 @@ const UsageRoute = UsageRouteImport.update({
 const TunnelsRoute = TunnelsRouteImport.update({
   id: '/tunnels',
   path: '/tunnels',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TranslatorRoute = TranslatorRouteImport.update({
+  id: '/translator',
+  path: '/translator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TrafficRoute = TrafficRouteImport.update({
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/teams': typeof TeamsRoute
   '/traffic': typeof TrafficRoute
+  '/translator': typeof TranslatorRoute
   '/tunnels': typeof TunnelsRoute
   '/usage': typeof UsageRoute
   '/virtual-keys': typeof VirtualKeysRoute
@@ -266,6 +273,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/teams': typeof TeamsRoute
   '/traffic': typeof TrafficRoute
+  '/translator': typeof TranslatorRoute
   '/tunnels': typeof TunnelsRoute
   '/usage': typeof UsageRoute
   '/virtual-keys': typeof VirtualKeysRoute
@@ -301,6 +309,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/teams': typeof TeamsRoute
   '/traffic': typeof TrafficRoute
+  '/translator': typeof TranslatorRoute
   '/tunnels': typeof TunnelsRoute
   '/usage': typeof UsageRoute
   '/virtual-keys': typeof VirtualKeysRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/teams'
     | '/traffic'
+    | '/translator'
     | '/tunnels'
     | '/usage'
     | '/virtual-keys'
@@ -371,6 +381,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/teams'
     | '/traffic'
+    | '/translator'
     | '/tunnels'
     | '/usage'
     | '/virtual-keys'
@@ -405,6 +416,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/teams'
     | '/traffic'
+    | '/translator'
     | '/tunnels'
     | '/usage'
     | '/virtual-keys'
@@ -440,6 +452,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TeamsRoute: typeof TeamsRoute
   TrafficRoute: typeof TrafficRoute
+  TranslatorRoute: typeof TranslatorRoute
   TunnelsRoute: typeof TunnelsRoute
   UsageRoute: typeof UsageRoute
   VirtualKeysRoute: typeof VirtualKeysRoute
@@ -466,6 +479,13 @@ declare module '@tanstack/react-router' {
       path: '/tunnels'
       fullPath: '/tunnels'
       preLoaderRoute: typeof TunnelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/translator': {
+      id: '/translator'
+      path: '/translator'
+      fullPath: '/translator'
+      preLoaderRoute: typeof TranslatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/traffic': {
@@ -713,6 +733,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TeamsRoute: TeamsRoute,
   TrafficRoute: TrafficRoute,
+  TranslatorRoute: TranslatorRoute,
   TunnelsRoute: TunnelsRoute,
   UsageRoute: UsageRoute,
   VirtualKeysRoute: VirtualKeysRoute,
