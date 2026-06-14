@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/bloodf/g0router/internal/providers/utils"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -16,9 +17,26 @@ func streamError(msg string) *schemas.StreamChunk {
 	return &schemas.StreamChunk{Error: &schemas.ProviderError{Message: msg, Type: "stream_error"}}
 }
 
-// chatURL returns the full endpoint URL from config.
+// chatURLs returns the ordered candidate endpoint URLs for the provider
+// (PAR-ROUTE-035). It mirrors 9router's index-based fallback URL list
+// (provider.js:155-209, base.js:20-42): the primary URL is index 0 and any
+// configured fallbacks follow in order. The list is derived additively from
+// the existing single BaseURL config field — a config carrying multiple
+// whitespace/newline-separated URLs yields them in order; a normal single-URL
+// config yields a one-element list. Empty segments are dropped. When no URL is
+// configured, the list contains a single empty string so chatURL() (= [0]) is
+// unchanged.
+func (p *Provider) chatURLs() []string {
+	fields := strings.Fields(p.config.BaseURL)
+	if len(fields) == 0 {
+		return []string{p.config.BaseURL}
+	}
+	return fields
+}
+
+// chatURL returns the primary endpoint URL (PAR-ROUTE-035: chatURLs()[0]).
 func (p *Provider) chatURL() string {
-	return p.config.BaseURL
+	return p.chatURLs()[0]
 }
 
 // setHeaders configures the request headers for the provider.
