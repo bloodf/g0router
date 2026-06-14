@@ -48,6 +48,15 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.PUT("/api/providers/{id}", h.RequireSession(h.UpdateProvider))
 	r.DELETE("/api/providers/{id}", h.RequireSession(h.DeleteProvider))
 
+	// Provider-shaped read overlay (w6-e). Static catalog/test-batch routes match
+	// before the {id} param routes (fasthttp/router static-segment precedence).
+	r.GET("/api/providers/catalog", h.RequireSession(h.ListProviderCatalog))
+	r.POST("/api/providers/test-batch", h.RequireSession(h.TestProvidersBatch))
+	r.GET("/api/providers/{id}/catalog", h.RequireSession(h.GetProviderCatalog))
+	r.GET("/api/providers/{id}/connections", h.RequireSession(h.GetProviderConnections))
+	r.GET("/api/providers/{id}/models", h.RequireSession(h.GetProviderModels))
+	r.GET("/api/providers/{id}/suggested-models", h.RequireSession(h.GetProviderSuggestedModels))
+
 	r.GET("/api/connections", h.RequireSession(h.ListConnections))
 	r.POST("/api/connections", h.RequireSession(h.CreateConnection))
 	r.PUT("/api/connections/{id}", h.RequireSession(h.UpdateConnection))
