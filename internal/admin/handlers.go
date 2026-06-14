@@ -6,6 +6,7 @@ import (
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/governance"
 	"github.com/bloodf/g0router/internal/platform"
+	"github.com/bloodf/g0router/internal/platform/mitm"
 	"github.com/bloodf/g0router/internal/platform/tunnel"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
@@ -22,6 +23,7 @@ type Handlers struct {
 	audit        *governance.AuditService
 	proxyPools   *platform.ProxyPoolService
 	tunnels      *tunnel.Service
+	mitm         *mitm.Service
 	version      string
 	buildDate    string
 	shutdownFunc func()
@@ -54,6 +56,7 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 		audit:      governance.NewAuditService(st),
 		proxyPools: platform.NewProxyPoolService(st),
 		tunnels:    tunnel.NewService(st),
+		mitm:       mitm.NewService(st),
 	}
 }
 
@@ -98,6 +101,14 @@ func (h *Handlers) SetProxyProber(p platform.Prober) {
 // Mirrors SetProxyProber.
 func (h *Handlers) SetTunnelRunner(typ string, r tunnel.Runner) {
 	h.tunnels.SetRunner(typ, r)
+}
+
+// SetMitmProxy overrides the MITM proxy listener. Production uses the real
+// TLS-intercepting listener constructed lazily on enable; tests inject a
+// deterministic fake so the MITM admin API runs without binding a port or
+// performing a real TLS handshake. Mirrors SetTunnelRunner.
+func (h *Handlers) SetMitmProxy(p mitm.MitmProxy) {
+	h.mitm.SetProxy(p)
 }
 
 // pathID returns the {id} route parameter.
