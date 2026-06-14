@@ -8461,3 +8461,17 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   (ESC-A1); 028 MISSING (ESC-A3 qoder), 030/031 MISSING (ESC-A4 web), 020/022/023 → special-b.
   **factory.go MICRO-SERIAL slot RELEASED to w7-prov-special-b** (special-a's claude/commandcode/
   url-template arms are key-disjoint from special-b's kiro/cursor/antigravity arms).
+
+### w7-prov-special-b — binary-protocol + multi-backend specialized adapters (kiro/cursor/antigravity)
+- T0 (verify slot + cursor go/no-go): P0 `<base>` = `26951d0` (after special-a MERGED). §2.5 greps
+  GREEN — factory.go micro-serial slot FREE (`26951d0..HEAD` empty; no other holder; this plan
+  HOLDS the slot). kiro/cursor/antigravity converters all registered (registry.go:158-174, REUSE).
+  kiro catalog entry + eventstream headers present (catalog.go:81-93). Request builders JSON-only
+  (0 protobuf/eventstream). Aliases `kr`/`cu`/`ag` present. kiro NOT in models.go (ESC-B5 → add).
+  9router ref pinned @ `827e5c3` (`~/Developer/github.com/bloodf/_refs/9router`).
+- **ESC-B1 cursor DECISION = BUILD.** Read `open-sse/utils/cursorProtobuf.js` (904 lines, hand-rolled
+  protobuf with explicit `FIELD` number map + wire types), `cursorChecksum.js` (deterministic Jyh
+  cipher + sha256 + uuid-v5 headers), `executors/cursor.js` (connect frame = 1-byte flags + 4-byte
+  BE length + gzip-per-flag). The full wire format (request encode, response decode, connect framing,
+  auth/checksum headers) is SOUNDLY reconstructable with golden wire-byte tests — no fabrication.
+  PAR-PROV-023 will be BUILT (T4), not deferred.
