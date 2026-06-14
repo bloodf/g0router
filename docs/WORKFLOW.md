@@ -6981,3 +6981,92 @@ ESCALATION-2); PAR-UI-130 `/routing-rules`+`/model-limits` subset → HAVE (vari
 (PARITY.md:241 is an index row with no status cell — cited here, no flip). The four
 pages, `ui/src/components/{combos,routing}/**`, `ui/src/lib/combo-order.ts`, and the
 one corrected mock body are now consume-only for later plans.
+
+## phase-1/w6-i — Chat + console + translator cluster (UI-only, ZERO new Go; THE wave-1 new-route plan) — closed 2026-06-14
+
+Plan `.planning/parity/plans/w6-i.md`. `<base>` = `4d3c2f8` (matched plan
+expectation). Page wave 1; holds NO Go serial slot (zero new Go); no frozen
+exception (SPENT). Strict TDD, per-task `phase-1/w6-i:` commits.
+
+**P7 base spec observations** (chat/console specs at `4d3c2f8`, fresh dist):
+`chat.spec.ts :: chat page loads` PASS (`<h1>Chat</h1>` + sidebar chrome),
+`chat.spec.ts :: send message and receive mock response` FAIL (no Message input /
+no streamed reply on the stub), `console.spec.ts :: console page loads` PASS. So
+base chat/console = 2 PASS / 1 FAIL. Base `vitest run src/` = 143 PASS;
+`go test`/`go vet` clean. (`ui/dist/index.html` is a tracked build artifact that
+drifts on every `npm run build`; restored to its committed state at P0 and NEVER
+staged — explicit `git add <file>` only, per plan.)
+
+**P8 console-SSE harness probe (ESCALATION-4 NOT needed):** a real
+`new EventSource("/api/console-logs/stream")` under `vite preview` +
+`MockEventSource` (`fixture.ts:78-97`) fires `open` then pushes synthetic
+INFO/DEBUG/WARN lines every 2500ms; the console page renders them without
+throwing/blocking. `fixture.ts` NOT edited. The console e2e asserts a
+fixture-driven row + a level `Badge` appear; both green.
+
+**Chat-stream approach chosen (§1.3 / ESCALATION-3 NOT fired):** **plain-fetch
+ReadableStream reader** (`streamChatCompletion` in
+`ui/src/components/chat/chat-window.tsx`), NOT `@ai-sdk/react`. `@ai-sdk/react@3`'s
+`DefaultChatTransport` expects the AI SDK UI-message stream protocol, not raw
+OpenAI `chat.completion.chunk` SSE; the plain-fetch reader maps cleanly to the
+`inference.ts` mock chunk shape and adds NO dependency (the sanctioned §1.3 point-2
+in-plan fallback). Unit-tested with a stubbed fetch returning a ReadableStream of
+OpenAI chunks; e2e proven by the chat.spec "mock assistant" send/receive +
+assistant-turn-appended tests.
+
+**Translator textarea variant (§1.6) + NEW route (§1.7):** the editor surface is a
+plain monospaced `<textarea>` per step (NO Monaco/CodeMirror — neither installed,
+NO dep added). `ui/src/routes/translator.tsx` is a NEW route file; `npm run build`
+regenerated `ui/src/routeTree.gen.ts` cleanly to register `/translator`
+(`grep TranslatorRoute|/translator` confirms) — committed as generated output in
+the route-adding commit (T4), NEVER hand-edited (ESCALATION-6 NOT fired). This is
+the SOLE diff-gate difference from sibling page-wave-1 plans.
+
+**Mock disposition (§1.4/§1.9):** NEW self-contained handler
+`ui/e2e/mocks/handlers/translator.ts` (`GET /api/translator/load` +
+`POST /api/translator/translate`) + the ONE sanctioned additive registration in
+`handlers/index.ts` (import + call appended; no existing registration
+modified/reordered/removed). ONE within-mock body correction (ESCALATION-5 NOT
+fired): `ui/e2e/mocks/handlers/inference.ts` built its SSE chunks by hand-
+interpolating the assistant content into a JSON-string template, which produced
+INVALID JSON whenever the content contained `"` quotes (it always does — the mock
+echoes the user message in quotes), silently breaking chat streaming. Fixed by
+building the chunks via `JSON.stringify` so the content is properly escaped;
+`inference.ts` is consumed only by the w6-i-owned `chat.spec.ts`, so no non-w6-i
+spec is affected. `fixture.ts`, `store.ts`, and all seed files UNTOUCHED.
+
+**Three deferred Go backends (serial follow-ups, in open-questions.md):**
+(1) console-logs stream — no `/api/console-logs/stream` Go route (ESCALATION-1);
+(1a) chat-sessions admin — no `/api/chat-sessions` Go route, the send/receive turn
+uses the REAL `/v1/chat/completions` gateway route, session persistence (if
+surfaced) is mock/localStorage-only (ESCALATION-1a); (2) translator
+`/api/translator/{load,save,translate,send}` — no Go (ESCALATION-2). ALL
+variant-HAVE against the mock+fixture; NO in-plan Go.
+
+**Commits (in order):**
+- `56a2cff` failing chat/console e2e extensions + new translator spec + translator mock (TDD red)
+- `c7102a3` failing unit tests for console-log-viewer (SSE) + translator-format (+ chat-window) (TDD red)
+- `0391603` chat page (plain-fetch stream reader against /v1/chat/completions) + console page (SSE log viewer)
+- `38b5985` translator page (NEW route; textarea variant, no Monaco) + translator-format helper + routeTree regen
+- (this) close — chat/console/translator cluster; new translator route; matrix flips
+
+**Gates:** `npm run build` green at every commit (regenerates `routeTree.gen.ts`
+for `/translator` at T4); the three w6-i specs 11/11 green (`chat` 4, `console` 3,
+`translator` 4); regression `navigation/auth/dashboard/combos.spec.ts` 25/25 green
+(twice, after isolating a one-off concurrent-`vite-preview` flake); full
+`npx playwright test` = 92 passed / 5–6 failed where the failing set is entirely
+pre-existing `<h1>` stub/auth specs owned by w6-f/w6-j/w6-k (keys, mcp, settings,
+guardrails, comprehensive auth-redirect on `/keys`) — IDENTICAL category to the
+base failing set documented in the w6-h entry; chat/console/translator FLIPPED
+red→green, so the failing set strictly shrank → **ZERO regressions**;
+`npx vitest run src/` 159/159 (143 base + 9 chat/console SSE+stream units + 7
+translator-format units); `go test ./...` pass, `go vet ./...` clean (ZERO Go
+changes).
+
+**Rows flipped:** PAR-UI-016 → HAVE (variant, §1.3/§1.4); PAR-UI-017 → HAVE
+(variant, §1.5/§8 ESCALATION-1); PAR-UI-018 → HAVE (variant, §1.6/§1.7/§8
+ESCALATION-2); PAR-UI-083 → HAVE (variant, §1.4/§1.5); PAR-UI-086 → HAVE (variant
+textarea, §1.6/§8 ESCALATION-2). The three pages,
+`ui/src/components/{chat,console,translator}/**`,
+`ui/src/lib/translator-format.ts`, the new `translator.ts` mock, and the corrected
+`inference.ts` mock body are now consume-only for later plans.
