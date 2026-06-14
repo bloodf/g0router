@@ -51,7 +51,7 @@ func TestListProviderNodesFiltersOpenAICompatible(t *testing.T) {
 	}
 }
 
-func TestCreateProviderNodePersists(t *testing.T) {
+func TestProviderNodesCreatePersists(t *testing.T) {
 	env := newTestEnv(t)
 
 	// Accept camelCase baseUrl from the 9router client.
@@ -90,7 +90,7 @@ func TestCreateProviderNodePersists(t *testing.T) {
 	}
 }
 
-func TestCreateProviderNodeSnakeCaseBaseURL(t *testing.T) {
+func TestProviderNodesCreateSnakeCaseBaseURL(t *testing.T) {
 	env := newTestEnv(t)
 	body := `{"name":"Snake Node","base_url":"https://snake.example.com/v1"}`
 	status, envl := call(t, env.handlers.CreateProviderNode, "POST", "/api/provider-nodes", body, nil, nil)
@@ -107,7 +107,7 @@ func TestCreateProviderNodeSnakeCaseBaseURL(t *testing.T) {
 	}
 }
 
-func TestCreateProviderNodeValidation(t *testing.T) {
+func TestProviderNodesCreateValidation(t *testing.T) {
 	env := newTestEnv(t)
 
 	status, _ := call(t, env.handlers.CreateProviderNode, "POST", "/api/provider-nodes",
@@ -129,7 +129,7 @@ func TestCreateProviderNodeValidation(t *testing.T) {
 	}
 }
 
-func TestValidateProviderNodeURL(t *testing.T) {
+func TestProviderNodesValidateURL(t *testing.T) {
 	env := newTestEnv(t)
 
 	status, envl := call(t, env.handlers.ValidateProviderNode, "POST", "/api/provider-nodes/validate",
@@ -167,7 +167,7 @@ func TestValidateProviderNodeURL(t *testing.T) {
 	}
 }
 
-func TestValidateProviderNodeNeverPersistsAPIKey(t *testing.T) {
+func TestProviderNodesValidateNeverPersistsAPIKey(t *testing.T) {
 	env := newTestEnv(t)
 
 	status, _ := call(t, env.handlers.ValidateProviderNode, "POST", "/api/provider-nodes/validate",

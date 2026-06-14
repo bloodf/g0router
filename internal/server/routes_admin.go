@@ -57,6 +57,10 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/providers/{id}/models", h.RequireSession(h.GetProviderModels))
 	r.GET("/api/providers/{id}/suggested-models", h.RequireSession(h.GetProviderSuggestedModels))
 
+	r.GET("/api/provider-nodes", h.RequireSession(h.ListProviderNodes))
+	r.POST("/api/provider-nodes", h.RequireSession(h.CreateProviderNode))
+	r.POST("/api/provider-nodes/validate", h.RequireSession(h.ValidateProviderNode))
+
 	r.GET("/api/connections", h.RequireSession(h.ListConnections))
 	r.POST("/api/connections", h.RequireSession(h.CreateConnection))
 	r.PUT("/api/connections/{id}", h.RequireSession(h.UpdateConnection))
