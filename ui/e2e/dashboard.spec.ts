@@ -19,4 +19,13 @@ test.describe("Dashboard", () => {
     // Metric cards use translation keys - check for card structure
     await expect(page.locator("[class*='grid']").first()).toBeVisible();
   });
+
+  test("overview cards render a metric value", async ({ page }) => {
+    await page.goto("/dashboard");
+    // The UsageStats summary cards expose metric values via data-testid.
+    await expect(page.locator("[data-testid='usage-metric']").first()).toBeVisible();
+    // At least one numeric metric is rendered.
+    const text = await page.locator("[data-testid='usage-metric']").first().innerText();
+    expect(text.length).toBeGreaterThan(0);
+  });
 });
