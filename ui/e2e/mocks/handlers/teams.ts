@@ -8,7 +8,8 @@ export function registerTeamsHandlers(page: Page, store: MockStore) {
     if (method === "GET") return json(route, Array.from(store.teams.values()));
     if (method === "POST") {
       const body = await route.request().postDataJSON();
-      const team = { id: store.nextId(), budget_used_usd: 0, keys_count: 0, members: 0, ...body };
+      // Mirror the real Go teamDTO: 6 canonical fields, budget_used_usd defaults 0.
+      const team = { id: store.nextId(), budget_used_usd: 0, ...body };
       store.teams.set(team.id, team);
       return json(route, team);
     }

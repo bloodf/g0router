@@ -90,7 +90,12 @@ export function registerAuthHandlers(page: Page, store: MockStore) {
       store.auth.username = user.username;
       store.auth.display_name = user.display_name;
       store.auth.role = "admin";
-      return json(route, {});
+      // Real Go AuthSetup returns { data:{ token, user:userDTO } } and strips the
+      // password (internal/admin/usermgmt.go AuthSetup).
+      return json(route, {
+        token: "mock-jwt-token",
+        user: { id: user.id, username: user.username, display_name: user.display_name, role: user.role },
+      });
     }
     return route.continue();
   });
@@ -105,15 +110,23 @@ export function registerAuthHandlers(page: Page, store: MockStore) {
     }
     return route.continue();
   });
+  // Real Go userDTO is { id, username, display_name, role } with the hash always
+  // stripped (internal/admin/usermgmt.go userMgmtDTO).
+  const toUserDTO = (u: { id: string; username: string; display_name: string; role: string }) => ({
+    id: u.id,
+    username: u.username,
+    display_name: u.display_name,
+    role: u.role,
+  });
   page.route("/api/auth/users", async (route) => {
     const method = route.request().method();
-    if (method === "GET") return json(route, store.users.map((u) => ({ ...u, password: undefined })));
+    if (method === "GET") return json(route, store.users.map(toUserDTO));
     if (method === "POST") {
       const body = await route.request().postDataJSON();
-      if (store.users.some((u) => u.username === body.username)) return error(route, "Username already exists", 409);
+      if (store.users.some((u) => u.username === body.username)) return error(route, "username already exists", 409);
       const user = { id: store.nextId(), username: body.username, display_name: body.display_name || body.username, role: body.role || "user", password: body.password };
       store.users.push(user);
-      return json(route, { ...user, password: undefined });
+      return json(route, toUserDTO(user));
     }
     return route.continue();
   });
