@@ -12,6 +12,8 @@ type User struct {
 	ID           string
 	Username     string
 	PasswordHash string
+	DisplayName  string
+	Role         string
 	CreatedAt    int64
 	UpdatedAt    int64
 }
@@ -96,6 +98,24 @@ func (s *Store) UpdateUserPassword(id, passwordHash string) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// CreateUserFull inserts a new user with display name and role.
+// (stub — implemented in T-usermgmt STEP(b))
+func (s *Store) CreateUserFull(username, passwordHash, displayName, role string) (*User, error) {
+	return nil, fmt.Errorf("CreateUserFull not implemented")
+}
+
+// ListUsers returns all users ordered by creation time (oldest first).
+// (stub — implemented in T-usermgmt STEP(b))
+func (s *Store) ListUsers() ([]*User, error) {
+	return nil, fmt.Errorf("ListUsers not implemented")
+}
+
+// DeleteUser removes the user with the given id.
+// (stub — implemented in T-usermgmt STEP(b))
+func (s *Store) DeleteUser(id string) error {
+	return fmt.Errorf("DeleteUser not implemented")
 }
 
 // SetUserPasswordHash updates the password hash for the given username.

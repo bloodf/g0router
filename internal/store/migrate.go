@@ -203,6 +203,8 @@ func migrate(db *sql.DB) error {
 		{"connections", "backoff_level", "INTEGER NOT NULL DEFAULT 0"},
 		{"connections", "rate_limited_until", "INTEGER NOT NULL DEFAULT 0"},
 		{"connections", "last_error", "TEXT NOT NULL DEFAULT ''"},
+		{"users", "display_name", "TEXT NOT NULL DEFAULT ''"},
+		{"users", "role", "TEXT NOT NULL DEFAULT 'user'"},
 	} {
 		if err := ensureColumn(db, col.table, col.column, col.decl); err != nil {
 			return fmt.Errorf("ensure column %s.%s: %w", col.table, col.column, err)
