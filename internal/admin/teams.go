@@ -88,6 +88,7 @@ func (h *Handlers) CreateTeam(ctx *fasthttp.RequestCtx) {
 		writeError(ctx, fasthttp.StatusInternalServerError, "create team")
 		return
 	}
+	h.recordAudit(ctx, "create_team", created.Name, "Created team "+created.Name)
 	writeData(ctx, fasthttp.StatusCreated, toTeamDTO(created))
 }
 
@@ -154,6 +155,7 @@ func (h *Handlers) UpdateTeam(ctx *fasthttp.RequestCtx) {
 		writeError(ctx, fasthttp.StatusInternalServerError, "load team")
 		return
 	}
+	h.recordAudit(ctx, "update_team", updated.Name, "Updated team "+updated.Name)
 	writeData(ctx, fasthttp.StatusOK, toTeamDTO(updated))
 }
 
@@ -164,6 +166,15 @@ func (h *Handlers) DeleteTeam(ctx *fasthttp.RequestCtx) {
 		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
 		return
 	}
+	existing, err := h.store.GetTeamByID(id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(ctx, fasthttp.StatusNotFound, "team not found")
+		return
+	}
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "load team")
+		return
+	}
 	if err := h.store.DeleteTeam(id); errors.Is(err, store.ErrNotFound) {
 		writeError(ctx, fasthttp.StatusNotFound, "team not found")
 		return
@@ -171,5 +182,6 @@ func (h *Handlers) DeleteTeam(ctx *fasthttp.RequestCtx) {
 		writeError(ctx, fasthttp.StatusInternalServerError, "delete team")
 		return
 	}
+	h.recordAudit(ctx, "delete_team", existing.Name, "Deleted team "+existing.Name)
 	writeData(ctx, fasthttp.StatusOK, map[string]any{"message": "Team deleted successfully"})
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/bloodf/g0router/internal/auth"
+	"github.com/bloodf/g0router/internal/governance"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/bloodf/g0router/internal/usage"
 )
@@ -16,6 +17,7 @@ type Handlers struct {
 	limiter      *auth.LoginLimiter
 	stats        *usage.StatsService
 	resolver     *usage.Resolver
+	audit        *governance.AuditService
 	version      string
 	buildDate    string
 	shutdownFunc func()
@@ -40,7 +42,18 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 		}
 		return key, machineID, nil
 	})
-	return &Handlers{store: st, sessions: sessions, flows: flows, limiter: auth.NewLoginLimiter()}
+	return &Handlers{
+		store:    st,
+		sessions: sessions,
+		flows:    flows,
+		limiter:  auth.NewLoginLimiter(),
+		audit:    governance.NewAuditService(st),
+	}
+}
+
+// auditService returns the audit service for recording administrative actions.
+func (h *Handlers) auditService() *governance.AuditService {
+	return h.audit
 }
 
 // SetUsageServices wires the usage stats service and pricing resolver.
