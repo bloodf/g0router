@@ -48,7 +48,7 @@ func TestGetVersionDefaultsWhenUnset(t *testing.T) {
 	}
 }
 
-func TestShutdownInvokesHookOnceWithoutExiting(t *testing.T) {
+func TestVersionShutdownInvokesHookOnceWithoutExiting(t *testing.T) {
 	env := newTestEnv(t)
 	var called atomic.Int32
 	env.handlers.SetShutdownFunc(func() { called.Add(1) })
@@ -80,7 +80,7 @@ func TestShutdownInvokesHookOnceWithoutExiting(t *testing.T) {
 	// Reaching here proves the test process survived (no os.Exit).
 }
 
-func TestShutdownWithoutHookReturns501AndDoesNotExit(t *testing.T) {
+func TestVersionShutdownWithoutHookReturns501AndDoesNotExit(t *testing.T) {
 	env := newTestEnv(t)
 	// No SetShutdownFunc: the hook is nil; must respond 501 and not exit.
 	status, envl := call(t, env.handlers.Shutdown, "POST", "/api/version/shutdown", "", nil, nil)

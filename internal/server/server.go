@@ -99,9 +99,11 @@ func NewWithShutdown(uiFS fs.FS, st *store.Store, allowedOrigins []string) *Serv
 	var guard Middleware = func(next fasthttp.RequestHandler) fasthttp.RequestHandler {
 		return next
 	}
+	var adminHandlers *admin.Handlers
 	if st != nil {
 		sessions := auth.NewSessions(st, sessionTTL)
-		RegisterAdminRoutes(r, NewAdminHandlers(st, usageDeps))
+		adminHandlers = NewAdminHandlers(st, usageDeps)
+		RegisterAdminRoutes(r, adminHandlers)
 		guard = (&Guard{
 			Sessions:          sessions,
 			Settings:          st,
@@ -130,6 +132,7 @@ func NewWithShutdown(uiFS fs.FS, st *store.Store, allowedOrigins []string) *Serv
 			MaxRequestBodySize: 1 << 30, // 1 GiB
 		},
 		detail: detail,
+		admin:  adminHandlers,
 	}
 }
 
@@ -139,6 +142,27 @@ func NewWithShutdown(uiFS fs.FS, st *store.Store, allowedOrigins []string) *Serv
 type Server struct {
 	*fasthttp.Server
 	detail api.DetailCapture
+	admin  *admin.Handlers
+}
+
+// SetVersionInfo forwards the binary's version/build date to the admin handlers
+// so GET /api/version can report them (PAR-UI-102). No-op when no store/admin
+// surface is present.
+func (s *Server) SetVersionInfo(version, buildDate string) {
+	if s == nil || s.admin == nil {
+		return
+	}
+	s.admin.SetVersionInfo(version, buildDate)
+}
+
+// SetShutdownFunc forwards the graceful-shutdown hook to the admin handlers so
+// POST /api/version/shutdown can trigger it (PAR-UI-103). No-op when no
+// store/admin surface is present.
+func (s *Server) SetShutdownFunc(fn func()) {
+	if s == nil || s.admin == nil {
+		return
+	}
+	s.admin.SetShutdownFunc(fn)
 }
 
 // Close shuts down the underlying fasthttp server and flushes the

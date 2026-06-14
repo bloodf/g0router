@@ -10,12 +10,15 @@ import (
 
 // Handlers bundles the management API endpoints and their dependencies.
 type Handlers struct {
-	store      *store.Store
-	sessions   *auth.Sessions
-	flows      map[string]*auth.OAuthFlow
-	limiter    *auth.LoginLimiter
-	stats      *usage.StatsService
-	resolver   *usage.Resolver
+	store        *store.Store
+	sessions     *auth.Sessions
+	flows        map[string]*auth.OAuthFlow
+	limiter      *auth.LoginLimiter
+	stats        *usage.StatsService
+	resolver     *usage.Resolver
+	version      string
+	buildDate    string
+	shutdownFunc func()
 }
 
 // New creates the admin handler set. flows maps provider type → OAuth flow
@@ -45,6 +48,23 @@ func New(st *store.Store, sessions *auth.Sessions, flows map[string]*auth.OAuthF
 func (h *Handlers) SetUsageServices(stats *usage.StatsService, resolver *usage.Resolver) {
 	h.stats = stats
 	h.resolver = resolver
+}
+
+// SetVersionInfo injects the binary's version and build date so GetVersion can
+// report them. The binary's version lives in cmd/g0router package-level vars
+// that are not reachable from internal/admin; the server bootstrap forwards
+// them via this setter after New (mirroring SetUsageServices).
+func (h *Handlers) SetVersionInfo(version, buildDate string) {
+	h.version = version
+	h.buildDate = buildDate
+}
+
+// SetShutdownFunc injects the graceful-shutdown hook the Shutdown handler
+// triggers. It is nil-able: when unset, Shutdown reports 501 and never exits.
+// The hook is invoked asynchronously, after the response is written, so the
+// real os.Exit/server-close path is never reached inside the handler body.
+func (h *Handlers) SetShutdownFunc(fn func()) {
+	h.shutdownFunc = fn
 }
 
 // pathID returns the {id} route parameter.

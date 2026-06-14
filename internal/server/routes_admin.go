@@ -43,6 +43,9 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/settings", h.RequireSession(h.GetSettings))
 	r.PUT("/api/settings", h.RequireSession(h.PutSettings))
 
+	r.GET("/api/version", h.RequireSession(h.GetVersion))
+	r.POST("/api/version/shutdown", h.RequireSession(h.Shutdown))
+
 	r.GET("/api/providers", h.RequireSession(h.ListProviders))
 	r.POST("/api/providers", h.RequireSession(h.CreateProvider))
 	r.PUT("/api/providers/{id}", h.RequireSession(h.UpdateProvider))

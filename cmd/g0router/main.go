@@ -125,6 +125,19 @@ func main() {
 	allowedOrigins := parseAllowedOrigins()
 	srv := server.NewWithShutdown(uiFS, st, allowedOrigins)
 
+	// Wire the binary's version/build date and the graceful-shutdown hook into
+	// the admin handlers (GET /api/version, POST /api/version/shutdown). The hook
+	// runs after a short delay so the HTTP response flushes before the server
+	// closes; this is the only place a real shutdown is triggered by the API.
+	srv.SetVersionInfo(version, buildDate)
+	srv.SetShutdownFunc(func() {
+		time.AfterFunc(500*time.Millisecond, func() {
+			if err := srv.Close(); err != nil {
+				log.Printf("shutdown via api: %v", err)
+			}
+		})
+	})
+
 	versionLine := version
 	if buildDate != "" {
 		versionLine = fmt.Sprintf("%s (built %s)", version, buildDate)
