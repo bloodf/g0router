@@ -72,6 +72,19 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.PUT("/api/prompt-templates/{id}", h.RequireSession(h.UpdatePromptTemplate))
 	r.DELETE("/api/prompt-templates/{id}", h.RequireSession(h.DeletePromptTemplate))
 
+	// Guardrails (singleton config — no list/{id}). Static /test before the bare PUT/GET.
+	r.GET("/api/guardrails", h.RequireSession(h.GetGuardrails))
+	r.PUT("/api/guardrails", h.RequireSession(h.UpdateGuardrails))
+	r.POST("/api/guardrails/test", h.RequireSession(h.TestGuardrails))
+
+	// Alert channels CRUD (+ per-channel test). Static collection before {id}; {id}/test deeper.
+	r.GET("/api/alert-channels", h.RequireSession(h.ListAlertChannels))
+	r.POST("/api/alert-channels", h.RequireSession(h.CreateAlertChannel))
+	r.POST("/api/alert-channels/{id}/test", h.RequireSession(h.TestAlertChannel))
+	r.GET("/api/alert-channels/{id}", h.RequireSession(h.GetAlertChannel))
+	r.PUT("/api/alert-channels/{id}", h.RequireSession(h.UpdateAlertChannel))
+	r.DELETE("/api/alert-channels/{id}", h.RequireSession(h.DeleteAlertChannel))
+
 	r.GET("/api/settings", h.RequireSession(h.GetSettings))
 	r.PUT("/api/settings", h.RequireSession(h.PutSettings))
 
