@@ -133,9 +133,15 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/providers/{id}/models", h.RequireSession(h.GetProviderModels))
 	r.GET("/api/providers/{id}/suggested-models", h.RequireSession(h.GetProviderSuggestedModels))
 
+	// Provider-nodes prefix-routing engine (w7-platnodes). Static collection and
+	// /validate registered before the {id} param routes (fasthttp/router
+	// static-segment precedence).
 	r.GET("/api/provider-nodes", h.RequireSession(h.ListProviderNodes))
 	r.POST("/api/provider-nodes", h.RequireSession(h.CreateProviderNode))
 	r.POST("/api/provider-nodes/validate", h.RequireSession(h.ValidateProviderNode))
+	r.GET("/api/provider-nodes/{id}", h.RequireSession(h.GetProviderNode))
+	r.PUT("/api/provider-nodes/{id}", h.RequireSession(h.UpdateProviderNode))
+	r.DELETE("/api/provider-nodes/{id}", h.RequireSession(h.DeleteProviderNode))
 
 	r.GET("/api/connections", h.RequireSession(h.ListConnections))
 	r.POST("/api/connections", h.RequireSession(h.CreateConnection))
