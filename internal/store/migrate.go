@@ -241,6 +241,27 @@ func migrate(db *sql.DB) error {
 			created_at INTEGER NOT NULL DEFAULT 0,
 			updated_at INTEGER NOT NULL DEFAULT 0
 		)`},
+		{"mcp_oauth_accounts", `CREATE TABLE IF NOT EXISTS mcp_oauth_accounts (
+			id TEXT PRIMARY KEY,
+			instance_id TEXT NOT NULL DEFAULT '',
+			server_url TEXT NOT NULL DEFAULT '',
+			access_token_enc TEXT NOT NULL DEFAULT '',
+			refresh_token_enc TEXT NOT NULL DEFAULT '',
+			expires_at INTEGER NOT NULL DEFAULT 0,
+			scope TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0
+		)`},
+		{"mcp_oauth_flows", `CREATE TABLE IF NOT EXISTS mcp_oauth_flows (
+			state TEXT PRIMARY KEY,
+			instance_id TEXT NOT NULL DEFAULT '',
+			server_url TEXT NOT NULL DEFAULT '',
+			verifier_enc TEXT NOT NULL DEFAULT '',
+			redirect_uri TEXT NOT NULL DEFAULT '',
+			expires_at INTEGER NOT NULL DEFAULT 0,
+			created_at INTEGER NOT NULL DEFAULT 0
+		)`},
 	}
 
 	for _, t := range tables {
