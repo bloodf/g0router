@@ -306,6 +306,20 @@ func migrate(db *sql.DB) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`},
+		// Combos admin table (w7-route-a, ESC-COMBOS). Separate from the engine
+		// combos table: this carries the id-keyed UI shape
+		// {id,name,strategy,steps[{provider,model}],is_active} the frozen /combos
+		// page reads; steps are a JSON blob. The engine combos table + /v1/models
+		// lister stay intact, fed by a best-effort mirror-write.
+		{"combos_admin", `CREATE TABLE IF NOT EXISTS combos_admin (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			strategy TEXT NOT NULL DEFAULT 'fallback',
+			steps_json TEXT NOT NULL DEFAULT '[]',
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
