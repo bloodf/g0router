@@ -410,6 +410,47 @@ func TestCommandCodeProvider(t *testing.T) {
 	}
 }
 
+// TestURLTemplateProviders (w7-prov-special-a) verifies the URL-template/build
+// openai providers' catalog entries. The BaseURL is a template/seed; the actual
+// endpoint is built at request time by the urltemplate adapter.
+func TestURLTemplateProviders(t *testing.T) {
+	// cloudflare-ai carries the {accountId} template.
+	cf, ok := Lookup("cloudflare-ai")
+	if !ok {
+		t.Fatal("Lookup(cloudflare-ai) returned ok=false")
+	}
+	if cf.BaseURL != "https://api.cloudflare.com/client/v4/accounts/{accountId}/ai/v1/chat/completions" {
+		t.Errorf("cloudflare-ai BaseURL = %q", cf.BaseURL)
+	}
+	if cf.Format != "openai" {
+		t.Errorf("cloudflare-ai Format = %q, want openai", cf.Format)
+	}
+
+	// azure: baseUrl empty in ref (resource URL built by the executor).
+	az, ok := Lookup("azure")
+	if !ok {
+		t.Fatal("Lookup(azure) returned ok=false")
+	}
+	if az.BaseURL != "" {
+		t.Errorf("azure BaseURL = %q, want empty", az.BaseURL)
+	}
+	if az.Format != "openai" {
+		t.Errorf("azure Format = %q, want openai", az.Format)
+	}
+
+	// xiaomi-tokenplan: region-resolved; the seed sgp URL is the BaseURL.
+	xm, ok := Lookup("xiaomi-tokenplan")
+	if !ok {
+		t.Fatal("Lookup(xiaomi-tokenplan) returned ok=false")
+	}
+	if xm.BaseURL != "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions" {
+		t.Errorf("xiaomi-tokenplan BaseURL = %q", xm.BaseURL)
+	}
+	if xm.Format != "openai" {
+		t.Errorf("xiaomi-tokenplan Format = %q, want openai", xm.Format)
+	}
+}
+
 func TestResolveOllamaHost(t *testing.T) {
 	// override trimmed
 	if got := ResolveOllamaHost("  http://ollama.local:11434/  "); got != "http://ollama.local:11434" {

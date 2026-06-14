@@ -207,6 +207,31 @@ func TestCommandCodeModels(t *testing.T) {
 	}
 }
 
+// TestURLTemplateModels (w7-prov-special-a) verifies the model blocks for the
+// URL-template providers. azure has NO ref model block (deployment-driven).
+func TestURLTemplateModels(t *testing.T) {
+	// azure: no model block.
+	if got := len(ModelsFor("azure")); got != 0 {
+		t.Errorf("ModelsFor(azure) len = %d, want 0", got)
+	}
+	// cloudflare-ai: 24 entries (providerModels.js @827e5c3).
+	cf := ModelsFor("cloudflare-ai")
+	if len(cf) != 24 {
+		t.Errorf("ModelsFor(cloudflare-ai) len = %d, want 24", len(cf))
+	}
+	if len(cf) > 0 && cf[0].ID != "@cf/meta/llama-3.2-1b-instruct" {
+		t.Errorf("ModelsFor(cloudflare-ai)[0].ID = %q, want @cf/meta/llama-3.2-1b-instruct", cf[0].ID)
+	}
+	// xiaomi-tokenplan: 9 entries.
+	xm := ModelsFor("xiaomi-tokenplan")
+	if len(xm) != 9 {
+		t.Errorf("ModelsFor(xiaomi-tokenplan) len = %d, want 9", len(xm))
+	}
+	if len(xm) > 0 && xm[0].ID != "mimo-v2.5-pro" {
+		t.Errorf("ModelsFor(xiaomi-tokenplan)[0].ID = %q, want mimo-v2.5-pro", xm[0].ID)
+	}
+}
+
 func TestModelsForUnknown(t *testing.T) {
 	models := ModelsFor("nonexistent")
 	if len(models) != 0 {

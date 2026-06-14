@@ -9,6 +9,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/generic"
 	"github.com/bloodf/g0router/internal/providers/ollama"
 	"github.com/bloodf/g0router/internal/providers/openai"
+	"github.com/bloodf/g0router/internal/providers/urltemplate"
 	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/bloodf/g0router/internal/translation"
 )
@@ -150,6 +151,28 @@ func TestCommandCodeDispatch(t *testing.T) {
 	}
 	if p.GetProvider() != schemas.ModelProvider("commandcode") {
 		t.Errorf("GetProvider() = %q, want commandcode", p.GetProvider())
+	}
+}
+
+// TestURLTemplateDispatch (w7-prov-special-a) verifies the additive factory arm
+// dispatching the URL-template/build openai providers (cloudflare-ai, azure,
+// xiaomi-tokenplan) to the urltemplate adapter. qoder is DEFERRED (ESC-A3:
+// opaque COSY signing).
+func TestURLTemplateDispatch(t *testing.T) {
+	reg := translation.NewRegistry()
+	for _, id := range []string{"cloudflare-ai", "azure", "xiaomi-tokenplan"} {
+		t.Run(id, func(t *testing.T) {
+			p, err := buildProvider(id, reg)
+			if err != nil {
+				t.Fatalf("buildProvider(%q) error: %v", id, err)
+			}
+			if _, ok := p.(*urltemplate.Provider); !ok {
+				t.Fatalf("buildProvider(%q) type = %T, want *urltemplate.Provider", id, p)
+			}
+			if p.GetProvider() != schemas.ModelProvider(id) {
+				t.Errorf("buildProvider(%q).GetProvider() = %q, want %q", id, p.GetProvider(), id)
+			}
+		})
 	}
 }
 
