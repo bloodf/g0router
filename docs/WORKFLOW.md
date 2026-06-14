@@ -8074,3 +8074,95 @@ connection; the live forward target is part of the desktop/agent escalation.
 - T-close: matrix flip (PAR-PLAT-024/025/028 → HAVE with integration-only/OS-privileged
   footnotes; PAR-UI-013 PARTIAL→HAVE), open-questions ESC-1a resolution + ESC-* dispositions,
   this entry; routes_admin.go serial slot released to w7-misc. Platform track complete.
+
+## w7-mcp-1 — MCP foundation: store + launcher + stdio↔SSE bridge (Go)
+
+```yaml
+plan: w7-mcp-1
+status: DONE
+summary: "MCP foundation — PURE Go consumed by w7-mcp-2/3. NO routes, NO admin
+  handler, NO UI (foundation only; holds NO routes_admin.go serial slot). Ships:
+  the command allowlist (security boundary), the JSON-RPC frame splitter, the
+  smart text filter, the stdio↔SSE Bridge (broadcast + lifecycle) behind an
+  injectable ProcessRunner, the MCP store (clients/instances + OAuth
+  accounts/flows with *_enc tokens), and the default plugin definitions
+  (exa/tavily/browsermcp). FULLY unit-tested + hermetic; the real os/exec spawn is
+  integration-only behind the runner."
+base: 54ffc9ce6639b8fe0ee8c34ad5181ea15b4f7455
+```
+
+P0 base observation: tree had pre-existing `M .planning/parity/plans/open-questions.md`
+(the §8 closeout block for THIS plan, pre-authored) + `M ui/dist/index.html` (gitignored
+build artifact — never staged/reverted). Base green/hermetic: 1505 Go tests pass,
+`go vet`/`go build` clean.
+
+**Pattern reused (the central design problem):** the SHIPPED w7-plat-2 injectable
+`Runner`/`SetRunner` seam (`internal/platform/tunnel/runner.go:15`, `service.go:32,44`,
+`service_test.go` fakeRunner) — copied VERBATIM as `mcp.ProcessRunner`/`Process` +
+`Launcher.SetRunner`. The real subprocess spawn (`internal/mcp/process.go` `osProcessRunner`)
+is the ONLY place `os/exec` appears and is INTEGRATION-ONLY (never invoked by a unit test;
+spawning arbitrary MCP servers in CI is the RCE risk 9router cites at PAR-MCP-042 —
+ESC-SPAWN).
+
+**Decisions (ESC, defaults from the 9router ref — see open-questions.md):**
+- ESC-ALLOWLIST: allowlist = `npx,node,uvx,python,python3,bunx,bun`; HARDENED over
+  9router's raw path.basename — `isAllowedCommand` matches on `filepath.Base`, rejects
+  shell metacharacters (`; | & $ \` > < ( ) \n \r \t space`) and relative paths (`./npx`),
+  and permits ONLY a bare base name OR an absolute clean path. Exhaustively unit-tested
+  incl. every rejection (rm/bash/bash -c/sh/./npx/../npx//bin/rm/`npx; rm -rf /`/`$(x)`/
+  backtick/empty).
+- ESC-PERSIST: custom plugins persist to the SQLite `mcp_clients` table (NOT
+  `customPlugins.json`); parity = survive-restart behavior, not the file.
+- ESC-SCHEMA: typed columns + JSON `*_json` columns for `config`/`args`/`env`; 4 additive
+  tables (`mcp_clients`, `mcp_instances`, `mcp_oauth_accounts`, `mcp_oauth_flows`).
+- ESC-FILTER: ported `smartFilterText` observable behavior (drop `generic`+empty `text`,
+  collapse consecutive identical role-prefixed siblings, 50_000-char hard cap); unit test
+  pins drop/collapse/truncate/clean-unchanged.
+- ESC-RESPAWN: re-spawn a plugin only if its prior process exited (`!IsRunning`).
+- ESC-HTTP-SSE-CLIENT: live HTTP/SSE MCP client DEFERRED to w7-mcp-2; this plan models the
+  mode + session-sink seam only (no live dial).
+
+**Unit-tested (hermetic — no process/network/port-bind/real-process-sleep) vs
+integration-only:**
+- UNIT-TESTED: `isAllowedCommand` (every accept + reject); `splitFrames` (incl. partial
+  carryover, blank-line skip); `smartFilterText`; the `Bridge` broadcast + failing-sink-drop
+  + IsRunning + onExit→registry-delete + onStderr (fake `Process`); the `Launcher`
+  reject-before-spawn + one-bridge-per-plugin + re-spawn-iff-not-running + exit-removes-bridge
+  (fake `ProcessRunner`); the store (clients/instances CRUD + status; OAuth account/flow
+  round-trip with tokens/verifier ENCRYPTED at rest — raw `*_enc` ≠ cleartext; flow
+  consume/expire). 30 mcp + 5 store MCP tests.
+- INTEGRATION-ONLY: the real `os/exec` spawn/kill + stdin/stdout/stderr pipes + `cmd.Wait`
+  (`process.go`); the live HTTP/SSE client dial (deferred to w7-mcp-2).
+
+**Confirmed foundation-only:** NO `internal/server/routes_admin.go` edit, NO
+`internal/admin/*`, NO `internal/server/guard.go`, NO `internal/schemas/mcp.go` edit (types
+consumed as-is), NO SHIPPED `internal/platform/**` edit, NO `internal/inference/**`, NO
+`internal/auth/**`, NO `ui/**`. No `New(...)` signature change (new package constructors
+only). Additive migrations only.
+
+**mcp-2/3 handoff:** w7-mcp-2/3 depend on the exported constructors `NewLauncher(st)`/
+`SetRunner`, the `Bridge`+`SessionSink` seam, `smartFilterText`, `isAllowedCommand`, the
+store methods (`*MCPClient`/`*MCPInstance`/`*MCPOAuth*`), and `DefaultPlugins()`. mcp-2
+EXTENDS `internal/mcp` with NEW files (no edits to mcp-1 files). mcp-3 takes the MCP
+routes_admin.go serial slot (MAP §182/§208).
+
+**Tasks / commits (in order):**
+- T-allowlist RED: `f02dedf` — failing command-allowlist tests (TDD red).
+- T-allowlist GREEN: `e626e75` — MCP command allowlist (rejects rm/bash/relative/abs-arbitrary).
+- T-pure RED: `ea5f4a9` — failing frame-split + smart-filter tests (TDD red).
+- T-pure GREEN: `cb1e981` — JSON-RPC frame split + smart text filter (pure).
+- T-bridge RED: `d1a5edc` — failing bridge broadcast/lifecycle tests (TDD red).
+- T-bridge GREEN: `4434a8c` — stdio<->SSE bridge broadcast + lifecycle (injectable process).
+- T-mcpstore RED: `6a8867f` — failing mcp clients/instances store tests + additive tables.
+- T-mcpstore GREEN: `9fe3d11` — mcp clients + instances store (additive tables).
+- T-mcpoauth RED: `3e4f178` — failing mcp oauth store tests + additive oauth tables.
+- T-mcpoauth GREEN: `13fcda7` — mcp oauth accounts + flows store (tokens *_enc at rest).
+- T-launcher RED: `9f4f068` — failing launcher tests (TDD red).
+- T-launcher GREEN: `3bc379d` — MCP launcher (stdio/http/sse modes; injectable process runner).
+- T-defaults RED: `d7471e1` — failing default-plugin tests (TDD red).
+- T-defaults GREEN: `0294d5a` — default MCP plugin definitions (exa/tavily/browsermcp);
+  no-op `mcp_test.go` placeholder removed (package stays test-covered).
+- T-close: matrix flip (PAR-MCP-003/004/005/006/007/008/032/035/036/043/044/051/052/053/054
+  → HAVE with integration-only-spawn footnotes; PAR-MCP-033 → PARTIAL, store half shipped /
+  handlers w7-mcp-3), open-questions ESC dispositions, this entry. No routes_admin.go serial
+  slot held or released (foundation only). MCP track foundation complete; w7-mcp-2 next.
