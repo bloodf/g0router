@@ -30,8 +30,8 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: "Wave 6 — UI dashboard parity"
-current_wave: "w6-e — providers/connections/models cluster + provider-shaped Go read API"
-last_completed_plan: "w6-e (T1-T6 complete, all gates green; routes_admin.go serial slot released to w6-j)"
+current_wave: "w6-f — endpoint/keys/virtual-keys cluster + provider-nodes Go (page wave 2)"
+last_completed_plan: "w6-f (T1-T6 complete, all gates green; routes_admin.go serial slot TAKEN from w6-e's release and RELEASED to w6-j)"
 last_updated: "2026-06-14T00:00:00Z"
 orchestrator: "Claude Code (VPS) — see CLI_ORCHESTRATOR.md"
 planner: "Fable 5"
@@ -47,6 +47,34 @@ notes: |
   green, go test 1359, vet/build green, catalog tests pass. routes_admin.go serial
   slot RELEASED to w6-j. Rows flipped: PAR-UI-007/008/009/051/052/053/058/059/060/
   062/063/064/087/088/089/090 + PAR-UI-130 /connections subset → HAVE.
+
+  w6-f: /endpoint (base-url panel origin+/v1 + copy + sample curl + compact
+  ApiKeysPanel + custom provider-node modal), /keys (full ApiKeysPanel), /virtual-keys
+  (list budget used/limit + RPM + active toggle; form modal with KeyIDs editor) on the
+  REAL Go /api/keys + w5-g /api/virtual-keys CRUD. Components under
+  ui/src/components/keys/: api-keys-panel, provider-node-modal, key-ids-editor,
+  virtual-key-form-modal, model-select-modal. NEW Go internal/admin/nodes.go
+  (ListProviderNodes/CreateProviderNode/ValidateProviderNode) composing the providers
+  table filtered to type==openai-compatible — NO schema change (prefix/api_type accepted
+  at decode, not persisted); validate api_key NEVER persisted; route precedence proven
+  by TestNodesRouteDisambiguation (ESC-4 did not fire).
+  P8 base observations: keys.spec "API Keys" FAILED at base (stub <h1>Keys</h1>; sidebar
+  lacks "API Keys"); virtual-keys.spec "Virtual Keys" PASSED at base (sidebar chrome).
+  KeyIDs editor / w6-pre catalog decision (ESC-1): w6-pre's /api/catalog NOT landed —
+  the editor sources allowed_models from w6-e's SHIPPED GET /api/providers/{id}/models
+  (+/api/models) and pinnable key_ids from GET /api/providers/{id}/connections, writing
+  the real w5-g VK provider_configs[].key_ids; does NOT consume the absent /api/catalog.
+  keys.ts/virtual-keys.ts mock BODIES + seeds corrected to the real Go DTOs (ESC-2;
+  consumed only by w6-f specs). NEW endpoint.spec.ts (committed RED first) + NEW
+  handlers/nodes.ts (one sanctioned handlers/index.ts registration append §1.9).
+  Mock-only follow-ups (ESC-3, open-questions): /api/models/custom (consumed via w6-e
+  models.ts), /api/models/test + /api/models/availability (new nodes.ts bodies) — no Go.
+  routeTree.gen.ts unchanged. Gates: keys/virtual-keys/endpoint specs 12/12; regression
+  nav/providers/connections/dashboard green (one transient preview-server /login flake
+  on providers.spec, passed 6/6 on isolated re-run); vitest src/ 166/166; go test 1366,
+  vet/build green; go test -run Nodes 7/7. Serial slot TAKEN from w6-e (free at P7) and
+  RELEASED to w6-j on close. Rows flipped: PAR-UI-006/049/109/110/111/115/117/118/119/120
+  + PAR-UI-130 /virtual-keys+/endpoint subset → HAVE.
 ```
 
 ---
