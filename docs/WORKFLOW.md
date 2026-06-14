@@ -7537,3 +7537,70 @@ completed_at: "2026-06-14"
 
 **PAR matrix rows flipped HAVE:** 035, 037, 038, 039, 041, 042, 043, 044, 045, 046, 048, 049, 050, 051, 052, 056, 057, 067
 **PAR matrix rows annotated ESC-1 (stay MISSING):** 013, 034, 036
+
+## w7-gov-1 — Governance backends A: teams + user-management auth + audit-log (Go)
+
+```yaml
+plan: w7-gov-1
+status: DONE
+summary: "Real Go backends for three governance domains, layered handler→(domain)→store,
+  strict TDD (RED commit before GREEN per domain). teams: CRUD store+admin (table teams,
+  6-field teamDTO). audit-log: store + governance.AuditService (WriteAudit) + GET /api/audit
+  read (table audit_log + idx_audit_log_timestamp); best-effort audit writes wired into THIS
+  plan's own mutations only (team create/update/delete, user create/delete, password change,
+  setup). user-management: AuthSetup (public first-user onboarding, self-guards CountUsers()==0,
+  auto-authenticates), ChangePassword (verifies current), ListUsers/CreateUser/DeleteUser
+  (last-user-delete guard) over internal/store/users.go (+additive display_name/role columns +
+  CreateUserFull; CreateUser delegates so SeedAdmin unchanged); reuses auth.HashPassword/
+  VerifyPassword; password/hash never echoed (runtime no-leak tests). 11 additive admin routes
+  registered (serial slot). e2e mocks corrected to mirror real Go DTOs (teams.ts drops
+  keys_count/members; audit.ts removes unused POST; auth.ts setup/users mirror {data}+userDTO;
+  login/logout/status untouched). PAR-UI-132 → HAVE (real Go); teams+audit flip variant-HAVE →
+  true-HAVE (PAR-UI-130/131); w6-k ESC-1a/1b/2 RESOLVED."
+p0_base_sha: "ec73981"
+commit_range: "092fe88..<close>"
+completed_at: "2026-06-14"
+```
+
+**P6 base observation:** Go gates green at base (1378 tests). The two e2e specs
+(`teams.spec.ts`+`audit.spec.ts`) require a CURRENT `npm run build` BEFORE the playwright
+run: the webServer is `vite preview` over `dist/`, so a stale `dist/` makes `login()` time out
+in `beforeEach` (observed once before a rebuild). After a fresh build: 9/9 PASS in ~7s.
+
+**Decisions applied (all recommended defaults, see open-questions.md):**
+- ESC-USERMGMT: `setup` = first-user onboarding (public, self-guarding, auto-auth); added
+  additive `users.display_name`+`users.role` columns + `CreateUserFull`, kept `CreateUser`
+  signature (delegates) so SeedAdmin/tests are unchanged.
+- ESC-AUDIT-WRITE: shipped store+read+`WriteAudit` and wired writes for THIS plan's own
+  mutations only, best-effort/never-fails-parent. Retrofit into pre-existing handlers is a
+  tracked follow-up (open-questions.md).
+- ESC-ARCH: no in-tree arch test forbids handler→store; followed virtualkeys precedent — teams
+  is handler→store directly, NO `governance/teams.go`. Audit keeps a domain service for the
+  `WriteAudit` seam.
+- ESC-ROUTE: no collision — `/api/auth/{setup,password,users}` + `/api/auth/users/{id}` and
+  `/api/teams` + `/api/teams/{id}` register cleanly (server integration test exercises
+  RegisterAdminRoutes, no router panic).
+
+**Serial slot:** routes_admin.go slot was FREE at P5 (last touch w6-j; no unmerged W7 holder —
+only w7-prov-openai had merged, which never touches routes_admin.go). w7-gov-1 TOOK the slot for
+ONE additive commit (`bade253`) and RELEASES it to w7-gov-2 on this close.
+
+**Gate Results (T-close):**
+- `go test ./... && go vet ./... && go build ./...`: PASS (1389 tests)
+- `go test ./internal/admin/ -run 'Teams|Audit|User'`: PASS
+- `go test ./internal/store/ -run 'Team|Audit|User'`: PASS
+- `go test ./internal/governance/ -run 'Audit'`: PASS
+- `cd ui && npx playwright test e2e/teams.spec.ts e2e/audit.spec.ts`: 9/9 PASS
+- `cd ui && npx vitest run src/`: 192/192 PASS
+- `cd ui && npm run build`: PASS
+
+**Tasks / commits:**
+- T-teams RED: `092fe88` — failing teams store+admin tests + `teams` table.
+- T-teams GREEN: `931cc7a` — teams store + admin CRUD.
+- T-audit RED: `fdadfcb` — failing audit store+domain+admin tests + `audit_log` table+index.
+- T-audit GREEN: `8a39a90` — audit store + domain (WriteAudit) + read endpoint; teams WriteAudit wiring; additive h.audit field.
+- T-usermgmt RED: `29aaf0c` — failing user-mgmt store+admin tests + display_name/role columns + stubs.
+- T-usermgmt GREEN: `6b3ce52` — user-management auth (setup/password/users) over the user store.
+- T-routes: `bade253` — register 11 teams/audit/user-management admin routes (serial slot).
+- T-mocks: `aff9b7d` — correct teams/audit/auth mocks to mirror real Go DTOs.
+- T-close: matrix flip (PAR-UI-130/131/132), open-questions resolutions, this entry.
