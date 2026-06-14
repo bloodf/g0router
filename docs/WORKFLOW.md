@@ -6827,3 +6827,90 @@ subset → HAVE.
 to w6-j on this close. UI: the 3 pages, `ui/src/components/providers/**`,
 `ui/src/lib/oauth-popup.ts`, and `internal/admin/providers_catalog.go` are now
 consume-only for later plans (w6-f consumes the provider/connection read shapes).
+
+---
+
+## phase-1/w6-g — Usage + logs + quota + pricing cluster (UI-only, ZERO new Go) — closed 2026-06-14
+
+Plan `.planning/parity/plans/w6-g.md`. `<base>` = `9feca41` (matched plan
+expectation). Page wave 1; holds NO Go serial slot (zero new Go); no frozen
+exception (SPENT). Strict TDD, per-task commits.
+
+**P7/P8 base observations** (the five w6-g specs at `9feca41`, fresh dist):
+6 PASS / 1 FAIL — `dashboard.spec.ts :: page loads` PASS, `dashboard.spec.ts ::
+metrics cards are visible` FAIL (`[class*='grid']` absent on the `<h1>` stub);
+`usage.spec.ts` logs/usage PASS (sidebar chrome text), `traffic`/`quota`/`pricing`
+"page loads" PASS. Base full suite (worktree @ `9feca41`): 45 failures. (Initial
+P7 run timed out in the login `beforeEach` because the committed `ui/dist/` was
+stale — a fresh `npm run build` fixed it; the dist is a tracked build artifact
+that drifts and is NOT in w6-g ownership.)
+
+**P8 SSE harness probe (recorded, ESCALATION-2 NOT needed):** by reading
+`ui/e2e/mocks/fixture.ts:49-98`, a `new EventSource("/api/usage/stream")` under
+`vite preview` + `MockEventSource` fires `open` after 50ms then `startStreaming()`
+matches neither traffic nor console-logs urls, so it idles (no message); `close()`
+is a clean no-op. No throw, no render block — the §1.3 expectation holds. The
+fixture was NOT edited. The usage e2e asserts REST-driven content only; SSE is
+proven by the `usage-stats.test.tsx` unit (stubbed `EventSource`).
+
+**§1.4 mock-body corrections (handler bodies only; index/seed/fixture untouched):**
+- `usage.ts`: serves real `GET /api/usage/stats?period=` (was mock-only
+  `/api/usage/summary`) mirroring the real `usage.Stats` shape (stats.go:26-41:
+  total_*, by_provider, by_model, active_requests, recent_requests, pending,
+  error_provider) + `/api/usage/chart` (path agrees) + `/api/usage/request-details`
+  ({data,pagination}).
+- `logs.ts`: serves real `GET /api/usage/request-logs` (+ `/api/usage/logs` alias),
+  returning the structured UsageLog[] seed. Real Go returns `[]string` pipe lines
+  (logs.go:41) — the RequestLogger component is tolerant of BOTH shapes
+  (`normalizeLogRow`), same client-side normalization precedent as connections.tsx.
+  Recorded as a §1.4-style variant (no Go change, no escalation: component handles
+  reality; mock serves the richer seed).
+- `pricing.ts`: serves real GET (nested provider→model→{input,output,cached,
+  reasoning,cache_creation}) + PATCH + DELETE(`?provider=&model=`) mirroring
+  pricing.go; dropped the legacy REST POST/PUT-by-id model (no such Go routes).
+- `quota.ts` + `streams.ts`: CONSUMED unchanged.
+- **No mock-vs-Go contradiction broke any sibling spec → no ESCALATION-3/-4.**
+
+**Quota disposition (PAR-UI-012 variant, ESCALATION-1c):** there is NO Go
+`GET /api/quota` (real per-connection source is `GET /api/usage/{connectionId}`).
+w6-g ships the quota page as variant-HAVE against the `/api/quota` MOCK (consumed
+unchanged); the runtime Go aggregation is a serial follow-up recorded in
+`open-questions.md`.
+
+**PAR-UI-081 (ESCALATION/§1.6):** confirmed ALREADY HAVE from w6-a (apiFetch =
+TanStack Query queryFn adapter). w6-g consumes `apiFetch`; NO `QueryClientProvider`
+mounted, NO `__root.tsx`/`main.tsx` edit, NOT re-flipped. `! grep -rn
+'QueryClientProvider' ui/src/` holds.
+
+**Unit-test strategy note:** `npx vitest` resolves the globally-cached vitest
+(`~/.npm/_npx/...`), so jsdom-env tests (`@vitest-environment jsdom`) can't load
+the project-local jsdom, and `@testing-library/react` is not installed
+(package.json FROZEN). All units therefore use `renderToString` + stubbed globals
+(the w6-a/w6-c precedent). The SSE/poll logic was factored into pure helpers
+(`subscribeUsageStream`/`mergeUsageStats`/`startLogPolling`/`normalizeLogRow`)
+testable in plain node. `subscribeUsageStream`/traffic use `addEventListener`
+(not `.onmessage=`) so the `EventTarget`-based MockEventSource `dispatchEvent`
+frames are received.
+
+**Commits (in order):**
+- `852f2be` failing usage/dashboard/traffic/quota/pricing e2e + mock-path corrections (TDD red)
+- `242e8f1` failing unit tests for usage-stats (SSE) + request-logger + provider-limits (TDD red)
+- `083b747` usage stats (REST + additive SSE), request logger, charts/topology, dashboard + usage pages
+- `48b1135` traffic + quota + pricing pages, PricingModal, ProviderLimits
+- (this) close — usage/logs/quota/pricing cluster; matrix flips
+
+**Gates:** `npm run build` green at every commit; the five w6-g specs
+`dashboard/usage/traffic/quota/pricing.spec.ts` 16/16 green; regression
+`navigation/auth/providers/connections/models.spec.ts` 30/30 green; full
+`npx playwright test` 44 fail at HEAD vs 45 at base → **ZERO regressions** (the
+only delta is `dashboard.spec.ts :: metrics cards are visible` FIXED; all 44
+remaining HEAD failures are pre-existing base failures on `<h1>` stub routes owned
+by w6-f/w6-i/w6-j — verified via a `9feca41` worktree diff); `npx vitest run src/`
+134/134 (121 base + 13 new usage units); `go test ./...` 1359 pass, `go vet ./...`
+clean (ZERO Go changes).
+
+**Rows flipped:** PAR-UI-005/011/012/047/082/095/096 → HAVE (variant);
+PAR-UI-025/048/057 → HAVE; PAR-USAGE-036/037 → HAVE. PAR-UI-081 NOT re-flipped
+(already HAVE from w6-a, §1.6). Quota Go-aggregation follow-up logged in
+`open-questions.md`. The six pages, `ui/src/components/usage/**`, and the three
+corrected mock bodies are now consume-only for later plans.

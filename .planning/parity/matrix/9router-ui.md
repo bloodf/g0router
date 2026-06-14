@@ -13,14 +13,14 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-002 | Route `/login` renders password + OIDC login form | `ui/src/routes/login.tsx`, `ui/src/components/auth/login-form.tsx` | HAVE | w6-c: status-driven password + OIDC login form (`#username`/`#password`, OIDC button when `auth_mode ∈ {oidc,both}`) |
 | PAR-UI-003 | Route `/callback` handles OAuth callback via postMessage, BroadcastChannel, localStorage | `ui/src/routes/callback.tsx`, `ui/src/lib/auth.ts` | HAVE | w6-c: `relayOAuthCallback` (postMessage origin-allowlist + BroadcastChannel `oauth_callback` + localStorage) + manual-copy fallback |
 | PAR-UI-004 | Route `/landing` marketing page | `src/app/landing/page.js` | MISSING | Not referenced in g0router e2e |
-| PAR-UI-005 | Route `/dashboard` alias to `/dashboard/endpoint` | `src/app/(dashboard)/dashboard/page.js` | MISSING | g0router e2e expects `/dashboard` |
+| PAR-UI-005 | Route `/dashboard` alias to `/dashboard/endpoint` | `ui/src/routes/dashboard.tsx` | HAVE (variant) | w6-g §1.5 — `/dashboard` IS the overview page (UsageStats summary + RequestLogger preview); MAP scope decision |
 | PAR-UI-006 | Route `/dashboard/endpoint` shows API endpoint config + API key management | `src/app/(dashboard)/dashboard/endpoint/page.js:1-7` | MISSING | g0router e2e has `/endpoint` route |
 | PAR-UI-007 | Route `/dashboard/providers` lists providers in card grid (OAuth, Free, API Key, Compatible) | `ui/src/routes/providers.tsx`, `ui/src/components/providers/provider-card.tsx` | HAVE | w6-e (variant §1.5): flat `/providers` route, grouped sections (OAuth/API-Key/Free/Compatible) of `card-elev` cards from `GET /api/providers/catalog` |
 | PAR-UI-008 | Route `/dashboard/providers/new` adds new provider | `ui/src/routes/providers.tsx`, `ui/src/components/providers/manual-config-modal.tsx` | HAVE | w6-e (variant §1.5): in-page "add connection" flow (modal), not a nested `/new` route |
 | PAR-UI-009 | Route `/dashboard/providers/[id]` shows provider detail with connections + models | `ui/src/components/providers/provider-detail-panel.tsx` | HAVE | w6-e (variant §1.5): in-page detail panel loading `/api/providers/{id}/connections` + `/models`, not a nested `/[id]` route |
 | PAR-UI-010 | Route `/dashboard/combos` lists combos with DnD reordering | `src/app/(dashboard)/dashboard/combos/page.js:15-214` | MISSING | g0router e2e expects `/combos` |
-| PAR-UI-011 | Route `/dashboard/usage` has overview/logs/details tabs with period selector | `src/app/(dashboard)/dashboard/usage/page.js:16-74` | MISSING | g0router splits this into `/usage`, `/logs`, `/traffic` |
-| PAR-UI-012 | Route `/dashboard/quota` shows provider limits | `src/app/(dashboard)/dashboard/quota/page.js:5-10` | MISSING | g0router e2e expects `/quota` |
+| PAR-UI-011 | Route `/dashboard/usage` has overview/logs/details tabs with period selector | `ui/src/routes/usage.tsx` | HAVE (variant) | w6-g §1.5 — `/usage` has overview/logs/details tabs + period selector; g0router also splits standalone `/logs` + `/traffic` routes |
+| PAR-UI-012 | Route `/dashboard/quota` shows provider limits | `ui/src/routes/quota.tsx` | HAVE (variant) | w6-g §1.4 — provider-limits view (ProviderLimits) from `/api/quota` MOCK; runtime Go aggregation (no `GET /api/quota`) is a serial follow-up (open-questions ESCALATION-1c) |
 | PAR-UI-013 | Route `/dashboard/mitm` MITM proxy config | `src/app/(dashboard)/dashboard/mitm/page.js:1-5` | MISSING | g0router e2e expects `/mitm` |
 | PAR-UI-014 | Route `/dashboard/cli-tools` CLI tool integrations | `src/app/(dashboard)/dashboard/cli-tools/page.js:1-7` | MISSING | Not in g0router e2e |
 | PAR-UI-015 | Route `/dashboard/cli-tools/[toolId]` per-tool detail | `src/app/(dashboard)/dashboard/cli-tools/[toolId]/page.js` | MISSING | Not in g0router e2e |
@@ -33,7 +33,7 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-022 | Route `/dashboard/media-providers/[kind]` media provider kind list | `src/app/(dashboard)/dashboard/media-providers/[kind]/page.js` | MISSING | Not in g0router e2e |
 | PAR-UI-023 | Route `/dashboard/media-providers/[kind]/[id]` media provider detail | `src/app/(dashboard)/dashboard/media-providers/[kind]/[id]/page.js` | MISSING | Not in g0router e2e |
 | PAR-UI-024 | Route `/dashboard/media-providers/web` web search/fetch combos | `src/app/(dashboard)/dashboard/media-providers/web/page.js` | MISSING | Not in g0router e2e |
-| PAR-UI-025 | Route `/dashboard/settings/pricing` pricing management | `src/app/dashboard/settings/pricing/page.js` | MISSING | g0router e2e expects `/pricing` |
+| PAR-UI-025 | Route `/dashboard/settings/pricing` pricing management | `ui/src/routes/pricing.tsx` | HAVE | w6-g — `/pricing` table + PricingModal (GET/PATCH/DELETE `/api/pricing`) |
 | PAR-UI-026 | Dashboard layout wraps all routes with sidebar + header + toasts | `ui/src/routes/__root.tsx` | HAVE | `ThemeProvider > I18nMount > flex shell [Sidebar | MobileSidebar | Header + Outlet] + Toaster` |
 | PAR-UI-027 | Root layout loads Inter font, ThemeProvider, RuntimeI18nProvider | `ui/src/routes/__root.tsx` | HAVE | Inter font (w6-a `ui/src/index.css:1,16`); `ThemeProvider > I18nProvider` shell; `I18nProvider` from w6-d mounted by w6-b T8 |
 | PAR-UI-028 | Sidebar renders traffic lights, logo, nav items, media accordion, update checker | `ui/src/components/layout/sidebar.tsx` | PARTIAL | Traffic lights, logo, 29 nav items, update badge present; media accordion + live update-check deferred |
@@ -55,8 +55,8 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-044 | Pagination component | `ui/src/components/ui/pagination.tsx` | HAVE | w6-b: prev/next bounds-disabled, nav aria-label + aria-current, exported `paginationRange` helper |
 | PAR-UI-045 | LanguageSwitcher shows flag emoji grid, POSTs to `/api/locale` | `ui/src/components/ui/language-switcher.tsx` | HAVE | w6-b: trigger → Modal flag-emoji grid, POST `/api/locale` via `apiFetch`, `DEFAULT_LOCALES` |
 | PAR-UI-046 | ThemeToggle cycles light/dark/system | `ui/src/components/ui/theme-toggle.tsx` | HAVE | w6-b: cycles light→dark→system via w6-a `useThemeStore`, Sun/Moon/Monitor icon, aria-label names theme |
-| PAR-UI-047 | UsageStats component: period selector, overview cards, provider topology, usage table, SSE updates | `src/shared/components/UsageStats.js:192-505` | MISSING | g0router e2e expects dashboard metrics |
-| PAR-UI-048 | RequestLogger auto-refreshing table (3s poll) | `src/shared/components/RequestLogger.js` | MISSING | g0router e2e expects `/logs` table |
+| PAR-UI-047 | UsageStats component: period selector, overview cards, provider topology, usage table, SSE updates | `ui/src/components/usage/usage-stats.tsx` | HAVE (variant) | w6-g §1.3 — REST cards/topology(@xyflow)/table + additive SSE overlay; SSE strategy variant |
+| PAR-UI-048 | RequestLogger auto-refreshing table (3s poll) | `ui/src/components/usage/request-logger.tsx` | HAVE | w6-g — 3s setInterval poll + refresh toggle; tolerant of real Go string[] + mock UsageLog[] |
 | PAR-UI-049 | ModelSelectModal hierarchical model picker with combos + custom models | `src/shared/components/ModelSelectModal.js` | MISSING | g0router e2e expects model selection dialogs |
 | PAR-UI-050 | ComboFormModal with DnD model list (create/edit) | `src/shared/components/ComboFormModal.js` | MISSING | g0router `package.json` has `@dnd-kit/core` |
 | PAR-UI-051 | OAuthModal generic OAuth login with local proxy | `ui/src/components/providers/oauth-modal.tsx`, `ui/src/lib/oauth-popup.ts` | HAVE | w6-e: OAuth popup via `GET /api/oauth/{provider}/start` + the w6-c `/callback` relay (BroadcastChannel/postMessage/storage), finalized at `POST /api/oauth/{provider}/callback` |
@@ -65,7 +65,7 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-054 | McpMarketplaceModal MCP marketplace | `src/shared/components/McpMarketplaceModal.js` | MISSING | g0router e2e expects `/mcp` routes |
 | PAR-UI-055 | ChangelogModal fetched from GitHub raw CHANGELOG.md | `src/shared/components/ChangelogModal.js` | MISSING | Not in g0router e2e |
 | PAR-UI-056 | DonateModal donation CTA | `src/shared/components/DonateModal.js` | MISSING | Not in g0router e2e |
-| PAR-UI-057 | PricingModal pricing config | `src/shared/components/PricingModal.js` | MISSING | g0router e2e expects `/pricing` CRUD |
+| PAR-UI-057 | PricingModal pricing config | `ui/src/components/usage/pricing-modal.tsx` | HAVE | w6-g — Modal + input/output/cached/reasoning/cache_creation fields; PATCH save / DELETE reset |
 | PAR-UI-058 | CursorAuthModal / KiroAuthModal / KiroSocialOAuthModal IDE auth flows | `ui/src/components/providers/cursor-auth-modal.tsx`, `ui/src/components/providers/kiro-auth-modal.tsx` | HAVE | w6-e: Cursor session-token + Kiro access-token modals creating connections via `POST /api/connections` |
 | PAR-UI-059 | IFlowCookieModal iFlow cookie auth | `ui/src/components/providers/iflow-cookie-modal.tsx` | HAVE | w6-e: iFlow session-cookie modal → `POST /api/connections` |
 | PAR-UI-060 | GitLabAuthModal GitLab PAT import | `ui/src/components/providers/gitlab-auth-modal.tsx` | HAVE | w6-e: GitLab PAT modal → `POST /api/connections` |
@@ -90,7 +90,7 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-079 | Icons: Material Symbols Outlined font with `fill-1` class | `ui/src/index.css` | HAVE | `@import 'material-symbols/outlined.css'` + `.fill-1 { font-variation-settings: 'FILL' 1; }` |
 | PAR-UI-080 | State: Zustand stores (themeStore, userStore, providerStore, settingsStore, notificationStore, headerSearchStore) | `ui/src/stores/*.ts` | HAVE | All six stores implemented; theme/settings use `persist` |
 | PAR-UI-081 | Data fetching: raw `fetch()` with local state, no React Query/SWR | `ui/src/lib/api.ts` | HAVE (variant) | `apiFetch` unwraps Go `{data,error}` envelope; serves as TanStack Query `queryFn` adapter |
-| PAR-UI-082 | Real-time: SSE `EventSource` for usage stats at `/api/usage/stream` | `src/shared/components/UsageStats.js:255-278` | MISSING | g0router e2e mocks SSE with `MockEventSource` |
+| PAR-UI-082 | Real-time: SSE `EventSource` for usage stats at `/api/usage/stream` | `ui/src/components/usage/usage-stats.tsx` | HAVE (variant) | w6-g §1.3 — additive `EventSource("/api/usage/stream")`; merges active/recent/pending/error_provider; onerror no-op; proven by unit test (e2e stays REST-deterministic; MockEventSource idles for the usage url) |
 | PAR-UI-083 | Real-time: SSE `EventSource` for console logs at `/api/translator/console-logs/stream` | `src/app/(dashboard)/dashboard/console-log/page.js` | MISSING | g0router e2e mocks SSE for `/api/console-logs/stream` |
 | PAR-UI-084 | Drag & Drop: `@dnd-kit/core` + `@dnd-kit/sortable` in combo builder | `src/app/(dashboard)/dashboard/combos/page.js:4-7` | HAVE | g0router `package.json` has `@dnd-kit/core`, `@dnd-kit/sortable` |
 | PAR-UI-085 | React Flow for provider topology visualization | `src/app/(dashboard)/dashboard/usage/components/ProviderTopology.js` | HAVE | g0router `package.json` has `@xyflow/react` |
@@ -103,8 +103,8 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
 | PAR-UI-092 | API endpoint: `POST /api/combos` create combo | `src/app/(dashboard)/dashboard/combos/page.js:55-70` | MISSING | g0router e2e mocks `POST /api/combos` |
 | PAR-UI-093 | API endpoint: `PUT /api/combos/${id}` update combo | `src/app/(dashboard)/dashboard/combos/page.js:72-89` | MISSING | g0router e2e mocks `PUT /api/combos/:id` |
 | PAR-UI-094 | API endpoint: `DELETE /api/combos/${id}` delete combo | `src/app/(dashboard)/dashboard/combos/page.js:91-107` | MISSING | g0router e2e mocks `DELETE /api/combos/:id` |
-| PAR-UI-095 | API endpoint: `GET /api/usage/stats?period=` usage statistics | `src/shared/components/UsageStats.js:242` | MISSING | g0router uses `GET /api/usage/summary` and `GET /api/usage/chart` |
-| PAR-UI-096 | API endpoint: `GET /api/usage/request-logs` request logs | `src/shared/components/RequestLogger.js` | MISSING | g0router uses `GET /api/logs` |
+| PAR-UI-095 | API endpoint: `GET /api/usage/stats?period=` usage statistics | `internal/admin/usage.go:101` | HAVE (variant) | w6-g §1.4 — page + corrected mock now call the real Go `GET /api/usage/stats?period=` (was mock-only `/api/usage/summary`) |
+| PAR-UI-096 | API endpoint: `GET /api/usage/request-logs` request logs | `internal/admin/usage.go:139` | HAVE (variant) | w6-g §1.4 — page + corrected mock call the real Go `GET /api/usage/request-logs` (was mock-only `/api/logs`); component tolerant of real string[] + structured shapes |
 | PAR-UI-097 | API endpoint: `GET /api/settings` get settings | `src/app/(dashboard)/dashboard/profile/page.js:66` | MISSING | g0router e2e mocks `GET /api/settings` |
 | PAR-UI-098 | API endpoint: `PATCH /api/settings` patch settings | `src/app/(dashboard)/dashboard/profile/page.js:105` | MISSING | g0router e2e mocks `PUT /api/settings` |
 | PAR-UI-099 | API endpoint: `POST /api/settings/proxy-test` test outbound proxy | `src/app/(dashboard)/dashboard/profile/page.js:141` | MISSING | Not in g0router e2e |
