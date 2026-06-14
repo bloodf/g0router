@@ -30,20 +30,23 @@
 ```yaml
 project_status: IN_PROGRESS
 current_stage: "Wave 6 — UI dashboard parity"
-current_wave: "w6-c — auth pages (/login + /callback)"
-last_completed_plan: "w6-c (T1-T6 complete, all gates green)"
-last_updated: "2026-06-13T00:00:00Z"
+current_wave: "w6-e — providers/connections/models cluster + provider-shaped Go read API"
+last_completed_plan: "w6-e (T1-T6 complete, all gates green; routes_admin.go serial slot released to w6-j)"
+last_updated: "2026-06-14T00:00:00Z"
 orchestrator: "Claude Code (VPS) — see CLI_ORCHESTRATOR.md"
 planner: "Fable 5"
 implementer: "Claude (executor)"
 notes: |
-  w6-b: 16 shared primitives under ui/src/components/ui/ (frozen for Wave 6),
-  strict TDD (red tests before each component), T8 wiring of ThemeToggle +
-  LanguageSwitcher into header.tsx and merged w6-d I18nProvider into __root.tsx
-  (the single sanctioned w6-a freeze exception).
-  Gates green: vitest src/components/ui 54/54, vitest src/ 101/101,
-  components.spec.ts 5/5, navigation.spec.ts 9/9, npm build, go test 1353, go vet.
-  Rows flipped: PAR-UI-032..046 + PAR-UI-027 → HAVE.
+  w6-e: /providers (grouped card-elev cards + in-page detail + OAuth/manual modals),
+  /connections (toggle/edit/test/delete/bulk), /models (cost/context + disable +
+  add-custom), 12 provider components, ui/src/lib/oauth-popup.ts (w6-c relay
+  listener), and provider-shaped Go read API internal/admin/providers_catalog.go
+  (catalog/connections/models/suggested + test-batch). Catalog path resolved to
+  /api/providers/catalog; ESCALATION-3 did not fire (route disambiguation proven).
+  routeTree.gen.ts unchanged. Gates: 3 specs 13/13, nav+auth 17/17, vitest src/
+  green, go test 1359, vet/build green, catalog tests pass. routes_admin.go serial
+  slot RELEASED to w6-j. Rows flipped: PAR-UI-007/008/009/051/052/053/058/059/060/
+  062/063/064/087/088/089/090 + PAR-UI-130 /connections subset → HAVE.
 ```
 
 ---
@@ -6750,3 +6753,77 @@ MISSING→HAVE (variant, cite §1.4/§1.3); PAR-UI-068 MISSING→HAVE.
 
 UI track: `/login`, `/callback`, `ui/src/components/auth/**`, `ui/src/lib/auth.ts` now
 consume-only for later plans (w6-e consumes the `/callback` relay contract).
+
+## w6-e — IMPL (2026-06-14)
+
+Providers + Connections + Models cluster (UI) + provider-shaped Go read API.
+7 commits, strict TDD both tracks (Go `_test.go` RED before impl; UI red specs/units
+RED before impl), per-task `phase-1/w6-e:` cadence, explicit `git add <file>` only.
+`<base>` = `cdfa5d2`.
+
+**P8 base observation** (after `npm run build` refreshes the stale tracked
+`ui/dist/index.html`): `providers.spec.ts` "list loads" PASS + "provider cards
+are visible" FAIL (no `card-elev` at base); `connections.spec.ts` + `models.spec.ts`
+text-only tests PASS. `go test ./...` 1353 pass, vet/build green. NOTE: the
+committed `ui/dist/index.html` is a TRACKED build artifact that goes stale on every
+`npm run build` (asset-hash churn) and `vite preview` does NOT pre-build, so the
+reliable gate workflow is `npm run build` THEN `npx playwright test`; the worker
+restored `ui/dist/index.html` before every commit and never `git add`ed it.
+
+**Resolved catalog path (§8 ESCALATION-1)**: `/api/providers/catalog` (static list)
++ `/api/providers/{id}/catalog` (detail) + `/{id}/connections|models|suggested-models`
++ `POST /api/providers/test-batch`. Page, mock body, and Go route all use these
+identical paths; existing `GET /api/providers` CRUD left UNTOUCHED.
+**ESCALATION-3 did NOT fire**: `TestCatalogRouteDisambiguation` proves the
+fasthttp/router (v1.5.4) matcher resolves the static `/catalog` + `/test-batch`
+routes distinctly from the `/{id}/...` param routes (static-segment precedence); no
+path rename needed.
+
+Files (all within §3 ownership):
+- Go: `internal/admin/providers_catalog.go` (NEW) — `ListProviderCatalog`,
+  `GetProviderCatalog`, `GetProviderConnections` (UI-shaped, secrets masked,
+  §8 ESCALATION-2), `GetProviderModels`, `GetProviderSuggestedModels` (≤5),
+  `TestProvidersBatch` (ok = provider has a connection); static known-provider +
+  model metadata; `writeData`/`writeError`, no `init()`, errors-as-values.
+  `internal/server/routes_admin.go` — 6 additive route lines (serial slot, ONE
+  commit, ≤10 `^+` incl `+++` header). Existing CRUD (`providers.go`/`connections.go`/
+  `store/**`) untouched.
+- UI lib: `ui/src/lib/oauth-popup.ts` (NEW) — opener-side listener for the w6-c
+  relay (BroadcastChannel + same-origin window message filtered to
+  `type==="oauth_callback"` + storage key `oauth_callback`), single `handled`
+  de-dup; does NOT import/edit frozen `lib/auth.ts`.
+- UI pages (3 stubs rewritten; `routeTree.gen.ts` UNCHANGED — new/detail are
+  in-page, §1.5/§1.7): `providers.tsx` (grouped `card-elev` cards from
+  `/api/providers/catalog`, in-page detail panel + OAuth/manual-config modals),
+  `connections.tsx` (rows, toggle/edit/test/delete/bulk; client-side connection
+  normalizer maps the CRUD DTO so no Go change, §8 ESCALATION-2),
+  `models.tsx` (rows + cost/context + disable toggle → `/api/models/disabled` +
+  add-custom modal, paginated).
+- UI components `ui/src/components/providers/`: provider-card, provider-detail-panel,
+  provider-info-card, no-auth-proxy-card, oauth-modal, edit-connection-modal,
+  manual-config-modal, cursor-auth-modal, kiro-auth-modal, iflow-cookie-modal,
+  gitlab-auth-modal, add-custom-embedding-modal.
+- e2e: `providers/connections/models.spec.ts` extended (originals kept). Mock body
+  `ui/e2e/mocks/handlers/providers.ts` added a `/api/providers/catalog` +
+  `/{id}/catalog` route mirroring `providerList` (handler body only; index/seed
+  untouched). **No mock-vs-Go contradiction → no ESCALATION-4.**
+
+Gates: `npm run build` green; `npx playwright test e2e/providers.spec.ts
+e2e/connections.spec.ts e2e/models.spec.ts` 13/13; `npx playwright test
+e2e/navigation.spec.ts e2e/auth.spec.ts` 17/17 (no regression); full
+`npx playwright test` 62 pass / 7 fail / 38 skip — the 7 failures are
+chat/comprehensive/dashboard/guardrails/keys/mcp/settings, all `<h1>` stub routes
+red at base and owned by later page-wave plans (no w6-e regression); `npx vitest run
+src/` green (incl new oauth-popup 6/6 + provider-card 3/3); `go test ./...` 1359 pass,
+`go vet ./...` clean, `go build ./...` green; `go test ./internal/admin/ -run Catalog`
+5 cases + `TestTestProvidersBatch` pass.
+
+Rows flipped: PAR-UI-007/008/009 MISSING→HAVE (variant §1.5, in-page new/detail,
+flat `/providers`); PAR-UI-051/052/053/058/059/060/062/063/064 MISSING→HAVE;
+PAR-UI-087/088/089/090 MISSING→HAVE (Go variant §1.6/§8); PAR-UI-130 `/connections`
+subset → HAVE.
+
+**SERIAL SLOT RELEASED**: `internal/server/routes_admin.go` serial slot is released
+to w6-j on this close. UI: the 3 pages, `ui/src/components/providers/**`,
+`ui/src/lib/oauth-popup.ts`, and `internal/admin/providers_catalog.go` are now
+consume-only for later plans (w6-f consumes the provider/connection read shapes).
