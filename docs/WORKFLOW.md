@@ -7244,3 +7244,98 @@ ESC-3); PAR-UI-102/103 → HAVE (Go, §1.5/§1.5b). The settings page,
 `internal/admin/version.go`, and the corrected version/settings mock bodies are now
 consume-only for later plans. **The wave-6 `routes_admin.go` serial chain is
 CLOSED — w6-j releases the slot to NOBODY.**
+
+---
+
+## phase-1/w6-k — Governance pages cluster (teams/audit/feature-flags/guardrails/prompts/alerts) — UI-only, ZERO new Go
+
+**Base:** `<base>` = `67a524bf199f6ac0a429c2ee8c0f27fe02aa2ad2`.
+
+**Scope:** rewrote the six bare-stub routes into full pages against the registered
+e2e MOCKS, added `ui/src/components/governance/**`, extended the six governance
+specs, and surfaced the in-app user-management subset (PAR-UI-132) as a Users panel
+on `/teams`. **ZERO Go** — w6-k holds NO serial slot; the chain was already closed
+on w6-j.
+
+> ### ⚠️ MAP "phases 13-19 backend complete" assumption — VERIFIED **FALSE**
+> The WAVE-6-MAP w6-k row claims "Backend COMPLETE (phases 13-19) — pure UI". This
+> was VERIFIED FALSE. A full enumeration of `internal/server/routes_admin.go` (58
+> registered `/api/*` routes) plus
+> `grep -rniE 'api/teams|api/audit|api/feature-flags|api/guardrails|prompt-templates|alert-channels|Team/Audit/FeatureFlag/Guardrail/PromptTemplate/AlertChannel Handler' internal/ cmd/`
+> (excluding `_test`) → **ZERO non-test matches**. **NONE** of the six governance
+> domains has a Go store/handler/route, and **user-management** is absent too
+> (`internal/admin/auth.go` exposes only `Login`/`Logout`/`Me`/`Status` — no
+> `/api/auth/setup`, `/api/auth/password`, `/api/auth/users[/{id}]`). All six pages
+> + the Users panel therefore ship **variant-HAVE against the registered MOCK
+> contract** (the w6-g quota / w6-h aliases-routing-model-limits precedent). The
+> seven deferred Go backends are appended to `.planning/parity/plans/open-questions.md`
+> (ESCALATION-1a..1f + ESCALATION-2): **teams, audit, feature-flags, guardrails,
+> prompt-templates, alert-channels, user-management.** Orchestrator must update the
+> MAP row and schedule these serial Go follow-ups.
+
+**Guardrails prompt-tester (§1.3): path B chosen.** The tester spec types
+`"my secret password"` and the mock `/api/guardrails/test` returns `blocked:true`
+only when `guardrails_enabled` AND a blocklist word substring-matches. Path A
+(page-driven enable on every test) was rejected as awkward UX (a tester silently
+mutating config). Instead the w6-k-owned `seed/guardrails.ts` was corrected to
+`guardrails_enabled:true` + blocklist `["password","secret","badword1"]` — a
+bounded within-mock fix consumed ONLY by `guardrails.spec.ts` (no `seed/index.ts`/
+`store.ts`/handler-body edit). The tester is a pure POST consumer
+(`runGuardrailsTest`) rendering a "Blocked" `Badge` (matches `/blocked/i`).
+
+**Users panel placement (§1.5):** `ui/src/components/governance/users-panel.tsx`
+embedded in `teams.tsx`, consuming the w6-c-owned `auth.ts` MOCK routes READ-ONLY
+(neither `auth.ts` nor `seed/auth.ts` edited). Proven by an added assertion inside
+`teams.spec.ts` — NO new `users.spec.ts`.
+
+**Audit query note:** the audit mock registers `page.route("/api/audit", …)` (plain
+string) but its body reads `?limit=`. Appending `?limit=` to the request URL caused
+the route not to match (ECONNREFUSED → real server). Resolved page-side by fetching
+`/api/audit` (no query) and applying the `limit` Select client-side — the handler is
+consumed unchanged.
+
+**Pure-helper seams:** React-19 + JSDOM does not propagate manually-dispatched
+`input` events to controlled-input state, so the §1.3/§1.5 API-shape assertions are
+unit-tested via extracted pure helpers `runGuardrailsTest` / `changePassword`
+(chat-window `streamChatCompletion` precedent), with render assertions covering the
+DOM. The e2e tester/users specs remain the binding contract.
+
+**Commits (in order):**
+- `96b033d` failing teams/audit/feature-flags/guardrails/prompts/alerts e2e (TDD red)
+- `c80bd59` failing unit tests for guardrails-tester + users-panel (TDD red)
+- `b79d2a6` guardrails page + tester, teams page + users panel (PAR-UI-132)
+- `eef770a` prompts + alerts pages and form modals
+- `00ae6a7` audit + feature-flags pages
+- (this) close — governance cluster; matrix annotations
+
+**Base observations (P8):** the six smoke `<h1>`-text assertions PASS at base; the
+guardrails prompt-tester (`guardrails.spec.ts:15-21`) FAILS at base (no
+`input[aria-label="Test prompt"]`) — exactly the documented RED arc. Base
+`npm run build` exit 0; `npx vitest run src/` 171/171; `go test ./...` /
+`go vet ./...` exit 0.
+
+**Gates (final):**
+- Six governance specs together: **24/24 green, 0 skipped** (`teams` 6, `audit` 3,
+  `feature-flags` 3, `guardrails` 3 incl. tester, `prompts` 4, `alerts` 5).
+- `npx vitest run src/components/governance/` **6/6** (4 guardrails-tester + 2
+  users-panel).
+- `npx vitest run src/` **177/177** (171 base + 6 new governance).
+- `npm run build` exit 0.
+- `go test ./...` exit 0 / `go vet ./...` exit 0 (ZERO new Go).
+- Regression `navigation/settings/keys.spec.ts` **23/23 green**.
+- Full `npx playwright test` = **131 passed / 2 failed**; both failures are the
+  `/mcp` cluster (`mcp.spec.ts` + `comprehensive.spec.ts` MCP test) — bare w6-l
+  stubs that are **red at base** and which w6-k touches in ZERO files
+  (`git diff 67a524bf..HEAD --name-only | grep -iE 'mcp|comprehensive'` = empty).
+  All six governance + regression specs are green → **ZERO w6-k regressions**.
+
+**Rows flipped (APPEND, sibling partials preserved — §1 note):**
+- PAR-UI-130 → add `/teams`,`/audit`,`/feature-flags`,`/guardrails`,`/prompts`,
+  `/alerts` HAVE (variant — mock-contract; NO Go; §1.2 / §8 ESC-1a..1f).
+- PAR-UI-131 → governance GET subset HAVE (variant — mock-served; NO Go; §8 ESC-1).
+- PAR-UI-132 → in-app user-management subset HAVE (variant — Users panel on `/teams`
+  vs the w6-c `auth.ts` mock; NO Go; §1.5 / §8 ESC-2).
+
+`ui/src/routes/{teams,audit,feature-flags,guardrails,prompts,alerts}.tsx` and
+`ui/src/components/governance/**` are now consume-only for later plans. **w6-k holds
+NO serial slot — nothing to release.**
