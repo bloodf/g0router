@@ -5,6 +5,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/admin"
 	"github.com/bloodf/g0router/internal/auth"
+	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/fasthttp/router"
 )
@@ -24,6 +25,11 @@ func NewAdminHandlers(st *store.Store, deps admin.UsageDeps) *admin.Handlers {
 	h := admin.New(st, sessions, flows)
 	stats, resolver := admin.BuildUsageServices(st, deps)
 	h.SetUsageServices(stats, resolver)
+	// Wire the real MCP launcher (stdio spawn + bridge), OAuth engine, and tools
+	// probe after New (mirrors SetUsageServices; ESC-BOOTSTRAP).
+	h.SetMCPLauncher(mcp.NewLauncher(st))
+	h.SetMCPEngine(mcp.NewEngine(st, nil))
+	h.SetMCPProbe(mcp.NewProbe(nil))
 	return h
 }
 
@@ -84,6 +90,28 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/alert-channels/{id}", h.RequireSession(h.GetAlertChannel))
 	r.PUT("/api/alert-channels/{id}", h.RequireSession(h.UpdateAlertChannel))
 	r.DELETE("/api/alert-channels/{id}", h.RequireSession(h.DeleteAlertChannel))
+
+	// MCP admin (clients/instances/tools/tool-groups + oauth start). LOCAL_ONLY
+	// via guard.go (/api/mcp/ entry — consumed, not edited). Static collections
+	// and deeper sub-paths registered before the bare {id} routes.
+	r.GET("/api/mcp/clients", h.RequireSession(h.ListClients))
+	r.GET("/api/mcp/clients/{id}", h.RequireSession(h.GetClient))
+	r.GET("/api/mcp/instances", h.RequireSession(h.ListInstances))
+	r.POST("/api/mcp/instances", h.RequireSession(h.CreateInstance))
+	r.GET("/api/mcp/instances/{id}/accounts", h.RequireSession(h.ListInstanceAccounts))
+	r.POST("/api/mcp/instances/{id}/auth/start", h.RequireSession(h.StartInstanceAuth))
+	r.GET("/api/mcp/instances/{id}", h.RequireSession(h.GetInstance))
+	r.DELETE("/api/mcp/instances/{id}", h.RequireSession(h.DeleteInstance))
+	r.GET("/api/mcp/tools", h.RequireSession(h.ListTools))
+	r.POST("/api/mcp/tools/{name}/execute", h.RequireSession(h.ExecuteTool))
+	r.GET("/api/mcp/tool-groups", h.RequireSession(h.ListToolGroups))
+	r.POST("/api/mcp/tool-groups", h.RequireSession(h.CreateToolGroup))
+	r.GET("/api/mcp/tool-groups/{id}", h.RequireSession(h.GetToolGroup))
+	r.PUT("/api/mcp/tool-groups/{id}", h.RequireSession(h.UpdateToolGroup))
+	r.DELETE("/api/mcp/tool-groups/{id}", h.RequireSession(h.DeleteToolGroup))
+
+	// Skills catalog (read-only). NOT under /api/mcp/, so a normal session route.
+	r.GET("/api/skills", h.RequireSession(h.ListSkills))
 
 	r.GET("/api/settings", h.RequireSession(h.GetSettings))
 	r.PUT("/api/settings", h.RequireSession(h.PutSettings))
