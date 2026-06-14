@@ -281,6 +281,20 @@ func migrate(db *sql.DB) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`},
+		// Routing-rules admin table (w7-route-a). Admin CRUD only — rules are not
+		// yet applied to live inference (tracked follow-up).
+		{"routing_rules", `CREATE TABLE IF NOT EXISTS routing_rules (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			priority INTEGER NOT NULL DEFAULT 0,
+			cond_field TEXT NOT NULL DEFAULT '',
+			cond_operator TEXT NOT NULL DEFAULT '',
+			cond_value TEXT NOT NULL DEFAULT '',
+			target_provider TEXT NOT NULL DEFAULT '',
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
