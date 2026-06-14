@@ -8546,3 +8546,36 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   016/017/018/019/021/025/026 MISSING → HAVE-partial (OAuth-flow scope; catalog/adapter = catalog
   plans); PAR-PLAT-047 PARTIAL → HAVE-advanced; PAR-AUTH-019 coverage 3→11 flows. Deferrals appended
   to open-questions.md (ESC-DEVICE-ENDPOINT, w6-e UI gap, ESC-GH-COPILOT, kilocode-orgId, kimi-coding).
+
+## w7-prov-media — media/embedding specialist providers (2026-06-14)
+- **P0 base SHA** `05330322` (`git rev-parse HEAD` at start). 9router ref pinned @ `827e5c3`. factory.go
+  micro-serial slot FREE — special-a/-b already merged (their arms present in factory.go:114-137);
+  `git log <base>..HEAD -- factory.go` empty at P0.
+- **§2 preconditions GREEN.** BUILD gate: `/v1/embeddings` route (`routes_openai.go:98`) + `provider.Embedding`
+  dispatch (`embeddings.go:100`) present; template `openai/embedding.go:18` + generic 501 stub
+  `generic/stubs.go:33` present. DEFER gate: NO `/v1/images/generations`, `/v1/audio/transcriptions`,
+  or `/v1/audio/speech` handler in `internal/server/`/`internal/api/` — only inert label strings at
+  `models.go:406-409`. voyage-ai ABSENT from catalog/models/aliases at P0 (count 0).
+- **BUILD-vs-DEFER call (per-provider, grounded in two facts).** FACT 1: only the `Embedding` media-method
+  is reachable (the sole non-chat route). FACT 2: voyage-ai's embedding wire is OpenAI-compatible and
+  already templated. **Decision: BUILD voyage-ai** (the one cheap, reachable, hermetically-testable
+  embedding adapter); **DEFER the other 11** (deepgram/assemblyai STT, nanobanana/fal-ai/stability-ai/
+  black-forest-labs/recraft/sdwebui/comfyui/huggingface image, runwayml image+video) — an image/STT/TTS
+  adapter built now is dead, unreachable code (adding a route is a transport wave, out of scope). NOT a
+  wholesale defer (ESC-M5 alternative declined). No deferred-provider catalog stubs added (misleading
+  without an adapter+route).
+- **T1 RED `bc3272f` / GREEN `bc94bbf`** — catalog entry `voyage-ai`
+  (`https://api.voyageai.com/v1/embeddings`, Format `openai`) + 7-entry `embedding`-typed model block
+  (ported verbatim from `providerModels.js:524-532`) + aliases `voyage-ai`/`voyage`. ProviderAliasCount
+  138 → **140** (delta +2, updated in the GREEN commit).
+- **T2 RED `59d2755` / GREEN `6938fa4`** — NEW `internal/providers/voyageai/` (`provider.go` catalog-bound
+  `New` rejecting non-voyage ids + `urlOverride` test seam; `embedding.go` real bearer-POST `Embedding`
+  mirroring `openai/embedding.go`; `stubs.go` 501 for every other method + compile-time
+  `var _ schemas.Provider`). Additive factory dispatch arm (`if providerID == "voyage-ai"` before the
+  generic default) + import. Existing arms UNCHANGED (factory diff: zero removed lines).
+- **T3 close.** §5 gates GREEN + HERMETIC: `go test ./internal/providers/voyageai/... -run Voyage`,
+  `./internal/providers/catalog/... -run 'Voyage|Alias'`, `./internal/inference/ -run 'Voyage|Dispatch'`
+  all exit 0; `go test ./... && go vet && go build` exit 0 (1787 tests, 43 packages, no net/sleep — 5 new
+  voyageai tests + 1 dispatch test + 3 catalog tests + alias-count). Matrix: PAR-PROV-066 MISSING → HAVE;
+  053/054/055/058/059/060/061/062/063/064/065 stay MISSING annotated DEFERRED (ESC-M1/M2/M3). Escalations
+  appended to open-questions.md (ESC-M1/M2/M3 + ESC-M4 media-transport-route open question).
