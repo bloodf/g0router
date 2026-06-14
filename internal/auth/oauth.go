@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -203,6 +204,11 @@ func (f *OAuthFlow) StartWithRedirect(redirectURI string) (authURL, state string
 	q.Set("state", state)
 	q.Set("code_challenge", challenge)
 	q.Set("code_challenge_method", "S256")
+	// Additive: append per-provider authorize extras (codex/gemini-cli/iflow/
+	// cline). Empty map → byte-identical to the pre-existing query.
+	for k, v := range f.cfg.ExtraAuthParams {
+		q.Set(k, v)
+	}
 	query := q.Encode()
 	if len(f.cfg.Scopes) > 0 {
 		scope := strings.Join(f.cfg.Scopes, " ")
@@ -229,6 +235,12 @@ func (f *OAuthFlow) ExchangeWithRedirect(state, code, redirectURI string) (*OAut
 		return nil, fmt.Errorf("consume oauth state: %w", err)
 	}
 
+	// Additive: cline encodes the token data as base64-JSON in the code param;
+	// the exchange decodes it directly, bypassing the token POST.
+	if f.cfg.CodeEncoding == "base64-json" {
+		return decodeBase64JSONCode(code)
+	}
+
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
 	form.Set("code", code)
@@ -242,8 +254,33 @@ func (f *OAuthFlow) ExchangeWithRedirect(state, code, redirectURI string) (*OAut
 	return f.requestToken(form)
 }
 
-// Refresh trades a refresh token for a new access token.
+// Refresh trades a refresh token for a new access token. The transport is
+// selected by OAuthConfig.RefreshMode: "" (form, default), "basic" (Basic-auth
+// header + form, iflow), "json" (JSON body to RefreshURL, cline), "none"
+// (refresh not supported, kilocode/github).
 func (f *OAuthFlow) Refresh(refreshToken string) (*OAuthToken, error) {
+	switch f.cfg.RefreshMode {
+	case "none":
+		return nil, fmt.Errorf("provider %q does not support token refresh", f.cfg.Provider)
+	case "json":
+		return f.refreshJSON(refreshToken)
+	case "basic":
+		return f.refreshBasic(refreshToken)
+	default:
+		form := url.Values{}
+		form.Set("grant_type", "refresh_token")
+		form.Set("refresh_token", refreshToken)
+		form.Set("client_id", f.cfg.ClientID)
+		if f.cfg.ClientSecret != "" {
+			form.Set("client_secret", f.cfg.ClientSecret)
+		}
+		return f.requestToken(form)
+	}
+}
+
+// refreshBasic refreshes with a Basic-auth clientId:clientSecret header plus the
+// form body (iflow quirk; default.js refreshIflow :237).
+func (f *OAuthFlow) refreshBasic(refreshToken string) (*OAuthToken, error) {
 	form := url.Values{}
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", refreshToken)
@@ -251,7 +288,57 @@ func (f *OAuthFlow) Refresh(refreshToken string) (*OAuthToken, error) {
 	if f.cfg.ClientSecret != "" {
 		form.Set("client_secret", f.cfg.ClientSecret)
 	}
-	return f.requestToken(form)
+	req, err := http.NewRequest(http.MethodPost, f.cfg.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("build refresh request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	req.SetBasicAuth(f.cfg.ClientID, f.cfg.ClientSecret)
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("refresh request: %w", err)
+	}
+	return parseTokenResponse(resp, refreshToken)
+}
+
+// refreshJSON refreshes with a JSON body to RefreshURL (cline quirk; default.js
+// refreshCline :291). The response token data may be nested under "data".
+func (f *OAuthFlow) refreshJSON(refreshToken string) (*OAuthToken, error) {
+	endpoint := f.cfg.RefreshURL
+	if endpoint == "" {
+		endpoint = f.cfg.TokenURL
+	}
+	payload := map[string]string{
+		"refreshToken": refreshToken,
+		"grantType":    "refresh_token",
+	}
+	if ct := f.cfg.ExtraAuthParams["client_type"]; ct != "" {
+		payload["clientType"] = ct
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal refresh body: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("build refresh request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("refresh request: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return nil, fmt.Errorf("read refresh response: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("refresh endpoint returned %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	return parseClineRefresh(raw, refreshToken)
 }
 
 func (f *OAuthFlow) requestToken(form url.Values) (*OAuthToken, error) {
@@ -259,6 +346,13 @@ func (f *OAuthFlow) requestToken(form url.Values) (*OAuthToken, error) {
 	if err != nil {
 		return nil, fmt.Errorf("token request: %w", err)
 	}
+	return parseTokenResponse(resp, "")
+}
+
+// parseTokenResponse reads + decodes a standard OAuth token JSON response. If the
+// response omits a refresh_token, fallbackRefresh (the token used in the request)
+// is preserved. Shared by requestToken (form) and refreshBasic (Basic-auth).
+func parseTokenResponse(resp *http.Response, fallbackRefresh string) (*OAuthToken, error) {
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -281,9 +375,85 @@ func (f *OAuthFlow) requestToken(form url.Values) (*OAuthToken, error) {
 		return nil, fmt.Errorf("token response missing access_token")
 	}
 
-	tok := &OAuthToken{AccessToken: parsed.AccessToken, RefreshToken: parsed.RefreshToken}
+	refresh := parsed.RefreshToken
+	if refresh == "" {
+		refresh = fallbackRefresh
+	}
+	tok := &OAuthToken{AccessToken: parsed.AccessToken, RefreshToken: refresh}
 	if parsed.ExpiresIn > 0 {
 		tok.ExpiresAt = time.Now().Add(time.Duration(parsed.ExpiresIn) * time.Second).Unix()
+	}
+	return tok, nil
+}
+
+// decodeBase64JSONCode decodes the cline base64-JSON authorization code into a
+// token directly (providers.js cline exchangeToken :1131). It accepts an
+// unpadded base64 string with optional trailing junk after the JSON object
+// (the ref trims to the last '}').
+func decodeBase64JSONCode(code string) (*OAuthToken, error) {
+	raw, err := base64.StdEncoding.DecodeString(code)
+	if err != nil {
+		// Tolerate missing padding (the ref pads manually).
+		if raw, err = base64.RawStdEncoding.DecodeString(strings.TrimRight(code, "=")); err != nil {
+			return nil, fmt.Errorf("decode base64 code: %w", err)
+		}
+	}
+	last := bytes.LastIndexByte(raw, '}')
+	if last < 0 {
+		return nil, fmt.Errorf("no JSON object in decoded code")
+	}
+	var data struct {
+		AccessToken  string `json:"accessToken"`
+		RefreshToken string `json:"refreshToken"`
+		ExpiresAt    string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(raw[:last+1], &data); err != nil {
+		return nil, fmt.Errorf("decode code JSON: %w", err)
+	}
+	if data.AccessToken == "" {
+		return nil, fmt.Errorf("decoded code missing accessToken")
+	}
+	tok := &OAuthToken{AccessToken: data.AccessToken, RefreshToken: data.RefreshToken}
+	if data.ExpiresAt != "" {
+		if ts, perr := time.Parse(time.RFC3339, data.ExpiresAt); perr == nil {
+			tok.ExpiresAt = ts.Unix()
+		}
+	}
+	return tok, nil
+}
+
+// parseClineRefresh decodes the cline refresh response, whose token data may be
+// nested under a "data" envelope and whose expiry is an ISO timestamp
+// (default.js refreshCline :291).
+func parseClineRefresh(raw []byte, fallbackRefresh string) (*OAuthToken, error) {
+	var env struct {
+		Data *struct {
+			AccessToken  string `json:"accessToken"`
+			RefreshToken string `json:"refreshToken"`
+			ExpiresAt    string `json:"expiresAt"`
+		} `json:"data"`
+		AccessToken  string `json:"accessToken"`
+		RefreshToken string `json:"refreshToken"`
+		ExpiresAt    string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return nil, fmt.Errorf("decode refresh response: %w", err)
+	}
+	access, refresh, expiresAt := env.AccessToken, env.RefreshToken, env.ExpiresAt
+	if env.Data != nil {
+		access, refresh, expiresAt = env.Data.AccessToken, env.Data.RefreshToken, env.Data.ExpiresAt
+	}
+	if access == "" {
+		return nil, fmt.Errorf("refresh response missing accessToken")
+	}
+	if refresh == "" {
+		refresh = fallbackRefresh
+	}
+	tok := &OAuthToken{AccessToken: access, RefreshToken: refresh}
+	if expiresAt != "" {
+		if ts, perr := time.Parse(time.RFC3339, expiresAt); perr == nil {
+			tok.ExpiresAt = ts.Unix()
+		}
 	}
 	return tok, nil
 }
