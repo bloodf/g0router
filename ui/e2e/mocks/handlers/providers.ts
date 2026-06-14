@@ -47,6 +47,27 @@ export function registerProvidersHandlers(page: Page, store: MockStore) {
     }
     return route.continue();
   });
+  // The provider-shaped catalog read overlay (w6-e §1.6 / §8 ESCALATION-1) lives
+  // under the distinct /api/providers/catalog path so it never collides with the
+  // existing /api/providers CRUD list. Registered AFTER the generic /{id} regex
+  // above so Playwright's reverse-registration order makes the static catalog
+  // match win for the literal "catalog" segment.
+  page.route("/api/providers/catalog", async (route) => {
+    if (route.request().method() === "GET") {
+      return json(route, providerList(store));
+    }
+    return route.continue();
+  });
+  page.route(/\/api\/providers\/[^/]+\/catalog$/, async (route) => {
+    if (route.request().method() === "GET") {
+      const parts = route.request().url().split("/");
+      const id = parts[parts.length - 2];
+      const p = getProvider(store, id);
+      if (!p) return error(route, "Provider not found", 404);
+      return json(route, p);
+    }
+    return route.continue();
+  });
   page.route(/\/api\/providers\/[^/]+\/connections$/, async (route) => {
     if (route.request().method() === "GET") {
       const parts = route.request().url().split("/");
