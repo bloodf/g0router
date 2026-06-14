@@ -147,6 +147,14 @@ func migrate(db *sql.DB) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`},
+		{"audit_log", `CREATE TABLE IF NOT EXISTS audit_log (
+			id TEXT PRIMARY KEY,
+			timestamp TEXT NOT NULL,
+			actor TEXT NOT NULL,
+			action TEXT NOT NULL,
+			target TEXT NOT NULL DEFAULT '',
+			details TEXT NOT NULL DEFAULT ''
+		)`},
 	}
 
 	for _, t := range tables {
@@ -161,6 +169,10 @@ func migrate(db *sql.DB) error {
 
 	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_virtual_keys_key ON virtual_keys(key)"); err != nil {
 		return fmt.Errorf("create virtual_keys key index: %w", err)
+	}
+
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp DESC)"); err != nil {
+		return fmt.Errorf("create audit_log timestamp index: %w", err)
 	}
 
 	usageIndexes := []struct{ name, table, columns string }{
