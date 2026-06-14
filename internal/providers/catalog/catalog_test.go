@@ -389,6 +389,27 @@ func TestClaudeFormatProviders(t *testing.T) {
 	}
 }
 
+// TestCommandCodeProvider (w7-prov-special-a) verifies the commandcode catalog
+// entry: Format:"commandcode", ref base URL, and the custom CLI headers.
+func TestCommandCodeProvider(t *testing.T) {
+	cfg, ok := Lookup("commandcode")
+	if !ok {
+		t.Fatal("Lookup(commandcode) returned ok=false")
+	}
+	if cfg.BaseURL != "https://api.commandcode.ai/alpha/generate" {
+		t.Errorf("commandcode BaseURL = %q, want https://api.commandcode.ai/alpha/generate", cfg.BaseURL)
+	}
+	if cfg.Format != "commandcode" {
+		t.Errorf("commandcode Format = %q, want commandcode", cfg.Format)
+	}
+	if got, want := cfg.Headers["x-command-code-version"], "0.25.7"; got != want {
+		t.Errorf("x-command-code-version = %q, want %q", got, want)
+	}
+	if got, want := cfg.Headers["x-cli-environment"], "cli"; got != want {
+		t.Errorf("x-cli-environment = %q, want %q", got, want)
+	}
+}
+
 func TestResolveOllamaHost(t *testing.T) {
 	// override trimmed
 	if got := ResolveOllamaHost("  http://ollama.local:11434/  "); got != "http://ollama.local:11434" {

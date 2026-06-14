@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/providers/anthropic"
+	"github.com/bloodf/g0router/internal/providers/commandcode"
 	"github.com/bloodf/g0router/internal/providers/gemini"
 	"github.com/bloodf/g0router/internal/providers/generic"
 	"github.com/bloodf/g0router/internal/providers/ollama"
@@ -133,6 +134,22 @@ func TestClaudeFormatProvidersDispatch(t *testing.T) {
 				t.Errorf("buildProvider(%q).GetProvider() = %q, want %q", id, p.GetProvider(), id)
 			}
 		})
+	}
+}
+
+// TestCommandCodeDispatch (w7-prov-special-a) verifies the additive factory arm
+// dispatching the commandcode custom-JSON provider to its adapter.
+func TestCommandCodeDispatch(t *testing.T) {
+	reg := translation.NewRegistry()
+	p, err := buildProvider("commandcode", reg)
+	if err != nil {
+		t.Fatalf("buildProvider(commandcode) error: %v", err)
+	}
+	if _, ok := p.(*commandcode.Provider); !ok {
+		t.Fatalf("buildProvider(commandcode) type = %T, want *commandcode.Provider", p)
+	}
+	if p.GetProvider() != schemas.ModelProvider("commandcode") {
+		t.Errorf("GetProvider() = %q, want commandcode", p.GetProvider())
 	}
 }
 

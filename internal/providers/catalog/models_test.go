@@ -195,6 +195,18 @@ func TestClaudeFormatModels(t *testing.T) {
 	}
 }
 
+// TestCommandCodeModels (w7-prov-special-a) verifies the commandcode model
+// block transcribed verbatim from providerModels.js @827e5c3.
+func TestCommandCodeModels(t *testing.T) {
+	models := ModelsFor("commandcode")
+	if len(models) != 11 {
+		t.Errorf("ModelsFor(commandcode) len = %d, want 11", len(models))
+	}
+	if len(models) > 0 && models[0].ID != "deepseek/deepseek-v4-pro" {
+		t.Errorf("ModelsFor(commandcode)[0].ID = %q, want deepseek/deepseek-v4-pro", models[0].ID)
+	}
+}
+
 func TestModelsForUnknown(t *testing.T) {
 	models := ModelsFor("nonexistent")
 	if len(models) != 0 {
