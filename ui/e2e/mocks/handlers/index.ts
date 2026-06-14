@@ -10,6 +10,7 @@ import { registerModelsHandlers } from "./models";
 import { registerConnectionsHandlers } from "./connections";
 import { registerKeysHandlers } from "./keys";
 import { registerVirtualKeysHandlers } from "./virtual-keys";
+import { registerNodesHandlers } from "./nodes";
 import { registerTeamsHandlers } from "./teams";
 import { registerCombosHandlers } from "./combos";
 import { registerAliasesHandlers } from "./aliases";
@@ -44,6 +45,7 @@ export function setupMockApi(page: Page, store: MockStore) {
   registerConnectionsHandlers(page, store);
   registerKeysHandlers(page, store);
   registerVirtualKeysHandlers(page, store);
+  registerNodesHandlers(page, store);
   registerTeamsHandlers(page, store);
   registerCombosHandlers(page, store);
   registerAliasesHandlers(page, store);
