@@ -177,6 +177,34 @@ func TestProxyPoolDeleteBoundReturns409(t *testing.T) {
 	}
 }
 
+func TestProxyPoolTestEndpointPersistsStatus(t *testing.T) {
+	e := newTestEnv(t)
+	env := createPool(t, e, `{"name":"x","protocol":"http","host":"proxy.example.com","port":8080}`)
+	id := dataField[map[string]any](t, env)["id"].(string)
+
+	// Force a deterministic reachable probe through the service prober.
+	e.handlers.SetProxyProber(func(proxyURL, target string) (int, error) { return 7, nil })
+
+	status, testEnv := call(t, e.handlers.TestProxyPool, "POST", "/api/proxy-pools/"+id+"/test", "",
+		map[string]any{"id": id, userKey: mustAdmin(t, e)}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("test status = %d, body %v", status, testEnv)
+	}
+	result := dataField[map[string]any](t, testEnv)
+	if result["ok"] != true {
+		t.Fatalf("expected ok=true, got %v", result)
+	}
+
+	// last_check_status persisted on the pool.
+	got, err := e.store.GetProxyPoolByID(id)
+	if err != nil {
+		t.Fatalf("GetProxyPoolByID: %v", err)
+	}
+	if got.LastCheckStatus != "ok" || got.LastCheckAt == "" {
+		t.Fatalf("test did not persist check: %+v", got)
+	}
+}
+
 func TestProxyPoolCreateWritesAudit(t *testing.T) {
 	e := newTestEnv(t)
 	createPool(t, e, `{"name":"audited","host":"h.example.com"}`)

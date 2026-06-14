@@ -83,6 +83,12 @@ func (h *Handlers) SetShutdownFunc(fn func()) {
 	h.shutdownFunc = fn
 }
 
+// SetProxyProber injects the proxy connectivity prober used by TestProxyPool.
+// Production wires the real proxied dial; tests inject a deterministic fake.
+func (h *Handlers) SetProxyProber(p platform.Prober) {
+	h.proxyPools.SetProber(p)
+}
+
 // pathID returns the {id} route parameter.
 func pathID(v any) (string, bool) {
 	s, ok := v.(string)

@@ -2,16 +2,27 @@ package platform
 
 import "github.com/bloodf/g0router/internal/store"
 
+// Prober probes reachability of target through proxyURL, returning a latency in
+// milliseconds. It is an injectable seam so tests run without network access.
+type Prober func(proxyURL, target string) (latencyMs int, err error)
+
 // ProxyPoolService is the domain service for proxy pools (transport→domain→
 // repository). It owns CRUD wrappers over the store, the connectivity test, and
 // per-connection proxy resolution.
 type ProxyPoolService struct {
-	st *store.Store
+	st     *store.Store
+	prober Prober
 }
 
 // NewProxyPoolService constructs the service over a store.
 func NewProxyPoolService(st *store.Store) *ProxyPoolService {
 	return &ProxyPoolService{st: st}
+}
+
+// SetProber injects the reachability prober (production wires the real proxied
+// dial; tests inject a deterministic fake).
+func (s *ProxyPoolService) SetProber(p Prober) {
+	s.prober = p
 }
 
 // ProxyTestResult is the outcome of a connectivity probe through a proxy pool.
