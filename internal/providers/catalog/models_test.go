@@ -165,6 +165,36 @@ func TestChineseOpenAIModels(t *testing.T) {
 	}
 }
 
+// TestClaudeFormatModels (w7-prov-special-a) verifies the model blocks for the
+// claude-format providers transcribed verbatim from providerModels.js @827e5c3.
+func TestClaudeFormatModels(t *testing.T) {
+	wantCount := map[string]int{
+		"glm":     4,
+		"kimi":    4,
+		"minimax": 5,
+	}
+	for p, n := range wantCount {
+		if got := len(ModelsFor(p)); got != n {
+			t.Errorf("ModelsFor(%q) len = %d, want %d", p, got, n)
+		}
+	}
+	wantFirst := map[string]string{
+		"glm":     "glm-5.1",
+		"kimi":    "kimi-k2.6",
+		"minimax": "MiniMax-M3",
+	}
+	for p, first := range wantFirst {
+		models := ModelsFor(p)
+		if len(models) == 0 {
+			t.Errorf("ModelsFor(%q) is empty", p)
+			continue
+		}
+		if models[0].ID != first {
+			t.Errorf("ModelsFor(%q)[0].ID = %q, want %q", p, models[0].ID, first)
+		}
+	}
+}
+
 func TestModelsForUnknown(t *testing.T) {
 	models := ModelsFor("nonexistent")
 	if len(models) != 0 {

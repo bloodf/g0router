@@ -8422,3 +8422,16 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   `internal/providers/generic` ChatURL|Fallback = 3 pass. TDD-order proof + additive +
   no-init + freeze proofs (no admin/store/routes_admin/UI touched) all pass. selection.go
   micro-serial RELEASED. Dynamic routing engine COMPLETE.
+
+### Wave 7 — w7-prov-special-a (claude-format + URL-template/simple specialized adapters)
+
+- T0 (preconditions): base `<base>` = `28dc097b805b15cbc01281376c17df7e1a848f61`.
+  factory.go MICRO-SERIAL slot confirmed FREE at base (`git log <base>..HEAD --
+  internal/inference/factory.go` empty) — this plan TAKES the slot; releases to
+  w7-prov-special-b on close. Catalog entries for glm/kimi/minimax/minimax-cn/azure/
+  cloudflare-ai/vertex/commandcode/qoder/xiaomi-tokenplan all ABSENT at base (grep = 0).
+  Aliases all present (verify-only): glm, kimi, minimax, minimax-cn, cmc/commandcode,
+  vx/vertex, cf/cloudflare-ai, qd/qoder, xmtp/xiaomi-tokenplan. NOTE: ref @827e5c3 has
+  NO `azure` alias — azure routes by provider ID; aliases.go left UNCHANGED.
+  commandcode converters present (registry.go:169-170, reuse). anthropic baseURL field
+  settable. 9router ref pinned @ `827e5c3`.

@@ -114,6 +114,28 @@ func TestBuildProviderExisting(t *testing.T) {
 	}
 }
 
+// TestClaudeFormatProvidersDispatch (w7-prov-special-a) verifies the additive
+// factory arm dispatching format:"claude" catalog providers to the anthropic
+// adapter, constructed with the catalog base URL (not the hardcoded
+// api.anthropic.com).
+func TestClaudeFormatProvidersDispatch(t *testing.T) {
+	reg := translation.NewRegistry()
+	for _, id := range []string{"glm", "kimi", "minimax", "minimax-cn"} {
+		t.Run(id, func(t *testing.T) {
+			p, err := buildProvider(id, reg)
+			if err != nil {
+				t.Fatalf("buildProvider(%q) error: %v", id, err)
+			}
+			if _, ok := p.(*anthropic.Provider); !ok {
+				t.Fatalf("buildProvider(%q) type = %T, want *anthropic.Provider", id, p)
+			}
+			if p.GetProvider() != schemas.ModelProvider(id) {
+				t.Errorf("buildProvider(%q).GetProvider() = %q, want %q", id, p.GetProvider(), id)
+			}
+		})
+	}
+}
+
 func TestProviderForModelDeterministic(t *testing.T) {
 	// Run multiple times and assert stable result.
 	for i := 0; i < 5; i++ {

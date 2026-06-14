@@ -352,6 +352,43 @@ func TestFreeTierModels(t *testing.T) {
 	}
 }
 
+// TestClaudeFormatProviders (w7-prov-special-a) verifies the claude-format
+// catalog entries (glm/kimi/minimax/minimax-cn): Format:"claude", the ref base
+// URLs (full .../v1/messages endpoints), AuthHeader:"x-api-key", and the
+// CLAUDE_API_HEADERS (Anthropic-Version + Anthropic-Beta).
+func TestClaudeFormatProviders(t *testing.T) {
+	cases := map[string]string{
+		"glm":        "https://api.z.ai/api/anthropic/v1/messages",
+		"kimi":       "https://api.kimi.com/coding/v1/messages",
+		"minimax":    "https://api.minimax.io/anthropic/v1/messages",
+		"minimax-cn": "https://api.minimaxi.com/anthropic/v1/messages",
+	}
+	for name, wantURL := range cases {
+		cfg, ok := Lookup(name)
+		if !ok {
+			t.Fatalf("Lookup(%q) returned ok=false", name)
+		}
+		if cfg.Name != name {
+			t.Errorf("Lookup(%q).Name = %q, want %q", name, cfg.Name, name)
+		}
+		if cfg.BaseURL != wantURL {
+			t.Errorf("Lookup(%q).BaseURL = %q, want %q", name, cfg.BaseURL, wantURL)
+		}
+		if cfg.Format != "claude" {
+			t.Errorf("Lookup(%q).Format = %q, want claude", name, cfg.Format)
+		}
+		if cfg.AuthHeader != "x-api-key" {
+			t.Errorf("Lookup(%q).AuthHeader = %q, want x-api-key", name, cfg.AuthHeader)
+		}
+		if got, want := cfg.Headers["Anthropic-Version"], "2023-06-01"; got != want {
+			t.Errorf("Lookup(%q).Headers[Anthropic-Version] = %q, want %q", name, got, want)
+		}
+		if got, want := cfg.Headers["Anthropic-Beta"], "claude-code-20250219,interleaved-thinking-2025-05-14"; got != want {
+			t.Errorf("Lookup(%q).Headers[Anthropic-Beta] = %q, want %q", name, got, want)
+		}
+	}
+}
+
 func TestResolveOllamaHost(t *testing.T) {
 	// override trimmed
 	if got := ResolveOllamaHost("  http://ollama.local:11434/  "); got != "http://ollama.local:11434" {
