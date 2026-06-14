@@ -189,10 +189,43 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.POST("/api/models/disabled", h.RequireSession(h.PostDisabledModels))
 	r.DELETE("/api/models/disabled", h.RequireSession(h.DeleteDisabledModels))
 
-	r.GET("/api/combos", h.RequireSession(h.ListCombos))
-	r.POST("/api/combos", h.RequireSession(h.CreateCombo))
-	r.PUT("/api/combos/{name}", h.RequireSession(h.UpdateCombo))
-	r.DELETE("/api/combos/{name}", h.RequireSession(h.DeleteCombo))
+	// Combos admin (w7-route-a, ESC-COMBOS Option A). The id-keyed admin combos
+	// surface OWNS /api/combos[/{id}] serving the frozen UI shape
+	// {id,name,strategy,steps[{provider,model}],is_active}; it REPLACES the
+	// engine's {name,models[]} /api/combos HTTP routes (verified: only the admin
+	// page consumes those routes — the /v1/models lister reads the store
+	// directly). The engine combos store table + /v1/models lister stay intact,
+	// fed by the admin handlers' best-effort mirror-write.
+	r.GET("/api/combos", h.RequireSession(h.ListCombosAdmin))
+	r.POST("/api/combos", h.RequireSession(h.CreateComboAdmin))
+	r.GET("/api/combos/{id}", h.RequireSession(h.GetComboAdmin))
+	r.PUT("/api/combos/{id}", h.RequireSession(h.UpdateComboAdmin))
+	r.DELETE("/api/combos/{id}", h.RequireSession(h.DeleteComboAdmin))
+
+	// Aliases admin CRUD (w7-route-a; static collection before {id}).
+	r.GET("/api/aliases", h.RequireSession(h.ListAliases))
+	r.POST("/api/aliases", h.RequireSession(h.CreateAlias))
+	r.GET("/api/aliases/{id}", h.RequireSession(h.GetAlias))
+	r.PUT("/api/aliases/{id}", h.RequireSession(h.UpdateAlias))
+	r.DELETE("/api/aliases/{id}", h.RequireSession(h.DeleteAlias))
+
+	// Routing-rules admin CRUD (w7-route-a; admin CRUD only — not yet applied to
+	// live inference).
+	r.GET("/api/routing-rules", h.RequireSession(h.ListRoutingRules))
+	r.POST("/api/routing-rules", h.RequireSession(h.CreateRoutingRule))
+	r.GET("/api/routing-rules/{id}", h.RequireSession(h.GetRoutingRule))
+	r.PUT("/api/routing-rules/{id}", h.RequireSession(h.UpdateRoutingRule))
+	r.DELETE("/api/routing-rules/{id}", h.RequireSession(h.DeleteRoutingRule))
+
+	// Model-limits admin CRUD (w7-route-a; numeric INTEGER-PK ids, ESC-IDTYPE).
+	r.GET("/api/model-limits", h.RequireSession(h.ListModelLimits))
+	r.POST("/api/model-limits", h.RequireSession(h.CreateModelLimit))
+	r.GET("/api/model-limits/{id}", h.RequireSession(h.GetModelLimit))
+	r.PUT("/api/model-limits/{id}", h.RequireSession(h.UpdateModelLimit))
+	r.DELETE("/api/model-limits/{id}", h.RequireSession(h.DeleteModelLimit))
+
+	// Quota aggregation over per-connection usage (w7-route-a).
+	r.GET("/api/quota", h.RequireSession((&admin.QuotaHandler{Handlers: h}).GetQuota))
 
 	r.GET("/api/usage/stats", h.RequireSession(h.GetUsageStats))
 	r.GET("/api/usage/chart", h.RequireSession(h.GetUsageChart))
