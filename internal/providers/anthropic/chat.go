@@ -23,9 +23,9 @@ func (p *Provider) ChatCompletion(ctx *schemas.GatewayContext, key schemas.Key, 
 	resp := p.client.AcquireResponse()
 	defer p.client.ReleaseResponse(resp)
 
-	req.SetRequestURI(p.baseURL + "/v1/messages")
+	req.SetRequestURI(p.messagesURL())
 	req.Header.SetMethod(fasthttp.MethodPost)
-	setAuthHeader(req, key.Value)
+	p.setRequestHeaders(req, key.Value)
 
 	anthReq := ConvertRequest(request)
 	if err := utils.SetJSONBody(req, anthReq); err != nil {
@@ -81,9 +81,9 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 	req := p.client.AcquireRequest()
 	resp := p.client.AcquireResponse()
 
-	req.SetRequestURI(p.baseURL + "/v1/messages")
+	req.SetRequestURI(p.messagesURL())
 	req.Header.SetMethod(fasthttp.MethodPost)
-	setAuthHeader(req, key.Value)
+	p.setRequestHeaders(req, key.Value)
 
 	anthReq := ConvertRequest(request)
 	anthReq.Stream = true
@@ -190,4 +190,14 @@ func (p *Provider) ChatCompletionStream(ctx *schemas.GatewayContext, postHookRun
 func setAuthHeader(req *fasthttp.Request, key string) {
 	req.Header.Set("x-api-key", key)
 	req.Header.Set("anthropic-version", "2023-06-01")
+}
+
+// setRequestHeaders applies the auth/version headers and, for claude-format
+// providers (NewForProvider), the Anthropic-Beta CLAUDE_API_HEADERS flag. The
+// default NewProvider() path has an empty betaHeader, so behavior is unchanged.
+func (p *Provider) setRequestHeaders(req *fasthttp.Request, key string) {
+	setAuthHeader(req, key)
+	if p.betaHeader != "" {
+		req.Header.Set("anthropic-beta", p.betaHeader)
+	}
 }

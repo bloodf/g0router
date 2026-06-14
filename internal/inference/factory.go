@@ -102,8 +102,16 @@ func buildProvider(providerID string, reg *translation.Registry) (schemas.Provid
 	case "ollama", "ollama-local":
 		return ollama.New(providerID, reg)
 	default:
-		if _, ok := catalog.Lookup(providerID); !ok {
+		cfg, ok := catalog.Lookup(providerID)
+		if !ok {
 			return nil, fmt.Errorf("unknown provider %q", providerID)
+		}
+		// w7-prov-special-a: dispatch by catalog Format so future same-format
+		// providers are free. Additive — the generic openai default below is
+		// unchanged.
+		switch cfg.Format {
+		case "claude":
+			return anthropic.NewForProvider(providerID, cfg.BaseURL), nil
 		}
 		return generic.New(providerID)
 	}

@@ -363,6 +363,29 @@ var Models = map[string][]ModelEntry{
 		{ID: "glm-4.7-flash", Name: "GLM 4.7 Flash", UpstreamModelID: "glm-4.7-flash"},
 		{ID: "qwen3.5", Name: "Qwen3.5", UpstreamModelID: "qwen3.5"},
 	},
+	// --- w7-prov-special-a: claude-format provider models (providerModels.js
+	// @827e5c3). minimax/minimax-cn share the minimax block. The ref
+	// targetFormat:"claude" hint on MiniMax-M3 has no ModelEntry field (the
+	// adapter is already claude-wire) and is not ported.
+	"glm": {
+		{ID: "glm-5.1", Name: "GLM 5.1"},
+		{ID: "glm-5", Name: "GLM 5"},
+		{ID: "glm-4.7", Name: "GLM 4.7"},
+		{ID: "glm-4.6v", Name: "GLM 4.6V (Vision)"},
+	},
+	"kimi": {
+		{ID: "kimi-k2.6", Name: "Kimi K2.6"},
+		{ID: "kimi-k2.5", Name: "Kimi K2.5"},
+		{ID: "kimi-k2.5-thinking", Name: "Kimi K2.5 Thinking"},
+		{ID: "kimi-latest", Name: "Kimi Latest"},
+	},
+	"minimax": {
+		{ID: "MiniMax-M3", Name: "MiniMax M3"},
+		{ID: "MiniMax-M2.7", Name: "MiniMax M2.7"},
+		{ID: "MiniMax-M2.5", Name: "MiniMax M2.5"},
+		{ID: "MiniMax-M2.1", Name: "MiniMax M2.1"},
+		{ID: "minimax-image-01", Name: "MiniMax Image 01", Type: "image", Params: []string{"n", "size", "response_format"}},
+	},
 }
 
 // ModelsFor returns the static model catalog for the given provider.

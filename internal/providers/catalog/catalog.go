@@ -334,6 +334,50 @@ var Providers = map[string]ProviderConfig{
 		},
 		NoAuth: true,
 	},
+	// --- w7-prov-special-a: claude-format providers (reuse anthropic path) ---
+	// baseUrl is the FULL Anthropic-Messages endpoint (ref @827e5c3); the
+	// anthropic adapter (NewForProvider) appends "?beta=true" and sets x-api-key
+	// auth. Headers carry CLAUDE_API_HEADERS (providers.js:24-27).
+	"glm": {
+		Name:       "glm",
+		BaseURL:    "https://api.z.ai/api/anthropic/v1/messages",
+		Format:     "claude",
+		AuthHeader: "x-api-key",
+		Headers: map[string]string{
+			"Anthropic-Version": "2023-06-01",
+			"Anthropic-Beta":    "claude-code-20250219,interleaved-thinking-2025-05-14",
+		},
+	},
+	"kimi": {
+		Name:       "kimi",
+		BaseURL:    "https://api.kimi.com/coding/v1/messages",
+		Format:     "claude",
+		AuthHeader: "x-api-key",
+		Headers: map[string]string{
+			"Anthropic-Version": "2023-06-01",
+			"Anthropic-Beta":    "claude-code-20250219,interleaved-thinking-2025-05-14",
+		},
+	},
+	"minimax": {
+		Name:       "minimax",
+		BaseURL:    "https://api.minimax.io/anthropic/v1/messages",
+		Format:     "claude",
+		AuthHeader: "x-api-key",
+		Headers: map[string]string{
+			"Anthropic-Version": "2023-06-01",
+			"Anthropic-Beta":    "claude-code-20250219,interleaved-thinking-2025-05-14",
+		},
+	},
+	"minimax-cn": {
+		Name:       "minimax-cn",
+		BaseURL:    "https://api.minimaxi.com/anthropic/v1/messages",
+		Format:     "claude",
+		AuthHeader: "x-api-key",
+		Headers: map[string]string{
+			"Anthropic-Version": "2023-06-01",
+			"Anthropic-Beta":    "claude-code-20250219,interleaved-thinking-2025-05-14",
+		},
+	},
 	"ollama": {
 		Name:    "ollama",
 		BaseURL: "https://ollama.com/api/chat",
