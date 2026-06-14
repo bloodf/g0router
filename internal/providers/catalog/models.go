@@ -451,6 +451,25 @@ var Models = map[string][]ModelEntry{
 		{ID: "Qwen/Qwen3.6-Plus", Name: "Qwen 3.6 Plus"},
 		{ID: "stepfun/Step-3.5-Flash", Name: "Step 3.5 Flash"},
 	},
+	// w7-prov-special-b: kiro AWS-eventstream provider (PAR-PROV-022).
+	// Verbatim from providerModels.js:127-146. The commented-out claude-opus-4.5
+	// entry is excluded (it is commented out in the ref). The ref `strip` lists
+	// are a read-site concern and are not part of the static catalog (ModelEntry
+	// has no Strip field).
+	"kiro": {
+		{ID: "claude-sonnet-4.5", Name: "Claude Sonnet 4.5"},
+		{ID: "claude-haiku-4.5", Name: "Claude Haiku 4.5"},
+		{ID: "deepseek-3.2", Name: "DeepSeek 3.2"},
+		{ID: "qwen3-coder-next", Name: "Qwen3 Coder Next"},
+		{ID: "glm-5", Name: "GLM 5"},
+		{ID: "MiniMax-M2.5", Name: "MiniMax M2.5"},
+		{ID: "claude-sonnet-4.5-thinking", Name: "Claude Sonnet 4.5 (Thinking)"},
+		{ID: "claude-haiku-4.5-thinking", Name: "Claude Haiku 4.5 (Thinking)"},
+		{ID: "claude-sonnet-4.5-agentic", Name: "Claude Sonnet 4.5 (Agentic)"},
+		{ID: "claude-haiku-4.5-agentic", Name: "Claude Haiku 4.5 (Agentic)"},
+		{ID: "claude-sonnet-4.5-thinking-agentic", Name: "Claude Sonnet 4.5 (Thinking + Agentic)"},
+		{ID: "claude-haiku-4.5-thinking-agentic", Name: "Claude Haiku 4.5 (Thinking + Agentic)"},
+	},
 }
 
 // ModelsFor returns the static model catalog for the given provider.
