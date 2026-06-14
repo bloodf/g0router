@@ -171,6 +171,23 @@ func migrate(db *sql.DB) error {
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL
 		)`},
+		{"guardrails", `CREATE TABLE IF NOT EXISTS guardrails (
+			id INTEGER PRIMARY KEY,
+			guardrails_enabled INTEGER NOT NULL DEFAULT 0,
+			guardrails_blocklist_json TEXT NOT NULL DEFAULT '[]',
+			pii_redaction_enabled INTEGER NOT NULL DEFAULT 0,
+			pii_redaction_types_json TEXT NOT NULL DEFAULT '[]',
+			updated_at INTEGER NOT NULL DEFAULT 0
+		)`},
+		{"alert_channels", `CREATE TABLE IF NOT EXISTS alert_channels (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			channel_type TEXT NOT NULL DEFAULT 'webhook',
+			config_enc TEXT NOT NULL DEFAULT '',
+			events_json TEXT NOT NULL DEFAULT '[]',
+			is_active INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
