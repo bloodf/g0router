@@ -7,13 +7,16 @@ import (
 	"time"
 )
 
-// ProviderRecord is a configured upstream LLM provider.
+// ProviderRecord is a configured upstream LLM provider. Prefix and APIType are
+// populated for provider nodes (w7-platnodes); plain providers keep them empty.
 type ProviderRecord struct {
 	ID        string
 	Name      string
 	Type      string
 	BaseURL   string
 	Enabled   bool
+	Prefix    string
+	APIType   string
 	CreatedAt int64
 	UpdatedAt int64
 }
@@ -29,8 +32,8 @@ func (s *Store) CreateProvider(p *ProviderRecord) error {
 	p.CreatedAt = now
 	p.UpdatedAt = now
 	_, err = s.db.Exec(
-		"INSERT INTO providers (id, name, type, base_url, enabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		p.ID, p.Name, p.Type, p.BaseURL, boolToInt(p.Enabled), p.CreatedAt, p.UpdatedAt,
+		"INSERT INTO providers (id, name, type, base_url, enabled, prefix, api_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		p.ID, p.Name, p.Type, p.BaseURL, boolToInt(p.Enabled), p.Prefix, p.APIType, p.CreatedAt, p.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("insert provider %s: %w", p.Name, err)
@@ -41,7 +44,7 @@ func (s *Store) CreateProvider(p *ProviderRecord) error {
 // ListProviders returns all providers ordered by creation time.
 func (s *Store) ListProviders() ([]*ProviderRecord, error) {
 	rows, err := s.db.Query(
-		"SELECT id, name, type, base_url, enabled, created_at, updated_at FROM providers ORDER BY created_at, id")
+		"SELECT id, name, type, base_url, enabled, prefix, api_type, created_at, updated_at FROM providers ORDER BY created_at, id")
 	if err != nil {
 		return nil, fmt.Errorf("query providers: %w", err)
 	}
@@ -64,7 +67,7 @@ func (s *Store) ListProviders() ([]*ProviderRecord, error) {
 // GetProvider returns the provider with the given ID.
 func (s *Store) GetProvider(id string) (*ProviderRecord, error) {
 	row := s.db.QueryRow(
-		"SELECT id, name, type, base_url, enabled, created_at, updated_at FROM providers WHERE id = ?", id)
+		"SELECT id, name, type, base_url, enabled, prefix, api_type, created_at, updated_at FROM providers WHERE id = ?", id)
 	p, err := scanProvider(row)
 	if err != nil {
 		return nil, err
@@ -75,8 +78,8 @@ func (s *Store) GetProvider(id string) (*ProviderRecord, error) {
 // UpdateProvider persists name, type, base URL, and enabled state.
 func (s *Store) UpdateProvider(p *ProviderRecord) error {
 	res, err := s.db.Exec(
-		"UPDATE providers SET name = ?, type = ?, base_url = ?, enabled = ?, updated_at = ? WHERE id = ?",
-		p.Name, p.Type, p.BaseURL, boolToInt(p.Enabled), time.Now().Unix(), p.ID,
+		"UPDATE providers SET name = ?, type = ?, base_url = ?, enabled = ?, prefix = ?, api_type = ?, updated_at = ? WHERE id = ?",
+		p.Name, p.Type, p.BaseURL, boolToInt(p.Enabled), p.Prefix, p.APIType, time.Now().Unix(), p.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update provider %s: %w", p.ID, err)
@@ -100,7 +103,7 @@ type rowScanner interface {
 func scanProvider(row rowScanner) (*ProviderRecord, error) {
 	var p ProviderRecord
 	var enabled int
-	err := row.Scan(&p.ID, &p.Name, &p.Type, &p.BaseURL, &enabled, &p.CreatedAt, &p.UpdatedAt)
+	err := row.Scan(&p.ID, &p.Name, &p.Type, &p.BaseURL, &enabled, &p.Prefix, &p.APIType, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
