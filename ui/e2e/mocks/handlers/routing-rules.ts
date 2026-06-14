@@ -31,7 +31,7 @@ export function registerRoutingRulesHandlers(page: Page, store: MockStore) {
     }
     if (method === "DELETE") {
       store.routingRules.delete(id);
-      return json(route, {});
+      return json(route, { message: "Routing rule deleted successfully" });
     }
     return route.continue();
   });

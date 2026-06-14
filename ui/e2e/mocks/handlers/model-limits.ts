@@ -45,7 +45,7 @@ export function registerModelLimitsHandlers(page: Page, store: MockStore) {
     }
     if (method === "DELETE") {
       store.modelLimits.delete(id);
-      return json(route, {});
+      return json(route, { message: "Model limit deleted successfully" });
     }
     return route.continue();
   });

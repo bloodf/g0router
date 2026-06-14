@@ -8,7 +8,9 @@ export function registerCombosHandlers(page: Page, store: MockStore) {
     if (method === "GET") return json(route, Array.from(store.combos.values()));
     if (method === "POST") {
       const body = await route.request().postDataJSON();
-      const combo = { id: store.nextId(), is_active: true, ...body };
+      // Mirror the real Go combos-admin create DTO: strategy defaults to
+      // "fallback", is_active defaults true (w7-route-a §1.7 / ESC-COMBOS).
+      const combo = { id: store.nextId(), strategy: "fallback", is_active: true, ...body };
       store.combos.set(combo.id, combo);
       return json(route, combo);
     }
@@ -31,7 +33,7 @@ export function registerCombosHandlers(page: Page, store: MockStore) {
     }
     if (method === "DELETE") {
       store.combos.delete(id);
-      return json(route, {});
+      return json(route, { message: "Combo deleted successfully" });
     }
     return route.continue();
   });

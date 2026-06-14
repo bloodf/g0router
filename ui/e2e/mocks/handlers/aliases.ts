@@ -31,7 +31,7 @@ export function registerAliasesHandlers(page: Page, store: MockStore) {
     }
     if (method === "DELETE") {
       store.aliases.delete(id);
-      return json(route, {});
+      return json(route, { message: "Alias deleted successfully" });
     }
     return route.continue();
   });
