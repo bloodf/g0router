@@ -8,7 +8,7 @@ export function registerPromptsHandlers(page: Page, store: MockStore) {
     if (method === "GET") return json(route, Array.from(store.promptTemplates.values()));
     if (method === "POST") {
       const body = await route.request().postDataJSON();
-      const pt = { id: Date.now(), created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...body };
+      const pt = { id: Date.now(), created_at: new Date().toISOString(), ...body };
       store.promptTemplates.set(String(pt.id), pt);
       return json(route, pt);
     }
@@ -25,7 +25,7 @@ export function registerPromptsHandlers(page: Page, store: MockStore) {
       const body = await route.request().postDataJSON();
       const existing = store.promptTemplates.get(id);
       if (!existing) return error(route, "Not found", 404);
-      const updated = { ...existing, ...body, updated_at: new Date().toISOString() };
+      const updated = { ...existing, ...body };
       store.promptTemplates.set(id, updated);
       return json(route, updated);
     }
