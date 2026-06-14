@@ -4,15 +4,15 @@
 
 | ID | Behavior | Evidence (file:line) | g0router status | Notes |
 |----|----------|----------------------|-----------------|-------|
-| PAR-PLAT-001 | Proxy pool CRUD: list with `isActive` filter and `includeUsage` bound-connection count | `src/app/api/proxy-pools/route.js:44-75` | MISSING | g0router has no proxy pool table or routes |
-| PAR-PLAT-002 | Proxy pool create with validated `type` ∈ {http,vercel,cloudflare,deno} | `src/app/api/proxy-pools/route.js:10,78-92` | MISSING | |
-| PAR-PLAT-003 | Proxy pool update/delete with bound-connection guard (409 if in use) | `src/app/api/proxy-pools/[id]/route.js:94-122` | MISSING | |
-| PAR-PLAT-004 | Proxy pool health test: HTTP uses `undici` ProxyAgent HEAD to google.com; relay types use `x-relay-target` probe | `src/app/api/proxy-pools/[id]/test/route.js:6-48` | MISSING | |
-| PAR-PLAT-005 | Proxy pool test writes `testStatus`, `lastTestedAt`, `lastError`, toggles `isActive` | `src/app/api/proxy-pools/[id]/test/route.js:49-56` | MISSING | |
+| PAR-PLAT-001 | Proxy pool CRUD: list with `isActive` filter and `includeUsage` bound-connection count | `src/app/api/proxy-pools/route.js:44-75` | HAVE | w7-plat-1: `GET /api/proxy-pools[?isActive]`, `GET /{id}`; `internal/admin/proxypools.go`, `internal/store/proxypools.go` |
+| PAR-PLAT-002 | Proxy pool create with validated `type` ∈ {http,vercel,cloudflare,deno} | `src/app/api/proxy-pools/route.js:10,78-92` | HAVE | w7-plat-1: `POST /api/proxy-pools` with validated name/host/port + protocol (http/https/socks5). Relay-deploy types (vercel/cloudflare/deno) remain PAR-PLAT-006/007/008 |
+| PAR-PLAT-003 | Proxy pool update/delete with bound-connection guard (409 if in use) | `src/app/api/proxy-pools/[id]/route.js:94-122` | HAVE | w7-plat-1: `PUT/DELETE /{id}`; DELETE returns 409 via `CountConnectionsUsingProxyPool` (connections.proxy_pool_id) |
+| PAR-PLAT-004 | Proxy pool health test: HTTP uses `undici` ProxyAgent HEAD to google.com; relay types use `x-relay-target` probe | `src/app/api/proxy-pools/[id]/test/route.js:6-48` | HAVE | w7-plat-1: `POST /{id}/test` HEAD-via-proxy probe (SSRF-guarded, injectable prober); `platform.ProxyPoolService.TestConnectivity` |
+| PAR-PLAT-005 | Proxy pool test writes `testStatus`, `lastTestedAt`, `lastError`, toggles `isActive` | `src/app/api/proxy-pools/[id]/test/route.js:49-56` | HAVE | w7-plat-1: test persists `last_check_status`/`last_check_at` via `SetProxyPoolCheck` |
 | PAR-PLAT-006 | Cloudflare Workers relay deploy: uploads worker script via multipart/form-data, enables subdomain, creates pool entry | `src/app/api/proxy-pools/cloudflare-deploy/route.js:50-145` | MISSING | |
 | PAR-PLAT-007 | Vercel relay deploy: posts to `/v13/deployments` with edge function files, polls readyState, disables ssoProtection, creates pool entry | `src/app/api/proxy-pools/vercel-deploy/route.js:58-141` | MISSING | |
 | PAR-PLAT-008 | Deno Deploy relay deploy: creates app via Deno v2 API, deploys asset, polls revision status (max 30×2s), rollback on failure | `src/app/api/proxy-pools/deno-deploy/route.js:47-175` | MISSING | |
-| PAR-PLAT-009 | Proxy pool SQLite schema: `proxyPools(id,isActive,testStatus,data,createdAt,updatedAt)` with JSON `data` column | `src/lib/db/schema.js:60-73` | MISSING | g0router schema has providers/connections only |
+| PAR-PLAT-009 | Proxy pool SQLite schema: `proxyPools(id,isActive,testStatus,data,createdAt,updatedAt)` with JSON `data` column | `src/lib/db/schema.js:60-73` | HAVE | w7-plat-1: additive `proxy_pools` table (typed columns; password_enc at rest) + connections.proxy_pool_id (per-connection proxy resolution, selection.go hook); `internal/store/migrate.go` |
 | PAR-PLAT-010 | Provider node CRUD: types `openai-compatible`/`anthropic-compatible`/`custom-embedding` with prefix + baseUrl | `src/app/api/provider-nodes/route.js:20-103` | MISSING | g0router providers are flat records without prefix routing |
 | PAR-PLAT-011 | Provider node baseUrl sanitization: strips trailing `/messages` for anthropic, `/embeddings` for custom-embedding | `src/app/api/provider-nodes/route.js:66-69,83-87` | MISSING | |
 | PAR-PLAT-012 | Provider node update cascades prefix/baseUrl/apiType to bound `providerConnections` | `src/app/api/provider-nodes/[id]/route.js:61-74` | MISSING | |

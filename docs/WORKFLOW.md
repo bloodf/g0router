@@ -7806,3 +7806,88 @@ green). No T-mocks commit (verified, no change).
 - T-mocks: verified, no change (mocks already mirror the Go DTOs).
 - T-close: matrix flip (PAR-UI-130/131), open-questions ESC-1d/1f resolutions + pipeline-integration
   deferral, this entry; serial slot released to the next chain holder.
+
+## w7-plat-1 — Platform: proxy-pools backend + outbound proxy/SSRF mitigation (Go)
+
+```yaml
+plan: w7-plat-1
+status: DONE
+summary: "Real Go proxy-pools CRUD + batch + SSRF-guarded connectivity test,
+  outbound SSRF policy, per-connection proxy resolution (selection.go hook +
+  ClientPool honor-ProxyURL). Layered transport→domain→repository. Mock
+  corrected to mirror real Go DTOs."
+base: 17cfa29700e1b0442907d840f5d6120d6c1a8ee2
+```
+
+**Base observation (P6):** Go green at base (build/vet/test exit 0). Working tree at P0 had
+two pre-existing untracked/modified entries left untouched per hard rules: `ui/dist/index.html`
+(TRACKED but pre-modified — never reverted, never staged) and the orchestrator plan file
+`.planning/parity/plans/w7-plat-1.md` (untracked — never committed).
+
+**Decisions as implemented:**
+- ESC-SCHEMA → typed columns; `proxy_pools` additive table (id,name,protocol,host,port,
+  username,password_enc,is_active,last_check_status,last_check_at,created_at,updated_at).
+- ESC-CONN-LINK → additive `connections.proxy_pool_id` column + `Connection.ProxyPoolID`
+  field/write/scan. Landed in T-proxypools (the 409 guard needs it); round-trip asserted in
+  T-proxywire.
+- ESC-SSRF-POLICY → `IsBlockedIP` blocks loopback/private/link-local/unspecified/multicast
+  (cloud-metadata covered via link-local) via net.IP predicates; allows global-unicast.
+  `IsBlockedTarget` parses literal-IP or resolves via an injectable IPResolver.
+- ESC-SSRF-SCOPE → guard the connectivity-test probe target + the user-configured proxy host
+  only; broad provider-target retrofit deferred (open-questions).
+- ESC-INJECT → ClientPool gains `SetProxyURL` (additive override, precedence over env proxyFunc,
+  uses existing `clientForProxy`); each provider's existing `SetNetworkConfig` (generic+openai)
+  pushes `config.ProxyURL` in. NO interface / New() / SetNetworkConfig signature change.
+- ESC-RESOLVE → additive `ProxyResolver` hook on SelectionEngine (`SetProxyResolver` +
+  `ResolveProxy`); `platform.ProxyPoolService.ResolveProxyForConnection` implements it. No
+  change to existing selection/eligibility/cooldown logic; `NewSelectionEngine` unchanged.
+- ESC-ARCH → no in-tree arch test enforces layering (same finding as w7-gov-1); CRUD routes
+  through `platform.ProxyPoolService` for clean DDD; the service also owns TestConnectivity +
+  ResolveProxyForConnection (reused beyond the handler).
+- ESC-PROXY-CRED → optional `password`, `password_enc` at rest, masked as `password_set`,
+  used to build `protocol://user:pass@host:port`.
+- ESC-TEST-SHAPE → `/test` returns `{ok,latency_ms,status}` + persists last_check_status/at.
+- ESC-BATCH → shipped (mirrors mock; page does not call it — noted as possibly-dead).
+- ESC-USAGE → `?includeUsage` accepted as a harmless no-op; page never sends it (deferred).
+- ESC-409-MOCK → mock delete stays `{message}`; the 409 bound-delete is proven in the Go
+  admin test only (e2e deletes an unbound pool).
+
+**Serial slots:** routes_admin.go slot FREE at P5 (last touch w7-gov-3 `9347869`, merged) —
+TOOK it for ONE additive commit (`5ba4306`) and RELEASE to w7-plat-2 on this close. selection.go
+micro-serial FREE at P5 (last touch w4-d `bc1ee23`, merged; no unmerged w7-route edit) — TOOK
+at T-proxywire (`4bd0dd3`) and RELEASED after.
+
+**Gate Results (T-close):**
+- `go build ./... && go vet ./... && go test ./...`: PASS (vet/build clean, all packages ok).
+- `go test ./internal/platform/... ./internal/admin/ -run 'Proxy'`: PASS.
+- `go test ./internal/store/ -run 'Proxy|Connection'`: PASS.
+- `go test ./internal/inference/ -run 'Proxy|Select'`: PASS (existing selection tests green).
+- `go test ./internal/providers/utils/ -run 'Proxy|Client'`: PASS.
+- `cd ui && npm run build`: PASS.
+- `cd ui && npx playwright test e2e/proxy-pools.spec.ts` (isolated): 5/5 PASS.
+- `cd ui && npx playwright test` (full): 150 pass / 1 fail — the single failure is the
+  PRE-EXISTING `comprehensive.spec.ts:48` ("unauthenticated → /login" toHaveURL timeout),
+  documented red at base across prior waves (WORKFLOW.md:7000/7088/7676/7787); zero w7-plat-1
+  regression (no UI src / auth / routing touched; comprehensive.spec has no proxy reference).
+
+**Mock reconciliation:** `ui/e2e/mocks/handlers/proxy-pools.ts` corrected — POST/PUT emit the
+canonical 9-field proxyPoolDTO + password_set (password never echoed) with Go defaults
+(protocol "http", is_active true, empty last_check_* on create — no cosmetic stamp); POST→201;
+DELETE→{message}; /test→{ok,latency_ms,status}; /batch→{created:N}. Seed already matched the
+9-field shape — no seed change.
+
+**Tasks / commits:**
+- T-ssrf RED: `d11c762` — failing SSRF outbound-policy tests + compiling stubs.
+- T-ssrf GREEN: `10bb75f` — outbound SSRF policy (block private/loopback/link-local).
+- T-proxypools RED: `cfe4386` — failing store+admin tests + proxy_pools table + linkage + stubs.
+- T-proxypools GREEN: `da690bd` — proxy-pools store + platform service + admin CRUD.
+- T-conntest RED: `5a1fd58` — failing connectivity-test tests + Prober seam.
+- T-conntest GREEN: `2afaa52` — proxy connectivity-test endpoint (SSRF-guarded).
+- T-proxywire RED: `aa2e735` — failing per-connection proxy + linkage tests + stubs.
+- T-proxywire GREEN: `4bd0dd3` — per-connection proxy resolution (selection hook + client wiring);
+  selection.go micro-serial slot released.
+- T-routes: `5ba4306` — register proxy-pools admin routes (serial slot).
+- T-mocks: `fd41b41` — correct proxy-pools mock to mirror real Go DTOs.
+- T-close: matrix flip (PAR-PLAT-001..005/009 + PAR-AUTH-020 → HAVE; PAR-UI-019/104/105
+  PARTIAL→HAVE), open-questions ESC-1b resolution + w7-plat-1 deferrals, this entry; routes_admin.go
+  serial slot released to w7-plat-2.
