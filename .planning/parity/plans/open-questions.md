@@ -209,3 +209,26 @@
 - [ ] FOLLOW-UP: ESC-LIVE-FETCH (integration-only) — PAR-ROUTE-056 ships the `LiveCatalogResolver` + injectable `LiveCatalogFetcher` seam (hermetic, fake-tested) + the upstream gate (060). Production wires a NIL fetcher by default (so `/v1/models` makes NO live network call). The real per-account HTTP fetcher for Kiro/Qoder dynamic models is integration-only and DEFERRED to a follow-up plan (it needs live provider calls; cannot be hermetically proven beyond the seam).
 - [ ] FOLLOW-UP: ESC-PROJ-FETCH (integration-only) — PAR-ROUTE-053 ships the `ProjectIDManager` + injectable `ProjectIDResolver`/`ProjectIDPersister` seams (hermetic, fake-tested) wired into `AccountRunner` (nil = no-op). The real antigravity/gemini-cli project-ID HTTP fetch + store-backed persister are integration-only and DEFERRED to a follow-up plan.
 - [ ] FOLLOW-UP: ESC-035-RETRY-WIRING — PAR-ROUTE-035 `chatURLs()` is built and unit-proven but the live retry-on-next-URL loop is NOT wired (the dispatch path is a frozen handler body). Wiring the fallback consumption into the request/retry path is a follow-up that must touch (or additively wrap) the provider dispatch.
+
+## w7-prov-special-a — 2026-06-14
+- [ ] ESC-A1: Accept partner-only vertex (PAR-PROV-012) as HAVE, native vertex format deferred? — determines matrix flip scope.
+- [ ] ESC-A2: xiaomi-tokenplan claude-native model variant + tts/voice models deferred (no ModelEntry.TargetFormat field) — read-site/media concern.
+- [ ] ESC-A3: qoder ?Encode=1+sigPath signing and azure resource-URL template must be transcribed verbatim from executors/{qoder,azure}.js at impl; DEFER a provider if its signing cannot be soundly reproduced — never fabricate.
+- [ ] ESC-A4: perplexity-web (PAR-PROV-030) / grok-web (PAR-PROV-031) cookie-scraper web endpoints — RECOMMEND DEFER (leave MISSING). Operator decision to exclude from W7 100%-feasible.
+- [ ] ESC-A5: confirm existing anthropic/chat.go emits x-api-key + ?beta=true for glm/kimi/minimax (vs OAuth bearer); parameterize additively if not.
+
+### w7-prov-special-a — closeout resolutions (2026-06-14)
+- ESC-A1 (vertex native — OPEN, operator decision): SHIPPED the partner-openai path only (`internal/providers/urltemplate` builds `…/projects/{projectId}/locations/global/endpoints/openapi/chat/completions` from `providerSpecificData.projectId`, Bearer auth from `schemas.Key.Value`). PAR-PROV-012 flipped **HAVE-partial**. The native gemini-on-vertex format + the SA-JSON→GCP-token (JWT assertion) exchange are DEFERRED. **Open question stands: does the operator accept partner-only vertex as PAR-PROV-012 HAVE?**
+- ESC-A2 (xiaomi claude-native + media — RESOLVED-as-noted): `mimo-v2.5-pro-claude` (targetFormat:"claude") + the tts/voice models port as plain openai/media `ModelEntry` rows (no `ModelEntry.TargetFormat` field added). The claude-native read-site behavior + media serving remain a w7-prov-media / read-site concern.
+- ESC-A3 (qoder — DEFERRED, binding): RESOLVED to DEFER. `executors/qoder.js` requires opaque COSY signing (RSA+AES+MD5, ~17 `Cosy-*` headers via `buildCosyHeaders`) + a proprietary body encoder (`qoderEncodeBody`) + a non-trivial custom request shape — not soundly reproducible from the ref. PAR-PROV-028 left **MISSING**. (The azure resource-URL half of ESC-A3 WAS reproducible and shipped GREEN.)
+- ESC-A4 (perplexity-web/grok-web — DEFERRED, operator decision): RESOLVED to DEFER per recommendation. PAR-PROV-030/031 left **MISSING** (cookie-scraper, low value / high breakage). Carried by neither special-a nor special-b. Operator decision needed to formally exclude from W7 100%-of-feasible.
+- ESC-A5 (claude auth/beta — RESOLVED): the existing `anthropic/chat.go` set `x-api-key`+`anthropic-version` but the messages URL came from `baseURL+"/v1/messages"` and there was no `?beta=true`/`Anthropic-Beta`. Resolved ADDITIVELY: `anthropic.NewForProvider(id, baseURL)` sets a `chatURL` (catalog base URL verbatim + `?beta=true`) and a `betaHeader` (CLAUDE_API_HEADERS `claude-code-20250219,interleaved-thinking-2025-05-14`); the `NewProvider()` path is unchanged (proven by `TestNewProviderUnchanged`).
+
+## w7-prov-special-b — 2026-06-14
+- [ ] ESC-B1: cursor connect+protobuf (PAR-PROV-023) — build only if the protobuf/connect wire layout is soundly reconstructable from executors/cursor.js; else DEFER. Never fabricate protobuf. Operator acceptance of cursor-deferred needed.
+- [ ] ESC-B2: antigravity per-model→backend (gemini/claude/gpt-oss) mapping + fallback URL order transcribe-verbatim from executors/antigravity.js.
+- [ ] ESC-B3: kiro/antigravity OAuth token ACQUISITION is w7-prov-oauth, not special-b; executors consume a supplied schemas.Key token + kiro refresh-on-401. Cross-plan dependency.
+- [ ] ESC-B5: verify kiro model block presence in models.go (Wave-1 w1-i-kiro-pair) before adding — avoid duplicate-key panic.
+
+## w7-prov-special (SPLIT decision) — 2026-06-14
+- [ ] The WAVE-7-MAP w7-prov-special row was SPLIT into w7-prov-special-a (claude-format + URL-template/custom-JSON; JSON-only, low risk) and w7-prov-special-b (kiro eventstream + cursor protobuf + antigravity multi-backend; binary protocols, high risk). Both share the factory.go micro-serial, sub-serialized a→b with key-disjoint switch arms. Confirm orchestrator accepts the split + sub-serial order.

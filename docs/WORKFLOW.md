@@ -8435,3 +8435,29 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   NO `azure` alias — azure routes by provider ID; aliases.go left UNCHANGED.
   commandcode converters present (registry.go:169-170, reuse). anthropic baseURL field
   settable. 9router ref pinned @ `827e5c3`.
+- T1 (claude-format) RED `781d990` / GREEN `89b18d8` — `anthropic.NewForProvider(id,baseURL)`
+  additive constructor (chatURL=base+`?beta=true`, betaHeader=CLAUDE_API_HEADERS; `NewProvider()`
+  unchanged) + factory dispatch by catalog Format `claude` + catalog/models for glm/kimi/
+  minimax/minimax-cn. Reuses the EXISTING anthropic Messages path — NO new claude converter.
+- T2 (commandcode) RED `05cdc54` / GREEN `d43926f` — `internal/providers/commandcode` thin
+  adapter (HTTP + registry `TranslateRequest`/`TranslateResponse` reusing the EXISTING
+  converters, registry.go:169-170; SSE event stream aggregated to ChatResponse for the
+  non-stream path) + catalog entry + 11-model block + factory arm by Format `commandcode`.
+- T3 (URL-template openai) RED `6571dfe` / GREEN `c65f7b1` — `internal/providers/urltemplate`
+  adapter (openai-wire HTTP + request-time URL build from `ProviderSpecificData`): cloudflare-ai
+  (`{accountId}`), azure (resource URL + `api-key` auth), xiaomi-tokenplan (region→baseURL) +
+  catalog + models (azure none, cf 24, xiaomi 9) + factory dispatch via
+  `urltemplate.IsURLTemplateProvider`. **qoder DEFERRED (ESC-A3 — opaque COSY signing).**
+- T4 (vertex partner) RED `ca8d740` / GREEN `2ad271e` — vertex added to the urltemplate adapter
+  (partner-openai URL from `projectId`, Bearer auth, secret-safety asserted) + catalog +
+  4-model partner block. **Native gemini-on-vertex format DEFERRED (ESC-A1).**
+- T5 (close): §5 gates GREEN + HERMETIC — `go test ./... && go vet ./... && go build ./...`
+  exit 0 (1710 tests, no real provider calls); scoped: `internal/inference` Dispatch=11 pass,
+  `internal/providers/...` Claude|CommandCode|URLTemplate|Vertex|BuildURL|NewForProvider=19 pass,
+  `internal/providers/catalog`=30 pass. Additive-only factory.go (existing 5 arms + generic
+  default UNCHANGED); freeze proofs clean (generic/chat.go, selection.go, aliases.go,
+  routes_admin/admin/ui/store all untouched); no secret literal committed. Matrix flips
+  (`9router-providers.md`): PAR-PROV-013/034/036/040/032/033/047 → HAVE, 012 → HAVE-partial
+  (ESC-A1); 028 MISSING (ESC-A3 qoder), 030/031 MISSING (ESC-A4 web), 020/022/023 → special-b.
+  **factory.go MICRO-SERIAL slot RELEASED to w7-prov-special-b** (special-a's claude/commandcode/
+  url-template arms are key-disjoint from special-b's kiro/cursor/antigravity arms).
