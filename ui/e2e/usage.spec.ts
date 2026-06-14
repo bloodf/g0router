@@ -36,9 +36,9 @@ test.describe("Usage & Logs", () => {
     await page.goto("/usage");
     const period = page.locator("[data-testid='usage-period']");
     await expect(period).toBeVisible({ timeout: 10000 });
-    // Pick a different period; the stats request fires with the new period.
-    const reqPromise = page.waitForRequest((r) => r.url().includes("/api/usage/stats") && r.url().includes("period=7d"));
-    await period.locator("[role='tab']", { hasText: /7d|7 d/i }).first().click();
+    // Pick a DIFFERENT period (default is 7d) so a new stats request fires.
+    const reqPromise = page.waitForRequest((r) => r.url().includes("/api/usage/stats") && r.url().includes("period=30d"));
+    await period.locator("[role='tab']", { hasText: /30d|30 d/i }).first().click();
     await reqPromise;
   });
 
