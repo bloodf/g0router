@@ -202,6 +202,16 @@ func migrate(db *sql.DB) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`},
+		{"tunnels", `CREATE TABLE IF NOT EXISTS tunnels (
+			type TEXT PRIMARY KEY,
+			is_enabled INTEGER NOT NULL DEFAULT 0,
+			status TEXT NOT NULL DEFAULT 'inactive',
+			url TEXT NOT NULL DEFAULT '',
+			token_enc TEXT NOT NULL DEFAULT '',
+			mode TEXT NOT NULL DEFAULT '',
+			last_error TEXT NOT NULL DEFAULT '',
+			updated_at INTEGER NOT NULL DEFAULT 0
+		)`},
 	}
 
 	for _, t := range tables {
