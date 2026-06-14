@@ -5,6 +5,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/governance"
+	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/platform"
 	"github.com/bloodf/g0router/internal/platform/mitm"
 	"github.com/bloodf/g0router/internal/platform/tunnel"
@@ -24,6 +25,9 @@ type Handlers struct {
 	proxyPools   *platform.ProxyPoolService
 	tunnels      *tunnel.Service
 	mitm         *mitm.Service
+	mcpLauncher  *mcp.Launcher
+	mcpEngine    *mcp.Engine
+	mcpProbe     *mcp.Probe
 	version      string
 	buildDate    string
 	shutdownFunc func()
@@ -109,6 +113,29 @@ func (h *Handlers) SetTunnelRunner(typ string, r tunnel.Runner) {
 // performing a real TLS handshake. Mirrors SetTunnelRunner.
 func (h *Handlers) SetMitmProxy(p mitm.MitmProxy) {
 	h.mitm.SetProxy(p)
+}
+
+// SetMCPLauncher injects the MCP plugin launcher used for instance start/stop
+// and the tool-execute bridge path. Production wires the real NewLauncher(st);
+// tests inject a real launcher with a fake ProcessRunner (no real spawn).
+// Mirrors SetMitmProxy. Nil-able: an unset launcher degrades execute/start to a
+// typed 503 while list reads still work from the store.
+func (h *Handlers) SetMCPLauncher(l *mcp.Launcher) {
+	h.mcpLauncher = l
+}
+
+// SetMCPEngine injects the MCP-server OAuth engine used by StartInstanceAuth.
+// Production wires the real NewEngine(st, nil); tests inject an engine over a
+// fake-transport HTTP client (no real network). Nil-able: an unset engine makes
+// auth/start return a typed 503.
+func (h *Handlers) SetMCPEngine(e *mcp.Engine) {
+	h.mcpEngine = e
+}
+
+// SetMCPProbe injects the MCP tools probe used by the tools-list aggregation.
+// Nil-able: an unset probe degrades the tools list to the static catalog.
+func (h *Handlers) SetMCPProbe(p *mcp.Probe) {
+	h.mcpProbe = p
 }
 
 // pathID returns the {id} route parameter.
