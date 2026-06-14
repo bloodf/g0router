@@ -83,7 +83,7 @@ func TestListModelsAggregatesCatalog(t *testing.T) {
 		model     string
 		wantOwner string
 	}{
-		{"deepseek-chat", "deepseek"},
+		{"deepseek-v4-pro", "deepseek"},
 		{"deepseek-reasoner", "deepseek"},
 		{"llama-3.3-70b-versatile", "groq"},
 		{"grok-4", "xai"},
@@ -184,7 +184,7 @@ func TestModelsListExcludesDisabled(t *testing.T) {
 	h := NewModelsHandler(router)
 	h.SetDisabledChecker(&fakeDisabledChecker{
 		disabled: map[string]map[string]bool{
-			"deepseek": {"deepseek-chat": true},
+			"deepseek": {"deepseek-v4-pro": true},
 		},
 	})
 
@@ -207,8 +207,8 @@ func TestModelsListExcludesDisabled(t *testing.T) {
 	}
 
 	for _, m := range resp.Data {
-		if m.ID == "deepseek-chat" {
-			t.Fatal("deepseek-chat should be excluded (disabled)")
+		if m.ID == "deepseek-v4-pro" {
+			t.Fatal("deepseek-v4-pro should be excluded (disabled)")
 		}
 	}
 
@@ -582,7 +582,7 @@ func TestModelsList_DedupCustomVsCatalog(t *testing.T) {
 	router := inference.NewRouter(translation.NewRegistry())
 	h := NewModelsHandler(router)
 	h.SetCustomModelLister(&fakeCustomModelLister{
-		models: []CustomModel{{ID: "deepseek-chat", Provider: "openai", Type: "llm"}},
+		models: []CustomModel{{ID: "deepseek-v4-pro", Provider: "openai", Type: "llm"}},
 	})
 
 	var ctx fasthttp.RequestCtx
@@ -603,13 +603,13 @@ func TestModelsList_DedupCustomVsCatalog(t *testing.T) {
 	count := 0
 	var survivor string
 	for _, m := range resp.Data {
-		if m.ID == "deepseek-chat" {
+		if m.ID == "deepseek-v4-pro" {
 			count++
 			survivor = m.OwnedBy
 		}
 	}
 	if count != 1 {
-		t.Fatalf("deepseek-chat appears %d times, want 1", count)
+		t.Fatalf("deepseek-v4-pro appears %d times, want 1", count)
 	}
 	if survivor != "deepseek" {
 		t.Errorf("survivor owned_by = %q, want deepseek (catalog wins per route.js:358)", survivor)
@@ -745,7 +745,7 @@ func TestModelsList_SubConfigDedup(t *testing.T) {
 	h := NewModelsHandler(router)
 	h.SetSubConfigModelReader(&fakeSubConfigReader{
 		models: []SubConfigModel{
-			{ID: "deepseek-chat", Kind: "tts", ProviderID: "prov-1"},
+			{ID: "deepseek-v4-pro", Kind: "tts", ProviderID: "prov-1"},
 		},
 	})
 
@@ -767,13 +767,13 @@ func TestModelsList_SubConfigDedup(t *testing.T) {
 	count := 0
 	var survivor string
 	for _, m := range resp.Data {
-		if m.ID == "deepseek-chat" {
+		if m.ID == "deepseek-v4-pro" {
 			count++
 			survivor = m.OwnedBy
 		}
 	}
 	if count != 1 {
-		t.Fatalf("deepseek-chat appears %d times, want 1", count)
+		t.Fatalf("deepseek-v4-pro appears %d times, want 1", count)
 	}
 	if survivor != "deepseek" {
 		t.Errorf("survivor owned_by = %q, want deepseek (catalog wins per route.js:358)", survivor)

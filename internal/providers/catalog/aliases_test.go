@@ -3,8 +3,8 @@ package catalog
 import "testing"
 
 func TestProviderAliasCount(t *testing.T) {
-	if got := ProviderAliasCount(); got != 136 {
-		t.Fatalf("ProviderAliasCount() = %d, want 136", got)
+	if got := ProviderAliasCount(); got != 138 {
+		t.Fatalf("ProviderAliasCount() = %d, want 138", got)
 	}
 }
 
@@ -18,6 +18,8 @@ func TestProviderAliasSamples(t *testing.T) {
 		"glm-cn":       "glm-cn",
 		"alicode":      "alicode",
 		"alicode-intl": "alicode-intl",
+		"gitlab":       "gitlab",
+		"codebuddy":    "codebuddy",
 	}
 	for alias, want := range cases {
 		got, ok := ResolveProviderAlias(alias)

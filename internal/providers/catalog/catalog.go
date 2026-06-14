@@ -91,6 +91,59 @@ var Providers = map[string]ProviderConfig{
 			"X-Amz-User-Agent":         "aws-sdk-js/3.0.0 kiro-ide/1.0.0",
 		},
 	},
+	// --- w7-prov-openai: Western openai-format providers ---
+	"nvidia": {
+		Name:    "nvidia",
+		BaseURL: "https://integrate.api.nvidia.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"cerebras": {
+		Name:    "cerebras",
+		BaseURL: "https://api.cerebras.ai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"nebius": {
+		Name:    "nebius",
+		BaseURL: "https://api.studio.nebius.ai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"siliconflow": {
+		Name:    "siliconflow",
+		BaseURL: "https://api.siliconflow.cn/v1/chat/completions",
+		Format:  "openai",
+	},
+	"hyperbolic": {
+		Name:    "hyperbolic",
+		BaseURL: "https://api.hyperbolic.xyz/v1/chat/completions",
+		Format:  "openai",
+	},
+	"blackbox": {
+		Name:    "blackbox",
+		BaseURL: "https://api.blackbox.ai/chat/completions",
+		Format:  "openai",
+	},
+	"gitlab": {
+		Name:    "gitlab",
+		BaseURL: "https://gitlab.com/api/v4/chat/completions",
+		Format:  "openai",
+	},
+	"codebuddy": {
+		// Device-code OAuth acquisition is a w7-prov-oauth concern (ESC-3).
+		// Catalog entry satisfies PAR-PROV-051 HAVE.
+		Name:    "codebuddy",
+		BaseURL: "https://copilot.tencent.com/v1/chat/completions",
+		Format:  "openai",
+	},
+	"vercel-ai-gateway": {
+		Name:    "vercel-ai-gateway",
+		BaseURL: "https://ai-gateway.vercel.sh/v1/chat/completions",
+		Format:  "openai",
+	},
+	"chutes": {
+		Name:    "chutes",
+		BaseURL: "https://llm.chutes.ai/v1/chat/completions",
+		Format:  "openai",
+	},
 	// --- w7-prov-openai: Chinese openai-format providers ---
 	"glm-cn": {
 		Name:    "glm-cn",

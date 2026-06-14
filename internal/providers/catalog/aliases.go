@@ -33,6 +33,8 @@ var providerAliases = map[string]string{
 	"glm-cn":            "glm-cn",
 	"alicode":           "alicode",
 	"alicode-intl":      "alicode-intl",
+	"gitlab":            "gitlab",
+	"codebuddy":         "codebuddy",
 	"kimi":              "kimi",
 	"minimax":           "minimax",
 	"minimax-cn":        "minimax-cn",
