@@ -109,7 +109,9 @@ export function subscribeUsageStream(handlers: UsageStreamHandlers): () => void 
     return () => {};
   }
   const es = new EventSource("/api/usage/stream");
-  es.onmessage = (ev: MessageEvent) => {
+  // Use addEventListener (not .onmessage=) so synthetic dispatchEvent frames
+  // from the e2e MockEventSource (fixture.ts) and real EventSource both reach us.
+  const onMessage = (ev: MessageEvent) => {
     try {
       const frame = JSON.parse(ev.data) as UsageStreamFrame;
       handlers.onData(frame);
@@ -117,11 +119,15 @@ export function subscribeUsageStream(handlers: UsageStreamHandlers): () => void 
       // Ignore malformed frames; the REST view remains authoritative.
     }
   };
-  es.onerror = (ev) => {
+  const onError = (ev: Event) => {
     // No-op / clear-loading — the stream is purely additive (plan §1.3).
     handlers.onError(ev);
   };
+  es.addEventListener("message", onMessage as EventListener);
+  es.addEventListener("error", onError);
   return () => {
+    es.removeEventListener("message", onMessage as EventListener);
+    es.removeEventListener("error", onError);
     es.close();
   };
 }

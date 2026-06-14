@@ -11,26 +11,25 @@ import {
 // stores/theme.test.ts precedent. The SSE behaviour lives in pure helpers
 // (mergeUsageStats / subscribeUsageStream) so it is provable without effects.
 
-// A controllable EventSource stub: records the constructed url and exposes
-// hooks to fire synthetic message/error events.
-class FakeEventSource {
+// A controllable EventSource stub that mirrors the e2e MockEventSource
+// (fixture.ts) — an EventTarget driven by addEventListener/dispatchEvent. This
+// is exactly why subscribeUsageStream must use addEventListener (not .onmessage=).
+class FakeEventSource extends EventTarget {
   static last: FakeEventSource | null = null;
   static instances: FakeEventSource[] = [];
   url: string;
-  onmessage: ((ev: { data: string }) => void) | null = null;
-  onerror: ((ev: unknown) => void) | null = null;
-  onopen: ((ev: unknown) => void) | null = null;
   closed = false;
   constructor(url: string) {
+    super();
     this.url = url;
     FakeEventSource.last = this;
     FakeEventSource.instances.push(this);
   }
   emit(payload: unknown) {
-    this.onmessage?.({ data: JSON.stringify(payload) });
+    this.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(payload) }));
   }
   fail() {
-    this.onerror?.(new Event("error"));
+    this.dispatchEvent(new Event("error"));
   }
   close() {
     this.closed = true;
