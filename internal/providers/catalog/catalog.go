@@ -378,6 +378,30 @@ var Providers = map[string]ProviderConfig{
 			"Anthropic-Beta":    "claude-code-20250219,interleaved-thinking-2025-05-14",
 		},
 	},
+	// --- w7-prov-special-a: URL-template / runtime-URL-build openai providers ---
+	// The endpoint URL is computed at request time by the urltemplate adapter
+	// from schemas.Key.ProviderSpecificData. Bodies are plain OpenAI.
+	"cloudflare-ai": {
+		// {accountId} substituted at request time (default.js:64-68).
+		Name:    "cloudflare-ai",
+		BaseURL: "https://api.cloudflare.com/client/v4/accounts/{accountId}/ai/v1/chat/completions",
+		Format:  "openai",
+	},
+	"azure": {
+		// baseUrl empty in ref; the resource URL is built from
+		// providerSpecificData (azure.js:8-23). Auth via the api-key header.
+		Name:       "azure",
+		BaseURL:    "",
+		Format:     "openai",
+		AuthHeader: "api-key",
+	},
+	"xiaomi-tokenplan": {
+		// region->baseURL resolved at request time (providers.js:447-457); the
+		// sgp seed URL is kept for introspection.
+		Name:    "xiaomi-tokenplan",
+		BaseURL: "https://token-plan-sgp.xiaomimimo.com/v1/chat/completions",
+		Format:  "openai",
+	},
 	// --- w7-prov-special-a: commandcode (custom-JSON via existing converters) ---
 	"commandcode": {
 		Name:    "commandcode",

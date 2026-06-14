@@ -386,6 +386,48 @@ var Models = map[string][]ModelEntry{
 		{ID: "MiniMax-M2.1", Name: "MiniMax M2.1"},
 		{ID: "minimax-image-01", Name: "MiniMax Image 01", Type: "image", Params: []string{"n", "size", "response_format"}},
 	},
+	// cloudflare-ai model block (providerModels.js @827e5c3). image models port
+	// Type/Params; the ref `capabilities` hint has no ModelEntry field.
+	"cloudflare-ai": {
+		{ID: "@cf/meta/llama-3.2-1b-instruct", Name: "Llama 3.2 1B Instruct"},
+		{ID: "@cf/meta/llama-3.2-3b-instruct", Name: "Llama 3.2 3B Instruct"},
+		{ID: "@cf/meta/llama-3.1-8b-instruct-fp8-fast", Name: "Llama 3.1 8B Instruct FP8 Fast"},
+		{ID: "@cf/meta/llama-3.1-8b-instruct-awq", Name: "Llama 3.1 8B Instruct AWQ"},
+		{ID: "@cf/mistralai/mistral-small-3.1-24b-instruct", Name: "Mistral Small 3.1 24B Instruct"},
+		{ID: "@cf/meta/llama-3.1-70b-instruct-fp8-fast", Name: "Llama 3.1 70B Instruct FP8 Fast"},
+		{ID: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", Name: "Llama 3.3 70B Instruct FP8 Fast"},
+		{ID: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", Name: "DeepSeek R1 Distill Qwen 32B"},
+		{ID: "@cf/moonshotai/kimi-k2.5", Name: "Kimi K2.5"},
+		{ID: "@cf/moonshotai/kimi-k2.6", Name: "Kimi K2.6"},
+		{ID: "@cf/zai-org/glm-4.7-flash", Name: "GLM 4.7 Flash"},
+		{ID: "@cf/qwen/qwq-32b", Name: "QwQ 32B"},
+		{ID: "@cf/qwen/qwen2.5-coder-32b-instruct", Name: "Qwen 2.5 Coder 32B Instruct"},
+		{ID: "@cf/black-forest-labs/flux-2-klein-9b", Name: "FLUX.2 Klein 9B", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/black-forest-labs/flux-2-klein-4b", Name: "FLUX.2 Klein 4B", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/black-forest-labs/flux-2-dev", Name: "FLUX.2 Dev", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/leonardo/lucid-origin", Name: "Lucid Origin", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/leonardo/phoenix-1.0", Name: "Phoenix 1.0", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/black-forest-labs/flux-1-schnell", Name: "FLUX.1 Schnell", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/bytedance/stable-diffusion-xl-lightning", Name: "SDXL Lightning", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/lykon/dreamshaper-8-lcm", Name: "DreamShaper 8 LCM", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/runwayml/stable-diffusion-v1-5-img2img", Name: "Stable Diffusion v1.5 Img2Img", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/runwayml/stable-diffusion-v1-5-inpainting", Name: "Stable Diffusion v1.5 Inpainting", Type: "image", Params: []string{"size"}},
+		{ID: "@cf/stabilityai/stable-diffusion-xl-base-1.0", Name: "SDXL Base 1.0", Type: "image", Params: []string{"size"}},
+	},
+	// xiaomi-tokenplan model block (providerModels.js @827e5c3). The
+	// mimo-v2.5-pro-claude targetFormat:"claude" + tts/voice variants are noted
+	// in ESC-A2; they port here as openai/media entries (Type from ref empty).
+	"xiaomi-tokenplan": {
+		{ID: "mimo-v2.5-pro", Name: "MiMo V2.5 Pro"},
+		{ID: "mimo-v2.5-pro-claude", Name: "MiMo V2.5 Pro (Claude Native)", UpstreamModelID: "mimo-v2.5-pro"},
+		{ID: "mimo-v2.5", Name: "MiMo V2.5"},
+		{ID: "mimo-v2-pro", Name: "MiMo V2 Pro"},
+		{ID: "mimo-v2-omni", Name: "MiMo V2 Omni"},
+		{ID: "mimo-v2-tts", Name: "MiMo V2 TTS"},
+		{ID: "mimo-v2.5-tts", Name: "MiMo V2.5 TTS"},
+		{ID: "mimo-v2.5-tts-voiceclone", Name: "MiMo V2.5 TTS Voice Clone"},
+		{ID: "mimo-v2.5-tts-voicedesign", Name: "MiMo V2.5 TTS Voice Design"},
+	},
 	// commandcode model block (providerModels.js @827e5c3).
 	"commandcode": {
 		{ID: "deepseek/deepseek-v4-pro", Name: "DeepSeek V4 Pro"},
