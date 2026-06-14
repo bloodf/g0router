@@ -1,14 +1,71 @@
 package server
 
 import (
+	"io"
+	"log"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/bloodf/g0router/internal/admin"
 	"github.com/bloodf/g0router/internal/auth"
+	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
+	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/fasthttp/router"
 )
+
+// consoleLogCapacity bounds the in-process console-log ring buffer.
+const consoleLogCapacity = 500
+
+// consoleLogWriter adapts an io.Writer onto a ConsoleLog: each written log line
+// is parsed into {level,message} and appended. Used with io.MultiWriter so the
+// server's standard log output is captured for the console-logs SSE stream.
+type consoleLogWriter struct {
+	console *logging.ConsoleLog
+}
+
+func (w consoleLogWriter) Write(p []byte) (int, error) {
+	line := strings.TrimRight(string(p), "\n")
+	if line != "" {
+		w.console.Append(consoleLogLevel(line), line)
+	}
+	return len(p), nil
+}
+
+// consoleLogLevel infers a coarse level from a log line's content.
+func consoleLogLevel(line string) string {
+	lower := strings.ToLower(line)
+	switch {
+	case strings.Contains(lower, "error"), strings.Contains(lower, "fatal"):
+		return "error"
+	case strings.Contains(lower, "warn"):
+		return "warn"
+	default:
+		return "info"
+	}
+}
+
+// defaultModelProber resolves a model against the static catalog and reports it
+// reachable when known. It is a best-effort, network-free check; tests inject a
+// fake via SetModelProber. Implements admin.ModelProber.
+type defaultModelProber struct{}
+
+func (defaultModelProber) Probe(provider, modelID string) (bool, int, error) {
+	if provider != "" {
+		if _, ok := catalog.ResolveModel(provider, modelID); ok {
+			return true, 0, nil
+		}
+		return false, 0, nil
+	}
+	for p := range catalog.Models {
+		if _, ok := catalog.ResolveModel(p, modelID); ok {
+			return true, 0, nil
+		}
+	}
+	return false, 0, nil
+}
 
 // sessionTTL is the dashboard session lifetime.
 const sessionTTL = 7 * 24 * time.Hour
@@ -43,6 +100,17 @@ func NewAdminHandlers(st *store.Store, deps admin.UsageDeps) *admin.Handlers {
 	h.SetMCPLauncher(mcp.NewLauncher(st))
 	h.SetMCPEngine(mcp.NewEngine(st, nil))
 	h.SetMCPProbe(mcp.NewProbe(nil))
+
+	// Console-logs capture seam (w7-misc, ESC-CONSOLE-SRC): a bounded ring
+	// buffer the SSE stream subscribes to, fed by the server's standard log
+	// output via io.MultiWriter (additive forward; stderr still receives logs).
+	console := logging.NewConsoleLog(consoleLogCapacity)
+	h.SetConsoleLog(console)
+	log.SetOutput(io.MultiWriter(os.Stderr, consoleLogWriter{console: console}))
+
+	// Model reachability prober for POST /api/models/test (w7-misc). Default is
+	// a network-free catalog resolve; tests inject a fake.
+	h.SetModelProber(defaultModelProber{})
 	return h
 }
 
@@ -201,6 +269,20 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.GET("/api/models/disabled", h.RequireSession(h.GetDisabledModels))
 	r.POST("/api/models/disabled", h.RequireSession(h.PostDisabledModels))
 	r.DELETE("/api/models/disabled", h.RequireSession(h.DeleteDisabledModels))
+
+	// Console-logs SSE (real server log stream; mirrors usagestream SSE).
+	r.GET("/api/console-logs/stream", h.RequireSession((&admin.ConsoleStreamHandler{Handlers: h}).ConsoleLogStream))
+
+	// Translator (load sample + translate over the translation registry).
+	r.GET("/api/translator/load", h.RequireSession(h.TranslatorLoad))
+	r.POST("/api/translator/translate", h.RequireSession(h.TranslatorTranslate))
+
+	// Models test/availability/custom (static before {id}).
+	r.POST("/api/models/test", h.RequireSession(h.TestModel))
+	r.GET("/api/models/availability", h.RequireSession(h.ModelAvailability))
+	r.GET("/api/models/custom", h.RequireSession(h.ListCustomModels))
+	r.POST("/api/models/custom", h.RequireSession(h.CreateCustomModel))
+	r.DELETE("/api/models/custom/{id}", h.RequireSession(h.DeleteCustomModel))
 
 	// Combos admin (w7-route-a, ESC-COMBOS Option A). The id-keyed admin combos
 	// surface OWNS /api/combos[/{id}] serving the frozen UI shape
