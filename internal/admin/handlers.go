@@ -31,6 +31,7 @@ type Handlers struct {
 	mcpEngine    *mcp.Engine
 	mcpProbe     *mcp.Probe
 	console      *logging.ConsoleLog
+	modelProber  ModelProber
 	version      string
 	buildDate    string
 	shutdownFunc func()
@@ -162,6 +163,14 @@ func (h *Handlers) SetMCPProbe(p *mcp.Probe) {
 // Nil-able: an unset buffer makes ConsoleLogStream report 501.
 func (h *Handlers) SetConsoleLog(c *logging.ConsoleLog) {
 	h.console = c
+}
+
+// SetModelProber injects the model reachability prober used by TestModel.
+// Production wires a best-effort reachability check; tests inject a
+// deterministic fake. Mirrors SetNodeProber. Nil-able: an unset prober makes
+// TestModel report 501.
+func (h *Handlers) SetModelProber(p ModelProber) {
+	h.modelProber = p
 }
 
 // pathID returns the {id} route parameter.
