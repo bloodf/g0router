@@ -295,6 +295,17 @@ func migrate(db *sql.DB) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`},
+		// Model-limits admin table (w7-route-a, ESC-IDTYPE). INTEGER PK to mirror
+		// the numeric UI ModelLimit.id; allowed_key_ids []string is a JSON blob.
+		{"model_limits", `CREATE TABLE IF NOT EXISTS model_limits (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			model TEXT NOT NULL,
+			max_tokens INTEGER NOT NULL DEFAULT 0,
+			max_rpm INTEGER NOT NULL DEFAULT 0,
+			key_ids_json TEXT NOT NULL DEFAULT '[]',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`},
 	}
 
 	for _, t := range tables {
