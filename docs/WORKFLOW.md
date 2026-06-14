@@ -8475,3 +8475,31 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   BE length + gzip-per-flag). The full wire format (request encode, response decode, connect framing,
   auth/checksum headers) is SOUNDLY reconstructable with golden wire-byte tests — no fabrication.
   PAR-PROV-023 will be BUILT (T4), not deferred.
+- T1 (kiro eventstream decoder) RED `7ed7f1d` / GREEN `f483d15` — `internal/providers/kiro/eventstream.go`
+  `DecodeEventStream`: parses the AWS `vnd.amazon.eventstream` binary frame (4B total len, 4B headers
+  len, 4B prelude CRC, string headers, JSON payload, 4B message CRC) into `{_eventType, ...payload}`
+  maps. Validates both CRCs (CRC-32/IEEE), ignores partial trailing frames. 6 golden wire-byte tests.
+- T2 (kiro executor + factory) RED `a43f072` / GREEN `5b3daee` — `internal/providers/kiro` adapter
+  (POST -> read eventstream body -> `DecodeEventStream` -> existing `buildKiroPayload`/
+  `kiroToOpenAIResponse` via registry -> StreamChunks; Bearer auth; aggregate for non-stream).
+  Factory arm by Format `kiro`. ESC-B5: kiro 12-model block added to models.go (was absent at P0).
+- T3 (antigravity + MCP-060) RED `3d33d5e` / GREEN `507094b` — `internal/providers/antigravity`
+  executor: v1internal Gemini wire (`streamGenerateContent?alt=sse` / `generateContent`), sandbox
+  fallback URL ordering (retry on 5xx/429), Bearer + UA `antigravity/1.107.0` + `x-request-source: local`.
+  Per-model backend selection via `backendForModel` (gemini/claude/gpt-oss). PAR-MCP-060 ride-along:
+  `cloakTools` (filter.go) suffixes client tools `_ide` (native AG names preserved) + injects the 21
+  unavailable decoy tools. Catalog + 9-model block; factory arm.
+- T4 (cursor connect+protobuf, ESC-B1 BUILT) RED `80cc596` / GREEN `0233d12` — `internal/providers/cursor`:
+  connect-RPC frame (`frame.go`: 1B flags + 4B BE len + gzip per flag), hand-rolled protobuf request
+  encode (`encode.go`/`protobuf.go`, explicit FIELD numbers verbatim from the ref) + response decode
+  (`decode.go`), deterministic Jyh-cipher checksum + sha256/uuid-v5 auth headers (`checksum.go`). 16
+  golden wire-byte tests. Catalog + 14-model block; factory arm. NO protobuf fabricated.
+- T5 (close): §5 gates GREEN + HERMETIC — `go test ./... && go vet ./... && go build ./...` exit 0
+  (1751 tests, 42 packages, no real provider calls). factory.go ADDITIVE-ONLY (existing 5 arms +
+  special-a's claude/commandcode/url-template arms + generic default UNCHANGED). Freeze proofs clean:
+  0 out-of-scope files, 0 forbidden touches (generic/chat.go, selection.go, routes_admin/admin/ui/store
+  untouched), 0 translation converter source files changed (reuse only), no secret literal committed.
+  TDD-order proven for all 4 RED->GREEN pairs. Matrix flips (`9router-providers.md`): PAR-PROV-022
+  (kiro) -> HAVE, PAR-PROV-020 (antigravity) -> HAVE, PAR-PROV-023 (cursor) -> HAVE (ESC-B1 BUILT).
+  ESC-B3 (OAuth acquisition) flagged cross-plan to w7-prov-oauth. **factory.go MICRO-SERIAL slot
+  RELEASED** (special-b held it after special-a; key-disjoint kiro/cursor/antigravity arms).
