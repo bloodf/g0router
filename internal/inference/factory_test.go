@@ -6,6 +6,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/anthropic"
 	"github.com/bloodf/g0router/internal/providers/antigravity"
 	"github.com/bloodf/g0router/internal/providers/commandcode"
+	"github.com/bloodf/g0router/internal/providers/cursor"
 	"github.com/bloodf/g0router/internal/providers/gemini"
 	"github.com/bloodf/g0router/internal/providers/generic"
 	"github.com/bloodf/g0router/internal/providers/kiro"
@@ -224,6 +225,22 @@ func TestAntigravityDispatch(t *testing.T) {
 	}
 	if p.GetProvider() != schemas.ModelProvider("antigravity") {
 		t.Errorf("GetProvider() = %q, want antigravity", p.GetProvider())
+	}
+}
+
+// TestCursorDispatch (w7-prov-special-b) verifies the additive factory arm
+// dispatching the cursor connect+protobuf provider to its adapter.
+func TestCursorDispatch(t *testing.T) {
+	reg := translation.NewRegistry()
+	p, err := buildProvider("cursor", reg)
+	if err != nil {
+		t.Fatalf("buildProvider(cursor) error: %v", err)
+	}
+	if _, ok := p.(*cursor.Provider); !ok {
+		t.Fatalf("buildProvider(cursor) type = %T, want *cursor.Provider", p)
+	}
+	if p.GetProvider() != schemas.ModelProvider("cursor") {
+		t.Errorf("GetProvider() = %q, want cursor", p.GetProvider())
 	}
 }
 

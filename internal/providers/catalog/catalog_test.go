@@ -506,3 +506,25 @@ func TestAntigravityProvider(t *testing.T) {
 		t.Errorf("antigravity User-Agent = %q, want antigravity/1.107.0", got)
 	}
 }
+
+// TestCursorProvider (w7-prov-special-b) verifies the cursor catalog entry:
+// Format "cursor", base URL api2.cursor.sh, and the connect+proto headers
+// (providers.js:208-218).
+func TestCursorProvider(t *testing.T) {
+	cfg, ok := Lookup("cursor")
+	if !ok {
+		t.Fatal("Lookup(cursor) returned ok=false")
+	}
+	if cfg.Format != "cursor" {
+		t.Errorf("cursor Format = %q, want cursor", cfg.Format)
+	}
+	if cfg.BaseURL != "https://api2.cursor.sh" {
+		t.Errorf("cursor BaseURL = %q, want https://api2.cursor.sh", cfg.BaseURL)
+	}
+	if got := cfg.Headers["Content-Type"]; got != "application/connect+proto" {
+		t.Errorf("cursor Content-Type = %q, want application/connect+proto", got)
+	}
+	if got := cfg.Headers["connect-protocol-version"]; got != "1" {
+		t.Errorf("cursor connect-protocol-version = %q, want 1", got)
+	}
+}

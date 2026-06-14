@@ -281,6 +281,23 @@ func TestAntigravityModels(t *testing.T) {
 	}
 }
 
+// TestCursorModels (w7-prov-special-b) verifies the cursor model block
+// (providerModels.js:163-178): 14 entries.
+func TestCursorModels(t *testing.T) {
+	models := ModelsFor("cursor")
+	if len(models) != 14 {
+		t.Fatalf("ModelsFor(cursor) len = %d, want 14", len(models))
+	}
+	if models[0].ID != "default" {
+		t.Errorf("ModelsFor(cursor)[0].ID = %q, want default", models[0].ID)
+	}
+	for _, id := range []string{"claude-4.5-opus", "gpt-5.2-codex", "kimi-k2.5"} {
+		if _, ok := ResolveModel("cursor", id); !ok {
+			t.Errorf("ResolveModel(cursor, %q) not found", id)
+		}
+	}
+}
+
 func TestModelsForUnknown(t *testing.T) {
 	models := ModelsFor("nonexistent")
 	if len(models) != 0 {
