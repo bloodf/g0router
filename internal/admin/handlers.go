@@ -5,6 +5,7 @@ import (
 
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/governance"
+	"github.com/bloodf/g0router/internal/logging"
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/platform"
 	"github.com/bloodf/g0router/internal/platform/mitm"
@@ -29,6 +30,7 @@ type Handlers struct {
 	mcpLauncher  *mcp.Launcher
 	mcpEngine    *mcp.Engine
 	mcpProbe     *mcp.Probe
+	console      *logging.ConsoleLog
 	version      string
 	buildDate    string
 	shutdownFunc func()
@@ -152,6 +154,14 @@ func (h *Handlers) SetMCPEngine(e *mcp.Engine) {
 // Nil-able: an unset probe degrades the tools list to the static catalog.
 func (h *Handlers) SetMCPProbe(p *mcp.Probe) {
 	h.mcpProbe = p
+}
+
+// SetConsoleLog injects the in-process console-log capture buffer that
+// ConsoleLogStream subscribes to. Production wires the real ring buffer fed by
+// the server's log output; tests inject a buffer and drive Append directly.
+// Nil-able: an unset buffer makes ConsoleLogStream report 501.
+func (h *Handlers) SetConsoleLog(c *logging.ConsoleLog) {
+	h.console = c
 }
 
 // pathID returns the {id} route parameter.
