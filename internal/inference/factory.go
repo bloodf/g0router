@@ -15,6 +15,7 @@ import (
 	"github.com/bloodf/g0router/internal/providers/ollama"
 	"github.com/bloodf/g0router/internal/providers/openai"
 	"github.com/bloodf/g0router/internal/providers/urltemplate"
+	"github.com/bloodf/g0router/internal/providers/voyageai"
 	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/bloodf/g0router/internal/translation"
 )
@@ -134,6 +135,12 @@ func buildProvider(providerID string, reg *translation.Registry) (schemas.Provid
 		// is still "openai").
 		if urltemplate.IsURLTemplateProvider(providerID) {
 			return urltemplate.New(providerID)
+		}
+		// w7-prov-media: voyage-ai is an embedding provider. The generic adapter
+		// stubs Embedding (501), so dispatch it to the dedicated voyage-ai adapter
+		// before the generic default (its Format is still "openai").
+		if providerID == "voyage-ai" {
+			return voyageai.New(providerID)
 		}
 		return generic.New(providerID)
 	}
