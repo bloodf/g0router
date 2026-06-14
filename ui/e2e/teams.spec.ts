@@ -33,19 +33,22 @@ test.describe("Teams", () => {
     await page.locator('[data-testid="team-new"]').click();
     await page.locator('#team-name').fill("Platform");
     await page.locator('[data-testid="team-save"]').click();
-    await expect(page.locator('[data-testid="team-row"]')).toContainText("Platform", {
-      timeout: 5000,
-    });
+    await expect(page.locator('[data-testid="team-row"]').last()).toContainText(
+      "Platform",
+      { timeout: 5000 }
+    );
   });
 
   test("deleting a team goes through the confirm modal", async ({ page }) => {
     await page.goto("/teams");
+    const rows = page.locator('[data-testid="team-row"]');
+    await expect(rows.first()).toBeVisible({ timeout: 10000 });
+    const before = await rows.count();
     await page.locator('[data-testid="team-delete"]').first().click();
-    await expect(page.locator("body")).toContainText("Delete", { timeout: 5000 });
-    await page.locator('button:has-text("Delete")').last().click();
-    await expect(page.locator('[data-testid="team-row"]')).toHaveCount(1, {
-      timeout: 5000,
-    });
+    const dialog = page.locator('[role="dialog"]', { hasText: "Delete team" });
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    await dialog.locator('button:has-text("Delete")').click();
+    await expect(rows).toHaveCount(before - 1, { timeout: 5000 });
   });
 
   test("the users panel lists the seeded admin user and a change-password control", async ({

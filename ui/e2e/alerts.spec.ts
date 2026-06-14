@@ -48,11 +48,13 @@ test.describe("Alerts", () => {
 
   test("deleting an alert channel goes through the confirm modal", async ({ page }) => {
     await page.goto("/alerts");
+    const rows = page.locator('[data-testid="alert-channel-row"]');
+    await expect(rows.first()).toBeVisible({ timeout: 10000 });
+    const before = await rows.count();
     await page.locator('[data-testid="alert-channel-delete"]').first().click();
-    await expect(page.locator("body")).toContainText("Delete", { timeout: 5000 });
-    await page.locator('button:has-text("Delete")').last().click();
-    await expect(page.locator('[data-testid="alert-channel-row"]')).toHaveCount(1, {
-      timeout: 5000,
-    });
+    const dialog = page.locator('[role="dialog"]', { hasText: "Delete channel" });
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    await dialog.locator('button:has-text("Delete")').click();
+    await expect(rows).toHaveCount(before - 1, { timeout: 5000 });
   });
 });

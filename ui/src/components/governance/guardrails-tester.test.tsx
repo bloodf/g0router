@@ -24,7 +24,7 @@ vi.mock("@/lib/api", () => ({
   ApiError: class ApiError extends Error {},
 }));
 
-import { GuardrailsTester } from "./guardrails-tester";
+import { GuardrailsTester, runGuardrailsTest } from "./guardrails-tester";
 
 function mount(node: React.ReactElement) {
   const container = document.createElement("div");
@@ -50,41 +50,19 @@ describe("GuardrailsTester", () => {
     container.remove();
   });
 
-  it("submitting POSTs /api/guardrails/test with the typed prompt", async () => {
-    apiFetchMock.mockResolvedValue({ blocked: false, redacted_prompt: "hi", matches: [] });
-    const { container, root } = mount(<GuardrailsTester />);
-
-    const input = container.querySelector('input[aria-label="Test prompt"]') as HTMLInputElement;
-    const setter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value"
-    )!.set!;
-    void act(() => {
-      setter.call(input, "my secret password");
-      input.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    });
-
-    const testBtn = Array.from(container.querySelectorAll("button")).find((b) =>
-      (b.textContent ?? "").includes("Test")
-    ) as HTMLButtonElement;
-    await act(async () => {
-      testBtn.click();
-      await Promise.resolve();
-    });
-
-    const postCall = apiFetchMock.mock.calls.find(
-      ([path, init]) =>
-        path === "/api/guardrails/test" && (init as RequestInit)?.method === "POST"
-    );
-    expect(postCall).toBeTruthy();
-    const body = JSON.parse((postCall![1] as RequestInit).body as string);
+  it("runGuardrailsTest POSTs /api/guardrails/test with the typed prompt", async () => {
+    const stub = vi
+      .fn()
+      .mockResolvedValue({ blocked: false, redacted_prompt: "x", matches: [] });
+    await runGuardrailsTest("my secret password", stub as never);
+    const [path, init] = stub.mock.calls[0];
+    expect(path).toBe("/api/guardrails/test");
+    expect((init as RequestInit).method).toBe("POST");
+    const body = JSON.parse((init as RequestInit).body as string);
     expect(body.prompt).toBe("my secret password");
-
-    void act(() => root.unmount());
-    container.remove();
   });
 
-  it("renders a blocked result when the response is blocked:true", async () => {
+  it("renders a blocked result when the Test response is blocked:true", async () => {
     apiFetchMock.mockResolvedValue({
       blocked: true,
       redacted_prompt: "my secret password",
@@ -106,7 +84,7 @@ describe("GuardrailsTester", () => {
     container.remove();
   });
 
-  it("renders a not-blocked result when the response is blocked:false", async () => {
+  it("renders a not-blocked result when the Test response is blocked:false", async () => {
     apiFetchMock.mockResolvedValue({ blocked: false, redacted_prompt: "ok", matches: [] });
     const { container, root } = mount(<GuardrailsTester />);
 

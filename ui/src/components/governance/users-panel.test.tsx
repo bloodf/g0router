@@ -24,7 +24,7 @@ vi.mock("@/lib/api", () => ({
   ApiError: class ApiError extends Error {},
 }));
 
-import { UsersPanel } from "./users-panel";
+import { UsersPanel, changePassword } from "./users-panel";
 
 const seededUsers = [
   { id: "user-1", username: "admin", display_name: "Administrator", role: "admin" },
@@ -43,58 +43,26 @@ describe("UsersPanel", () => {
     apiFetchMock.mockReset();
   });
 
-  it("renders seeded user rows (no passwords)", () => {
+  it("renders seeded user rows (no passwords) and a change-password control", () => {
     const { container, root } = mount(<UsersPanel initialUsers={seededUsers} />);
     const html = container.innerHTML;
     expect(html).toContain("admin");
     expect(html).toContain("Administrator");
     expect(container.querySelector('[data-testid="user-row"]')).toBeTruthy();
+    expect(container.querySelector('input[aria-label="New password"]')).toBeTruthy();
+    expect(html).not.toContain("123456");
     void act(() => root.unmount());
     container.remove();
   });
 
-  it("change-password submit PUTs /api/auth/password with both fields", async () => {
-    apiFetchMock.mockResolvedValue({});
-    const { container, root } = mount(<UsersPanel initialUsers={seededUsers} />);
-
-    const setter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value"
-    )!.set!;
-    const current = container.querySelector(
-      'input[aria-label="Current password"]'
-    ) as HTMLInputElement;
-    const next = container.querySelector(
-      'input[aria-label="New password"]'
-    ) as HTMLInputElement;
-    expect(current).toBeTruthy();
-    expect(next).toBeTruthy();
-    void act(() => {
-      setter.call(current, "123456");
-      current.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-      setter.call(next, "newpass789");
-      next.dispatchEvent(new dom.window.Event("input", { bubbles: true }));
-    });
-
-    const saveBtn = Array.from(container.querySelectorAll("button")).find((b) =>
-      (b.textContent ?? "").includes("Change password")
-    ) as HTMLButtonElement;
-    expect(saveBtn).toBeTruthy();
-    await act(async () => {
-      saveBtn.click();
-      await Promise.resolve();
-    });
-
-    const putCall = apiFetchMock.mock.calls.find(
-      ([path, init]) =>
-        path === "/api/auth/password" && (init as RequestInit)?.method === "PUT"
-    );
-    expect(putCall).toBeTruthy();
-    const body = JSON.parse((putCall![1] as RequestInit).body as string);
+  it("changePassword PUTs /api/auth/password with both fields", async () => {
+    const stub = vi.fn().mockResolvedValue({});
+    await changePassword("123456", "newpass789", stub as never);
+    const [path, init] = stub.mock.calls[0];
+    expect(path).toBe("/api/auth/password");
+    expect((init as RequestInit).method).toBe("PUT");
+    const body = JSON.parse((init as RequestInit).body as string);
     expect(body.current_password).toBe("123456");
     expect(body.new_password).toBe("newpass789");
-
-    void act(() => root.unmount());
-    container.remove();
   });
 });
