@@ -29,10 +29,11 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: "Wave 6 — UI dashboard parity"
-current_wave: "w6-f — endpoint/keys/virtual-keys cluster + provider-nodes Go (page wave 2)"
-last_completed_plan: "w6-f (T1-T6 complete, all gates green; routes_admin.go serial slot TAKEN from w6-e's release and RELEASED to w6-j)"
+current_stage: "Wave 6 COMPLETE — UI dashboard parity shipped (all 10 page plans w6-c/e/f/g/h/i/j/k/l/m + foundation)"
+current_wave: "Wave 6 done; next = Wave 7 (Go backends deferred by w6-k/l/m: governance ×6, user-mgmt, MCP gateway, mitm, proxy-pools, tunnels) — see open-questions.md"
+last_completed_plan: "w6-m (platform UI halves mitm/proxy-pools/tunnels, PARTIAL; Wave 6 page wave 2 complete). routes_admin.go serial chain CLOSED on w6-j."
 last_updated: "2026-06-14T00:00:00Z"
+parity_snapshot: "HAVE=267 PARTIAL=31 MISSING=435 (9router-ui now 106 HAVE / 11 MISSING; remaining MISSING is predominantly Go backend across 9router-mcp/platform/providers + the bifrost-* program)"
 orchestrator: "Claude Code (VPS) — see CLI_ORCHESTRATOR.md"
 planner: "Fable 5"
 implementer: "Claude (executor)"
