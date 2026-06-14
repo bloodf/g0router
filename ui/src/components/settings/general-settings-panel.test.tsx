@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { JSDOM } from "jsdom";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { renderToString } from "react-dom/server";
 import React from "react";
 
 const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>", {
@@ -34,13 +33,21 @@ describe("GeneralSettingsPanel", () => {
   });
 
   it("renders the require_login toggle and a Save button reflecting seeded settings", () => {
-    const html = renderToString(
-      <GeneralSettingsPanel initialSettings={{ require_login: true, theme: "system" }} />
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    void act(() =>
+      root.render(
+        <GeneralSettingsPanel initialSettings={{ require_login: true, theme: "system" }} />
+      )
     );
+    const html = container.innerHTML;
     expect(html).toContain("Require login");
     expect(html).toContain('role="switch"');
     expect(html).toContain("Save");
     expect(html).toContain("theme-segmented");
+    void act(() => root.unmount());
+    container.remove();
   });
 
   it("Save PUTs /api/settings with the toggled require_login key", async () => {
@@ -74,7 +81,9 @@ describe("GeneralSettingsPanel", () => {
     );
     expect(putCall).toBeTruthy();
     const body = JSON.parse((putCall![1] as RequestInit).body as string);
-    expect(body.require_login).toBe(false);
+    // The Go settings store is a flat map[string]string, so booleans are
+    // serialized as strings (plan §1.2).
+    expect(body.require_login).toBe("false");
 
     void act(() => root.unmount());
     container.remove();

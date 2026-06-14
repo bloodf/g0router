@@ -9,8 +9,9 @@ test.describe("Settings", () => {
   test("settings form loads", async ({ page }) => {
     await page.goto("/settings");
     await expect(page.locator("body")).toContainText("Settings", { timeout: 10000 });
-    // Check for form fields (exclude hidden mobile menu button)
-    await expect(page.locator("input:not([type='hidden']), select, textarea, button:not(.md\\:hidden)").first()).toBeVisible();
+    // Check for form fields (exclude the hidden mobile menu button, which is
+    // lg:hidden on the desktop e2e viewport).
+    await expect(page.locator("input:not([type='hidden']), select, textarea, button:not(.lg\\:hidden)").first()).toBeVisible();
   });
 
   test("toggle require_login and save", async ({ page }) => {
