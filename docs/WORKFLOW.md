@@ -7604,3 +7604,85 @@ ONE additive commit (`bade253`) and RELEASES it to w7-gov-2 on this close.
 - T-routes: `bade253` — register 11 teams/audit/user-management admin routes (serial slot).
 - T-mocks: `aff9b7d` — correct teams/audit/auth mocks to mirror real Go DTOs.
 - T-close: matrix flip (PAR-UI-130/131/132), open-questions resolutions, this entry.
+
+## w7-gov-2 — Governance backends B: feature-flags + prompt-templates (Go)
+
+```yaml
+plan: w7-gov-2
+status: DONE
+summary: "Real Go backends for two governance domains, handler→store directly
+  (no domain layer, per the w7-gov-1 ESC-ARCH finding), strict TDD (RED commit
+  before GREEN per domain). feature-flags: GET-list + GET/{id} + PUT/{id}-toggle
+  ONLY (no POST/DELETE — toggle-only surface) over NEW internal/store/featureflags.go
+  + internal/admin/featureflags.go (table feature_flags, INTEGER-PK numeric ids,
+  5-field flagDTO); toggle writes best-effort audit via the w7-gov-1 h.recordAudit
+  seam. prompt-templates: full CRUD (GET/POST list+create, GET/PUT/DELETE/{id}) +
+  POST /test (deterministic dependency-free render, returns {rendered}, NO LLM) over
+  NEW internal/store/prompttemplates.go + internal/admin/prompttemplates.go (table
+  prompt_templates, INTEGER-PK; models as JSON blob; is_active defaults true;
+  promptDTO OMITS updated_at though it is stored for hygiene); create/update/delete
+  write best-effort audit. 9 additive admin routes registered (serial slot), static
+  /test BEFORE {id}. e2e mock corrected: prompts.ts POST/PUT drop updated_at to mirror
+  the Go DTO; feature-flags.ts + both seeds already mirrored (no change). feature-flags
+  + prompt-templates flip variant-HAVE → true-HAVE (PAR-UI-130/131); w6-k ESC-1c/1e
+  RESOLVED. NO New() sig change, no new global state, no init(), additive DDL only,
+  no secret fields."
+p0_base_sha: "34be565"
+commit_range: "d0e6a92..021ed57"
+completed_at: "2026-06-14"
+```
+
+**P6 base observation:** Go gates green at base (1389 tests, vet/build clean). The two
+e2e specs (`feature-flags.spec.ts`+`prompts.spec.ts`) PASS 7/7 at base in ~5s — but ONLY
+after the documented `dist`-consistency workflow: `vite preview` serves `dist/` per-request,
+and the tracked `dist/index.html` references hashed `assets/*` chunks, so a `npm run build`
+that re-hashes assets WITHOUT refreshing the served `index.html` (e.g. `git checkout -- ui/dist/`
+after a build) makes `login()` time out in `beforeEach` (blank page, `#username` never renders,
+~213s timeout). The reliable gate is: `npm run build` THEN run playwright, and never leave a
+half-restored `dist/`. `ui/dist/index.html` is a tracked build artifact — never `git add`ed by
+this plan; restored/rebuilt for testing only.
+
+**Decisions applied (all recommended defaults, see open-questions.md):**
+- ESC-IDTYPE: both tables use `INTEGER PRIMARY KEY AUTOINCREMENT` (int64 Go ids); handlers
+  parse `{id}` via a local `flagID()` (`strconv.ParseInt`), not the string-only `pathID`.
+  Driven by the binding mock/spec contract (`id:number`; toggle spec asserts `/\d+$/`).
+- ESC-PROMPT-TEST: `POST /api/prompt-templates/test` returns `{data:{rendered:string}}`;
+  request `{prompt_id?,system_prompt?,sample?}`; deterministic render (resolved system_prompt
+  + sample, NO LLM). Not UI-consumed, no e2e assertion — covered by a Go handler test.
+- ESC-PROMPT-UPDATEDAT: `updated_at` stored in the table (hygiene/ordering) but OMITTED from
+  promptDTO; corrected mock drops it from POST/PUT.
+- ESC-FF-GETBYID: included `GET /api/feature-flags/{id}` for mock parity (page never calls it).
+- ESC-FF-STORE / ESC-FF-DOMAIN / ESC-PROMPT-DOMAIN: dedicated tables (not kv.go); NO
+  `internal/governance/{featureflags,prompttemplates}.go` (handler→store directly, virtualkeys
+  precedent). `/test` render stayed trivial, so no prompt domain seam needed.
+- ESC-ROUTE: no collision — verified with the real fasthttp/router that
+  `POST /api/prompt-templates/test` resolves to TestPromptTemplate (static-before-param), not
+  GetPromptTemplate; all feature-flags/prompt-templates routes resolve correctly.
+- ESC-AUDIT-REUSE: consumed the w7-gov-1 `h.recordAudit` seam read-only on mutations
+  (feature_flag.toggle, prompt_template.create/update/delete); NO edit to audit.go /
+  governance/audit.go / handlers.go. Details are human-readable summaries (flag key / template
+  name), never raw payloads.
+
+**Serial slot:** routes_admin.go slot was FREE at P5 (last touch w7-gov-1 `bade253`, merged; no
+unmerged W7 holder). w7-gov-2 TOOK the slot for ONE additive commit (`2f8f533`) and RELEASES it
+to w7-gov-3 on this close.
+
+**Gate Results (T-close):**
+- `go test ./... && go vet ./... && go build ./...`: PASS (1404 tests)
+- `go test ./internal/admin/ -run 'FeatureFlag|Prompt'`: PASS (5 feature-flags + 3 prompts)
+- `go test ./internal/store/ -run 'FeatureFlag|Prompt'`: PASS (5 + 2)
+- `cd ui && npx playwright test e2e/feature-flags.spec.ts e2e/prompts.spec.ts`: 7/7 PASS (isolated)
+- `cd ui && npx playwright test` (full): 150 pass / 1 fail — the single failure is the
+  PRE-EXISTING `comprehensive.spec.ts:48` flake ("unauthenticated → /login" toHaveURL timeout),
+  PROVEN red at base (reverted my only ui change `prompts.ts` → still red); zero w7-gov-2 regression.
+- `cd ui && npx vitest run src/`: 192/192 PASS
+- `cd ui && npm run build`: PASS
+
+**Tasks / commits:**
+- T-ff RED: `d0e6a92` — failing feature-flags store+admin tests + `feature_flags` table.
+- T-ff GREEN: `a55c701` — feature-flags store + admin (list + toggle).
+- T-prompts RED: `f31f70e` — failing prompt-templates store+admin tests + `prompt_templates` table.
+- T-prompts GREEN: `f6167b0` — prompt-templates store + admin CRUD + test endpoint.
+- T-routes: `2f8f533` — register feature-flags + prompt-templates admin routes (serial slot).
+- T-mocks: `021ed57` — correct feature-flags/prompts mocks to mirror real Go DTOs (drop updated_at).
+- T-close: matrix flip (PAR-UI-130/131), open-questions ESC-1c/1e resolutions, this entry.
