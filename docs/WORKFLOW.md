@@ -6914,3 +6914,70 @@ PAR-UI-025/048/057 → HAVE; PAR-USAGE-036/037 → HAVE. PAR-UI-081 NOT re-flipp
 (already HAVE from w6-a, §1.6). Quota Go-aggregation follow-up logged in
 `open-questions.md`. The six pages, `ui/src/components/usage/**`, and the three
 corrected mock bodies are now consume-only for later plans.
+
+## w6-h — Combos + routing cluster (UI-only, ZERO new Go) — 2026-06-14
+
+Page wave 1. Base `<base>` = `e2ef3759e0be6ab8d16e5e10592363064f532dcf`
+(matched expected e2ef375). ZERO Go changes; w6-h holds NO serial slot. Four flat
+routes rewritten from `<h1>` stubs: `/combos`, `/routing-rules`, `/model-limits`,
+`/aliases`. All four ship variant-HAVE against the e2e MOCK contract (3/4 domains
+have NO runtime Go backend; combos Go has a divergent DTO).
+
+**P8 base spec observations (recorded):** the four cluster specs
+`combos/routing-rules/model-limits/aliases.spec.ts` each had ONE thin-smoke test
+asserting body-contains the route name; all FOUR PASS at base (the `<h1>` + sidebar
+chrome carry "Combos"/"Routing"/"Model Limits"/"Aliases"). The RED arc is the
+ADDED list/modal/DnD assertions, which fail at base and green after impl.
+Base gates: `npm run build` exit 0; `npx vitest run src/` 134/134; the 4 specs 4/4
+(smoke); `go test ./...` 1359 pass + `go vet` clean.
+
+**DnD e2e disposition (§1.3 / ESCALATION-4):** the authoritative reorder proof is
+the PURE `moveStep` helper (`ui/src/lib/combo-order.ts`), unit-tested 9/9
+deterministically (move down/up/adjacent, no-op from===to, out-of-range from & to,
+immutability, untouched-order preservation, object members). The combos e2e
+asserts member rows render in seed order (`[data-testid='combo-step-row']`) AND
+proves the reorder wiring via the **persisted-order PUT-body intercept**
+(`page.waitForRequest(PUT /api/combos/{id})` → assert `body.steps[].model` order) —
+the green, harness-stable path (pricing.spec.ts precedent). Keyboard-DnD was NOT
+needed (PUT-intercept trivially green); the live-DnD assertion was NOT dropped.
+
+**Mock disposition (§1.4):** combos/routing-rules/aliases handler bodies CONSUMED
+UNCHANGED. ONE within-mock inconsistency corrected (handler BODY only,
+ESCALATION-5 NOT triggered): `store.reset()` seeds combos/aliases/routing-rules
+(`store.ts:197-200`) but OMITS `seedModelLimits`, leaving `store.modelLimits` empty
+and `/api/model-limits` serving `[]` (rows never render). Fixed in
+`ui/e2e/mocks/handlers/model-limits.ts` by lazily applying the EXISTING
+`seedModelLimits` export when the store is empty — body-only; NO edit to
+seed/store/index/fixture. Only `model-limits.spec.ts` (w6-h's own) consumes this
+handler, so no non-w6-h spec is affected (ESCALATION-5 boundary checked clean).
+
+**Three deferred Go backends + combos DTO reshape (serial follow-ups, in
+open-questions.md):** (1) combos DTO/key reconcile — real Go serves
+`{name,models:[]string}` keyed by `name` (ESCALATION-1); (2) aliases admin endpoint
+absent — store exists, no `/api/aliases` admin route (ESCALATION-2);
+(3a) routing-rules backend absent (ESCALATION-3a); (3b) model-limits backend absent
+(ESCALATION-3b). ALL variant-HAVE against the mock; NO in-plan Go.
+
+**Commits (in order):**
+- `a746f10` failing combos/routing-rules/model-limits/aliases e2e (TDD red)
+- `4c49cbb` failing combo-order reorder helper unit test (TDD red)
+- `78e785e` combos page (list + ComboFormModal with @dnd-kit member reorder) + combo-order helper
+- `0376399` routing-rules + model-limits + aliases pages and modals
+- (this) close — combos/routing/model-limits/aliases cluster; matrix flips
+
+**Gates:** `npm run build` green at every commit; the four w6-h specs 16/16 green
+(`combos` 5, `routing-rules` 4, `model-limits` 3, `aliases` 4); regression
+`navigation/auth/providers/dashboard.spec.ts` 26/26 green; full `npx playwright
+test` failing set IDENTICAL at base and HEAD (chat:17, comprehensive:48,
+guardrails:17, keys:11, mcp:16, settings:13 — all pre-existing `<h1>` stub routes
+owned by w6-f/w6-i/w6-j, verified via an `e2ef375` worktree diff) → **ZERO
+regressions**; `npx vitest run src/` 143/143 (134 base + 9 new combo-order units);
+`go test ./...` 1359 pass, `go vet ./...` clean (ZERO Go changes).
+
+**Rows flipped:** PAR-UI-010 → HAVE (variant); PAR-UI-050 → HAVE; PAR-UI-091/092/
+093/094 → HAVE (variant, §8 ESCALATION-1); PAR-UI-116 → HAVE (variant, §8
+ESCALATION-2); PAR-UI-130 `/routing-rules`+`/model-limits` subset → HAVE (variant,
+§8 ESCALATION-3a/3b); PAR-PR-339 satisfied by the combo-list model-name rendering
+(PARITY.md:241 is an index row with no status cell — cited here, no flip). The four
+pages, `ui/src/components/{combos,routing}/**`, `ui/src/lib/combo-order.ts`, and the
+one corrected mock body are now consume-only for later plans.
