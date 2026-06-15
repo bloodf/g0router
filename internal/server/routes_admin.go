@@ -338,6 +338,13 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.PATCH("/api/pricing", h.RequireSession(h.PatchPricing))
 	r.DELETE("/api/pricing", h.RequireSession(h.DeletePricing))
 
+	// Semantic cache admin (bf-core-2). Static collection: GET returns stats +
+	// entry metadata (never full responses), DELETE clears it (audited). This is
+	// the routes_admin serial-chain terminus (bf-mcp-1 -> bf-mcp-2 -> bf-core-2);
+	// bf-core-2 releases to nobody.
+	r.GET("/api/cache/semantic", h.RequireSession(h.GetSemanticCache))
+	r.DELETE("/api/cache/semantic", h.RequireSession(h.ClearSemanticCache))
+
 	// Public UI preference endpoint (no session required).
 	r.POST("/api/locale", h.PostLocale)
 }
