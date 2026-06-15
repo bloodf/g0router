@@ -541,17 +541,23 @@ func TestMCPServerPostToolsList(t *testing.T) {
 // JSON-RPC error, and an absent VK is allowed.
 func TestMCPServerPostVKValidation(t *testing.T) {
 	env := newMCPTestEnv(t)
+	// CreateVirtualKey mints the key value and forces IsActive=true; the inactive
+	// case is produced by deactivating via UpdateVirtualKey.
 	validVK, err := env.store.CreateVirtualKey(&store.VirtualKey{
-		VirtualKey: schemas.VirtualKey{Name: "valid"}, Key: "g0vk-valid", IsActive: true,
+		VirtualKey: schemas.VirtualKey{Name: "valid"},
 	})
 	if err != nil {
 		t.Fatalf("CreateVirtualKey: %v", err)
 	}
 	inactiveVK, err := env.store.CreateVirtualKey(&store.VirtualKey{
-		VirtualKey: schemas.VirtualKey{Name: "inactive"}, Key: "g0vk-inactive", IsActive: false,
+		VirtualKey: schemas.VirtualKey{Name: "inactive"},
 	})
 	if err != nil {
 		t.Fatalf("CreateVirtualKey inactive: %v", err)
+	}
+	inactiveVK.IsActive = false
+	if err := env.store.UpdateVirtualKey(inactiveVK); err != nil {
+		t.Fatalf("UpdateVirtualKey: %v", err)
 	}
 
 	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`

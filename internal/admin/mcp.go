@@ -515,11 +515,21 @@ func (h *Handlers) mcpRedirectURI(ctx *fasthttp.RequestCtx) string {
 
 // --- Tools ---
 
-// ListTools handles GET /api/mcp/tools. It aggregates tools across instances via
-// the discovery probe (when injected) and includes the antigravity ride-along
-// unavailable tool (PAR-MCP-060). Tool names are prefix-stripped (PAR-MCP-046).
-func (h *Handlers) ListTools(ctx *fasthttp.RequestCtx) {
-	out := make([]toolDTO, 0)
+// catalogEntry is the single source-of-truth tool record both the admin DTO
+// surface (ListTools) and the /mcp server-mode surface (assembleServerCatalog,
+// D3) map from — so the two catalogs never diverge.
+type catalogEntry struct {
+	Name        string
+	Description string
+	Unavailable bool
+}
+
+// mcpToolCatalog aggregates the global tool surface ONCE (D3): discovered tools
+// across instances (via the probe), the default-plugin baseline, and the
+// antigravity ride-along unavailable tool (PAR-MCP-060). Tool names are
+// prefix-stripped (PAR-MCP-046). This is the SHARED assembler.
+func (h *Handlers) mcpToolCatalog() []catalogEntry {
+	out := make([]catalogEntry, 0)
 	seen := map[string]bool{}
 
 	instances, err := h.store.ListMCPInstances()
@@ -535,10 +545,7 @@ func (h *Handlers) ListTools(ctx *fasthttp.RequestCtx) {
 					continue
 				}
 				seen[name] = true
-				out = append(out, toolDTO{
-					Type:     "function",
-					Function: toolFunctionDTO{Name: name, Description: pt.Description},
-				})
+				out = append(out, catalogEntry{Name: name, Description: pt.Description})
 			}
 		}
 	}
@@ -552,15 +559,162 @@ func (h *Handlers) ListTools(ctx *fasthttp.RequestCtx) {
 				continue
 			}
 			seen[name] = true
-			out = append(out, toolDTO{
-				Type:     "function",
-				Function: toolFunctionDTO{Name: name},
-			})
+			out = append(out, catalogEntry{Name: name})
 		}
 	}
 
-	out = append(out, unavailableAntigravityTool)
+	out = append(out, catalogEntry{
+		Name:        unavailableAntigravityTool.Function.Name,
+		Description: unavailableAntigravityTool.Function.Description,
+		Unavailable: true,
+	})
+	return out
+}
+
+// ListTools handles GET /api/mcp/tools. It maps the SHARED catalog (D3) to the
+// OpenAI-shaped DTO the w6-l page reads.
+func (h *Handlers) ListTools(ctx *fasthttp.RequestCtx) {
+	entries := h.mcpToolCatalog()
+	out := make([]toolDTO, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, toolDTO{
+			Type:        "function",
+			Function:    toolFunctionDTO{Name: e.Name, Description: e.Description},
+			Unavailable: e.Unavailable,
+		})
+	}
 	writeData(ctx, fasthttp.StatusOK, out)
+}
+
+// assembleServerCatalog maps the SHARED catalog (D3) to the MCP server-mode
+// tools/list shape. The /mcp server-mode surface and the /api/mcp/tools admin
+// surface therefore re-expose the SAME aggregated catalog — one source.
+func (h *Handlers) assembleServerCatalog() []mcp.ServerTool {
+	entries := h.mcpToolCatalog()
+	out := make([]mcp.ServerTool, 0, len(entries))
+	for _, e := range entries {
+		out = append(out, mcp.ServerTool{Name: e.Name, Description: e.Description})
+	}
+	return out
+}
+
+// --- MCP server mode (POST/GET /mcp; D1-D8) ---
+
+// serverCatalogSource adapts the Handlers' shared catalog assembler to the
+// mcp.CatalogSource the server-mode dispatcher consumes (D3 — one source).
+type serverCatalogSource struct {
+	h *Handlers
+}
+
+func (s serverCatalogSource) ListServerTools() []mcp.ServerTool {
+	return s.h.assembleServerCatalog()
+}
+
+// newMCPServer constructs a per-request server-mode dispatcher over the shared
+// catalog (D3) and the running plugin bridge (the shipped dispatch path). When
+// no plugin bridge is running, a nil dispatcher makes tools/call return a
+// JSON-RPC internal error while initialize/tools/list still serve.
+func (h *Handlers) newMCPServer() *mcp.Server {
+	var disp mcp.ToolDispatcher
+	if bridge, ok := h.resolveToolBridge(); ok {
+		disp = mcp.NewBridgeDispatcher(bridge)
+	}
+	return mcp.NewServer(serverCatalogSource{h: h}, disp)
+}
+
+// ctxHeaderGetter wraps a fasthttp request's header peek into a HeaderGetter so
+// resolveMCPVK runs over the same precedence in production as in its unit test.
+func ctxHeaderGetter(ctx *fasthttp.RequestCtx) HeaderGetter {
+	return func(name string) string { return string(ctx.Request.Header.Peek(name)) }
+}
+
+// admitMCPVK resolves the /mcp virtual key (D4) and validates it: an ABSENT VK
+// is allowed (optional global surface; per-VK scoping is bf-mcp-2), a PROVIDED
+// VK is validated via the shipped store lookup and REJECTED when unknown or
+// inactive. It returns the resolved key (for the deferred audit stamp, D8) and
+// whether the request is admitted. This is the resolver's LIVE consumer — a
+// provided-but-invalid VK changes the response, so the value is not merely
+// attached to context.
+func (h *Handlers) admitMCPVK(ctx *fasthttp.RequestCtx) (vk string, admitted bool) {
+	key := resolveMCPVK(ctxHeaderGetter(ctx))
+	if key == "" {
+		return "", true // absent VK: allowed (optional surface).
+	}
+	rec, err := h.store.GetVirtualKeyByKey(key)
+	if err != nil || rec == nil || !rec.IsActive {
+		return key, false // provided-but-unknown/inactive: rejected.
+	}
+	return key, true
+}
+
+// writeRawJSONRPC writes a raw JSON-RPC body (NOT the {data,error} envelope) for
+// the /mcp surface (D1).
+func writeRawJSONRPC(ctx *fasthttp.RequestCtx, status int, body []byte) {
+	ctx.SetStatusCode(status)
+	ctx.SetContentType("application/json")
+	ctx.SetBody(body)
+}
+
+// MCPServerPost handles POST /mcp: a JSON-RPC 2.0 request/response over the
+// global un-scoped tool surface (D1/D3). It validates any supplied VK (D4),
+// dispatches via the shared server-mode dispatcher, and best-effort audits a
+// tools/call with the resolved VK stamped (D8). The body is RAW JSON-RPC.
+func (h *Handlers) MCPServerPost(ctx *fasthttp.RequestCtx) {
+	vk, admitted := h.admitMCPVK(ctx)
+	if !admitted {
+		writeRawJSONRPC(ctx, fasthttp.StatusOK,
+			marshalMCPError("virtual key unknown or inactive"))
+		return
+	}
+
+	body := ctx.PostBody()
+	resp := h.newMCPServer().Dispatch(context.Background(), body)
+
+	// Best-effort audit per tools/call, stamping the resolved VK (D8 payload).
+	if name, ok := mcpToolCallName(body); ok {
+		h.recordAudit(ctx, "mcp_server.tools_call", name, mcpAuditDetails(name, vk))
+	}
+	writeRawJSONRPC(ctx, fasthttp.StatusOK, resp)
+}
+
+// marshalMCPError builds a minimal raw JSON-RPC 2.0 error frame for transport-
+// level rejections (e.g. VK rejection) that occur before dispatch. Uses the
+// JSON-RPC invalid-request code.
+func marshalMCPError(message string) []byte {
+	b, _ := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      nil,
+		"error":   map[string]any{"code": -32600, "message": message},
+	})
+	return b
+}
+
+// mcpToolCallName extracts the tools/call tool name from a raw JSON-RPC body,
+// reporting false for any other method or a malformed body.
+func mcpToolCallName(body []byte) (string, bool) {
+	var req struct {
+		Method string `json:"method"`
+		Params struct {
+			Name string `json:"name"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		return "", false
+	}
+	if req.Method != "tools/call" {
+		return "", false
+	}
+	return req.Params.Name, true
+}
+
+// mcpAuditDetails renders the audit detail string for an /mcp tools/call,
+// recording the resolved VK (or "anonymous" when absent). NEVER echoes a token.
+func mcpAuditDetails(tool, vk string) string {
+	who := vk
+	if who == "" {
+		who = "anonymous"
+	}
+	return "MCP server tools/call " + tool + " (vk=" + who + ")"
 }
 
 // executeRequest is the tool-execute body.
