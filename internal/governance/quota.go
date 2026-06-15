@@ -123,6 +123,50 @@ func ValidateBudgetOwner(owner BudgetOwner) error {
 	return nil
 }
 
+// RateLimitConfig is the dual-dimension rate-limit configuration validated at
+// VK admin time (bf-gov-3, D5). It is a pure value type; the engine reads the
+// equivalent fields off VirtualKeyInfo at request time.
+type RateLimitConfig struct {
+	TokenMax           int64
+	TokenResetPeriod   string
+	RequestMax         int64
+	RequestResetPeriod string
+}
+
+// ValidateRateLimit returns an error when a positive max lacks a reset duration,
+// or when a non-empty reset duration is neither a known calendar word
+// (daily/weekly/monthly) nor a parseable rolling-duration token (1h/1d/1M). It
+// is the inline value-in/error-out validation that replaces Bifrost's GORM
+// BeforeSave hook (bf-gov-3, D5), called live from the VK admin create/update path.
+func ValidateRateLimit(rl RateLimitConfig) error {
+	if rl.TokenMax > 0 && rl.TokenResetPeriod == "" {
+		return fmt.Errorf("rate_limit: token_max requires token_reset_period")
+	}
+	if rl.RequestMax > 0 && rl.RequestResetPeriod == "" {
+		return fmt.Errorf("rate_limit: request_max requires request_reset_period")
+	}
+	if rl.TokenResetPeriod != "" && !validResetPeriod(rl.TokenResetPeriod) {
+		return fmt.Errorf("rate_limit: invalid token_reset_period %q", rl.TokenResetPeriod)
+	}
+	if rl.RequestResetPeriod != "" && !validResetPeriod(rl.RequestResetPeriod) {
+		return fmt.Errorf("rate_limit: invalid request_reset_period %q", rl.RequestResetPeriod)
+	}
+	return nil
+}
+
+// validResetPeriod reports whether period is a known calendar word or a
+// parseable rolling-duration token (bf-gov-3, D2/D5).
+func validResetPeriod(period string) bool {
+	switch period {
+	case "daily", "weekly", "monthly":
+		return true
+	}
+	// The reference time is irrelevant to parseability; use a fixed epoch so the
+	// check stays free of the wall clock.
+	_, ok := rollingWindowStart(time.Unix(0, 0).UTC(), period)
+	return ok
+}
+
 // QuotaEngine enforces per-virtual-key budget and RPM limits.
 type QuotaEngine struct {
 	spend SpendReader

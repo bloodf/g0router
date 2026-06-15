@@ -19,6 +19,7 @@ type virtualKeyDTO struct {
 	ProviderConfigs []schemas.ProviderConfig `json:"provider_configs"`
 	Budget          *schemas.Budget         `json:"budget,omitempty"`
 	RateLimitRPM    *int                    `json:"rate_limit_rpm,omitempty"`
+	RateLimit       *schemas.RateLimit      `json:"rate_limit,omitempty"`
 	IsActive        bool                    `json:"is_active"`
 	CreatedAt       int64                   `json:"created_at"`
 	UpdatedAt       int64                   `json:"updated_at"`
@@ -33,6 +34,7 @@ func toVirtualKeyDTO(vk *store.VirtualKey) virtualKeyDTO {
 		ProviderConfigs: vk.ProviderConfigs,
 		Budget:          vk.Budget,
 		RateLimitRPM:    vk.RateLimitRPM,
+		RateLimit:       vk.RateLimit,
 		IsActive:        vk.IsActive,
 		CreatedAt:       vk.CreatedAt,
 		UpdatedAt:       vk.UpdatedAt,
@@ -49,6 +51,7 @@ type virtualKeyRequest struct {
 	ProviderConfigs []schemas.ProviderConfig `json:"provider_configs"`
 	Budget          *schemas.Budget         `json:"budget,omitempty"`
 	RateLimitRPM    *int                    `json:"rate_limit_rpm,omitempty"`
+	RateLimit       *schemas.RateLimit      `json:"rate_limit,omitempty"`
 	IsActive        *bool                   `json:"is_active,omitempty"`
 }
 
@@ -103,6 +106,20 @@ func validateVirtualKeyRequest(req *virtualKeyRequest) error {
 			return fmt.Errorf("budget owner: %w", err)
 		}
 	}
+	// Validate the dual-dimension rate limit (bf-gov-3, D5): a positive max
+	// requires a reset duration, and the reset duration must be a known calendar
+	// word or a parseable rolling-duration token. This is the live production
+	// caller of governance.ValidateRateLimit (no-leftovers).
+	if req.RateLimit != nil {
+		if err := governance.ValidateRateLimit(governance.RateLimitConfig{
+			TokenMax:           req.RateLimit.TokenMax,
+			TokenResetPeriod:   req.RateLimit.TokenResetPeriod,
+			RequestMax:         req.RateLimit.RequestMax,
+			RequestResetPeriod: req.RateLimit.RequestResetPeriod,
+		}); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -138,6 +155,7 @@ func (h *Handlers) CreateVirtualKey(ctx *fasthttp.RequestCtx) {
 			ProviderConfigs: req.ProviderConfigs,
 			Budget:          req.Budget,
 			RateLimitRPM:    req.RateLimitRPM,
+			RateLimit:       req.RateLimit,
 		},
 		TeamID: req.TeamID,
 	}
@@ -206,6 +224,7 @@ func (h *Handlers) UpdateVirtualKey(ctx *fasthttp.RequestCtx) {
 			ProviderConfigs: req.ProviderConfigs,
 			Budget:          req.Budget,
 			RateLimitRPM:    req.RateLimitRPM,
+			RateLimit:       req.RateLimit,
 		},
 		IsActive: isActive,
 		TeamID:   req.TeamID,
