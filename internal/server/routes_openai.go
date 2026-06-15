@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"github.com/bloodf/g0router/internal/api"
 	"github.com/bloodf/g0router/internal/governance"
 	"github.com/bloodf/g0router/internal/inference"
+	"github.com/bloodf/g0router/internal/semcache"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/fasthttp/router"
 )
@@ -116,6 +118,12 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 			engine: inference.NewSelectionEngine(st, st, nil, time.Now),
 			rr:     make(map[string]int),
 		}
+		// Exact-key semantic response cache (bf-core-2). The adapter keeps the api
+		// package free of store/semcache imports and gates on the [semantic_cache]
+		// feature flag. Non-streaming chat only; the semantic-similarity half is
+		// deferred (D2). Wired into the chat handler exclusively.
+		chat.SetSemanticCache(newSemanticCacheAdapter(st))
+
 		chat.SetVKPinnedResolver(selector)
 		messages.SetVKPinnedResolver(selector)
 		responses.SetVKPinnedResolver(selector)
@@ -436,6 +444,78 @@ type vkPinnedSelector struct {
 	engine *inference.SelectionEngine
 	mu     sync.Mutex
 	rr     map[string]int
+}
+
+// semanticCacheAdapter implements api.SemanticCache over the exact-key cache.
+// Enabled() gates on the [semantic_cache] feature flag; Lookup/Store delegate
+// to semcache.Cache, which reads/writes the store via semcacheRepo. This keeps
+// the api package free of store/semcache imports (mirrors the VK gate adapters).
+type semanticCacheAdapter struct {
+	st    *store.Store
+	cache *semcache.Cache
+}
+
+func newSemanticCacheAdapter(st *store.Store) *semanticCacheAdapter {
+	return &semanticCacheAdapter{
+		st:    st,
+		cache: semcache.NewCache(&semcacheRepo{st: st}, st, time.Now),
+	}
+}
+
+func (a *semanticCacheAdapter) Enabled() bool {
+	on, err := a.st.IsFeatureEnabled("semantic_cache")
+	return err == nil && on
+}
+
+func (a *semanticCacheAdapter) Lookup(ctx context.Context, model, prompt string) ([]byte, bool, error) {
+	return a.cache.Lookup(ctx, model, prompt)
+}
+
+func (a *semanticCacheAdapter) Store(ctx context.Context, model, prompt string, response []byte) error {
+	return a.cache.Store(ctx, model, prompt, response)
+}
+
+// semcacheRepo adapts *store.Store to semcache.CacheRepository, translating the
+// store's ErrNotFound into semcache.ErrCacheMiss and mapping the row shapes.
+type semcacheRepo struct {
+	st *store.Store
+}
+
+func (r *semcacheRepo) GetByKey(_ context.Context, cacheKey, nowISO string) (*semcache.CachedEntry, error) {
+	e, err := r.st.GetSemanticCacheByKey(cacheKey, nowISO)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, semcache.ErrCacheMiss
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &semcache.CachedEntry{
+		ID:            e.ID,
+		CacheKey:      e.CacheKey,
+		EmbeddingJSON: e.EmbeddingJSON,
+		Model:         e.Model,
+		ResponseJSON:  e.ResponseJSON,
+		ExpiresAt:     e.ExpiresAt,
+		HitCount:      e.HitCount,
+	}, nil
+}
+
+func (r *semcacheRepo) Insert(_ context.Context, e semcache.CachedEntry) error {
+	return r.st.InsertSemanticCacheEntry(store.SemanticCacheEntry{
+		CacheKey:      e.CacheKey,
+		EmbeddingJSON: e.EmbeddingJSON,
+		Model:         e.Model,
+		ResponseJSON:  e.ResponseJSON,
+		ExpiresAt:     e.ExpiresAt,
+	})
+}
+
+func (r *semcacheRepo) IncrementHit(_ context.Context, id int64) error {
+	return r.st.IncrementSemanticCacheHit(id)
+}
+
+func (r *semcacheRepo) PurgeExpired(_ context.Context, nowISO string) (int64, error) {
+	return r.st.PurgeExpiredSemanticCache(nowISO)
 }
 
 func (s *vkPinnedSelector) ResolvePinned(providerID, model string, keyIDs []string) (string, string, bool) {
