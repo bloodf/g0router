@@ -433,3 +433,29 @@ func TestMcpInstanceJSONIsPascalCase(t *testing.T) {
 		}
 	}
 }
+
+// TestMCPVKPrecedence pins resolveMCPVK's header precedence (D4): x-g0-vk wins,
+// then the Authorization Bearer token, then x-api-key, else "". PURE — driven
+// over a fake header getter, no fasthttp.
+func TestMCPVKPrecedence(t *testing.T) {
+	cases := []struct {
+		name    string
+		headers map[string]string
+		want    string
+	}{
+		{"x-g0-vk wins over all", map[string]string{"x-g0-vk": "g0vk-a", "Authorization": "Bearer g0vk-b", "x-api-key": "g0vk-c"}, "g0vk-a"},
+		{"bearer when no x-g0-vk", map[string]string{"Authorization": "Bearer g0vk-b", "x-api-key": "g0vk-c"}, "g0vk-b"},
+		{"x-api-key last", map[string]string{"x-api-key": "g0vk-c"}, "g0vk-c"},
+		{"bearer trims prefix only", map[string]string{"Authorization": "Bearer  g0vk-d"}, " g0vk-d"},
+		{"non-bearer authorization ignored", map[string]string{"Authorization": "Basic xyz", "x-api-key": "g0vk-e"}, "g0vk-e"},
+		{"all empty", map[string]string{}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			get := func(name string) string { return tc.headers[name] }
+			if got := resolveMCPVK(get); got != tc.want {
+				t.Fatalf("resolveMCPVK = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
