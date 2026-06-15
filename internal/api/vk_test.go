@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"testing"
+
+	"github.com/bloodf/g0router/internal/schemas"
 )
 
 // fakeVKResolver resolves keys to canned VKInfo values.
@@ -260,6 +262,150 @@ func TestVKGateProviderConfigEnforced(t *testing.T) {
 		ok, status, _, _ := gate.AllowVK("vk-openai", "gpt-4o", "openai")
 		if !ok {
 			t.Fatalf("listed model should be allowed: status=%d", status)
+		}
+	})
+}
+
+// TestVKGateBlacklistWins verifies PAR-BF-GOV-028 (D3): the gate runs a
+// blacklist pass before the allowlist pass, so a model present in
+// BlacklistedModels is denied 403 even when it also appears in AllowedModels.
+func TestVKGateBlacklistWins(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-blacklist-wins", &VKInfo{
+		Key: "vk-blacklist-wins",
+		Configs: []VKProviderConfig{
+			{
+				Provider:          "openai",
+				AllowedModels:     []string{"gpt-4o", "gpt-4"},
+				BlacklistedModels: schemas.BlackList{"gpt-4o"},
+			},
+		},
+		IsActive: true,
+	})
+	gate := NewVKGate(resolver, nil)
+
+	t.Run("blacklisted-and-allowlisted model denied", func(t *testing.T) {
+		ok, status, reason, _ := gate.AllowVK("vk-blacklist-wins", "gpt-4o", "openai")
+		if ok {
+			t.Fatal("model in both allow and block lists must be denied (blacklist wins)")
+		}
+		if status != 403 || reason != "provider/model not allowed for virtual key" {
+			t.Fatalf("got status=%d reason=%q, want 403 / standard reason", status, reason)
+		}
+	})
+
+	t.Run("allowlisted-not-blacklisted model allowed", func(t *testing.T) {
+		ok, status, _, _ := gate.AllowVK("vk-blacklist-wins", "gpt-4", "openai")
+		if !ok {
+			t.Fatalf("allowlisted, non-blacklisted model should be allowed: status=%d", status)
+		}
+	})
+}
+
+// TestVKGateBlacklistWildcard verifies PAR-BF-GOV-027/028: a ["*"] blacklist
+// blocks every model for the provider even when the allowlist would allow it.
+func TestVKGateBlacklistWildcard(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-block-all", &VKInfo{
+		Key: "vk-block-all",
+		Configs: []VKProviderConfig{
+			{
+				Provider:          "openai",
+				AllowedModels:     []string{"gpt-4o"},
+				BlacklistedModels: schemas.BlackList{"*"},
+			},
+		},
+		IsActive: true,
+	})
+	gate := NewVKGate(resolver, nil)
+
+	ok, status, reason, _ := gate.AllowVK("vk-block-all", "gpt-4o", "openai")
+	if ok {
+		t.Fatal("wildcard blacklist must block all models")
+	}
+	if status != 403 || reason != "provider/model not allowed for virtual key" {
+		t.Fatalf("got status=%d reason=%q, want 403 / standard reason", status, reason)
+	}
+}
+
+// TestVKGateWhitelistRestricts verifies PAR-BF-GOV-026 at the GATE: a non-empty
+// AllowedModels restricts to the listed models (listed allowed, unlisted denied).
+func TestVKGateWhitelistRestricts(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-restrict", &VKInfo{
+		Key: "vk-restrict",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+		},
+		IsActive: true,
+	})
+	gate := NewVKGate(resolver, nil)
+
+	t.Run("listed model allowed", func(t *testing.T) {
+		ok, status, _, _ := gate.AllowVK("vk-restrict", "gpt-4o", "openai")
+		if !ok {
+			t.Fatalf("listed model should be allowed: status=%d", status)
+		}
+	})
+	t.Run("unlisted model denied", func(t *testing.T) {
+		ok, status, _, _ := gate.AllowVK("vk-restrict", "gpt-4", "openai")
+		if ok {
+			t.Fatal("unlisted model should be denied")
+		}
+		if status != 403 {
+			t.Errorf("status = %d, want 403", status)
+		}
+	})
+}
+
+// TestVKGateEmptyAndNilAllowedModelsLegacyMatchAll verifies the backward-compat
+// VAR (D1): the gate treats empty AND nil AllowedModels as legacy match-all (no
+// previously-allowed VK is newly denied). The empty=deny-all matrix contract is
+// asserted at the TYPE level in lists_test.go, NOT at the gate.
+func TestVKGateEmptyAndNilAllowedModelsLegacyMatchAll(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-empty", &VKInfo{
+		Key: "vk-empty",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{}},
+		},
+		IsActive: true,
+	})
+	resolver.set("vk-nil", &VKInfo{
+		Key: "vk-nil",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: nil},
+		},
+		IsActive: true,
+	})
+	gate := NewVKGate(resolver, nil)
+
+	t.Run("empty allowed models match-all", func(t *testing.T) {
+		ok, status, _, _ := gate.AllowVK("vk-empty", "any-model", "openai")
+		if !ok {
+			t.Fatalf("empty AllowedModels must be legacy match-all (allowed): status=%d", status)
+		}
+	})
+	t.Run("nil allowed models match-all", func(t *testing.T) {
+		ok, status, _, _ := gate.AllowVK("vk-nil", "any-model", "openai")
+		if !ok {
+			t.Fatalf("nil AllowedModels must be legacy match-all (allowed): status=%d", status)
+		}
+	})
+	t.Run("empty allowed models but blacklisted denied", func(t *testing.T) {
+		resolver.set("vk-empty-block", &VKInfo{
+			Key: "vk-empty-block",
+			Configs: []VKProviderConfig{
+				{Provider: "openai", AllowedModels: []string{}, BlacklistedModels: schemas.BlackList{"blocked-model"}},
+			},
+			IsActive: true,
+		})
+		ok, status, _, _ := gate.AllowVK("vk-empty-block", "blocked-model", "openai")
+		if ok {
+			t.Fatal("blacklist must still apply over a legacy match-all empty allowlist")
+		}
+		if status != 403 {
+			t.Errorf("status = %d, want 403", status)
 		}
 	})
 }
