@@ -35,7 +35,6 @@ func TestNotImplementedStubs(t *testing.T) {
 	}{
 		{"Responses", func() *schemas.ProviderError { _, e := p.Responses(ctx, key, nil); return e }()},
 		{"ResponsesStream", func() *schemas.ProviderError { _, e := p.ResponsesStream(ctx, nil, key, nil); return e }()},
-		{"CountTokens", func() *schemas.ProviderError { _, e := p.CountTokens(ctx, key, nil); return e }()},
 	}
 
 	for _, tt := range tests {

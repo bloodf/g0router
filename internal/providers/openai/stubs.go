@@ -14,10 +14,6 @@ func (p *Provider) ResponsesStream(ctx *schemas.GatewayContext, postHookRunner s
 	return nil, notImplemented("responses_stream")
 }
 
-func (p *Provider) CountTokens(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.ChatRequest) (*schemas.TokenCountResponse, *schemas.ProviderError) {
-	return nil, notImplemented("count_tokens")
-}
-
 func notImplemented(method string) *schemas.ProviderError {
 	return &schemas.ProviderError{
 		Message:    fmt.Sprintf("%s not implemented", method),
