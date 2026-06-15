@@ -23,14 +23,19 @@ func insertTestFeatureFlag(t *testing.T, st *Store, key, description string, ena
 	return id
 }
 
-func TestFeatureFlagListEmpty(t *testing.T) {
+func TestFeatureFlagListSeededOnly(t *testing.T) {
 	st := newTestStore(t)
 	flags, err := st.ListFeatureFlags()
 	if err != nil {
 		t.Fatalf("ListFeatureFlags: %v", err)
 	}
-	if len(flags) != 0 {
-		t.Fatalf("len(flags) = %d, want 0", len(flags))
+	// Only the migration-seeded semantic_cache flag (bf-core-2, D8) exists in a
+	// fresh store; no other flags are seeded.
+	if len(flags) != 1 {
+		t.Fatalf("len(flags) = %d, want 1 (seeded semantic_cache only)", len(flags))
+	}
+	if flags[0].Key != "semantic_cache" {
+		t.Fatalf("seeded flag key = %q, want semantic_cache", flags[0].Key)
 	}
 }
 
@@ -43,21 +48,26 @@ func TestFeatureFlagListAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListFeatureFlags: %v", err)
 	}
-	if len(flags) != 2 {
-		t.Fatalf("len(flags) = %d, want 2", len(flags))
+	// 2 inserted + the migration-seeded semantic_cache flag (bf-core-2, D8).
+	if len(flags) != 3 {
+		t.Fatalf("len(flags) = %d, want 3 (2 inserted + seeded)", len(flags))
 	}
-	// ORDER BY id ASC.
-	if flags[0].ID != id1 || flags[0].Key != "mcp_gateway" {
-		t.Fatalf("flags[0] = %+v", flags[0])
+	byKey := map[string]*FeatureFlag{}
+	for _, f := range flags {
+		byKey[f.Key] = f
 	}
-	if !flags[0].Enabled {
-		t.Fatalf("flags[0].Enabled = false, want true")
+	mcp := byKey["mcp_gateway"]
+	if mcp == nil || mcp.ID != id1 {
+		t.Fatalf("mcp_gateway flag = %+v", mcp)
 	}
-	if flags[1].Enabled {
-		t.Fatalf("flags[1].Enabled = true, want false")
+	if !mcp.Enabled {
+		t.Fatalf("mcp_gateway.Enabled = false, want true")
 	}
-	if flags[0].CreatedAt == "" {
-		t.Fatalf("flags[0].CreatedAt empty")
+	if rtk := byKey["rtk_compression"]; rtk == nil || rtk.Enabled {
+		t.Fatalf("rtk_compression flag = %+v, want present + disabled", rtk)
+	}
+	if mcp.CreatedAt == "" {
+		t.Fatalf("mcp_gateway.CreatedAt empty")
 	}
 
 	got, err := st.GetFeatureFlagByID(id1)
@@ -114,5 +124,65 @@ func TestFeatureFlagSetEnabledMissing(t *testing.T) {
 	st := newTestStore(t)
 	if _, err := st.SetFeatureFlagEnabled(404, true); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("SetFeatureFlagEnabled missing err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestIsFeatureEnabledTrue(t *testing.T) {
+	st := newTestStore(t)
+	insertTestFeatureFlag(t, st, "on_flag", "", true)
+	got, err := st.IsFeatureEnabled("on_flag")
+	if err != nil {
+		t.Fatalf("IsFeatureEnabled: %v", err)
+	}
+	if !got {
+		t.Fatal("IsFeatureEnabled(on_flag) = false, want true")
+	}
+}
+
+func TestIsFeatureEnabledFalse(t *testing.T) {
+	st := newTestStore(t)
+	insertTestFeatureFlag(t, st, "off_flag", "", false)
+	got, err := st.IsFeatureEnabled("off_flag")
+	if err != nil {
+		t.Fatalf("IsFeatureEnabled: %v", err)
+	}
+	if got {
+		t.Fatal("IsFeatureEnabled(off_flag) = true, want false")
+	}
+}
+
+// TestIsFeatureEnabledMissing verifies fail-OFF: a key with no row reports
+// (false, nil) so the hook stays a clean no-op (D8).
+func TestIsFeatureEnabledMissing(t *testing.T) {
+	st := newTestStore(t)
+	got, err := st.IsFeatureEnabled("nonexistent")
+	if err != nil {
+		t.Fatalf("IsFeatureEnabled missing err = %v, want nil (fail-OFF)", err)
+	}
+	if got {
+		t.Fatal("IsFeatureEnabled(missing) = true, want false (fail-OFF)")
+	}
+}
+
+// TestSemanticCacheFlagSeeded verifies the semantic_cache flag row is seeded by
+// the migration (OFF by default) so the admin toggle has a row to flip (D8).
+func TestSemanticCacheFlagSeeded(t *testing.T) {
+	st := newTestStore(t)
+	flags, err := st.ListFeatureFlags()
+	if err != nil {
+		t.Fatalf("ListFeatureFlags: %v", err)
+	}
+	var found *FeatureFlag
+	for _, f := range flags {
+		if f.Key == "semantic_cache" {
+			found = f
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("semantic_cache flag not seeded")
+	}
+	if found.Enabled {
+		t.Fatal("semantic_cache flag seeded enabled=true, want false (OFF by default)")
 	}
 }
