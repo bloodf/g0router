@@ -299,6 +299,49 @@ func TestVKDenialPrecedesTeam(t *testing.T) {
 	}
 }
 
+// TestEvaluateAllowAndWrapperEquivalence verifies the Decision enum + Evaluate
+// sibling (bf-gov-3, D8): Evaluate returns DecisionAllow with status 0 on pass,
+// and the re-expressed Allow wrapper returns the IDENTICAL (ok,status,reason)
+// tuple for the shipped budget/RPM/team cases.
+func TestEvaluateAllowAndWrapperEquivalence(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+
+	t.Run("allow returns DecisionAllow", func(t *testing.T) {
+		spend := newFakeSpendReader()
+		engine := NewQuotaEngine(spend, fixedClock(now))
+		vk := &VirtualKeyInfo{Key: "vk-eval-ok", BudgetLimit: 1.0, BudgetPeriod: "daily", RateLimitRPM: 1000}
+		spend.set("vk-eval-ok", 0.5)
+
+		res := engine.Evaluate(vk, "gpt-4o")
+		if res.Decision != DecisionAllow {
+			t.Fatalf("Evaluate decision = %v, want DecisionAllow", res.Decision)
+		}
+		if res.Status != 0 || res.Reason != "" {
+			t.Fatalf("Evaluate status=%d reason=%q, want 0/empty", res.Status, res.Reason)
+		}
+		ok, status, reason := engine.Allow(vk, "gpt-4o")
+		if !ok || status != 0 || reason != "" {
+			t.Fatalf("Allow wrapper = %v/%d/%q, want true/0/empty", ok, status, reason)
+		}
+	})
+
+	t.Run("budget denial maps to DecisionBudgetExceeded and wrapper tuple", func(t *testing.T) {
+		spend := newFakeSpendReader()
+		engine := NewQuotaEngine(spend, fixedClock(now))
+		vk := &VirtualKeyInfo{Key: "vk-eval-budget", BudgetLimit: 1.0, BudgetPeriod: "daily"}
+		spend.set("vk-eval-budget", 2.0)
+
+		res := engine.Evaluate(vk, "gpt-4o")
+		if res.Decision != DecisionBudgetExceeded || res.Status != 429 || res.Reason != "budget exhausted" {
+			t.Fatalf("Evaluate budget = %v/%d/%q, want BudgetExceeded/429/budget exhausted", res.Decision, res.Status, res.Reason)
+		}
+		ok, status, reason := engine.Allow(vk, "gpt-4o")
+		if ok || status != 429 || reason != "budget exhausted" {
+			t.Fatalf("Allow wrapper budget = %v/%d/%q, want false/429/budget exhausted", ok, status, reason)
+		}
+	})
+}
+
 // TestValidateBudgetOwner verifies the inline single-owner validation (bf-gov-1,
 // D2): a budget owner may name at most one of {VirtualKeyID, TeamID}.
 func TestValidateBudgetOwner(t *testing.T) {
