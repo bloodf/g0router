@@ -29,11 +29,11 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: "WAVE 7 COMPLETE — 9router parity at its sound ceiling. All 20 buildable Wave-7 Go-backend plans shipped (prov-openai, gov-1/2/3, plat-1/2/3, mcp-1/2/3, platnodes, route-a/b, prov-special-a/b, prov-oauth, prov-media, misc, usage-quota)."
-current_wave: "9router DONE (HAVE=384; 61 remaining are DOCUMENTED ESCALATIONS in open-questions.md — not buildable within current architecture: deploy relays, OS-privileged platform sub-features, media providers needing /v1/images+/v1/audio routes, web-scrapers, JWT-by-design-variant, Cowork-specific MCP, Wave-2 translation schema). NEXT PHASE per scope: bifrost-* (~257 rows, no wave maps yet)."
-last_completed_plan: "w7-usage-quota (provider usage fetchers; PAR-USAGE-032 PARTIAL+footnote). Final gate green: go 42 pkgs + vet, ui build, vitest 41/192."
+current_stage: "BIFROST BUILDABLE SET COMPLETE — bifrost-* parity at its architecturally-sound ceiling. The bf-openai chain (1–4, prior session) plus 9 plans this session: bf-gov-1/2/3, bf-mcp-1/2, bf-core-1/2, and the bf-mcp-sat client-mode audit. All shipped to main with strict TDD, hermetic tests, and adversarial orchestrator review of every plan."
+current_wave: "bifrost-* DONE (buildable set exhausted). Remaining MISSING rows are DOCUMENTED ESCALATIONS in open-questions.md — the deferred re-architecture: plugin pipeline + ProviderQueue/pooling + clustering + OTEL/tracing + vector backends (bifrost-core); Customer tier + sync.Map in-memory store + CAS + cluster recon (bifrost-governance); per-user OAuth/header/sessions enterprise surface + code-mode VFS + InProcess/TLS/credential-store (bifrost-mcp); video/containers/async/WebSocket/rerank/OCR/alias/Azure/normalization extensions (bifrost-openai); plus the semantic-cosine half (deferred pending an embedding-source decision). 9router remains DONE (HAVE=384, 61 escalations)."
+last_completed_plan: "bf-mcp-sat (bifrost-mcp client-mode SAT audit — honest matrix flip: corrected the MAP's 'flip all 17' over-claim to 2 HAVE / 4 PARTIAL / 5 VAR / 6 stay-MISSING; +1 regression test, no production code). Final gate green: go test 2065 pass / 44 pkgs, go vet clean, go build clean."
 last_updated: "2026-06-15T00:00:00Z"
-parity_snapshot: "9router: HAVE=384 MISSING=61(all escalated). routing+usage matrices 100%. Full project incl bifrost: ~HAVE=409 / bifrost-* ~257 MISSING remain (next phase). Final 9router gate: go test 42 pkgs green, go vet clean, npm build green, vitest 41 files/192 tests, all per-plan e2e specs green."
+parity_snapshot: "Final gate @ 7c33123: go build OK, go vet clean, go test 2065 pass / 44 pkgs. Bifrost matrices (approx, HAVE/PARTIAL/VAR addressed vs MISSING-escalation-tail): core 3/6/0 vs 39+2esc; governance 13/11/5 vs 19; mcp 16/11/4 vs 49; openai 32/1/3 vs 58. Aggregate ~105 sound rows addressed (HAVE+PARTIAL+VAR) / ~167 MISSING = the documented architectural-divergence escalation tail (the deferred ~50% re-architecture per the program scope decision). 9router: HAVE=384, 61 escalations."
 orchestrator: "Claude Code (VPS) — see CLI_ORCHESTRATOR.md"
 planner: "Fable 5"
 implementer: "Claude (executor)"
