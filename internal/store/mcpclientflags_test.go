@@ -46,6 +46,32 @@ func TestMCPClientConfigFlags(t *testing.T) {
 	}
 }
 
+// TestMCPClientAllowedExtraHeadersStored proves the allowed_extra_headers config
+// blob value is canonicalized on write and read back through the accessor
+// (PAR-BF-MCP-071 stored + validated; forwarding ESC).
+func TestMCPClientAllowedExtraHeadersStored(t *testing.T) {
+	st := newTestStore(t)
+	created, err := st.CreateMCPClient(&MCPClient{
+		Name:   "exa",
+		Type:   "custom",
+		Config: map[string]any{"allowed_extra_headers": []any{" X-Trace ", "x-trace", "Authorization"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateMCPClient: %v", err)
+	}
+	got, _ := st.GetMCPClient(created.ID)
+	hdrs := MCPClientAllowedExtraHeaders(got)
+	want := []string{"x-trace", "authorization"}
+	if len(hdrs) != len(want) {
+		t.Fatalf("allowed_extra_headers = %v, want %v", hdrs, want)
+	}
+	for i := range want {
+		if hdrs[i] != want[i] {
+			t.Fatalf("allowed_extra_headers[%d] = %q, want %q", i, hdrs[i], want[i])
+		}
+	}
+}
+
 // TestCanonicalizeExtraHeaders proves the AllowedExtraHeaders whitelist
 // canonicalization (PAR-BF-MCP-071, D8 config-only): lowercase, trimmed, no
 // empties, no duplicates, order preserved.
