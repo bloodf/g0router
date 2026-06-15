@@ -29,13 +29,17 @@ func TestFeatureFlagListSeededOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListFeatureFlags: %v", err)
 	}
-	// Only the migration-seeded semantic_cache flag (bf-core-2, D8) exists in a
-	// fresh store; no other flags are seeded.
-	if len(flags) != 1 {
-		t.Fatalf("len(flags) = %d, want 1 (seeded semantic_cache only)", len(flags))
+	// The migration seeds semantic_cache (bf-core-2, D8) and vk_mandatory
+	// (bf-gov-4, D1); no other flags are seeded in a fresh store.
+	if len(flags) != 2 {
+		t.Fatalf("len(flags) = %d, want 2 (seeded semantic_cache + vk_mandatory)", len(flags))
 	}
-	if flags[0].Key != "semantic_cache" {
-		t.Fatalf("seeded flag key = %q, want semantic_cache", flags[0].Key)
+	seeded := map[string]bool{}
+	for _, f := range flags {
+		seeded[f.Key] = true
+	}
+	if !seeded["semantic_cache"] || !seeded["vk_mandatory"] {
+		t.Fatalf("seeded flag keys = %v, want semantic_cache + vk_mandatory", seeded)
 	}
 }
 
@@ -48,9 +52,10 @@ func TestFeatureFlagListAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListFeatureFlags: %v", err)
 	}
-	// 2 inserted + the migration-seeded semantic_cache flag (bf-core-2, D8).
-	if len(flags) != 3 {
-		t.Fatalf("len(flags) = %d, want 3 (2 inserted + seeded)", len(flags))
+	// 2 inserted + the migration-seeded semantic_cache (bf-core-2, D8) and
+	// vk_mandatory (bf-gov-4, D1) flags.
+	if len(flags) != 4 {
+		t.Fatalf("len(flags) = %d, want 4 (2 inserted + 2 seeded)", len(flags))
 	}
 	byKey := map[string]*FeatureFlag{}
 	for _, f := range flags {
@@ -184,5 +189,33 @@ func TestSemanticCacheFlagSeeded(t *testing.T) {
 	}
 	if found.Enabled {
 		t.Fatal("semantic_cache flag seeded enabled=true, want false (OFF by default)")
+	}
+}
+
+// TestVKMandatoryFlagSeeded verifies the vk_mandatory flag row is seeded by the
+// migration OFF by default (bf-gov-4, D1) — the backward-compat guarantee: a
+// fresh/upgraded store starts with mandatory mode OFF so an absent VK is allowed.
+func TestVKMandatoryFlagSeeded(t *testing.T) {
+	st := newTestStore(t)
+	enabled, err := st.IsFeatureEnabled("vk_mandatory")
+	if err != nil {
+		t.Fatalf("IsFeatureEnabled(vk_mandatory): %v", err)
+	}
+	if enabled {
+		t.Fatal("vk_mandatory flag seeded enabled=true, want false (OFF by default)")
+	}
+	flags, err := st.ListFeatureFlags()
+	if err != nil {
+		t.Fatalf("ListFeatureFlags: %v", err)
+	}
+	var found *FeatureFlag
+	for _, f := range flags {
+		if f.Key == "vk_mandatory" {
+			found = f
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("vk_mandatory flag not seeded")
 	}
 }

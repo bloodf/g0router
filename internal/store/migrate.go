@@ -418,6 +418,7 @@ func migrate(db *sql.DB) error {
 	// overwritten on subsequent migrations, so an admin toggle persists.
 	for _, f := range []struct{ key, description string }{
 		{"semantic_cache", "Exact-key-hash semantic response cache for non-streaming chat"},
+		{"vk_mandatory", "Reject requests with no resolved virtual key (mandatory-VK mode)"},
 	} {
 		if _, err := db.Exec(
 			`INSERT OR IGNORE INTO feature_flags (key, enabled, description, created_at)

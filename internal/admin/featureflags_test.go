@@ -39,9 +39,10 @@ func TestListFeatureFlags(t *testing.T) {
 		t.Fatalf("list status = %d err = %q", status, errMessage(t, envl))
 	}
 	list := dataField[[]map[string]any](t, envl)
-	// 2 inserted here + the migration-seeded semantic_cache flag (bf-core-2, D8).
-	if len(list) != 3 {
-		t.Fatalf("len(list) = %d, want 3", len(list))
+	// 2 inserted here + the migration-seeded semantic_cache (bf-core-2, D8) and
+	// vk_mandatory (bf-gov-4, D1) flags.
+	if len(list) != 4 {
+		t.Fatalf("len(list) = %d, want 4", len(list))
 	}
 	// Locate the seeded mcp_gateway row by id rather than assuming list order.
 	var mcp map[string]any
