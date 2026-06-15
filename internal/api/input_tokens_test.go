@@ -152,7 +152,7 @@ func TestInputTokensVKDenied(t *testing.T) {
 		ok     bool
 		status int
 		reason string
-	}{ok: false, status: 429, reason: "rate limited"})
+	}{ok: false, status: 403, reason: "model not allowed for virtual key"})
 
 	fake := &fakeInputTokensResolver{tokens: 5}
 	h := &InputTokensHandler{router: fake, registry: translation.NewRegistry()}
@@ -162,8 +162,8 @@ func TestInputTokensVKDenied(t *testing.T) {
 	ctx.Request.Header.Set("x-g0-vk", "vk-denied")
 	h.Handle(ctx)
 
-	if ctx.Response.StatusCode() != fasthttp.StatusTooManyRequests {
-		t.Fatalf("status = %d, want 429", ctx.Response.StatusCode())
+	if ctx.Response.StatusCode() != fasthttp.StatusForbidden {
+		t.Fatalf("status = %d, want 403", ctx.Response.StatusCode())
 	}
 	if fake.lastProv != nil && fake.lastProv.countCalled {
 		t.Error("CountTokens must not be called when VK denied")
