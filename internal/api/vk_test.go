@@ -311,6 +311,53 @@ func TestAllowVK_NilKeyIDsWhenUnset(t *testing.T) {
 	}
 }
 
+// TestAllowVK_AllowAllKeysFallsThrough verifies PAR-BF-GOV-002 / D5: a matched
+// config with AllowAllKeys=true returns no pinned keyIDs (fall through to normal
+// selection) even when KeyIDs is populated, so any key for the provider is allowed.
+func TestAllowVK_AllowAllKeysFallsThrough(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-allowall", &VKInfo{
+		Key: "vk-allowall",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}, KeyIDs: []string{"conn-1"}, AllowAllKeys: true},
+		},
+		IsActive: true,
+	})
+	gate := NewVKGate(resolver, nil)
+
+	ok, status, reason, keyIDs := gate.AllowVK("vk-allowall", "gpt-4o", "openai")
+	if !ok {
+		t.Fatalf("AllowVK got ok=false status=%d reason=%q", status, reason)
+	}
+	if keyIDs != nil {
+		t.Errorf("AllowAllKeys=true keyIDs = %v, want nil (no pin)", keyIDs)
+	}
+}
+
+// TestAllowVK_AllowAllKeysFalseEmptyKeyIDs verifies D5: AllowAllKeys=false with
+// empty KeyIDs falls through (no pin), the conservative behavior-preserving
+// default (the matrix "no keys allowed" rejection HTTP shape is undocumented;
+// recorded in open-questions.md rather than inventing a 403).
+func TestAllowVK_AllowAllKeysFalseEmptyKeyIDs(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-noallow", &VKInfo{
+		Key: "vk-noallow",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}, AllowAllKeys: false},
+		},
+		IsActive: true,
+	})
+	gate := NewVKGate(resolver, nil)
+
+	ok, status, reason, keyIDs := gate.AllowVK("vk-noallow", "gpt-4o", "openai")
+	if !ok {
+		t.Fatalf("AllowVK got ok=false status=%d reason=%q", status, reason)
+	}
+	if keyIDs != nil {
+		t.Errorf("empty KeyIDs keyIDs = %v, want nil", keyIDs)
+	}
+}
+
 // TestAllowVK_NilKeyIDsOnDenial verifies that quota/inactive/unknown/mismatch
 // denial paths return nil KeyIDs.
 func TestAllowVK_NilKeyIDsOnDenial(t *testing.T) {
