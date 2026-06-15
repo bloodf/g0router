@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bloodf/g0router/internal/mcp"
+	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
@@ -457,5 +458,125 @@ func TestMCPVKPrecedence(t *testing.T) {
 				t.Fatalf("resolveMCPVK = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+// rawRPC decodes a raw JSON-RPC body (NOT the {data,error} envelope) from a
+// handler response.
+func rawRPC(t *testing.T, ctx *fasthttp.RequestCtx) map[string]any {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal(ctx.Response.Body(), &m); err != nil {
+		t.Fatalf("response is not JSON-RPC: %v\nbody: %s", err, ctx.Response.Body())
+	}
+	return m
+}
+
+// callRaw invokes a handler that writes a RAW (non-envelope) body, returning the
+// status and the *fasthttp.RequestCtx for inspection.
+func callRaw(t *testing.T, h fasthttp.RequestHandler, method, uri, body string, headers map[string]string) *fasthttp.RequestCtx {
+	t.Helper()
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(method)
+	ctx.Request.SetRequestURI(uri)
+	if body != "" {
+		ctx.Request.SetBody([]byte(body))
+	}
+	for k, v := range headers {
+		ctx.Request.Header.Set(k, v)
+	}
+	h(&ctx)
+	return &ctx
+}
+
+// TestMCPServerPostToolsList proves POST /mcp returns a raw JSON-RPC tools/list
+// (NOT the {data,error} envelope) whose tool set EQUALS the catalog ListTools
+// serves (D3 — one source).
+func TestMCPServerPostToolsList(t *testing.T) {
+	env := newMCPTestEnv(t)
+	ctx := callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp",
+		`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`, nil)
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("status = %d body = %s", ctx.Response.StatusCode(), ctx.Response.Body())
+	}
+	body := string(ctx.Response.Body())
+	// Raw JSON-RPC, not the admin envelope.
+	if strings.Contains(body, `"data"`) || strings.Contains(body, `"error":null`) {
+		t.Fatalf("/mcp returned the {data,error} envelope, want raw JSON-RPC: %s", body)
+	}
+	m := rawRPC(t, ctx)
+	if m["jsonrpc"] != "2.0" {
+		t.Fatalf("not JSON-RPC 2.0: %v", m)
+	}
+	result, ok := m["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result: %v", m)
+	}
+	serverTools, ok := result["tools"].([]any)
+	if !ok {
+		t.Fatalf("no tools array: %v", result)
+	}
+	serverNames := map[string]bool{}
+	for _, tl := range serverTools {
+		serverNames[tl.(map[string]any)["name"].(string)] = true
+	}
+
+	// The /api/mcp/tools (ListTools) catalog is the SAME source.
+	_, envl := call(t, env.handlers.ListTools, "GET", "/api/mcp/tools", "", nil, nil)
+	listTools := dataField[[]map[string]any](t, envl)
+	if len(listTools) == 0 {
+		t.Fatalf("ListTools empty")
+	}
+	for _, lt := range listTools {
+		fn := lt["function"].(map[string]any)
+		name := fn["name"].(string)
+		if !serverNames[name] {
+			t.Fatalf("server tools/list missing catalog tool %q; sources diverge", name)
+		}
+	}
+}
+
+// TestMCPServerPostVKValidation proves the resolved VK is genuinely CONSUMED
+// (D4): a valid VK is admitted, a provided-but-invalid VK is REJECTED with a
+// JSON-RPC error, and an absent VK is allowed.
+func TestMCPServerPostVKValidation(t *testing.T) {
+	env := newMCPTestEnv(t)
+	validVK, err := env.store.CreateVirtualKey(&store.VirtualKey{
+		VirtualKey: schemas.VirtualKey{Name: "valid"}, Key: "g0vk-valid", IsActive: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+	inactiveVK, err := env.store.CreateVirtualKey(&store.VirtualKey{
+		VirtualKey: schemas.VirtualKey{Name: "inactive"}, Key: "g0vk-inactive", IsActive: false,
+	})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey inactive: %v", err)
+	}
+
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`
+
+	// (a) absent VK -> allowed.
+	ctx := callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body, nil)
+	if m := rawRPC(t, ctx); m["error"] != nil {
+		t.Fatalf("absent VK rejected: %v", m["error"])
+	}
+
+	// (b) valid VK -> allowed.
+	ctx = callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body, map[string]string{"x-g0-vk": validVK.Key})
+	if m := rawRPC(t, ctx); m["error"] != nil {
+		t.Fatalf("valid VK rejected: %v", m["error"])
+	}
+
+	// (c) unknown VK -> rejected (JSON-RPC error).
+	ctx = callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body, map[string]string{"x-g0-vk": "g0vk-nope"})
+	if m := rawRPC(t, ctx); m["error"] == nil {
+		t.Fatalf("unknown VK not rejected: %v", m)
+	}
+
+	// (d) inactive VK -> rejected (JSON-RPC error).
+	ctx = callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body, map[string]string{"x-api-key": inactiveVK.Key})
+	if m := rawRPC(t, ctx); m["error"] == nil {
+		t.Fatalf("inactive VK not rejected: %v", m)
 	}
 }
