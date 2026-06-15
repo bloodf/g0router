@@ -833,23 +833,40 @@ func ctxHeaderGetter(ctx *fasthttp.RequestCtx) HeaderGetter {
 	return func(name string) string { return string(ctx.Request.Header.Peek(name)) }
 }
 
-// admitMCPVK resolves the /mcp virtual key (D4) and validates it: an ABSENT VK
-// is allowed (optional global surface; per-VK scoping is bf-mcp-2), a PROVIDED
+// vkMandatory reports whether the vk_mandatory feature flag is ON (bf-gov-4,
+// D4). It reads the flag FRESH per call (fail-OFF: a read error returns false so
+// an absent VK is allowed, the backward-compatible default). The predicate is the
+// /mcp mirror of the injected mandatory func() bool on VKGate — both read the
+// identical vk_mandatory flag so the /v1/* gate and the /mcp surface enforce the
+// same operator toggle.
+func (h *Handlers) vkMandatory() bool {
+	ok, _ := h.store.IsFeatureEnabled("vk_mandatory")
+	return ok
+}
+
+// admitMCPVK resolves the /mcp virtual key (D4) and validates it. An ABSENT VK
+// is allowed when mandatory mode is OFF (optional global surface; per-VK scoping
+// is bf-mcp-2) and REJECTED when mandatory mode is ON (bf-gov-4, D4). A PROVIDED
 // VK is validated via the shipped store lookup and REJECTED when unknown or
-// inactive. It returns the resolved key (for the deferred audit stamp, D8) and
-// whether the request is admitted. This is the resolver's LIVE consumer — a
-// provided-but-invalid VK changes the response, so the value is not merely
-// attached to context.
-func (h *Handlers) admitMCPVK(ctx *fasthttp.RequestCtx) (vk string, admitted bool) {
+// inactive. It returns the resolved key (for the deferred audit stamp, D8), whether
+// the request is admitted, and a rejection reason (used by callers to surface a
+// distinct message for the mandatory-absent case vs the invalid-VK case). This is
+// the resolver's LIVE consumer — a provided-but-invalid VK changes the response,
+// so the value is not merely attached to context.
+func (h *Handlers) admitMCPVK(ctx *fasthttp.RequestCtx) (vk string, admitted bool, reason string) {
 	key := resolveMCPVK(ctxHeaderGetter(ctx))
 	if key == "" {
-		return "", true // absent VK: allowed (optional surface).
+		if h.vkMandatory() {
+			// Mandatory mode ON: absent VK rejected (bf-gov-4, D4).
+			return "", false, "virtual key required"
+		}
+		return "", true, "" // absent VK: allowed (optional surface).
 	}
 	rec, err := h.store.GetVirtualKeyByKey(key)
 	if err != nil || rec == nil || !rec.IsActive {
-		return key, false // provided-but-unknown/inactive: rejected.
+		return key, false, "virtual key unknown or inactive" // provided-but-unknown/inactive: rejected.
 	}
-	return key, true
+	return key, true, ""
 }
 
 // writeRawJSONRPC writes a raw JSON-RPC body (NOT the {data,error} envelope) for
@@ -865,10 +882,9 @@ func writeRawJSONRPC(ctx *fasthttp.RequestCtx, status int, body []byte) {
 // dispatches via the shared server-mode dispatcher, and best-effort audits a
 // tools/call with the resolved VK stamped (D8). The body is RAW JSON-RPC.
 func (h *Handlers) MCPServerPost(ctx *fasthttp.RequestCtx) {
-	vk, admitted := h.admitMCPVK(ctx)
+	vk, admitted, reason := h.admitMCPVK(ctx)
 	if !admitted {
-		writeRawJSONRPC(ctx, fasthttp.StatusOK,
-			marshalMCPError("virtual key unknown or inactive"))
+		writeRawJSONRPC(ctx, fasthttp.StatusOK, marshalMCPError(reason))
 		return
 	}
 
@@ -930,10 +946,10 @@ func mcpAuditDetails(tool, vk string) string {
 // the fasthttp body-materialization deadlock). The hermetic seam is serveMCPSSE,
 // which the unit tests drive with an injected tick channel (no real timing).
 func (h *Handlers) MCPServerSSE(ctx *fasthttp.RequestCtx) {
-	vk, admitted := h.admitMCPVK(ctx)
+	vk, admitted, reason := h.admitMCPVK(ctx)
 	if !admitted {
 		// Reject the connection before streaming (no SSE body).
-		writeError(ctx, fasthttp.StatusUnauthorized, "virtual key unknown or inactive")
+		writeError(ctx, fasthttp.StatusUnauthorized, reason)
 		return
 	}
 
