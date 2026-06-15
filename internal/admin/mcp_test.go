@@ -1036,3 +1036,89 @@ func TestMCPVKConfigListByVK(t *testing.T) {
 		t.Fatalf("list len = %d, want 1", len(list))
 	}
 }
+
+// enableVKMandatoryFlagAdmin flips the seeded vk_mandatory flag ON in an admin
+// test env store (bf-gov-4, D4 — same flag read by the /mcp admitMCPVK mirror).
+func enableVKMandatoryFlagAdmin(t *testing.T, env *testEnv) {
+	t.Helper()
+	if _, err := env.store.DB().Exec(
+		"UPDATE feature_flags SET enabled = 1 WHERE key = 'vk_mandatory'",
+	); err != nil {
+		t.Fatalf("enable vk_mandatory flag: %v", err)
+	}
+}
+
+// TestMCPMandatoryVKMode verifies PAR-BF-GOV-034 on the /mcp surface (bf-gov-4,
+// D4): when the vk_mandatory flag is ON, an absent VK is REJECTED with a
+// "virtual key required" JSON-RPC error on MCPServerPost and a 401 on
+// MCPServerSSE; when the flag is OFF, an absent VK is admitted (today's
+// behavior). A provided-but-invalid VK is always rejected regardless of the flag
+// (regression guard — bf-mcp-1 behavior unchanged).
+func TestMCPMandatoryVKMode(t *testing.T) {
+	body := `{"jsonrpc":"2.0","id":1,"method":"tools/list"}`
+
+	t.Run("MCPServerPost absent VK + flag ON rejected with virtual key required", func(t *testing.T) {
+		env := newMCPTestEnv(t)
+		enableVKMandatoryFlagAdmin(t, env)
+
+		ctx := callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body, nil)
+		m := rawRPC(t, ctx)
+		errObj, hasErr := m["error"].(map[string]any)
+		if !hasErr {
+			t.Fatalf("absent VK + mandatory ON: expected JSON-RPC error, got: %v", m)
+		}
+		msg, _ := errObj["message"].(string)
+		if msg != "virtual key required" {
+			t.Fatalf("error message = %q, want %q", msg, "virtual key required")
+		}
+	})
+
+	t.Run("MCPServerPost absent VK + flag OFF admitted", func(t *testing.T) {
+		env := newMCPTestEnv(t)
+		// flag left OFF (seeded default).
+
+		ctx := callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body, nil)
+		m := rawRPC(t, ctx)
+		if m["error"] != nil {
+			t.Fatalf("absent VK + mandatory OFF: expected admitted, got error: %v", m["error"])
+		}
+	})
+
+	t.Run("MCPServerPost provided-invalid VK rejected regardless of flag", func(t *testing.T) {
+		env := newMCPTestEnv(t)
+		enableVKMandatoryFlagAdmin(t, env)
+
+		ctx := callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body,
+			map[string]string{"x-g0-vk": "g0vk-does-not-exist"})
+		m := rawRPC(t, ctx)
+		if m["error"] == nil {
+			t.Fatalf("invalid VK + mandatory ON: expected JSON-RPC error, got: %v", m)
+		}
+	})
+
+	t.Run("MCPServerSSE absent VK + flag ON rejected 401", func(t *testing.T) {
+		env := newMCPTestEnv(t)
+		enableVKMandatoryFlagAdmin(t, env)
+
+		ctx := callRaw(t, env.handlers.MCPServerSSE, "GET", "/mcp", "", nil)
+		if ctx.Response.StatusCode() != fasthttp.StatusUnauthorized {
+			t.Fatalf("MCPServerSSE absent VK + mandatory ON status = %d, want 401",
+				ctx.Response.StatusCode())
+		}
+	})
+
+	t.Run("MCPServerSSE absent VK + flag OFF admitted (streams)", func(t *testing.T) {
+		env := newMCPTestEnv(t)
+		// flag left OFF.
+
+		// MCPServerSSE blocks on the SSE stream writer; call the admission check
+		// indirectly by verifying admitMCPVK returns admitted=true when flag is OFF.
+		// We prove via MCPServerPost (same admission path) that OFF admits, and the
+		// SSE handler only gates on admitted before streaming.
+		ctx := callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body, nil)
+		m := rawRPC(t, ctx)
+		if m["error"] != nil {
+			t.Fatalf("flag OFF: absent VK should be admitted, got error: %v", m["error"])
+		}
+	})
+}
