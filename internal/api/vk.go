@@ -82,11 +82,29 @@ type VKQuotaChecker interface {
 type VKGate struct {
 	resolver VKResolver
 	quota    VKQuotaChecker
+	// mandatory, when non-nil and returning true, makes a request with no
+	// resolved virtual key a rejection instead of an allow (bf-gov-4, D2). A nil
+	// predicate (the default) is a clean no-op — an absent VK is allowed exactly
+	// as before, so the gate is backward-compatible by construction.
+	mandatory func() bool
 }
 
 // NewVKGate creates a virtual-key gate with the given resolver and quota checker.
 func NewVKGate(resolver VKResolver, quota VKQuotaChecker) *VKGate {
 	return &VKGate{resolver: resolver, quota: quota}
+}
+
+// SetMandatoryChecker injects the mandatory-VK predicate (bf-gov-4, D2). When the
+// predicate returns true, AllowVK rejects a request that resolves to no virtual
+// key (401 "virtual key required"); when it returns false or is unset, an absent
+// VK is allowed (today's behavior). The predicate is consulted fresh per call, so
+// an operator toggle of the vk_mandatory flag takes effect on the next request
+// (the live wiring reads the flag store; see internal/server/routes_openai.go).
+func (g *VKGate) SetMandatoryChecker(check func() bool) {
+	if g == nil {
+		return
+	}
+	g.mandatory = check
 }
 
 // AllowVK checks whether a request bearing x-g0-vk may proceed for the given model
@@ -95,7 +113,15 @@ func NewVKGate(resolver VKResolver, quota VKQuotaChecker) *VKGate {
 // denial it returns an HTTP status (401, 403, or 429), a human-readable reason, and
 // the matched config's KeyIDs (nil when no header / no match / config has none).
 func (g *VKGate) AllowVK(key, model, providerID string) (ok bool, status int, reason string, keyIDs []string) {
-	if g == nil || g.resolver == nil || key == "" {
+	if g == nil || g.resolver == nil {
+		return true, 0, "", nil
+	}
+	if key == "" {
+		// No resolved virtual key. Under mandatory mode (bf-gov-4, D2) this is a
+		// rejection; otherwise (the default) it is allowed exactly as before.
+		if g.mandatory != nil && g.mandatory() {
+			return false, 401, "virtual key required", nil
+		}
 		return true, 0, "", nil
 	}
 	vk, err := g.resolver.ResolveVK(key)
