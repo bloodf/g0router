@@ -211,7 +211,30 @@ func TestFilesListSuccess(t *testing.T) {
 	if !prov.listCalled {
 		t.Fatal("provider FileList not called")
 	}
-	assertNoEnvelope(t, ctx.Response.Body())
+	// FileListResponse is the bare OpenAI list shape ({object:"list", data:[...]}):
+	// its top-level "data" is the real payload, not the admin envelope. Assert it
+	// decodes to the bare object and carries no top-level "error" key.
+	assertNoErrorKey(t, ctx.Response.Body())
+	var resp schemas.FileListResponse
+	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.Object != "list" || len(resp.Data) != 1 {
+		t.Errorf("resp = %+v, want bare FileListResponse with 1 item", resp)
+	}
+}
+
+// assertNoErrorKey fails if the body carries a top-level error key (used for
+// the bare OpenAI list shapes whose legitimate payload field is "data").
+func assertNoErrorKey(t *testing.T, body []byte) {
+	t.Helper()
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(body, &top); err != nil {
+		t.Fatalf("unmarshal top-level: %v", err)
+	}
+	if _, ok := top["error"]; ok {
+		t.Error("response has top-level 'error' key on success")
+	}
 }
 
 // TestFilesRetrieveSuccess verifies the {file_id} param reaches the provider.
