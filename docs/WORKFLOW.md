@@ -8711,3 +8711,72 @@ RELEASES to bf-openai-2 on close. BUILDABLE-additive only (no ESC rows). Strict 
 - **Closeout.** Matrix `bifrost-openai.md` flipped: PAR-BF-OAI-002 → HAVE, PAR-BF-OAI-207 → HAVE (Option A),
   PAR-BF-OAI-019 → HAVE (stale cite corrected). NOT committed: `.planning/parity/plans/bf-openai-1.md`,
   `ui/dist/index.html`. SERIAL SLOT released to bf-openai-2 on this close commit.
+
+## bf-openai-2 (`/v1/audio/{speech,transcriptions}` + `/v1/images/{generations,edits,variations}` +stream) — 2026-06-15
+OpenAI-surface track, SECOND in the `internal/server/routes_openai.go` serial chain; TOOK the slot at T-routes,
+RELEASES to bf-openai-3 on close. BUILDABLE-additive only (no ESC rows). Strict TDD (RED before impl per file).
+- **P0 base:** `2a24bfe5fe05bd9502b5dff62820501ded0a0895` (bf-openai-1 micro-plan commit). Base GREEN+HERMETIC
+  (`go build ./... && go vet ./... && go test ./...` all exit 0, no FAIL/panic).
+- **P0 tree-state surprise (reported, non-blocking — same posture as bf-openai-1):** working tree was NOT clean at
+  P0 — pre-existing dirty `.planning/parity/plans/open-questions.md` (program open-questions; the bf-openai-2
+  closeout note was pre-staged there by the plan author — left as-is, reconciled at T-close) and `ui/dist/index.html`
+  (built artifact, FORBIDDEN to touch — left untouched, never `git add`ed). My plan contract
+  `.planning/parity/plans/bf-openai-2.md` is untracked (per plan: do NOT commit it). All commits used explicit
+  `git add <file>` of sanctioned files only; the dirty artifacts were never swept in.
+- **ESC-MEDIA-IMPL → Option A (RECOMMENDED) TAKEN for all eight methods.** Implemented the openai provider's
+  `Speech`/`SpeechStream`/`Transcription`/`TranscriptionStream` (`internal/providers/openai/audio.go`) and
+  `ImageGeneration`/`ImageGenerationStream`/`ImageEdit`/`ImageVariation` (`internal/providers/openai/images.go`)
+  as near-verbatim copies of the in-tree `embedding.go` (non-stream JSON) + `completions.go` (SSE stream) transport:
+  POST `p.baseURL + "/v1/..."`, Bearer auth, status-check → `errorConverter.Convert`. JSON endpoints use
+  `ReadJSONBody`; streams drain `NewSSEScanner`, `[DONE]` terminates, malformed → `streamError` (AUD-045), post-hook
+  honored (AUD-047) via a shared package-local `streamSSE` helper (audio.go). The eight `stubs.go` media stubs were
+  DELETED (moved+implemented); the remaining 9 stubs (Responses/ResponsesStream/File*/Batch*/CountTokens) preserved;
+  the 5 media sub-cases removed from `TestNotImplementedStubs` (the only edit to a pre-existing openai test). Hermetic
+  via `httptest.NewServer` + `p.baseURL=srv.URL`. NO Bifrost-internal claim (ESC-REF-ABSENT-safe).
+- **ESC-SPEECH-BYTES honored.** `/v1/audio/speech` is the ONLY non-JSON success route: provider `Speech` copies the
+  upstream `resp.Body()` (cloned, not aliased — the bytes outlive the pooled response) into `SpeechResponse.Audio`
+  and `resp.Header.ContentType()` into `.ContentType` (NO `ReadJSONBody`); handler `AudioHandler.Speech` writes those
+  bytes verbatim with that Content-Type (fallback `application/octet-stream` when empty), NO `jsonMarshal`, NO
+  envelope. Test asserts body == upstream bytes, Content-Type == upstream, and the body is NOT JSON with `data`/`error`.
+- **ESC-MULTIPART honored (first multipart parse in `internal/`).** Three routes take `multipart/form-data`:
+  `/v1/audio/transcriptions`, `/v1/images/edits`, `/v1/images/variations`. Inbound parse is handler-side via
+  fasthttp `ctx.MultipartForm()` with an EXPLICIT field whitelist + small package-local helpers (`isMultipart`,
+  `formValue`, `readMultipartFile` in audio.go) — non-multipart or missing-required-part → 400; chosen INLINE
+  (no shared `multipart.go`). Outbound build is provider-side via stdlib `mime/multipart.NewWriter` over a
+  `bytes.Buffer` (`setTranscriptionBody`, `setImageEditBody`, `setImageVariationBody`). Hermetic tests use canned
+  in-memory multipart bodies (NO real files/network) and assert the inbound Content-Type starts `multipart/form-data`
+  and the file part round-trips.
+- **ESC-SPEECH-STREAM → Option A (SSE-drain) TAKEN; 209 ships HAVE.** All three `*Stream` methods use the shared
+  SSE-drain template. The speech-stream hermetic test feeds SSE frames upstream and they pass through cleanly, so
+  209 ships HAVE (Option A) — Option B (501) was NOT needed. (Per §1.6, if a real upstream emits raw audio chunks
+  not SSE, a future per-method Option B would be warranted; the route + handler are sound regardless.)
+- **ESC-OPENAI-SHAPE honored.** `/v1/*` return BARE OpenAI shapes: speech = raw audio bytes; transcriptions/images
+  = marshalled bare `*TranscriptionResponse`/`*ImageGenerationResponse` via `jsonMarshal`; errors = `writeError`
+  (OpenAI `{"error":{}}`). NO `internal/admin` import, NO `{data,error}` admin envelope. Note: the OpenAI image
+  shape legitimately has a top-level `data` ARRAY (the images) — the test proves it is the bare object (`created` +
+  `data` array, no top-level `error`), distinct from the admin envelope which wraps an object under `data`.
+- **Handlers.** `AudioHandler`/`ImagesHandler` (`internal/api/{audio,images}.go`) mirror `CompletionsHandler`:
+  parse → `router.Resolve(model)` → x-g0-vk gate + pinned-key override (shared `resolveAndGate`/`gate` helpers) →
+  pending-tracker → dispatch. `stream` (JSON `stream:true` for speech/image-gen via `requestWantsStream`; `stream`
+  form-field for transcription) sets `text/event-stream`+`Cache-Control`+`Connection`, calls the `*Stream` method,
+  `writeSSEStream` with `withRequestCancel`. Usage glue wired via the same additive setters; recorded under each
+  route path. Marshal failure → plain 500 (AUD-010). Handlers constructed inside `RegisterOpenAIRoutes` (reuse
+  `vkGate`/`selector`/`recorder`/`tracker`/`detail`) — NO `New(...)`/`RegisterOpenAIRoutes(...)` signature change.
+- **Commits (in order):** failing openai Speech/Transcription(+stream) tests (red) → implement openai
+  Speech/Transcription (+streams) → failing openai ImageGeneration/Edit/Variation(+stream) tests (red) → implement
+  openai ImageGeneration/Edit/Variation (+stream) → failing /v1/audio handler tests (red) → /v1/audio handlers →
+  failing /v1/images handler tests (red) → /v1/images handlers → register /v1/audio + /v1/images routes (serial
+  slot) → close.
+- **Gates GREEN + HERMETIC.** `go build ./... && go vet ./... && go test ./...` exit 0 (no FAIL/panic, no
+  net/sleep). Targeted `Audio|Speech|Transcri|Image` (api+openai) all pass; `NotImplemented` (openai) still passes
+  (remaining 9 stubs intact). Freeze proof: scoped diff `b94d5fd^..7b5066e` touches only the sanctioned files; zero
+  catalog/store/admin/governance/mcp/ui touched; `routes_openai.go` in exactly ONE commit, additive (zero deletions).
+- **w7-prov-media PARTIAL UNBLOCK.** This plan ADDS the `/v1/audio/*` + `/v1/images/*` ROUTES + handlers +
+  `internal/api/{audio,images}.go` + the openai provider's media methods — resolving w7-prov-media's ESC-M4
+  ROUTE-existence blocker. The 11 DEFERRED media provider ADAPTERS (deepgram/assemblyai STT; nanobanana/fal-ai/
+  stability-ai/black-forest-labs/recraft/sdwebui/comfyui/huggingface image; runwayml video) are now route-reachable
+  but remain a SEPARATE follow-up wave — NOT built here (only the openai provider's methods ship). Video (runwayml,
+  ESC-M3) untouched (no video method/route). Recorded in `open-questions.md`.
+- **Closeout.** Matrix `bifrost-openai.md` flipped: PAR-BF-OAI-007/008/009/010/011 → HAVE; 209/210/211 → HAVE
+  (Option A SSE-drain). NOT committed: `.planning/parity/plans/bf-openai-2.md`, `ui/dist/index.html`. SERIAL SLOT
+  released to bf-openai-3 on this close commit.
