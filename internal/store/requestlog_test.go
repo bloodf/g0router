@@ -620,3 +620,166 @@ func TestSumCostByTeam(t *testing.T) {
 		t.Errorf("SumCostByTeam(T) with inclusive boundary = %v, want 1.25", got)
 	}
 }
+
+// TestSumTokensByAPIKey verifies the token dimension aggregate (bf-gov-3, D1):
+// SUM(prompt_tokens + completion_tokens) over request_log rows for the given
+// api_key with timestamp >= sinceISO. Pre-window rows, other keys, and the
+// empty api_key are excluded; an unknown key sums to 0; the lower bound is
+// inclusive. Window rollover is asserted by querying with a later sinceISO that
+// excludes the earlier rows (the inherent lazy reset, D2/D3).
+func TestSumTokensByAPIKey(t *testing.T) {
+	st := newTestStore(t)
+
+	sinceISO := "2026-06-12T09:00:00Z"
+
+	rows := []struct {
+		timestamp        string
+		apiKey           string
+		promptTokens     int64
+		completionTokens int64
+	}{
+		{"2026-06-12T09:30:00Z", "vk-1", 10, 5},  // in window: 15
+		{"2026-06-12T10:30:00Z", "vk-1", 20, 0},  // in window: 20
+		{"2026-06-12T08:30:00Z", "vk-1", 99, 99}, // before sinceISO (excluded)
+		{"2026-06-12T10:00:00Z", "vk-2", 50, 50}, // different key (excluded)
+		{"2026-06-12T10:00:00Z", "", 70, 70},     // empty api_key (excluded)
+	}
+	for _, r := range rows {
+		if _, err := st.DB().Exec(
+			`INSERT INTO request_log (
+				timestamp, provider, model, connection_id, api_key, endpoint,
+				prompt_tokens, completion_tokens, cost, status, tokens, meta
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.timestamp, "openai", "gpt-4o", "conn-1", r.apiKey, "/v1",
+			r.promptTokens, r.completionTokens, 0.0, "ok", "{}", "{}",
+		); err != nil {
+			t.Fatalf("insert seed row (%s, %q): %v", r.timestamp, r.apiKey, err)
+		}
+	}
+
+	// vk-1 in window: (10+5) + (20+0) = 35.
+	got, err := st.SumTokensByAPIKey("vk-1", sinceISO)
+	if err != nil {
+		t.Fatalf("SumTokensByAPIKey(vk-1): %v", err)
+	}
+	if got != 35 {
+		t.Errorf("SumTokensByAPIKey(vk-1) = %d, want 35", got)
+	}
+
+	// Unknown key: 0.
+	got, err = st.SumTokensByAPIKey("vk-unknown", sinceISO)
+	if err != nil {
+		t.Fatalf("SumTokensByAPIKey(vk-unknown): %v", err)
+	}
+	if got != 0 {
+		t.Errorf("SumTokensByAPIKey(vk-unknown) = %d, want 0", got)
+	}
+
+	// Boundary inclusivity: a row at exactly sinceISO is counted.
+	if _, err := st.DB().Exec(
+		`INSERT INTO request_log (
+			timestamp, provider, model, connection_id, api_key, endpoint,
+			prompt_tokens, completion_tokens, cost, status, tokens, meta
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sinceISO, "openai", "gpt-4o", "conn-1", "vk-1", "/v1",
+		1, 2, 0.0, "ok", "{}", "{}",
+	); err != nil {
+		t.Fatalf("insert boundary row: %v", err)
+	}
+	got, err = st.SumTokensByAPIKey("vk-1", sinceISO)
+	if err != nil {
+		t.Fatalf("SumTokensByAPIKey(vk-1) after boundary insert: %v", err)
+	}
+	if got != 38 {
+		t.Errorf("SumTokensByAPIKey(vk-1) with inclusive boundary = %d, want 38", got)
+	}
+
+	// Window rollover (inherent lazy reset, D2/D3): a later lower bound that
+	// excludes every prior row aggregates to 0 — no counter to reset.
+	got, err = st.SumTokensByAPIKey("vk-1", "2026-06-13T00:00:00Z")
+	if err != nil {
+		t.Fatalf("SumTokensByAPIKey(vk-1) rolled window: %v", err)
+	}
+	if got != 0 {
+		t.Errorf("SumTokensByAPIKey(vk-1) rolled window = %d, want 0", got)
+	}
+}
+
+// TestSumRequestsByAPIKey verifies the request dimension aggregate (bf-gov-3,
+// D3): COUNT(*) over request_log rows for the given api_key with timestamp >=
+// sinceISO. Pre-window rows, other keys, and the empty api_key are excluded; an
+// unknown key counts 0; the lower bound is inclusive; a rolled window counts 0.
+func TestSumRequestsByAPIKey(t *testing.T) {
+	st := newTestStore(t)
+
+	sinceISO := "2026-06-12T09:00:00Z"
+
+	rows := []struct {
+		timestamp string
+		apiKey    string
+	}{
+		{"2026-06-12T09:30:00Z", "vk-1"}, // in window
+		{"2026-06-12T10:30:00Z", "vk-1"}, // in window
+		{"2026-06-12T08:30:00Z", "vk-1"}, // before sinceISO (excluded)
+		{"2026-06-12T10:00:00Z", "vk-2"}, // different key (excluded)
+		{"2026-06-12T10:00:00Z", ""},     // empty api_key (excluded)
+	}
+	for _, r := range rows {
+		if _, err := st.DB().Exec(
+			`INSERT INTO request_log (
+				timestamp, provider, model, connection_id, api_key, endpoint,
+				prompt_tokens, completion_tokens, cost, status, tokens, meta
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.timestamp, "openai", "gpt-4o", "conn-1", r.apiKey, "/v1",
+			0, 0, 0.0, "ok", "{}", "{}",
+		); err != nil {
+			t.Fatalf("insert seed row (%s, %q): %v", r.timestamp, r.apiKey, err)
+		}
+	}
+
+	// vk-1 in window: 2 rows.
+	got, err := st.SumRequestsByAPIKey("vk-1", sinceISO)
+	if err != nil {
+		t.Fatalf("SumRequestsByAPIKey(vk-1): %v", err)
+	}
+	if got != 2 {
+		t.Errorf("SumRequestsByAPIKey(vk-1) = %d, want 2", got)
+	}
+
+	// Unknown key: 0.
+	got, err = st.SumRequestsByAPIKey("vk-unknown", sinceISO)
+	if err != nil {
+		t.Fatalf("SumRequestsByAPIKey(vk-unknown): %v", err)
+	}
+	if got != 0 {
+		t.Errorf("SumRequestsByAPIKey(vk-unknown) = %d, want 0", got)
+	}
+
+	// Boundary inclusivity: a row at exactly sinceISO is counted.
+	if _, err := st.DB().Exec(
+		`INSERT INTO request_log (
+			timestamp, provider, model, connection_id, api_key, endpoint,
+			prompt_tokens, completion_tokens, cost, status, tokens, meta
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sinceISO, "openai", "gpt-4o", "conn-1", "vk-1", "/v1",
+		0, 0, 0.0, "ok", "{}", "{}",
+	); err != nil {
+		t.Fatalf("insert boundary row: %v", err)
+	}
+	got, err = st.SumRequestsByAPIKey("vk-1", sinceISO)
+	if err != nil {
+		t.Fatalf("SumRequestsByAPIKey(vk-1) after boundary insert: %v", err)
+	}
+	if got != 3 {
+		t.Errorf("SumRequestsByAPIKey(vk-1) with inclusive boundary = %d, want 3", got)
+	}
+
+	// Window rollover (inherent lazy reset, D2/D3): a later lower bound counts 0.
+	got, err = st.SumRequestsByAPIKey("vk-1", "2026-06-13T00:00:00Z")
+	if err != nil {
+		t.Fatalf("SumRequestsByAPIKey(vk-1) rolled window: %v", err)
+	}
+	if got != 0 {
+		t.Errorf("SumRequestsByAPIKey(vk-1) rolled window = %d, want 0", got)
+	}
+}
