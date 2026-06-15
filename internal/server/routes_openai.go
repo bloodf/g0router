@@ -39,23 +39,31 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 	responses := api.NewResponsesHandler(router_)
 	embeddings := api.NewEmbeddingsHandler(router_)
 	completions := api.NewCompletionsHandler(router_)
+	audio := api.NewAudioHandler(router_)
+	images := api.NewImagesHandler(router_)
 	if recorder != nil {
 		messages.SetUsageRecorder(recorder)
 		responses.SetUsageRecorder(recorder)
 		embeddings.SetUsageRecorder(recorder)
 		completions.SetUsageRecorder(recorder)
+		audio.SetUsageRecorder(recorder)
+		images.SetUsageRecorder(recorder)
 	}
 	if tracker != nil {
 		messages.SetPendingTracker(tracker)
 		responses.SetPendingTracker(tracker)
 		embeddings.SetPendingTracker(tracker)
 		completions.SetPendingTracker(tracker)
+		audio.SetPendingTracker(tracker)
+		images.SetPendingTracker(tracker)
 	}
 	if detail != nil {
 		messages.SetDetailCapture(detail)
 		responses.SetDetailCapture(detail)
 		embeddings.SetDetailCapture(detail)
 		completions.SetDetailCapture(detail)
+		audio.SetDetailCapture(detail)
+		images.SetDetailCapture(detail)
 	}
 	models := api.NewModelsHandler(router_)
 	if st != nil {
@@ -84,6 +92,8 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		responses.SetVKGate(vkGate)
 		embeddings.SetVKGate(vkGate)
 		completions.SetVKGate(vkGate)
+		audio.SetVKGate(vkGate)
+		images.SetVKGate(vkGate)
 
 		// VK KeyID pinning selector (PAR-ROUTE-030).
 		selector := &vkPinnedSelector{
@@ -96,6 +106,8 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		responses.SetVKPinnedResolver(selector)
 		embeddings.SetVKPinnedResolver(selector)
 		completions.SetVKPinnedResolver(selector)
+		audio.SetVKPinnedResolver(selector)
+		images.SetVKPinnedResolver(selector)
 	}
 
 	r.POST("/v1/chat/completions", chat.Handle)
@@ -103,6 +115,11 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 	r.POST("/v1/responses", responses.Handle)
 	r.POST("/v1/embeddings", embeddings.Handle)
 	r.POST("/v1/completions", completions.Handle)
+	r.POST("/v1/audio/speech", audio.Speech)
+	r.POST("/v1/audio/transcriptions", audio.Transcription)
+	r.POST("/v1/images/generations", images.Generations)
+	r.POST("/v1/images/edits", images.Edits)
+	r.POST("/v1/images/variations", images.Variations)
 	r.GET("/v1/models", models.List)
 	r.GET("/v1/models/test/{kind}", models.GetTestByKind)
 	r.GET("/v1/models/{param}", models.GetOrByKind)
