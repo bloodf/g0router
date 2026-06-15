@@ -8780,3 +8780,54 @@ RELEASES to bf-openai-3 on close. BUILDABLE-additive only (no ESC rows). Strict 
 - **Closeout.** Matrix `bifrost-openai.md` flipped: PAR-BF-OAI-007/008/009/010/011 → HAVE; 209/210/211 → HAVE
   (Option A SSE-drain). NOT committed: `.planning/parity/plans/bf-openai-2.md`, `ui/dist/index.html`. SERIAL SLOT
   released to bf-openai-3 on this close commit.
+
+## bf-openai-3 (`/v1/files` CRUD + `/v1/batches` CRUD, stateless passthrough) — 2026-06-15
+THIRD in the routes_openai.go serial chain (after SHIPPED bf-openai-1, bf-openai-2). TAKES the serial slot;
+RELEASES to bf-openai-4 on close. BUILDABLE-additive only. Strict TDD (RED before impl per file).
+- **P0 base:** `282f3ea78b7ff896317a999ba11a49cef020cfec` (bf-openai-2 micro-plan commit). Base GREEN+HERMETIC
+  (`go build && go vet && go test ./...` exit 0, 1859 tests / 43 packages).
+- **P0 tree-state surprise (reported, non-blocking — same posture as bf-openai-1/2):** working tree was NOT clean at
+  P0 — pre-existing dirty `ui/dist/index.html` (a built UI artifact: only the hashed asset filenames in the `<script>`/
+  `<link>` tags rotated; last touched by `parity-w0/w0-b`, unrelated to bf-openai-3). bf-openai-3 NEVER touched it and
+  used explicit `git add <file>` (never `-A`) for every commit, so it is fully isolated from the bf-openai-3 commits.
+  Left untouched; flagged for the program author to decide whether the stray `ui/dist/index.html` edit is intended.
+- **ESC-STATEFULNESS → Option A (stateless passthrough) TAKEN.** OpenAI files/batches are stateful at the protocol
+  level, but the STATE lives UPSTREAM at OpenAI; g0router is a thin proxy. The 9 openai-provider methods were
+  implemented as upstream HTTP proxies (`internal/providers/openai/{files,batches}.go`), mirroring the SHIPPED
+  embedding/audio transport. NO local store, NO SQLite table, NO migration, NO async batch worker, NO `New(...)`
+  signature change. The other 42 providers' File*/Batch* stubs are UNTOUCHED (keep their 501). Option B
+  (g0router-managed file/batch store + worker) REJECTED for this plan + recorded as ESC-LOCAL-STORE in
+  `open-questions.md`.
+- **ESC-RESOLVE-NO-MODEL → empty-model sentinel resolves openai.** Files/batches requests carry no `model`; verified
+  `inference.Router.Resolve("")` → `providerForModel("")` falls through to the `default: return "openai", true` branch
+  (`internal/inference/factory.go`), landing the openai provider + key. Handlers call `resolveAndGate` with a
+  `const model = ""` sentinel — minimal sound resolution, no fabricated key. x-g0-vk gate + pinned-key override applied
+  before dispatch (mirroring `AudioHandler.resolveAndGate`).
+- **ESC-FILE-CONTENT-BYTES → honored.** `GET /v1/files/{id}/content` is the ONLY non-JSON success route: the provider
+  clones the upstream `resp.Body()` (mirror Speech `audio.go:65`); the handler writes the raw bytes with
+  `Content-Type: application/octet-stream` — NO jsonMarshal, NO `{data}`/`{error}` envelope. Also serves a completed
+  batch's results via the batch's `output_file_id` (cross-ref PAR-BF-OAI-024).
+- **ESC-MULTIPART-UPLOAD → SHIPPED helpers reused.** `POST /v1/files` parses multipart/form-data by REUSING the
+  bf-openai-2 helpers (`isMultipart`/`readMultipartFile`/`formValue` inbound; stdlib `mime/multipart.NewWriter`
+  outbound) with an explicit `file`+`purpose` whitelist (+ optional `filename`, defaulting to the file part header).
+  Hermetic tests use in-memory multipart (no real files/network).
+- **ESC-OPENAI-SHAPE → honored.** `/v1/files` + `/v1/batches` return bare OpenAI shapes (JSON object or raw bytes +
+  OpenAI `{"error":{}}`), NOT the `{data,error}` admin envelope; the api package does not import `internal/admin`. The
+  bare list shapes (`FileListResponse`/`BatchListResponse`) legitimately carry a top-level `data` array (the real
+  payload) — tests assert only the absence of a top-level `error` key for those.
+- **PAR-BF-OAI-024 → ESCALATED, STAYS MISSING (ESC-BATCH-RESULTS).** `GET /v1/batches/{batch_id}/results` has NO
+  provider interface method + NO schema (grep-confirmed: no `BatchResults`/`batch_results` symbol anywhere in
+  `internal/`). A literal `/results` route requires a non-additive interface change touching all 43 providers — OUT of
+  the buildable-additive bifrost phase. The capability IS reachable via PAR-BF-OAI-029 (HAVE): OpenAI exposes batch
+  results via the batch's `output_file_id` fetched through `GET /v1/files/{output_file_id}/content`. NO `BatchResults`
+  method/schema/route fabricated. Recorded in `open-questions.md`.
+- **Commits (in order):** failing openai File upload/list/retrieve/delete/content tests (red) → implement openai File*
+  methods (upload multipart, content bytes-out) → failing openai Batch create/list/retrieve/cancel tests (red) →
+  implement openai Batch* methods → failing /v1/files handler tests (red) → /v1/files handlers → failing /v1/batches
+  handler tests (red) → /v1/batches handlers → register /v1/files + /v1/batches routes (serial slot) → close.
+- **Gates GREEN + HERMETIC.** `go build ./... && go vet ./... && go test ./...` exit 0 (no FAIL/panic, no net/sleep).
+  Targeted `File|Batch` (api+openai) all pass; `NotImplemented` (openai) still passes (remaining 3 stubs — Responses,
+  ResponsesStream, CountTokens — intact). `routes_openai.go` in exactly ONE commit, additive (zero deletions).
+- **Closeout.** Matrix `bifrost-openai.md` flipped: PAR-BF-OAI-020/021/022/023/025/026/027/028/029 → HAVE (9 rows);
+  PAR-BF-OAI-024 STAYS MISSING + ESCALATED (cross-ref 029). NOT committed: `.planning/parity/plans/bf-openai-3.md`,
+  `ui/dist/index.html`. SERIAL SLOT released to bf-openai-4 on this close commit.
