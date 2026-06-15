@@ -898,6 +898,45 @@ func TestMCPScopeAbsentVKUnchanged(t *testing.T) {
 	}
 }
 
+// TestMCPScopeDisableAutoToolInject proves a client flagged DisableAutoToolInject
+// has its tools omitted from a scoped VK's served surface even when the VK's scope
+// admits them (PAR-BF-MCP-057 live read — D7 HAVE).
+func TestMCPScopeDisableAutoToolInject(t *testing.T) {
+	env := newMCPTestEnv(t)
+
+	vk, err := env.store.CreateVirtualKey(&store.VirtualKey{VirtualKey: schemas.VirtualKey{Name: "scoped"}})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+	// Scope the VK to all browsermcp tools.
+	if _, err := env.store.CreateVKMCPConfig(&store.VKMCPConfig{
+		VirtualKeyID:   vk.ID,
+		MCPClientID:    "browsermcp",
+		ToolsToExecute: []string{"browsermcp-*"},
+	}); err != nil {
+		t.Fatalf("CreateVKMCPConfig: %v", err)
+	}
+
+	// Without the flag the VK sees the browsermcp tools.
+	before := serverToolNames(t, env.handlers, map[string]string{"x-g0-vk": vk.Key})
+	if !before["browser_navigate"] {
+		t.Fatalf("scoped VK missing in-scope tool before disable-flag: %v", before)
+	}
+
+	// Flag browsermcp DisableAutoToolInject -> its tools are suppressed.
+	if _, err := env.store.CreateMCPClient(&store.MCPClient{
+		Name:   "browsermcp",
+		Type:   "default",
+		Config: map[string]any{"disable_auto_tool_inject": true},
+	}); err != nil {
+		t.Fatalf("CreateMCPClient: %v", err)
+	}
+	after := serverToolNames(t, env.handlers, map[string]string{"x-g0-vk": vk.Key})
+	if after["browser_navigate"] {
+		t.Fatalf("DisableAutoToolInject did not suppress the client's tools: %v", after)
+	}
+}
+
 // TestMCPVKConfigCreateSubsetReject proves the LIVE assignment create path REJECTS
 // an autoExecute ⊄ execute assignment with a 4xx {error} envelope BEFORE storage
 // (D5/049), and accepts a valid subset (D5).
