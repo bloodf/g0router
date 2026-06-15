@@ -29,11 +29,11 @@
 
 ```yaml
 project_status: IN_PROGRESS
-current_stage: "Wave 6 COMPLETE — UI dashboard parity shipped (all 10 page plans w6-c/e/f/g/h/i/j/k/l/m + foundation)"
-current_wave: "Wave 6 done; next = Wave 7 (Go backends deferred by w6-k/l/m: governance ×6, user-mgmt, MCP gateway, mitm, proxy-pools, tunnels) — see open-questions.md"
-last_completed_plan: "w6-m (platform UI halves mitm/proxy-pools/tunnels, PARTIAL; Wave 6 page wave 2 complete). routes_admin.go serial chain CLOSED on w6-j."
-last_updated: "2026-06-14T00:00:00Z"
-parity_snapshot: "HAVE=267 PARTIAL=31 MISSING=435 (9router-ui now 106 HAVE / 11 MISSING; remaining MISSING is predominantly Go backend across 9router-mcp/platform/providers + the bifrost-* program)"
+current_stage: "WAVE 7 COMPLETE — 9router parity at its sound ceiling. All 20 buildable Wave-7 Go-backend plans shipped (prov-openai, gov-1/2/3, plat-1/2/3, mcp-1/2/3, platnodes, route-a/b, prov-special-a/b, prov-oauth, prov-media, misc, usage-quota)."
+current_wave: "9router DONE (HAVE=384; 61 remaining are DOCUMENTED ESCALATIONS in open-questions.md — not buildable within current architecture: deploy relays, OS-privileged platform sub-features, media providers needing /v1/images+/v1/audio routes, web-scrapers, JWT-by-design-variant, Cowork-specific MCP, Wave-2 translation schema). NEXT PHASE per scope: bifrost-* (~257 rows, no wave maps yet)."
+last_completed_plan: "w7-usage-quota (provider usage fetchers; PAR-USAGE-032 PARTIAL+footnote). Final gate green: go 42 pkgs + vet, ui build, vitest 41/192."
+last_updated: "2026-06-15T00:00:00Z"
+parity_snapshot: "9router: HAVE=384 MISSING=61(all escalated). routing+usage matrices 100%. Full project incl bifrost: ~HAVE=409 / bifrost-* ~257 MISSING remain (next phase). Final 9router gate: go test 42 pkgs green, go vet clean, npm build green, vitest 41 files/192 tests, all per-plan e2e specs green."
 orchestrator: "Claude Code (VPS) — see CLI_ORCHESTRATOR.md"
 planner: "Fable 5"
 implementer: "Claude (executor)"
