@@ -4,6 +4,7 @@ package schemas
 type VirtualKey struct {
 	ID              string           `json:"id"`
 	Name            string           `json:"name"`
+	TeamID          string           `json:"team_id,omitempty"`
 	ProviderConfigs []ProviderConfig `json:"provider_configs"`
 	Budget          *Budget          `json:"budget,omitempty"`
 	RateLimitRPM    *int             `json:"rate_limit_rpm,omitempty"`
@@ -14,6 +15,7 @@ type ProviderConfig struct {
 	Provider      string   `json:"provider"`
 	AllowedModels []string `json:"allowed_models"`
 	KeyIDs        []string `json:"key_ids"`
+	AllowAllKeys  bool     `json:"allow_all_keys"`
 	Weight        *float64 `json:"weight,omitempty"`
 }
 

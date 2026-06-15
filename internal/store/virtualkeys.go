@@ -15,6 +15,7 @@ type VirtualKey struct {
 	schemas.VirtualKey
 	Key       string
 	IsActive  bool
+	TeamID    string
 	CreatedAt int64
 	UpdatedAt int64
 }
@@ -77,13 +78,14 @@ func (s *Store) CreateVirtualKey(in *VirtualKey) (*VirtualKey, error) {
 		},
 		Key:       "g0vk-" + key,
 		IsActive:  true,
+		TeamID:    in.TeamID,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
 
 	_, err = s.db.Exec(
-		"INSERT INTO virtual_keys (id, key, name, config_json, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		vk.ID, vk.Key, vk.Name, cfgJSON, boolToInt(vk.IsActive), vk.CreatedAt, vk.UpdatedAt,
+		"INSERT INTO virtual_keys (id, key, name, config_json, is_active, team_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		vk.ID, vk.Key, vk.Name, cfgJSON, boolToInt(vk.IsActive), vk.TeamID, vk.CreatedAt, vk.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert virtual key %s: %w", vk.Name, err)
@@ -94,7 +96,7 @@ func (s *Store) CreateVirtualKey(in *VirtualKey) (*VirtualKey, error) {
 // ListVirtualKeys returns all virtual keys ordered by creation time (newest first).
 func (s *Store) ListVirtualKeys() ([]*VirtualKey, error) {
 	rows, err := s.db.Query(
-		"SELECT id, key, name, config_json, is_active, created_at, updated_at FROM virtual_keys ORDER BY created_at DESC",
+		"SELECT id, key, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys ORDER BY created_at DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query virtual keys: %w", err)
@@ -118,13 +120,13 @@ func (s *Store) ListVirtualKeys() ([]*VirtualKey, error) {
 // GetVirtualKeyByID returns the virtual key with the given id.
 func (s *Store) GetVirtualKeyByID(id string) (*VirtualKey, error) {
 	return scanVirtualKey(s.db.QueryRow(
-		"SELECT id, key, name, config_json, is_active, created_at, updated_at FROM virtual_keys WHERE id = ?", id))
+		"SELECT id, key, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys WHERE id = ?", id))
 }
 
 // GetVirtualKeyByKey returns the virtual key with the exact key value.
 func (s *Store) GetVirtualKeyByKey(key string) (*VirtualKey, error) {
 	return scanVirtualKey(s.db.QueryRow(
-		"SELECT id, key, name, config_json, is_active, created_at, updated_at FROM virtual_keys WHERE key = ?", key))
+		"SELECT id, key, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys WHERE key = ?", key))
 }
 
 // UpdateVirtualKey updates all mutable fields of the virtual key with the given id.
@@ -136,8 +138,8 @@ func (s *Store) UpdateVirtualKey(in *VirtualKey) error {
 	}
 
 	res, err := s.db.Exec(
-		"UPDATE virtual_keys SET name = ?, config_json = ?, is_active = ?, updated_at = ? WHERE id = ?",
-		in.Name, cfgJSON, boolToInt(in.IsActive), now, in.ID,
+		"UPDATE virtual_keys SET name = ?, config_json = ?, is_active = ?, team_id = ?, updated_at = ? WHERE id = ?",
+		in.Name, cfgJSON, boolToInt(in.IsActive), in.TeamID, now, in.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("update virtual key %s: %w", in.ID, err)
@@ -174,7 +176,7 @@ func scanVirtualKey(row interface {
 	var vk VirtualKey
 	var isActive int
 	var cfgJSON string
-	err := row.Scan(&vk.ID, &vk.Key, &vk.Name, &cfgJSON, &isActive, &vk.CreatedAt, &vk.UpdatedAt)
+	err := row.Scan(&vk.ID, &vk.Key, &vk.Name, &cfgJSON, &isActive, &vk.TeamID, &vk.CreatedAt, &vk.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
