@@ -45,3 +45,19 @@ func TestMCPClientConfigFlags(t *testing.T) {
 		t.Fatalf("absent flags should default false: %+v", plainGot.Config)
 	}
 }
+
+// TestCanonicalizeExtraHeaders proves the AllowedExtraHeaders whitelist
+// canonicalization (PAR-BF-MCP-071, D8 config-only): lowercase, trimmed, no
+// empties, no duplicates, order preserved.
+func TestCanonicalizeExtraHeaders(t *testing.T) {
+	got := CanonicalizeExtraHeaders([]string{" X-Trace ", "x-trace", "", "Authorization", "  "})
+	want := []string{"x-trace", "authorization"}
+	if len(got) != len(want) {
+		t.Fatalf("canonicalized = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("canonicalized[%d] = %q, want %q (%v)", i, got[i], want[i], got)
+		}
+	}
+}
