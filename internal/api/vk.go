@@ -25,10 +25,38 @@ type VKInfo struct {
 	RateLimitRPM  int
 	IsActive      bool
 
+	// Dual-dimension rate limit (bf-gov-3, D1/D3); zero max disables a dimension.
+	TokenMax           int64
+	TokenResetPeriod   string
+	RequestMax         int64
+	RequestResetPeriod string
+
 	TeamID           string
 	TeamBudgetLimit  float64
 	TeamBudgetPeriod string
 	TeamRateLimitRPM int
+}
+
+// DecisionCodeForReason maps a governance denial reason to the snake_case
+// error.code surfaced in the {data,error} response (bf-gov-3, D8). It returns
+// nil for an allow (empty reason) or an unmapped reason, so the gate writes no
+// error.code in those cases. The new token/request denials map to
+// "token_limited"/"request_limited"; the shipped reasons keep their codes.
+func DecisionCodeForReason(reason string) *string {
+	var code string
+	switch reason {
+	case "token limit exceeded":
+		code = "token_limited"
+	case "request limit exceeded":
+		code = "request_limited"
+	case "budget exhausted", "team budget exhausted":
+		code = "budget_exceeded"
+	case "rate limit exceeded", "team rate limit exceeded":
+		code = "rate_limited"
+	default:
+		return nil
+	}
+	return &code
 }
 
 // VKResolver resolves a virtual key header value to a VKInfo.

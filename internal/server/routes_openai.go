@@ -193,6 +193,12 @@ func storeVKToAPI(st *store.Store, vk *store.VirtualKey) *api.VKInfo {
 	if vk.RateLimitRPM != nil {
 		info.RateLimitRPM = *vk.RateLimitRPM
 	}
+	if vk.RateLimit != nil {
+		info.TokenMax = vk.RateLimit.TokenMax
+		info.TokenResetPeriod = vk.RateLimit.TokenResetPeriod
+		info.RequestMax = vk.RateLimit.RequestMax
+		info.RequestResetPeriod = vk.RateLimit.RequestResetPeriod
+	}
 	for _, pc := range vk.ProviderConfigs {
 		info.Configs = append(info.Configs, api.VKProviderConfig{
 			Provider:          pc.Provider,
@@ -221,17 +227,29 @@ func newVKQuotaAdapter(engine *governance.QuotaEngine) *vkQuotaAdapter {
 	return &vkQuotaAdapter{engine: engine}
 }
 
+// Allow maps the api.VKInfo to the governance VirtualKeyInfo and evaluates the
+// full dual-dimension chain via engine.Evaluate (bf-gov-3, D8). The typed
+// Decision is surfaced live in the gate's {data,error} response: its snake_case
+// error.code is derived at the denial-write site from the returned reason via
+// api.DecisionCodeForReason (e.g. "token limit exceeded" -> error.code
+// "token_limited"). The (bool,int,string) signature is preserved so every
+// existing caller is unchanged.
 func (a *vkQuotaAdapter) Allow(vk *api.VKInfo, model string) (bool, int, string) {
-	return a.engine.Allow(&governance.VirtualKeyInfo{
-		Key:              vk.Key,
-		BudgetLimit:      vk.BudgetLimit,
-		BudgetPeriod:     vk.BudgetPeriod,
-		RateLimitRPM:     vk.RateLimitRPM,
-		TeamID:           vk.TeamID,
-		TeamBudgetLimit:  vk.TeamBudgetLimit,
-		TeamBudgetPeriod: vk.TeamBudgetPeriod,
-		TeamRateLimitRPM: vk.TeamRateLimitRPM,
+	res := a.engine.Evaluate(&governance.VirtualKeyInfo{
+		Key:                vk.Key,
+		BudgetLimit:        vk.BudgetLimit,
+		BudgetPeriod:       vk.BudgetPeriod,
+		RateLimitRPM:       vk.RateLimitRPM,
+		TokenMax:           vk.TokenMax,
+		TokenResetPeriod:   vk.TokenResetPeriod,
+		RequestMax:         vk.RequestMax,
+		RequestResetPeriod: vk.RequestResetPeriod,
+		TeamID:             vk.TeamID,
+		TeamBudgetLimit:    vk.TeamBudgetLimit,
+		TeamBudgetPeriod:   vk.TeamBudgetPeriod,
+		TeamRateLimitRPM:   vk.TeamRateLimitRPM,
 	}, model)
+	return res.Decision == governance.DecisionAllow, res.Status, res.Reason
 }
 
 // customModelsAdapter adapts the customModels setting to api.CustomModelLister.

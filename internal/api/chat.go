@@ -370,7 +370,9 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 			if status == 429 {
 				errType = "rate_limit_exceeded"
 			}
-			writeError(ctx, status, errType, reason, nil)
+			// Surface the typed governance Decision as error.code (bf-gov-3, D8):
+			// a token/request/budget/rate denial carries its snake_case code.
+			writeError(ctx, status, errType, reason, DecisionCodeForReason(reason))
 			return
 		}
 		if len(keyIDs) > 0 && h.pinnedResolver != nil {
