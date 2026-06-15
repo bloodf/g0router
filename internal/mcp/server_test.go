@@ -91,6 +91,45 @@ func TestServerToolsList(t *testing.T) {
 	}
 }
 
+// TestServerToolsListAnnotations proves the server-mode tools/list carries the
+// PAR-BF-MCP-077 annotation fields when the catalog supplies them, and that the
+// omitempty shape omits an absent annotation block (additive serialization —
+// existing tools without annotations are unchanged).
+func TestServerToolsListAnnotations(t *testing.T) {
+	cat := fakeCatalog{tools: []ServerTool{
+		{Name: "delete_file", Description: "remove a file", Annotations: &ToolAnnotations{
+			Title:           "Delete File",
+			ReadOnlyHint:    false,
+			DestructiveHint: true,
+			IdempotentHint:  false,
+			OpenWorldHint:   false,
+		}},
+		{Name: "search", Description: "find things"},
+	}}
+	s := NewServer(cat, &fakeDispatcher{})
+	resp := s.Dispatch(context.Background(), []byte(`{"jsonrpc":"2.0","id":7,"method":"tools/list"}`))
+	m := decodeRPC(t, resp)
+	tools := m["result"].(map[string]any)["tools"].([]any)
+
+	first := tools[0].(map[string]any)
+	ann, ok := first["annotations"].(map[string]any)
+	if !ok {
+		t.Fatalf("annotated tool missing annotations: %v", first)
+	}
+	if ann["title"] != "Delete File" {
+		t.Fatalf("annotation title = %v, want Delete File", ann["title"])
+	}
+	if ann["destructiveHint"] != true {
+		t.Fatalf("annotation destructiveHint = %v, want true", ann["destructiveHint"])
+	}
+
+	// The un-annotated tool omits the annotations block (omitempty additive shape).
+	second := tools[1].(map[string]any)
+	if _, present := second["annotations"]; present {
+		t.Fatalf("un-annotated tool should omit annotations: %v", second)
+	}
+}
+
 func TestServerToolsCall(t *testing.T) {
 	disp := &fakeDispatcher{result: "generic\nresult text\nresult text"}
 	s := NewServer(fakeCatalog{}, disp)
