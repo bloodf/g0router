@@ -76,6 +76,37 @@ func TestMCPClientCRUD(t *testing.T) {
 	}
 }
 
+// TestMCPInstanceStatusLifecycle locks the free-form connection-lifecycle status
+// (067 VAR — bf-mcp-sat): creates an instance and drives SetMCPInstanceStatus
+// through each of stopped→starting→running→error, asserting GetMCPInstance()
+// round-trips each value. Hermetic in-memory SQLite store; no network/sleep/subprocess.
+func TestMCPInstanceStatusLifecycle(t *testing.T) {
+	st := newMCPTestStore(t)
+
+	inst, err := st.CreateMCPInstance(&MCPInstance{
+		Name:      "lifecycle-test",
+		Transport: "stdio",
+		Command:   "cat",
+		Status:    "stopped",
+	})
+	if err != nil {
+		t.Fatalf("CreateMCPInstance: %v", err)
+	}
+
+	for _, status := range []string{"stopped", "starting", "running", "error"} {
+		if err := st.SetMCPInstanceStatus(inst.ID, status); err != nil {
+			t.Fatalf("SetMCPInstanceStatus(%q): %v", status, err)
+		}
+		got, err := st.GetMCPInstance(inst.ID)
+		if err != nil {
+			t.Fatalf("GetMCPInstance after SetMCPInstanceStatus(%q): %v", status, err)
+		}
+		if got.Status != status {
+			t.Errorf("status = %q, want %q", got.Status, status)
+		}
+	}
+}
+
 func TestMCPInstanceCRUDAndStatus(t *testing.T) {
 	st := newMCPTestStore(t)
 
