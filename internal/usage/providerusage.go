@@ -21,6 +21,11 @@ const (
 	defaultClaudeBaseURL = "https://api.anthropic.com"
 	defaultGeminiBaseURL = "https://cloudcode-pa.googleapis.com"
 	anthropicAPIVersion  = "2023-06-01"
+
+	// w7-usage-quota: base URL for the antigravity Cloud-Code quota call. The
+	// host is the catalog antigravity BaseURL (catalog.go:100); the path is the
+	// Cloud-Code retrieveUserQuota endpoint shared with the gemini twin.
+	defaultAntigravityBaseURL = "https://daily-cloudcode-pa.googleapis.com"
 )
 
 // parseModelProvider splits a tracker model key into model and provider.
@@ -138,6 +143,36 @@ func FetchProviderUsage(providerType string, conn *store.Connection, client *htt
 		return fetchClaudeUsage(conn.AccessToken, client, firstBaseURL(baseURL, defaultClaudeBaseURL))
 	case "gemini":
 		return fetchGeminiUsage(conn.AccessToken, conn.Metadata, client, firstBaseURL(baseURL, defaultGeminiBaseURL))
+	// --- w7-usage-quota: remaining 6 provider arms (additive, before default) ---
+	// BUILT: antigravity is the gemini fetcher's Cloud-Code twin (sound in-tree
+	// precedent + catalog-confirmed base), so it delegates to a real fetcher.
+	case "antigravity":
+		return fetchAntigravityUsage(conn.AccessToken, conn.Metadata, client, firstBaseURL(baseURL, defaultAntigravityBaseURL))
+	// DEFERRED: the frozen 9router route.js is absent on this host (ESC-REF-ABSENT),
+	// so the concrete usage endpoint/auth/shape for these providers cannot be
+	// soundly confirmed. Rather than fabricate an endpoint, each returns a clear,
+	// provider-named "not available" fallback (no network call). See
+	// .planning/parity/plans/open-questions.md for the per-provider deferral notes.
+	case "github":
+		return map[string]any{
+			"message": "Usage API not yet available for GitHub Copilot.",
+		}, nil
+	case "codex":
+		return map[string]any{
+			"message": "Usage API not yet available for Codex.",
+		}, nil
+	case "kiro":
+		return map[string]any{
+			"message": "Usage API not yet available for Kiro.",
+		}, nil
+	case "glm":
+		return map[string]any{
+			"message": "Usage API not yet available for GLM.",
+		}, nil
+	case "minimax":
+		return map[string]any{
+			"message": "Usage API not yet available for MiniMax.",
+		}, nil
 	default:
 		return map[string]any{
 			"message": fmt.Sprintf("Usage API not implemented for %s", providerType),
