@@ -8631,3 +8631,37 @@ Built on the SHIPPED w7-mcp-1 (launcher/bridge/filter/allowlist/defaults) + w7-m
   w6-i ESC-1a (chat-sessions) stays OPEN with DEFER rationale; NEW translator save/send DEFER follow-up
   appended. Serial slot RELEASED (LAST chain holder). NOT committed: `.planning/parity/plans/w7-misc.md`,
   `ui/dist/index.html`.
+
+## w7-usage-quota: MERGED (2026-06-15)
+Remaining 6 provider quota/usage fetchers (GitHub, Antigravity, Codex, Kiro, GLM, MiniMax) behind the
+SHIPPED w5-e dispatcher `usage.FetchProviderUsage` (`internal/usage/providerusage.go:137`). Library-only
+extension: additive switch arms before `default` + one new fetcher file; NO admin handler, NO routes_admin,
+NO UI, NO store/auth/providers/inference touch (route + DTO unchanged). NO serial slot.
+- **P0 base:** `048df9a05dd45a1cf04ccf34cbdbcc07aa39d503`. Base GREEN+HERMETIC (1807 passed / 43 pkgs).
+- **ESC-REF-ABSENT (BINDING) — CONFIRMED at impl.** P5 verified the frozen 9router `route.js` is NOT on
+  this Linux host (`/Users/heitor/.../_refs/9router` absent). No per-provider usage endpoint could be read
+  from the ref; NO endpoint was fabricated. Verdicts were made on in-tree evidence only.
+- **Built vs deferred (the split):**
+  - **BUILT (1):** **antigravity** — `fetchAntigravityUsage` (`internal/usage/quota_antigravity.go`), the
+    structural twin of the SHIPPED gemini Cloud-Code fetcher: POST `/v1internal:retrieveUserQuota` `{project}`
+    against the catalog-confirmed base `https://daily-cloudcode-pa.googleapis.com` (`catalog.go:100`), Bearer
+    auth, project-id from `conn.Metadata` (reuses `projectIDFromMetadata` + `parseResetTime`). Sound (grounded
+    in the gemini precedent), not fabricated. Hermetically tested (`TestAntigravityUsageFetcher`): method/path/
+    Bearer + bucket→snake_case quota map + missing-project/token/non-2xx graceful `{plan,message}` + no-camelCase
+    + token-no-leak.
+  - **DEFERRED with tested graceful fallback (5):** **github** (also blocked by ESC-GH-COPILOT — Copilot-token
+    mint deferred in-tree, `oauth_providers.go:116`), **codex** (ChatGPT-internal `backend-api` path
+    unconfirmable), **kiro** (ESC-KIRO-SIGV4 — possible AWS SigV4, no signer in-tree), **glm**, **minimax**
+    (api-key auth clear but usage path unconfirmable). Each ships a provider-named `case` arm returning a clear
+    "Usage API not yet available for <Provider>." message (no network), asserted by `TestProviderUsageDispatch`.
+    NO `quota_<provider>.go` file created for any deferred provider.
+- **Constructors/arms added:** `fetchAntigravityUsage` (new fn) + `defaultAntigravityBaseURL` const + 6
+  additive switch arms (1 BUILT delegate + 5 DEFER fallbacks) before `default`. w5-e claude/gemini arms +
+  helpers + the `FetchProviderUsage` signature UNTOUCHED.
+- **Gates GREEN + HERMETIC.** `go test ./... && go vet && go build` exit 0 (1820 passed / 43 pkgs, +13 over
+  base, no net/sleep). Diff-gate range = exactly the 4 sanctioned `internal/usage/*` files; admin/routes/
+  store/auth/providers/inference/ui = 0 changed; providerusage.go additive (0 w5-e deletions).
+- **Closeout.** Matrix `9router-usage.md` PAR-USAGE-032 kept **PARTIAL** (not flipped to HAVE): 5/8 providers
+  still return a fallback rather than a real external-quota fetch; flip when route.js confirms the deferred
+  endpoints. Built-vs-deferred split + ESC outcomes recorded in matrix note + open-questions.md. NOT committed:
+  `.planning/parity/plans/w7-usage-quota.md`, `ui/dist/index.html`.
