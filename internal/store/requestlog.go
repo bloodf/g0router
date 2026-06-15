@@ -283,6 +283,40 @@ func (s *Store) SumCostByTeam(teamID, sinceISO string) (float64, error) {
 	return total.Float64, nil
 }
 
+// SumTokensByAPIKey returns SUM(prompt_tokens + completion_tokens) over
+// request_log rows attributed to the given api_key with timestamp >= sinceISO.
+// It is the live token-dimension aggregate used by the quota engine's
+// dual-dimension rate limit (bf-gov-3, D1); a NULL sum (no rows) returns 0.
+func (s *Store) SumTokensByAPIKey(key, sinceISO string) (int64, error) {
+	var total sql.NullInt64
+	err := s.db.QueryRow(
+		"SELECT SUM(prompt_tokens + completion_tokens) FROM request_log WHERE api_key = ? AND timestamp >= ?",
+		key, sinceISO,
+	).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("sum tokens by api key: %w", err)
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return total.Int64, nil
+}
+
+// SumRequestsByAPIKey returns COUNT(*) over request_log rows attributed to the
+// given api_key with timestamp >= sinceISO. It is the live request-dimension
+// aggregate used by the quota engine's dual-dimension rate limit (bf-gov-3, D3).
+func (s *Store) SumRequestsByAPIKey(key, sinceISO string) (int64, error) {
+	var total int64
+	err := s.db.QueryRow(
+		"SELECT COUNT(*) FROM request_log WHERE api_key = ? AND timestamp >= ?",
+		key, sinceISO,
+	).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("count requests by api key: %w", err)
+	}
+	return total, nil
+}
+
 func localDateKey(timestamp string) string {
 	t, err := time.Parse(time.RFC3339, timestamp)
 	if err != nil {

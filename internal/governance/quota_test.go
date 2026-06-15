@@ -12,10 +12,17 @@ type fakeSpendReader struct {
 	mu        sync.Mutex
 	values    map[string]float64
 	teamSpend map[string]float64
+	tokens    map[string]int64
+	requests  map[string]int64
 }
 
 func newFakeSpendReader() *fakeSpendReader {
-	return &fakeSpendReader{values: map[string]float64{}, teamSpend: map[string]float64{}}
+	return &fakeSpendReader{
+		values:    map[string]float64{},
+		teamSpend: map[string]float64{},
+		tokens:    map[string]int64{},
+		requests:  map[string]int64{},
+	}
 }
 
 func (f *fakeSpendReader) SumCostByAPIKey(key, sinceISO string) (float64, error) {
@@ -30,6 +37,22 @@ func (f *fakeSpendReader) SumCostByTeam(teamID, sinceISO string) (float64, error
 	return f.teamSpend[teamID], nil
 }
 
+// SumTokensByAPIKey / SumRequestsByAPIKey are the in-memory analogues of the
+// store's SQL-live token/request aggregates (bf-gov-3, D1/D3/D7). Window
+// rollover is simulated by clearing the maps (the same effect the SQL lower
+// bound has when prior rows fall out of the window).
+func (f *fakeSpendReader) SumTokensByAPIKey(key, sinceISO string) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.tokens[key], nil
+}
+
+func (f *fakeSpendReader) SumRequestsByAPIKey(key, sinceISO string) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.requests[key], nil
+}
+
 func (f *fakeSpendReader) set(key string, cost float64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -40,6 +63,18 @@ func (f *fakeSpendReader) setTeam(teamID string, cost float64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.teamSpend[teamID] = cost
+}
+
+func (f *fakeSpendReader) setTokens(key string, tokens int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.tokens[key] = tokens
+}
+
+func (f *fakeSpendReader) setRequests(key string, count int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.requests[key] = count
 }
 
 func fixedClock(t time.Time) func() time.Time {

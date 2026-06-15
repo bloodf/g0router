@@ -6,10 +6,14 @@ import (
 	"time"
 )
 
-// SpendReader returns the total cost attributed to a key or team since a timestamp.
+// SpendReader returns the total cost attributed to a key or team since a
+// timestamp, plus the dual-dimension token and request aggregates (bf-gov-3,
+// D1/D3) the rate-limit dimensions enforce live over request_log.
 type SpendReader interface {
 	SumCostByAPIKey(key, sinceISO string) (float64, error)
 	SumCostByTeam(teamID, sinceISO string) (float64, error)
+	SumTokensByAPIKey(key, sinceISO string) (int64, error)
+	SumRequestsByAPIKey(key, sinceISO string) (int64, error)
 }
 
 // VirtualKeyInfo is the subset of virtual key state needed by the quota engine.
