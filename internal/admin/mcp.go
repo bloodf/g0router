@@ -33,6 +33,26 @@ func firstNonEmpty(a, b string) string {
 // trimRightSlash trims a single trailing slash for redirect-URI assembly.
 func trimRightSlash(s string) string { return strings.TrimRight(s, "/") }
 
+// HeaderGetter reads one request header by name. It exists so resolveMCPVK is a
+// PURE function unit-tested over a fake getter (no fasthttp).
+type HeaderGetter func(name string) string
+
+// resolveMCPVK resolves the virtual key for the /mcp server-mode surface in the
+// precedence x-g0-vk > Authorization Bearer <token> > x-api-key, returning ""
+// when none is supplied (D4). The header names are g0router-variant of the
+// matrix's x-bf-vk chain (PAR-BF-MCP-052, VAR). PURE.
+func resolveMCPVK(get HeaderGetter) string {
+	if v := get("x-g0-vk"); v != "" {
+		return v
+	}
+	if authz := get("Authorization"); authz != "" {
+		if tok, ok := strings.CutPrefix(authz, "Bearer "); ok && tok != "" {
+			return tok
+		}
+	}
+	return get("x-api-key")
+}
+
 // sanitizeName applies the MCP plugin-name sanitizer (PAR-MCP-048).
 func sanitizeName(s string) string { return mcp.SanitizePluginName(s) }
 
