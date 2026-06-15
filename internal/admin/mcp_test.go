@@ -1,12 +1,14 @@
 package admin
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bloodf/g0router/internal/mcp"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -584,5 +586,77 @@ func TestMCPServerPostVKValidation(t *testing.T) {
 	ctx = callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp", body, map[string]string{"x-api-key": inactiveVK.Key})
 	if m := rawRPC(t, ctx); m["error"] == nil {
 		t.Fatalf("inactive VK not rejected: %v", m)
+	}
+}
+
+// auditCount returns the number of mcp_server.tools_call audit entries.
+func mcpAuditCount(t *testing.T, env *testEnv) int {
+	t.Helper()
+	items, _, err := env.handlers.auditService().List(1000)
+	if err != nil {
+		t.Fatalf("audit list: %v", err)
+	}
+	n := 0
+	for _, e := range items {
+		if e.Action == "mcp_server.tools_call" {
+			n++
+		}
+	}
+	return n
+}
+
+// TestMCPSSEHeartbeatHermetic proves GET /mcp emits ": ping\n\n" once per
+// INJECTED tick with ZERO real elapsed time (D5), and the deferred finalizer
+// writes a real recordAudit entry (stamping the resolved VK) only AFTER the sink
+// closes — never during frame emission (D8 preferred path (a)).
+func TestMCPSSEHeartbeatHermetic(t *testing.T) {
+	env := newMCPTestEnv(t)
+
+	rec := &recordingWriter{}
+	w := bufio.NewWriter(rec)
+	heartbeat := make(chan time.Time)
+	clientDone := make(chan struct{})
+	done := make(chan struct{})
+
+	var bareCtx fasthttp.RequestCtx
+	go env.handlers.serveMCPSSE(&bareCtx, w, "g0vk-stamp", heartbeat, clientDone, done)
+
+	// Fire 3 ticks; assert 3 ": ping" frames and NO audit yet (still streaming).
+	for i := 0; i < 3; i++ {
+		heartbeat <- time.Now()
+	}
+	waitFor(t, time.Second, func() bool {
+		return strings.Count(string(rec.Bytes()), ": ping\n\n") >= 3
+	})
+	if got := strings.Count(string(rec.Bytes()), ": ping\n\n"); got != 3 {
+		t.Fatalf(": ping frames = %d, want 3", got)
+	}
+	if n := mcpAuditCount(t, env); n != 0 {
+		t.Fatalf("audit written DURING frame emission = %d, want 0 (must defer until close)", n)
+	}
+
+	// Close the stream; the deferred finalizer must run AFTER the sink closes.
+	close(clientDone)
+	waitFor(t, time.Second, func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return false
+		}
+	})
+
+	if n := mcpAuditCount(t, env); n != 1 {
+		t.Fatalf("deferred audit entries = %d, want 1 (written after sink close)", n)
+	}
+	items, _, _ := env.handlers.auditService().List(1000)
+	var stamped bool
+	for _, e := range items {
+		if e.Action == "mcp_server.tools_call" && strings.Contains(e.Details, "g0vk-stamp") {
+			stamped = true
+		}
+	}
+	if !stamped {
+		t.Fatalf("deferred audit did not stamp the resolved VK (D8 payload)")
 	}
 }
