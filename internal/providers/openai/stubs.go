@@ -30,22 +30,6 @@ func (p *Provider) ImageVariation(ctx *schemas.GatewayContext, key schemas.Key, 
 	return nil, notImplemented("image_variation")
 }
 
-func (p *Provider) Speech(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.SpeechRequest) (*schemas.SpeechResponse, *schemas.ProviderError) {
-	return nil, notImplemented("speech")
-}
-
-func (p *Provider) SpeechStream(ctx *schemas.GatewayContext, postHookRunner schemas.PostHookRunner, key schemas.Key, request *schemas.SpeechRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
-	return nil, notImplemented("speech_stream")
-}
-
-func (p *Provider) Transcription(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.TranscriptionRequest) (*schemas.TranscriptionResponse, *schemas.ProviderError) {
-	return nil, notImplemented("transcription")
-}
-
-func (p *Provider) TranscriptionStream(ctx *schemas.GatewayContext, postHookRunner schemas.PostHookRunner, key schemas.Key, request *schemas.TranscriptionRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
-	return nil, notImplemented("transcription_stream")
-}
-
 func (p *Provider) FileUpload(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.FileUploadRequest) (*schemas.FileObject, *schemas.ProviderError) {
 	return nil, notImplemented("file_upload")
 }

@@ -38,8 +38,6 @@ func TestNotImplementedStubs(t *testing.T) {
 		{"ImageGeneration", func() *schemas.ProviderError { _, e := p.ImageGeneration(ctx, key, nil); return e }()},
 		{"ImageEdit", func() *schemas.ProviderError { _, e := p.ImageEdit(ctx, key, nil); return e }()},
 		{"ImageVariation", func() *schemas.ProviderError { _, e := p.ImageVariation(ctx, key, nil); return e }()},
-		{"Speech", func() *schemas.ProviderError { _, e := p.Speech(ctx, key, nil); return e }()},
-		{"Transcription", func() *schemas.ProviderError { _, e := p.Transcription(ctx, key, nil); return e }()},
 		{"FileUpload", func() *schemas.ProviderError { _, e := p.FileUpload(ctx, key, nil); return e }()},
 		{"FileList", func() *schemas.ProviderError { _, e := p.FileList(ctx, key); return e }()},
 		{"FileRetrieve", func() *schemas.ProviderError { _, e := p.FileRetrieve(ctx, key, "f-1"); return e }()},
