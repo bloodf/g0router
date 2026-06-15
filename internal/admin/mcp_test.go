@@ -749,3 +749,151 @@ func TestMCPSSEHeartbeatHermetic(t *testing.T) {
 		t.Fatalf("deferred audit did not stamp the resolved VK (D8 payload)")
 	}
 }
+
+// serverToolNames POSTs a tools/list over /mcp with the given headers and returns
+// the set of tool names the (possibly scoped) server advertises.
+func serverToolNames(t *testing.T, h *Handlers, headers map[string]string) map[string]bool {
+	t.Helper()
+	ctx := callRaw(t, h.MCPServerPost, "POST", "/mcp",
+		`{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}`, headers)
+	m := rawRPC(t, ctx)
+	if m["error"] != nil {
+		t.Fatalf("tools/list error: %v", m["error"])
+	}
+	result, ok := m["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("no result: %v", m)
+	}
+	tools, _ := result["tools"].([]any)
+	names := map[string]bool{}
+	for _, tl := range tools {
+		names[tl.(map[string]any)["name"].(string)] = true
+	}
+	return names
+}
+
+// TestMCPScopeRestrictedVKSeesFewerTools proves a restricted VK sees STRICTLY
+// FEWER tools on tools/list than the global catalog an absent VK sees, and that
+// it sees exactly the scoped tool (D3/D4 live-narrowing).
+func TestMCPScopeRestrictedVKSeesFewerTools(t *testing.T) {
+	env := newMCPTestEnv(t)
+
+	// Absent VK -> the full global catalog (regression / baseline).
+	global := serverToolNames(t, env.handlers, nil)
+	if len(global) == 0 {
+		t.Fatalf("global catalog empty")
+	}
+	if !global["browser_navigate"] {
+		t.Fatalf("global catalog missing browsermcp tool: %v", global)
+	}
+
+	// A VK scoped to a single browsermcp tool.
+	vk, err := env.store.CreateVirtualKey(&store.VirtualKey{VirtualKey: schemas.VirtualKey{Name: "scoped"}})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+	if _, err := env.store.CreateVKMCPConfig(&store.VKMCPConfig{
+		VirtualKeyID:   vk.ID,
+		MCPClientID:    "browsermcp",
+		ToolsToExecute: []string{"browsermcp-browser_navigate"},
+	}); err != nil {
+		t.Fatalf("CreateVKMCPConfig: %v", err)
+	}
+
+	scoped := serverToolNames(t, env.handlers, map[string]string{"x-g0-vk": vk.Key})
+	if len(scoped) >= len(global) {
+		t.Fatalf("restricted VK did not see FEWER tools: scoped=%d global=%d", len(scoped), len(global))
+	}
+	if !scoped["browser_navigate"] {
+		t.Fatalf("scoped VK missing its in-scope tool: %v", scoped)
+	}
+	if scoped["browser_click"] {
+		t.Fatalf("scoped VK saw an out-of-scope tool: %v", scoped)
+	}
+}
+
+// TestMCPScopeToolsCallGate proves a scoped VK cannot tools/call a tool OUTSIDE
+// its executeOnlyTools scope: the call returns a JSON-RPC error (D3 — the scope is
+// enforced on BOTH tools/list and tools/call).
+func TestMCPScopeToolsCallGate(t *testing.T) {
+	env := newMCPTestEnv(t)
+
+	vk, err := env.store.CreateVirtualKey(&store.VirtualKey{VirtualKey: schemas.VirtualKey{Name: "scoped"}})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+	if _, err := env.store.CreateVKMCPConfig(&store.VKMCPConfig{
+		VirtualKeyID:   vk.ID,
+		MCPClientID:    "browsermcp",
+		ToolsToExecute: []string{"browsermcp-browser_navigate"},
+	}); err != nil {
+		t.Fatalf("CreateVKMCPConfig: %v", err)
+	}
+
+	// Out-of-scope tools/call -> JSON-RPC error.
+	ctx := callRaw(t, env.handlers.MCPServerPost, "POST", "/mcp",
+		`{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"browser_click","arguments":{}}}`,
+		map[string]string{"x-g0-vk": vk.Key})
+	if m := rawRPC(t, ctx); m["error"] == nil {
+		t.Fatalf("out-of-scope tools/call not rejected: %v", m)
+	}
+}
+
+// TestMCPScopeAllowOnAllVKBypass proves a VK whose scope does NOT name client X
+// still sees X's tools WHEN X is AllowOnAllVirtualKeys, and does NOT when the flag
+// is false (D6 bypass).
+func TestMCPScopeAllowOnAllVKBypass(t *testing.T) {
+	env := newMCPTestEnv(t)
+
+	vk, err := env.store.CreateVirtualKey(&store.VirtualKey{VirtualKey: schemas.VirtualKey{Name: "scoped"}})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+	// Scope the VK to a non-browsermcp pattern only (empty intersection with
+	// browsermcp tools).
+	if _, err := env.store.CreateVKMCPConfig(&store.VKMCPConfig{
+		VirtualKeyID:   vk.ID,
+		MCPClientID:    "other",
+		ToolsToExecute: []string{"other-*"},
+	}); err != nil {
+		t.Fatalf("CreateVKMCPConfig: %v", err)
+	}
+
+	// Flag false (no browsermcp client row): the VK does NOT see browsermcp tools.
+	before := serverToolNames(t, env.handlers, map[string]string{"x-g0-vk": vk.Key})
+	if before["browser_navigate"] {
+		t.Fatalf("VK saw browsermcp tools without the bypass flag: %v", before)
+	}
+
+	// Mark browsermcp AllowOnAllVirtualKeys -> its tools become visible to the VK.
+	if _, err := env.store.CreateMCPClient(&store.MCPClient{
+		Name:   "browsermcp",
+		Type:   "default",
+		Config: map[string]any{"allow_on_all_virtual_keys": true},
+	}); err != nil {
+		t.Fatalf("CreateMCPClient browsermcp: %v", err)
+	}
+	after := serverToolNames(t, env.handlers, map[string]string{"x-g0-vk": vk.Key})
+	if !after["browser_navigate"] {
+		t.Fatalf("AllowOnAllVirtualKeys did not bypass the per-VK filter: %v", after)
+	}
+}
+
+// TestMCPScopeAbsentVKUnchanged proves the absent-VK path still serves the full
+// global catalog (regression — the un-scoped surface is unchanged).
+func TestMCPScopeAbsentVKUnchanged(t *testing.T) {
+	env := newMCPTestEnv(t)
+
+	// Adding an assignment for some OTHER VK must not narrow the anonymous surface.
+	other, _ := env.store.CreateVirtualKey(&store.VirtualKey{VirtualKey: schemas.VirtualKey{Name: "other"}})
+	_, _ = env.store.CreateVKMCPConfig(&store.VKMCPConfig{
+		VirtualKeyID:   other.ID,
+		MCPClientID:    "browsermcp",
+		ToolsToExecute: []string{"browsermcp-browser_navigate"},
+	})
+
+	global := serverToolNames(t, env.handlers, nil)
+	if !global["browser_navigate"] || !global["browser_click"] {
+		t.Fatalf("absent-VK path narrowed by another VK's assignment: %v", global)
+	}
+}
