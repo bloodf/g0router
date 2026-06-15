@@ -43,6 +43,7 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 	images := api.NewImagesHandler(router_)
 	files := api.NewFilesHandler(router_)
 	batches := api.NewBatchesHandler(router_)
+	inputTokens := api.NewInputTokensHandler(router_)
 	if recorder != nil {
 		messages.SetUsageRecorder(recorder)
 		responses.SetUsageRecorder(recorder)
@@ -52,6 +53,7 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		images.SetUsageRecorder(recorder)
 		files.SetUsageRecorder(recorder)
 		batches.SetUsageRecorder(recorder)
+		inputTokens.SetUsageRecorder(recorder)
 	}
 	if tracker != nil {
 		messages.SetPendingTracker(tracker)
@@ -62,6 +64,7 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		images.SetPendingTracker(tracker)
 		files.SetPendingTracker(tracker)
 		batches.SetPendingTracker(tracker)
+		inputTokens.SetPendingTracker(tracker)
 	}
 	if detail != nil {
 		messages.SetDetailCapture(detail)
@@ -72,6 +75,7 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		images.SetDetailCapture(detail)
 		files.SetDetailCapture(detail)
 		batches.SetDetailCapture(detail)
+		inputTokens.SetDetailCapture(detail)
 	}
 	models := api.NewModelsHandler(router_)
 	if st != nil {
@@ -104,6 +108,7 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		images.SetVKGate(vkGate)
 		files.SetVKGate(vkGate)
 		batches.SetVKGate(vkGate)
+		inputTokens.SetVKGate(vkGate)
 
 		// VK KeyID pinning selector (PAR-ROUTE-030).
 		selector := &vkPinnedSelector{
@@ -120,11 +125,13 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		images.SetVKPinnedResolver(selector)
 		files.SetVKPinnedResolver(selector)
 		batches.SetVKPinnedResolver(selector)
+		inputTokens.SetVKPinnedResolver(selector)
 	}
 
 	r.POST("/v1/chat/completions", chat.Handle)
 	r.POST("/v1/messages", messages.Handle)
 	r.POST("/v1/responses", responses.Handle)
+	r.POST("/v1/responses/input_tokens", inputTokens.Handle)
 	r.POST("/v1/embeddings", embeddings.Handle)
 	r.POST("/v1/completions", completions.Handle)
 	r.POST("/v1/audio/speech", audio.Speech)

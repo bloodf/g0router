@@ -50,6 +50,27 @@ func TestResponsesRouteRegistered(t *testing.T) {
 	}
 }
 
+// TestInputTokensRouteRegistered verifies POST /v1/responses/input_tokens is
+// wired and coexists with the static /v1/responses route (PAR-BF-OAI-004).
+func TestInputTokensRouteRegistered(t *testing.T) {
+	r := httprouter.New()
+	r.NotFound = func(ctx *fasthttp.RequestCtx) {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		ctx.SetBodyString("not found")
+	}
+	RegisterOpenAIRoutes(r, inference.NewRouter(translation.NewRegistry()), nil, nil, nil, nil, nil, nil)
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod("POST")
+	ctx.Request.SetRequestURI("/v1/responses/input_tokens")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4","input":[{"role":"user","content":"hi"}]}`))
+	r.Handler(&ctx)
+
+	if ctx.Response.StatusCode() == fasthttp.StatusNotFound {
+		t.Fatalf("/v1/responses/input_tokens returned 404 — route not registered")
+	}
+}
+
 func TestRegisterOpenAIRoutesPlumbsComboDispatcher(t *testing.T) {
 	// Local stub that returns a canned chat completion.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
