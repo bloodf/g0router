@@ -8,6 +8,18 @@ type VirtualKey struct {
 	ProviderConfigs []ProviderConfig `json:"provider_configs"`
 	Budget          *Budget          `json:"budget,omitempty"`
 	RateLimitRPM    *int             `json:"rate_limit_rpm,omitempty"`
+	RateLimit       *RateLimit       `json:"rate_limit,omitempty"`
+}
+
+// RateLimit is the dual-dimension token/request rate limit attached to a virtual
+// key (bf-gov-3, D1/D3). Each dimension has its own max and reset period; a zero
+// max disables that dimension. The reset period accepts the calendar words
+// daily/weekly/monthly or a rolling-duration token (1h/1d/1M).
+type RateLimit struct {
+	TokenMax           int64  `json:"token_max,omitempty"`
+	TokenResetPeriod   string `json:"token_reset_period,omitempty"`
+	RequestMax         int64  `json:"request_max,omitempty"`
+	RequestResetPeriod string `json:"request_reset_period,omitempty"`
 }
 
 // ProviderConfig binds a provider to allowed models, keys, and weight.

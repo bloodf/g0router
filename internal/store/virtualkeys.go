@@ -25,6 +25,7 @@ type virtualKeyConfig struct {
 	ProviderConfigs []schemas.ProviderConfig `json:"provider_configs"`
 	Budget          *schemas.Budget          `json:"budget,omitempty"`
 	RateLimitRPM    *int                     `json:"rate_limit_rpm,omitempty"`
+	RateLimit       *schemas.RateLimit       `json:"rate_limit,omitempty"`
 }
 
 func marshalVirtualKeyConfig(vk *VirtualKey) (string, error) {
@@ -32,6 +33,7 @@ func marshalVirtualKeyConfig(vk *VirtualKey) (string, error) {
 		ProviderConfigs: vk.ProviderConfigs,
 		Budget:          vk.Budget,
 		RateLimitRPM:    vk.RateLimitRPM,
+		RateLimit:       vk.RateLimit,
 	}
 	b, err := json.Marshal(cfg)
 	if err != nil {
@@ -48,6 +50,7 @@ func unmarshalVirtualKeyConfig(raw string, vk *VirtualKey) error {
 	vk.ProviderConfigs = cfg.ProviderConfigs
 	vk.Budget = cfg.Budget
 	vk.RateLimitRPM = cfg.RateLimitRPM
+	vk.RateLimit = cfg.RateLimit
 	return nil
 }
 
