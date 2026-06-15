@@ -82,6 +82,39 @@ func TestMCPCompleteOAuthRouteRegistered(t *testing.T) {
 	}
 }
 
+// TestMCPVKConfigRoutesRegistered proves the additive VK↔MCP assignment-CRUD
+// routes are wired through RegisterMCPRoutes and session-gated (bf-mcp-2
+// D-routes): an unauthenticated request is rejected (not 404 / not 200 OK data).
+func TestMCPVKConfigRoutesRegistered(t *testing.T) {
+	r := httprouter.New()
+	r.NotFound = func(ctx *fasthttp.RequestCtx) {
+		ctx.SetStatusCode(fasthttp.StatusNotFound)
+		ctx.SetBodyString("not found")
+	}
+	RegisterMCPRoutes(r, newMCPRouteHandlers(t))
+
+	cases := []struct{ method, uri string }{
+		{"POST", "/api/mcp/vk-configs"},
+		{"GET", "/api/mcp/vk-configs"},
+		{"GET", "/api/mcp/vk-configs/1"},
+		{"PUT", "/api/mcp/vk-configs/1"},
+		{"DELETE", "/api/mcp/vk-configs/1"},
+	}
+	for _, c := range cases {
+		var ctx fasthttp.RequestCtx
+		ctx.Request.Header.SetMethod(c.method)
+		ctx.Request.SetRequestURI(c.uri)
+		r.Handler(&ctx)
+		if ctx.Response.StatusCode() == fasthttp.StatusNotFound {
+			t.Fatalf("%s %s not registered (404)", c.method, c.uri)
+		}
+		// Session-gated: an unauthenticated request must be unauthorized.
+		if ctx.Response.StatusCode() != fasthttp.StatusUnauthorized {
+			t.Fatalf("%s %s status = %d, want 401 (session-gated)", c.method, c.uri, ctx.Response.StatusCode())
+		}
+	}
+}
+
 // TestMCPNotLocalOnly proves /mcp is NOT in LOCAL_ONLY_PATHS (D2 — it is the
 // public VK-gated MCP-server surface, not a local-only admin path).
 func TestMCPNotLocalOnly(t *testing.T) {

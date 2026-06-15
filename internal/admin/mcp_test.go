@@ -897,3 +897,103 @@ func TestMCPScopeAbsentVKUnchanged(t *testing.T) {
 		t.Fatalf("absent-VK path narrowed by another VK's assignment: %v", global)
 	}
 }
+
+// TestMCPVKConfigCreateSubsetReject proves the LIVE assignment create path REJECTS
+// an autoExecute ⊄ execute assignment with a 4xx {error} envelope BEFORE storage
+// (D5/049), and accepts a valid subset (D5).
+func TestMCPVKConfigCreateSubsetReject(t *testing.T) {
+	env := newMCPTestEnv(t)
+
+	// Invalid: auto-execute names a tool not in execute.
+	status, envl := call(t, env.handlers.CreateVKMCPConfig, "POST", "/api/mcp/vk-configs",
+		`{"virtual_key_id":"vk1","mcp_client_id":"exa","tools_to_execute":["exa-search"],"tools_to_auto_execute":["exa-fetch"]}`,
+		nil, nil)
+	if status < 400 || status >= 500 {
+		t.Fatalf("invalid subset status = %d, want 4xx", status)
+	}
+	if errMessage(t, envl) == "" {
+		t.Fatalf("invalid subset did not return an {error}: %v", envl)
+	}
+
+	// Valid: auto-execute is a subset of execute.
+	status, envl = call(t, env.handlers.CreateVKMCPConfig, "POST", "/api/mcp/vk-configs",
+		`{"virtual_key_id":"vk1","mcp_client_id":"exa","tools_to_execute":["exa-search","exa-fetch"],"tools_to_auto_execute":["exa-search"]}`,
+		nil, nil)
+	if status != fasthttp.StatusCreated {
+		t.Fatalf("valid subset status = %d err = %q", status, errMessage(t, envl))
+	}
+}
+
+// TestMCPVKConfigConfigHashExposed proves the assignment GET DTO carries a
+// computed config_hash (D8/079 — the live drift-detection reader; NOT write-only)
+// and that the hash changes when the assignment changes.
+func TestMCPVKConfigConfigHashExposed(t *testing.T) {
+	env := newMCPTestEnv(t)
+
+	status, envl := call(t, env.handlers.CreateVKMCPConfig, "POST", "/api/mcp/vk-configs",
+		`{"virtual_key_id":"vk1","mcp_client_id":"exa","tools_to_execute":["exa-*"]}`, nil, nil)
+	if status != fasthttp.StatusCreated {
+		t.Fatalf("create status = %d err = %q", status, errMessage(t, envl))
+	}
+	created := dataField[map[string]any](t, envl)
+	idF, ok := created["id"].(float64)
+	if !ok {
+		t.Fatalf("created config missing numeric id: %v", created)
+	}
+	id := int64(idF)
+	hash1, _ := created["config_hash"].(string)
+	if hash1 == "" {
+		t.Fatalf("create DTO missing config_hash: %v", created)
+	}
+
+	// GET returns the DTO with config_hash.
+	status, envl = call(t, env.handlers.GetVKMCPConfig, "GET",
+		"/api/mcp/vk-configs/1", "", map[string]any{"id": "1"}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("get status = %d err = %q", status, errMessage(t, envl))
+	}
+	got := dataField[map[string]any](t, envl)
+	if got["config_hash"].(string) != hash1 {
+		t.Fatalf("GET config_hash = %v, want %q", got["config_hash"], hash1)
+	}
+
+	// Update changes the hash.
+	status, envl = call(t, env.handlers.UpdateVKMCPConfig, "PUT",
+		"/api/mcp/vk-configs/1",
+		`{"virtual_key_id":"vk1","mcp_client_id":"exa","tools_to_execute":["exa-search"]}`,
+		map[string]any{"id": "1"}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("update status = %d err = %q", status, errMessage(t, envl))
+	}
+	updated := dataField[map[string]any](t, envl)
+	if updated["config_hash"].(string) == hash1 {
+		t.Fatalf("config_hash did not change on update (drift undetectable): %q", hash1)
+	}
+
+	// Delete.
+	status, _ = call(t, env.handlers.DeleteVKMCPConfig, "DELETE",
+		"/api/mcp/vk-configs/1", "", map[string]any{"id": "1"}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("delete status = %d", status)
+	}
+	if _, err := env.store.GetVKMCPConfig(id); err == nil {
+		t.Fatalf("config not deleted")
+	}
+}
+
+// TestMCPVKConfigListByVK proves the list-by-VK GET returns the VK's assignments.
+func TestMCPVKConfigListByVK(t *testing.T) {
+	env := newMCPTestEnv(t)
+	if _, err := env.store.CreateVKMCPConfig(&store.VKMCPConfig{VirtualKeyID: "vk1", MCPClientID: "exa"}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	status, envl := call(t, env.handlers.ListVKMCPConfigs, "GET",
+		"/api/mcp/vk-configs?virtual_key_id=vk1", "", nil, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("list status = %d", status)
+	}
+	list := dataField[[]map[string]any](t, envl)
+	if len(list) != 1 {
+		t.Fatalf("list len = %d, want 1", len(list))
+	}
+}
