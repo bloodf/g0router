@@ -1,10 +1,13 @@
 package api
 
 // VKProviderConfig binds a provider to the models a virtual key may use.
+// AllowAllKeys=true means any provider key is allowed: the gate returns no
+// pinned KeyIDs and falls through to normal selection (bf-gov-1, D5).
 type VKProviderConfig struct {
 	Provider      string
 	AllowedModels []string
 	KeyIDs        []string
+	AllowAllKeys  bool
 }
 
 // VKInfo is the subset of virtual key state needed by VKGate.
@@ -70,7 +73,9 @@ func (g *VKGate) AllowVK(key, model, providerID string) (ok bool, status int, re
 	if !matched {
 		return false, 403, "provider/model not allowed for virtual key", nil
 	}
-	if cfg != nil {
+	if cfg != nil && !cfg.AllowAllKeys {
+		// AllowAllKeys=true returns no pin (any provider key allowed, D5);
+		// otherwise the matched config's KeyIDs pin the eligible keys.
 		keyIDs = cfg.KeyIDs
 	}
 	if g.quota != nil {
