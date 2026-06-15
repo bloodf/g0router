@@ -138,6 +138,62 @@ func TestModelsGetByID(t *testing.T) {
 	}
 }
 
+// TestModelsGetByID_RegressionSingleAndMiss pins the PAR-BF-OAI-019 contract:
+// GET /v1/models/{id} via GetOrByKind returns exactly ONE model entry for a
+// known catalog id (not the full list) and 404s on an unknown id. This guards
+// against a regression to the stale "delegates to List with no filtering"
+// behavior described in the matrix note.
+func TestModelsGetByID_RegressionSingleAndMiss(t *testing.T) {
+	router := inference.NewRouter(translation.NewRegistry())
+	h := NewModelsHandler(router)
+
+	// Known id -> exactly one entry, not a list.
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodGet)
+	ctx.Request.SetRequestURI("/v1/models/deepseek-v4-pro")
+	ctx.SetUserValue("param", "deepseek-v4-pro")
+	h.GetOrByKind(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusOK {
+		t.Fatalf("known id status = %d, want 200", ctx.Response.StatusCode())
+	}
+
+	body := ctx.Response.Body()
+	// Must NOT be the full list shape: no top-level "data" array, no "object":"list".
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(body, &top); err != nil {
+		t.Fatalf("unmarshal top-level: %v", err)
+	}
+	if _, ok := top["data"]; ok {
+		t.Error("response has top-level 'data' (full-list leaked instead of single model)")
+	}
+
+	var single struct {
+		ID     string `json:"id"`
+		Object string `json:"object"`
+	}
+	if err := json.Unmarshal(body, &single); err != nil {
+		t.Fatalf("unmarshal single model: %v", err)
+	}
+	if single.ID != "deepseek-v4-pro" {
+		t.Errorf("id = %q, want deepseek-v4-pro", single.ID)
+	}
+	if single.Object != "model" {
+		t.Errorf("object = %q, want model", single.Object)
+	}
+
+	// Unknown id -> 404.
+	var missCtx fasthttp.RequestCtx
+	missCtx.Request.Header.SetMethod(http.MethodGet)
+	missCtx.Request.SetRequestURI("/v1/models/this-model-does-not-exist-xyz")
+	missCtx.SetUserValue("param", "this-model-does-not-exist-xyz")
+	h.GetOrByKind(&missCtx)
+
+	if missCtx.Response.StatusCode() != fasthttp.StatusNotFound {
+		t.Fatalf("unknown id status = %d, want 404", missCtx.Response.StatusCode())
+	}
+}
+
 // TestModelsGetUnknown404 verifies GET /v1/models/:id returns a 404 JSON
 // envelope when the requested model does not exist.
 func TestModelsGetUnknown404(t *testing.T) {
