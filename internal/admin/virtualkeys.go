@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/bloodf/g0router/internal/governance"
 	"github.com/bloodf/g0router/internal/schemas"
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
@@ -14,6 +15,7 @@ type virtualKeyDTO struct {
 	ID              string                  `json:"id"`
 	Key             string                  `json:"key"`
 	Name            string                  `json:"name"`
+	TeamID          string                  `json:"team_id,omitempty"`
 	ProviderConfigs []schemas.ProviderConfig `json:"provider_configs"`
 	Budget          *schemas.Budget         `json:"budget,omitempty"`
 	RateLimitRPM    *int                    `json:"rate_limit_rpm,omitempty"`
@@ -27,6 +29,7 @@ func toVirtualKeyDTO(vk *store.VirtualKey) virtualKeyDTO {
 		ID:              vk.ID,
 		Key:             vk.Key,
 		Name:            vk.Name,
+		TeamID:          vk.TeamID,
 		ProviderConfigs: vk.ProviderConfigs,
 		Budget:          vk.Budget,
 		RateLimitRPM:    vk.RateLimitRPM,
@@ -42,6 +45,7 @@ func toVirtualKeyDTO(vk *store.VirtualKey) virtualKeyDTO {
 
 type virtualKeyRequest struct {
 	Name            string                  `json:"name"`
+	TeamID          string                  `json:"team_id,omitempty"`
 	ProviderConfigs []schemas.ProviderConfig `json:"provider_configs"`
 	Budget          *schemas.Budget         `json:"budget,omitempty"`
 	RateLimitRPM    *int                    `json:"rate_limit_rpm,omitempty"`
@@ -80,6 +84,16 @@ func validateVirtualKeyRequest(req *virtualKeyRequest) error {
 	if req.RateLimitRPM != nil && *req.RateLimitRPM < 0 {
 		return fmt.Errorf("rate_limit_rpm must be non-negative")
 	}
+	// Guard the budget-owner assignment surface (bf-gov-1, D2): a VK-level budget
+	// is owned by the virtual key. ValidateBudgetOwner rejects any future state
+	// where the same budget would name more than one owner among {VK, Team}. The
+	// VK's team_id is membership for the 2-level hierarchy, not budget ownership,
+	// so it is not passed as a competing budget owner here.
+	if req.Budget != nil {
+		if err := governance.ValidateBudgetOwner(governance.BudgetOwner{VirtualKeyID: "virtual_key"}); err != nil {
+			return fmt.Errorf("budget owner: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -116,6 +130,7 @@ func (h *Handlers) CreateVirtualKey(ctx *fasthttp.RequestCtx) {
 			Budget:          req.Budget,
 			RateLimitRPM:    req.RateLimitRPM,
 		},
+		TeamID: req.TeamID,
 	}
 	created, err := h.store.CreateVirtualKey(vk)
 	if err != nil {
@@ -184,6 +199,7 @@ func (h *Handlers) UpdateVirtualKey(ctx *fasthttp.RequestCtx) {
 			RateLimitRPM:    req.RateLimitRPM,
 		},
 		IsActive: isActive,
+		TeamID:   req.TeamID,
 	}
 	if err := h.store.UpdateVirtualKey(vk); err != nil {
 		writeError(ctx, fasthttp.StatusInternalServerError, "update virtual key")
