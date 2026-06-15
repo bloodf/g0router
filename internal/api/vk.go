@@ -10,7 +10,9 @@ type VKProviderConfig struct {
 	AllowAllKeys  bool
 }
 
-// VKInfo is the subset of virtual key state needed by VKGate.
+// VKInfo is the subset of virtual key state needed by VKGate. The Team* fields
+// carry the optional owning team's budget/RPM for the 2-level hierarchy
+// (bf-gov-1, D3); they are zero/empty for un-teamed keys.
 type VKInfo struct {
 	Key           string
 	Configs       []VKProviderConfig
@@ -18,6 +20,11 @@ type VKInfo struct {
 	BudgetPeriod  string
 	RateLimitRPM  int
 	IsActive      bool
+
+	TeamID           string
+	TeamBudgetLimit  float64
+	TeamBudgetPeriod string
+	TeamRateLimitRPM int
 }
 
 // VKResolver resolves a virtual key header value to a VKInfo.

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bloodf/g0router/internal/api"
+	"github.com/bloodf/g0router/internal/governance"
 	"github.com/bloodf/g0router/internal/inference"
 	"github.com/bloodf/g0router/internal/providers/catalog"
 	"github.com/bloodf/g0router/internal/schemas"
@@ -292,13 +293,90 @@ func TestStoreVKToAPI_MapsKeyIDs(t *testing.T) {
 		Key:      "g0vk-test",
 		IsActive: true,
 	}
-	info := storeVKToAPI(vk)
+	info := storeVKToAPI(nil, vk)
 	if len(info.Configs) != 1 {
 		t.Fatalf("got %d configs, want 1", len(info.Configs))
 	}
 	want := []string{"conn-1", "conn-2"}
 	if len(info.Configs[0].KeyIDs) != len(want) || info.Configs[0].KeyIDs[0] != want[0] || info.Configs[0].KeyIDs[1] != want[1] {
 		t.Errorf("KeyIDs = %v, want %v", info.Configs[0].KeyIDs, want)
+	}
+}
+
+// TestVKGateDeniesOnTeamBudgetExhaustion is the end-to-end proof (bf-gov-1, D8):
+// a VK whose owning team's aggregate request_log spend exceeds the team's
+// budget_usd is DENIED 429 "team budget exhausted" through the real
+// resolver+quota adapter, even when the VK's own budget passes.
+func TestVKGateDeniesOnTeamBudgetExhaustion(t *testing.T) {
+	st := newTestStore(t)
+
+	// Fixed clock pins the monthly budget window deterministically (D7).
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	team, err := st.CreateTeam(&store.Team{
+		Name:         "team-broke",
+		BudgetUSD:    5.0,
+		BudgetPeriod: "monthly",
+	})
+	if err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+
+	vk, err := st.CreateVirtualKey(&store.VirtualKey{
+		VirtualKey: schemas.VirtualKey{
+			Name: "vk-on-broke-team",
+			ProviderConfigs: []schemas.ProviderConfig{
+				{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+			},
+			// VK's own budget is generous and passes.
+			Budget: &schemas.Budget{Limit: 1000, Period: "monthly"},
+		},
+		TeamID: team.ID,
+	})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+
+	// Seed request_log cost for this VK within the month, exceeding team budget.
+	for _, ts := range []string{"2026-06-10T09:00:00Z", "2026-06-12T09:00:00Z"} {
+		if _, err := st.DB().Exec(
+			`INSERT INTO request_log (
+				timestamp, provider, model, connection_id, api_key, endpoint,
+				prompt_tokens, completion_tokens, cost, status, tokens, meta
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ts, "openai", "gpt-4o", "conn-1", vk.Key, "/v1/chat/completions",
+			0, 0, 3.0, "ok", "{}", "{}",
+		); err != nil {
+			t.Fatalf("seed request_log: %v", err)
+		}
+	}
+
+	gate := api.NewVKGate(
+		newVKResolverAdapter(st),
+		newVKQuotaAdapter(governance.NewQuotaEngine(st, func() time.Time { return now })),
+	)
+
+	ok, status, reason, _ := gate.AllowVK(vk.Key, "gpt-4o", "openai")
+	if ok || status != 429 || reason != "team budget exhausted" {
+		t.Fatalf("team-budget-exhausted gate: ok=%v status=%d reason=%q, want deny 429 team budget exhausted", ok, status, reason)
+	}
+
+	// Control: an un-teamed VK with the same own-budget is allowed (Team tier skipped).
+	vkSolo, err := st.CreateVirtualKey(&store.VirtualKey{
+		VirtualKey: schemas.VirtualKey{
+			Name: "vk-solo",
+			ProviderConfigs: []schemas.ProviderConfig{
+				{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+			},
+			Budget: &schemas.Budget{Limit: 1000, Period: "monthly"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey solo: %v", err)
+	}
+	ok, status, _, _ = gate.AllowVK(vkSolo.Key, "gpt-4o", "openai")
+	if !ok {
+		t.Fatalf("un-teamed VK should be allowed: status=%d", status)
 	}
 }
 

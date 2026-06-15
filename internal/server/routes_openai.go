@@ -170,16 +170,21 @@ func (a *vkResolverAdapter) ResolveVK(key string) (*api.VKInfo, error) {
 		}
 		return nil, err
 	}
-	return storeVKToAPI(vk), nil
+	return storeVKToAPI(a.st, vk), nil
 }
 
-func storeVKToAPI(vk *store.VirtualKey) *api.VKInfo {
+// storeVKToAPI maps a store virtual key to the api.VKInfo the gate consumes. When
+// the VK owns a team (team_id != ""), it loads the team via st.GetTeamByID and
+// populates the Team* hierarchy fields (bf-gov-1, D3). A missing/un-teamed VK
+// leaves the Team* fields zero so the engine skips the Team tier.
+func storeVKToAPI(st *store.Store, vk *store.VirtualKey) *api.VKInfo {
 	info := &api.VKInfo{
 		Key:          vk.Key,
 		BudgetLimit:  0,
 		BudgetPeriod: "",
 		RateLimitRPM: 0,
 		IsActive:     vk.IsActive,
+		TeamID:       vk.TeamID,
 	}
 	if vk.Budget != nil {
 		info.BudgetLimit = vk.Budget.Limit
@@ -193,7 +198,15 @@ func storeVKToAPI(vk *store.VirtualKey) *api.VKInfo {
 			Provider:      pc.Provider,
 			AllowedModels: pc.AllowedModels,
 			KeyIDs:        pc.KeyIDs,
+			AllowAllKeys:  pc.AllowAllKeys,
 		})
+	}
+	if vk.TeamID != "" && st != nil {
+		if team, err := st.GetTeamByID(vk.TeamID); err == nil && team != nil {
+			info.TeamBudgetLimit = team.BudgetUSD
+			info.TeamBudgetPeriod = team.BudgetPeriod
+			info.TeamRateLimitRPM = team.RateLimitRPM
+		}
 	}
 	return info
 }
@@ -209,10 +222,14 @@ func newVKQuotaAdapter(engine *governance.QuotaEngine) *vkQuotaAdapter {
 
 func (a *vkQuotaAdapter) Allow(vk *api.VKInfo, model string) (bool, int, string) {
 	return a.engine.Allow(&governance.VirtualKeyInfo{
-		Key:          vk.Key,
-		BudgetLimit:  vk.BudgetLimit,
-		BudgetPeriod: vk.BudgetPeriod,
-		RateLimitRPM: vk.RateLimitRPM,
+		Key:              vk.Key,
+		BudgetLimit:      vk.BudgetLimit,
+		BudgetPeriod:     vk.BudgetPeriod,
+		RateLimitRPM:     vk.RateLimitRPM,
+		TeamID:           vk.TeamID,
+		TeamBudgetLimit:  vk.TeamBudgetLimit,
+		TeamBudgetPeriod: vk.TeamBudgetPeriod,
+		TeamRateLimitRPM: vk.TeamRateLimitRPM,
 	}, model)
 }
 
