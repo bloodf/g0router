@@ -12,11 +12,12 @@ type VirtualKey struct {
 
 // ProviderConfig binds a provider to allowed models, keys, and weight.
 type ProviderConfig struct {
-	Provider      string   `json:"provider"`
-	AllowedModels []string `json:"allowed_models"`
-	KeyIDs        []string `json:"key_ids"`
-	AllowAllKeys  bool     `json:"allow_all_keys"`
-	Weight        *float64 `json:"weight,omitempty"`
+	Provider          string    `json:"provider"`
+	AllowedModels     []string  `json:"allowed_models"`
+	BlacklistedModels BlackList `json:"blacklisted_models,omitempty"`
+	KeyIDs            []string  `json:"key_ids"`
+	AllowAllKeys      bool      `json:"allow_all_keys"`
+	Weight            *float64  `json:"weight,omitempty"`
 }
 
 // Budget tracks spend against a limit.
