@@ -342,6 +342,140 @@ func TestEvaluateAllowAndWrapperEquivalence(t *testing.T) {
 	})
 }
 
+// TestVKTokenLimit verifies the SQL-live token dimension (bf-gov-3, D1/D3): a VK
+// is DENIED 429 DecisionTokenLimited when its live SumTokensByAPIKey over the
+// window exceeds TokenMax, even though budget + RPM + request all pass. After a
+// window rollover (the fake's token map cleared — the analogue of the windowStart
+// lower bound excluding prior rows) it is re-allowed: the reset is INHERENT, with
+// no counter and no worker.
+func TestVKTokenLimit(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	spend := newFakeSpendReader()
+	engine := NewQuotaEngine(spend, fixedClock(now))
+
+	vk := &VirtualKeyInfo{
+		Key:             "vk-token",
+		BudgetLimit:     1000, // generous, passes
+		BudgetPeriod:    "daily",
+		RateLimitRPM:    1000, // generous, passes
+		TokenMax:        100,
+		TokenResetPeriod: "daily",
+	}
+
+	// Under the token limit -> allow.
+	spend.setTokens("vk-token", 50)
+	if res := engine.Evaluate(vk, "gpt-4o"); res.Decision != DecisionAllow {
+		t.Fatalf("under token limit: decision=%v, want DecisionAllow", res.Decision)
+	}
+
+	// At the token limit (100) still allowed (deny only when it EXCEEDS).
+	spend.setTokens("vk-token", 100)
+	if res := engine.Evaluate(vk, "gpt-4o"); res.Decision != DecisionAllow {
+		t.Fatalf("at token limit: decision=%v, want DecisionAllow", res.Decision)
+	}
+
+	// Over the token limit -> deny 429 TokenLimited.
+	spend.setTokens("vk-token", 101)
+	res := engine.Evaluate(vk, "gpt-4o")
+	if res.Decision != DecisionTokenLimited || res.Status != 429 || res.Reason == "" {
+		t.Fatalf("over token limit: decision=%v status=%d reason=%q, want TokenLimited/429", res.Decision, res.Status, res.Reason)
+	}
+
+	// Window rollover: clearing the token map (prior rows fall out of window) re-allows.
+	spend.setTokens("vk-token", 0)
+	if res := engine.Evaluate(vk, "gpt-4o"); res.Decision != DecisionAllow {
+		t.Fatalf("after rollover: decision=%v, want DecisionAllow (inherent reset)", res.Decision)
+	}
+}
+
+// TestVKRequestLimit verifies the SQL-live request dimension (bf-gov-3, D3): a VK
+// is DENIED 429 DecisionRequestLimited when its live SumRequestsByAPIKey (COUNT)
+// over the window REACHES RequestMax.
+func TestVKRequestLimit(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	spend := newFakeSpendReader()
+	engine := NewQuotaEngine(spend, fixedClock(now))
+
+	vk := &VirtualKeyInfo{
+		Key:                "vk-request",
+		BudgetLimit:        1000,
+		BudgetPeriod:       "daily",
+		RateLimitRPM:       1000,
+		RequestMax:         5,
+		RequestResetPeriod: "1h",
+	}
+
+	// Under the request limit -> allow.
+	spend.setRequests("vk-request", 4)
+	if res := engine.Evaluate(vk, "gpt-4o"); res.Decision != DecisionAllow {
+		t.Fatalf("under request limit: decision=%v, want DecisionAllow", res.Decision)
+	}
+
+	// At the request limit (count >= RequestMax) -> deny.
+	spend.setRequests("vk-request", 5)
+	res := engine.Evaluate(vk, "gpt-4o")
+	if res.Decision != DecisionRequestLimited || res.Status != 429 || res.Reason == "" {
+		t.Fatalf("at request limit: decision=%v status=%d reason=%q, want RequestLimited/429", res.Decision, res.Status, res.Reason)
+	}
+
+	// Rollover re-allows.
+	spend.setRequests("vk-request", 0)
+	if res := engine.Evaluate(vk, "gpt-4o"); res.Decision != DecisionAllow {
+		t.Fatalf("after rollover: decision=%v, want DecisionAllow", res.Decision)
+	}
+}
+
+// TestRateLimitPrecedence verifies the deterministic fail-closed order (D3):
+// budget -> RPM -> request-limit -> token-limit -> team. When request AND token
+// limits would both deny, request wins (it runs first).
+func TestRateLimitPrecedence(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	spend := newFakeSpendReader()
+	engine := NewQuotaEngine(spend, fixedClock(now))
+
+	vk := &VirtualKeyInfo{
+		Key:                "vk-prec",
+		RequestMax:         5,
+		RequestResetPeriod: "daily",
+		TokenMax:           100,
+		TokenResetPeriod:   "daily",
+	}
+	// Both dimensions over limit; request runs first, so RequestLimited wins.
+	spend.setRequests("vk-prec", 5)
+	spend.setTokens("vk-prec", 999)
+	res := engine.Evaluate(vk, "gpt-4o")
+	if res.Decision != DecisionRequestLimited {
+		t.Fatalf("precedence: decision=%v, want DecisionRequestLimited (request before token)", res.Decision)
+	}
+}
+
+// TestWindowStartDurationParsing verifies windowStart's additive default-branch
+// rolling-duration parsing (bf-gov-3, D2): the shipped daily/weekly/monthly cases
+// are UNCHANGED; rolling tokens (1h/1d/1M) yield a now.Add(-d) lower bound.
+func TestWindowStartDurationParsing(t *testing.T) {
+	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
+	engine := NewQuotaEngine(newFakeSpendReader(), fixedClock(now))
+
+	// Shipped calendar cases unchanged.
+	if got := engine.windowStart("daily"); !got.Equal(time.Date(2026, 6, 12, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("windowStart(daily) = %v, want midnight UTC", got)
+	}
+	if got := engine.windowStart("monthly"); !got.Equal(time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("windowStart(monthly) = %v, want month start", got)
+	}
+
+	// Rolling durations: now minus the parsed duration.
+	if got := engine.windowStart("1h"); !got.Equal(now.Add(-time.Hour)) {
+		t.Errorf("windowStart(1h) = %v, want now-1h (%v)", got, now.Add(-time.Hour))
+	}
+	if got := engine.windowStart("1d"); !got.Equal(now.Add(-24 * time.Hour)) {
+		t.Errorf("windowStart(1d) = %v, want now-24h", got)
+	}
+	if got := engine.windowStart("1M"); !got.Equal(now.AddDate(0, -1, 0)) {
+		t.Errorf("windowStart(1M) = %v, want now-1month", got)
+	}
+}
+
 // TestValidateBudgetOwner verifies the inline single-owner validation (bf-gov-1,
 // D2): a budget owner may name at most one of {VirtualKeyID, TeamID}.
 func TestValidateBudgetOwner(t *testing.T) {
