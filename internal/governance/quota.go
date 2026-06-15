@@ -83,6 +83,15 @@ type VirtualKeyInfo struct {
 	BudgetPeriod string
 	RateLimitRPM int
 
+	// Dual-dimension rate limit (bf-gov-3, D1/D3), each SQL-live over
+	// request_log within windowStart(*ResetPeriod). Zero max disables the
+	// dimension. *ResetPeriod accepts the calendar words daily/weekly/monthly
+	// or a rolling-duration token (1h/1d/1M).
+	TokenMax           int64
+	TokenResetPeriod   string
+	RequestMax         int64
+	RequestResetPeriod string
+
 	TeamID           string
 	TeamBudgetLimit  float64
 	TeamBudgetPeriod string
@@ -158,6 +167,14 @@ func (e *QuotaEngine) Evaluate(vk *VirtualKeyInfo, model string) EvaluationResul
 	if err := e.checkRPM(vk); err != nil {
 		return EvaluationResult{Decision: DecisionRateLimited, Reason: err.Error(), Status: 429}
 	}
+	// Dual-dimension rate limit (bf-gov-3, D1/D3), both SQL-live over request_log
+	// within the calendar/rolling window. Request runs before token (precedence).
+	if err := e.checkRequestLimit(vk); err != nil {
+		return EvaluationResult{Decision: DecisionRequestLimited, Reason: err.Error(), Status: 429}
+	}
+	if err := e.checkTokenLimit(vk); err != nil {
+		return EvaluationResult{Decision: DecisionTokenLimited, Reason: err.Error(), Status: 429}
+	}
 	// 2-level hierarchy (bf-gov-1, D3): when the VK owns a team, the Team budget
 	// and RPM must ALSO pass. Un-teamed VKs skip these steps.
 	if err := e.checkTeamBudget(vk); err != nil {
@@ -209,6 +226,45 @@ func (e *QuotaEngine) checkRPM(vk *VirtualKeyInfo) error {
 		return fmt.Errorf("rate limit exceeded")
 	}
 	w.count++
+	return nil
+}
+
+// checkRequestLimit enforces the VK's request-count dimension via the live
+// SumRequestsByAPIKey COUNT over request_log within windowStart(RequestResetPeriod)
+// (bf-gov-3, D3). It denies when the count REACHES RequestMax. A non-positive
+// RequestMax disables the dimension. Lazy reset is inherent in the windowStart
+// lower bound — no in-memory counter, no worker.
+func (e *QuotaEngine) checkRequestLimit(vk *VirtualKeyInfo) error {
+	if vk.RequestMax <= 0 || vk.RequestResetPeriod == "" {
+		return nil
+	}
+	since := e.windowStart(vk.RequestResetPeriod)
+	count, err := e.spend.SumRequestsByAPIKey(vk.Key, since.Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("request limit check failed: %w", err)
+	}
+	if count >= vk.RequestMax {
+		return fmt.Errorf("request limit exceeded")
+	}
+	return nil
+}
+
+// checkTokenLimit enforces the VK's token dimension via the live
+// SumTokensByAPIKey SUM over request_log within windowStart(TokenResetPeriod)
+// (bf-gov-3, D1). It denies when the summed tokens EXCEED TokenMax. A
+// non-positive TokenMax disables the dimension. Lazy reset is inherent.
+func (e *QuotaEngine) checkTokenLimit(vk *VirtualKeyInfo) error {
+	if vk.TokenMax <= 0 || vk.TokenResetPeriod == "" {
+		return nil
+	}
+	since := e.windowStart(vk.TokenResetPeriod)
+	used, err := e.spend.SumTokensByAPIKey(vk.Key, since.Format(time.RFC3339))
+	if err != nil {
+		return fmt.Errorf("token limit check failed: %w", err)
+	}
+	if used > vk.TokenMax {
+		return fmt.Errorf("token limit exceeded")
+	}
 	return nil
 }
 
@@ -274,6 +330,44 @@ func (e *QuotaEngine) windowStart(period string) time.Time {
 	case "monthly":
 		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 	default:
+		// Rolling-duration tokens (bf-gov-3, D2): 1h/1d/1M etc. yield a
+		// now.Add(-d) lower bound. An unparseable token falls back to now
+		// (effectively an empty window); ValidateRateLimit rejects such tokens
+		// at config time so they never reach here in production.
+		if start, ok := rollingWindowStart(now, period); ok {
+			return start
+		}
 		return now
+	}
+}
+
+// rollingWindowStart parses a rolling-duration period token of the form
+// "<n><unit>" where unit is h (hours), d (days), or M (calendar months) and
+// returns the lower bound now-duration. It returns ok=false for unparseable
+// tokens (bf-gov-3, D2). It does NOT accept the calendar words handled by the
+// windowStart switch cases.
+func rollingWindowStart(now time.Time, period string) (time.Time, bool) {
+	if len(period) < 2 {
+		return time.Time{}, false
+	}
+	unit := period[len(period)-1]
+	numPart := period[:len(period)-1]
+	var n int
+	if _, err := fmt.Sscanf(numPart, "%d", &n); err != nil || n <= 0 {
+		return time.Time{}, false
+	}
+	// Reject any non-digit residue (e.g. "1.5h", "x1h") that Sscanf would skip.
+	if fmt.Sprintf("%d", n) != numPart {
+		return time.Time{}, false
+	}
+	switch unit {
+	case 'h':
+		return now.Add(-time.Duration(n) * time.Hour), true
+	case 'd':
+		return now.AddDate(0, 0, -n), true
+	case 'M':
+		return now.AddDate(0, -n, 0), true
+	default:
+		return time.Time{}, false
 	}
 }
