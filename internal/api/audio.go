@@ -272,7 +272,7 @@ func writeProviderError(ctx *fasthttp.RequestCtx, perr *schemas.ProviderError) {
 	if status == 0 {
 		status = fasthttp.StatusBadGateway
 	}
-	writeError(ctx, status, perr.Type, perr.Message, perr.Code)
+	writeErrorWithParam(ctx, status, perr.Type, perr.Message, perr.Code, perr.Param)
 }
 
 // requestWantsStream reports whether a JSON body sets stream:true. It is used

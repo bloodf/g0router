@@ -35,6 +35,9 @@ func writeErrorWithParam(ctx *fasthttp.RequestCtx, status int, errType, message 
 	if code != nil {
 		resp["error"].(map[string]any)["code"] = *code
 	}
+	if param != nil {
+		resp["error"].(map[string]any)["param"] = *param
+	}
 	b, err := jsonMarshal(resp)
 	if err != nil {
 		ctx.SetStatusCode(fasthttp.StatusInternalServerError)
