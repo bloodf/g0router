@@ -476,6 +476,38 @@ func TestWindowStartDurationParsing(t *testing.T) {
 	}
 }
 
+// TestValidateRateLimit verifies the inline rate-limit validation (bf-gov-3,
+// D5): a positive max requires a reset duration, and a non-empty reset duration
+// must be a known calendar word or a parseable rolling-duration token.
+func TestValidateRateLimit(t *testing.T) {
+	cases := []struct {
+		name    string
+		cfg     RateLimitConfig
+		wantErr bool
+	}{
+		{"empty config ok", RateLimitConfig{}, false},
+		{"token max with daily ok", RateLimitConfig{TokenMax: 100, TokenResetPeriod: "daily"}, false},
+		{"request max with rolling 1h ok", RateLimitConfig{RequestMax: 5, RequestResetPeriod: "1h"}, false},
+		{"both dims ok", RateLimitConfig{TokenMax: 1, TokenResetPeriod: "monthly", RequestMax: 1, RequestResetPeriod: "1M"}, false},
+		{"token max without reset", RateLimitConfig{TokenMax: 100}, true},
+		{"request max without reset", RateLimitConfig{RequestMax: 5}, true},
+		{"token unparseable reset", RateLimitConfig{TokenMax: 100, TokenResetPeriod: "fortnightly"}, true},
+		{"request unparseable reset", RateLimitConfig{RequestMax: 5, RequestResetPeriod: "1y"}, true},
+		{"zero max with reset ok", RateLimitConfig{TokenResetPeriod: "daily"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateRateLimit(tc.cfg)
+			if tc.wantErr && err == nil {
+				t.Fatalf("ValidateRateLimit(%+v) = nil, want error", tc.cfg)
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("ValidateRateLimit(%+v) = %v, want nil", tc.cfg, err)
+			}
+		})
+	}
+}
+
 // TestValidateBudgetOwner verifies the inline single-owner validation (bf-gov-1,
 // D2): a budget owner may name at most one of {VirtualKeyID, TeamID}.
 func TestValidateBudgetOwner(t *testing.T) {

@@ -242,3 +242,67 @@ func TestVirtualKeyTeamIDAssignment(t *testing.T) {
 		t.Fatalf("updated team_id = %v, want team-xyz", updated["team_id"])
 	}
 }
+
+// TestVirtualKeyRateLimitValidation verifies the inline ValidateRateLimit wiring
+// (bf-gov-3, D5): a VK create with a positive token_max but an empty reset
+// duration is rejected 400; a valid dual-dimension config round-trips and
+// persists through config_json.
+func TestVirtualKeyRateLimitValidation(t *testing.T) {
+	env := newTestEnv(t)
+	token := loginToken(t, env)
+	authHeader := map[string]string{"Authorization": "Bearer " + token}
+
+	// token_max > 0 with no reset duration -> 400.
+	badNoReset := `{
+		"name":"bad-rl",
+		"provider_configs":[{"provider":"openai","allowed_models":["gpt-4o"],"key_ids":["conn-1"]}],
+		"rate_limit":{"token_max":100}
+	}`
+	status, _ := call(t, env.handlers.RequireSession(env.handlers.CreateVirtualKey), "POST", "/api/virtual-keys",
+		badNoReset, nil, authHeader)
+	if status != fasthttp.StatusBadRequest {
+		t.Fatalf("rate_limit token_max without reset status = %d, want 400", status)
+	}
+
+	// request_max with an unparseable reset duration -> 400.
+	badReset := `{
+		"name":"bad-rl-2",
+		"provider_configs":[{"provider":"openai","allowed_models":["gpt-4o"],"key_ids":["conn-1"]}],
+		"rate_limit":{"request_max":5,"request_reset_period":"fortnightly"}
+	}`
+	status, _ = call(t, env.handlers.RequireSession(env.handlers.CreateVirtualKey), "POST", "/api/virtual-keys",
+		badReset, nil, authHeader)
+	if status != fasthttp.StatusBadRequest {
+		t.Fatalf("rate_limit unparseable reset status = %d, want 400", status)
+	}
+
+	// Valid dual-dimension config -> 201, round-trips.
+	good := `{
+		"name":"good-rl",
+		"provider_configs":[{"provider":"openai","allowed_models":["gpt-4o"],"key_ids":["conn-1"]}],
+		"rate_limit":{"token_max":1000,"token_reset_period":"daily","request_max":50,"request_reset_period":"1h"}
+	}`
+	status, envl2 := call(t, env.handlers.RequireSession(env.handlers.CreateVirtualKey), "POST", "/api/virtual-keys",
+		good, nil, authHeader)
+	if status != fasthttp.StatusCreated {
+		t.Fatalf("valid rate_limit create status = %d err = %q", status, errMessage(t, envl2))
+	}
+	createdWrap := dataField[map[string]any](t, envl2)
+	created, _ := createdWrap["virtual_key"].(map[string]any)
+	id, _ := created["id"].(string)
+
+	status, envl2 = call(t, env.handlers.RequireSession(env.handlers.GetVirtualKey), "GET", "/api/virtual-keys/"+id, "",
+		map[string]any{"id": id}, authHeader)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("get rate_limit vk status = %d err = %q", status, errMessage(t, envl2))
+	}
+	getPayload := dataField[map[string]any](t, envl2)
+	gotVK, _ := getPayload["virtual_key"].(map[string]any)
+	rl, _ := gotVK["rate_limit"].(map[string]any)
+	if rl == nil {
+		t.Fatalf("rate_limit absent after round-trip: %v", gotVK)
+	}
+	if rl["token_max"].(float64) != 1000 || rl["request_max"].(float64) != 50 {
+		t.Fatalf("rate_limit round-trip = %v, want token_max=1000 request_max=50", rl)
+	}
+}
