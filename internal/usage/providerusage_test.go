@@ -2,6 +2,7 @@ package usage
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -211,6 +212,74 @@ func TestGeminiUsageFetcher(t *testing.T) {
 		q := quotas["gemini-1.5-flash"].(map[string]any)
 		if q["used"] != float64(0) || q["total"] != float64(1000) {
 			t.Fatalf("quota = %v", q)
+		}
+	})
+}
+
+// TestProviderUsageDispatch asserts each of the 6 w7-usage-quota provider types
+// routes away from the generic "default" catch-all arm. BUILT providers reach
+// their own fetcher (exercised deeply in the per-provider test file); DEFERRED
+// providers return a provider-named fallback message distinct from the generic
+// "Usage API not implemented for <provider>" default. No real network: the only
+// network-touching arm (antigravity, BUILT) is pointed at an httptest server.
+func TestProviderUsageDispatch(t *testing.T) {
+	genericFor := func(p string) string {
+		return fmt.Sprintf("Usage API not implemented for %s", p)
+	}
+
+	t.Run("deferred providers return a provider-named fallback", func(t *testing.T) {
+		cases := []struct {
+			providerType string
+			wantContains string
+		}{
+			{"github", "GitHub"},
+			{"codex", "Codex"},
+			{"kiro", "Kiro"},
+			{"glm", "GLM"},
+			{"minimax", "MiniMax"},
+		}
+		for _, tc := range cases {
+			t.Run(tc.providerType, func(t *testing.T) {
+				conn := &store.Connection{}
+				got, err := FetchProviderUsage(tc.providerType, conn, http.DefaultClient)
+				if err != nil {
+					t.Fatalf("fetch: %v", err)
+				}
+				msg, _ := got["message"].(string)
+				if msg == genericFor(tc.providerType) {
+					t.Fatalf("%s still falls through to the generic default arm: %q", tc.providerType, msg)
+				}
+				if !strings.Contains(msg, tc.wantContains) {
+					t.Fatalf("%s fallback message = %q, want it to mention %q", tc.providerType, msg, tc.wantContains)
+				}
+			})
+		}
+	})
+
+	t.Run("antigravity routes to its built fetcher", func(t *testing.T) {
+		hit := false
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hit = true
+			if r.URL.Path != "/v1internal:retrieveUserQuota" {
+				t.Fatalf("unexpected path %s", r.URL.Path)
+			}
+			json.NewEncoder(w).Encode(map[string]any{"buckets": []map[string]any{}})
+		}))
+		t.Cleanup(srv.Close)
+
+		conn := &store.Connection{
+			AccessToken: "token-1",
+			Metadata:    `{"projectId":"proj-ag"}`,
+		}
+		got, err := FetchProviderUsage("antigravity", conn, srv.Client(), srv.URL)
+		if err != nil {
+			t.Fatalf("fetch: %v", err)
+		}
+		if !hit {
+			t.Fatal("antigravity did not reach its built fetcher (no HTTP call made)")
+		}
+		if msg, _ := got["message"].(string); msg == genericFor("antigravity") {
+			t.Fatalf("antigravity fell through to the generic default arm: %q", msg)
 		}
 	})
 }
