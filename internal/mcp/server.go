@@ -17,13 +17,28 @@ const (
 	rpcInternalError  = -32603
 )
 
+// ToolAnnotations is the optional MCP tool-annotation block (PAR-BF-MCP-077):
+// a display Title plus the behavioral hints (read-only, destructive, idempotent,
+// open-world). All fields are omitempty so a tool without annotation data
+// serializes exactly as before (additive shape). g0router's current probe source
+// supplies no annotation data, so this shape carries values only when a catalog
+// source provides them (077 PARTIAL: shape present, no probe-sourced data).
+type ToolAnnotations struct {
+	Title           string `json:"title,omitempty"`
+	ReadOnlyHint    bool   `json:"readOnlyHint,omitempty"`
+	DestructiveHint bool   `json:"destructiveHint,omitempty"`
+	IdempotentHint  bool   `json:"idempotentHint,omitempty"`
+	OpenWorldHint   bool   `json:"openWorldHint,omitempty"`
+}
+
 // ServerTool is one tool the server-mode catalog advertises over tools/list. It
 // is the shared shape the admin catalog assembler fills from the existing
 // CLIENT-mode aggregation (D3 — one source of truth).
 type ServerTool struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	InputSchema any    `json:"inputSchema,omitempty"`
+	Name        string           `json:"name"`
+	Description string           `json:"description"`
+	InputSchema any              `json:"inputSchema,omitempty"`
+	Annotations *ToolAnnotations `json:"annotations,omitempty"`
 }
 
 // CatalogSource yields the global un-scoped tool surface the server re-exposes

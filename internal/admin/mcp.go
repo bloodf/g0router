@@ -597,6 +597,11 @@ type catalogEntry struct {
 	// "<client>-<tool>" patterns and the AllowOnAllVirtualKeys bypass against. The
 	// antigravity ride-along carries an empty Client (no owning client).
 	Client string
+	// Annotations carries the optional PAR-BF-MCP-077 tool-annotation block onto
+	// the server-mode tools/list shape (D8). g0router's probe source supplies no
+	// annotation data today, so this is non-nil only when a future catalog source
+	// provides it (077 PARTIAL: shape present, no probe data) — additive omitempty.
+	Annotations *mcp.ToolAnnotations
 }
 
 // mcpToolCatalog aggregates the global tool surface ONCE (D3): discovered tools
@@ -668,7 +673,7 @@ func (h *Handlers) assembleServerCatalog() []mcp.ServerTool {
 	entries := h.mcpToolCatalog()
 	out := make([]mcp.ServerTool, 0, len(entries))
 	for _, e := range entries {
-		out = append(out, mcp.ServerTool{Name: e.Name, Description: e.Description})
+		out = append(out, mcp.ServerTool{Name: e.Name, Description: e.Description, Annotations: e.Annotations})
 	}
 	return out
 }
@@ -725,7 +730,7 @@ func (h *Handlers) scopedServerTools(vk string) (tools []mcp.ServerTool, scoped 
 	global := make([]mcp.ServerTool, 0, len(entries))
 	clientOf := make(map[string]string, len(entries))
 	for _, e := range entries {
-		global = append(global, mcp.ServerTool{Name: e.Name, Description: e.Description})
+		global = append(global, mcp.ServerTool{Name: e.Name, Description: e.Description, Annotations: e.Annotations})
 		clientOf[e.Name] = e.Client
 	}
 
