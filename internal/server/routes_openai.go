@@ -41,6 +41,8 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 	completions := api.NewCompletionsHandler(router_)
 	audio := api.NewAudioHandler(router_)
 	images := api.NewImagesHandler(router_)
+	files := api.NewFilesHandler(router_)
+	batches := api.NewBatchesHandler(router_)
 	if recorder != nil {
 		messages.SetUsageRecorder(recorder)
 		responses.SetUsageRecorder(recorder)
@@ -48,6 +50,8 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		completions.SetUsageRecorder(recorder)
 		audio.SetUsageRecorder(recorder)
 		images.SetUsageRecorder(recorder)
+		files.SetUsageRecorder(recorder)
+		batches.SetUsageRecorder(recorder)
 	}
 	if tracker != nil {
 		messages.SetPendingTracker(tracker)
@@ -56,6 +60,8 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		completions.SetPendingTracker(tracker)
 		audio.SetPendingTracker(tracker)
 		images.SetPendingTracker(tracker)
+		files.SetPendingTracker(tracker)
+		batches.SetPendingTracker(tracker)
 	}
 	if detail != nil {
 		messages.SetDetailCapture(detail)
@@ -64,6 +70,8 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		completions.SetDetailCapture(detail)
 		audio.SetDetailCapture(detail)
 		images.SetDetailCapture(detail)
+		files.SetDetailCapture(detail)
+		batches.SetDetailCapture(detail)
 	}
 	models := api.NewModelsHandler(router_)
 	if st != nil {
@@ -94,6 +102,8 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		completions.SetVKGate(vkGate)
 		audio.SetVKGate(vkGate)
 		images.SetVKGate(vkGate)
+		files.SetVKGate(vkGate)
+		batches.SetVKGate(vkGate)
 
 		// VK KeyID pinning selector (PAR-ROUTE-030).
 		selector := &vkPinnedSelector{
@@ -108,6 +118,8 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		completions.SetVKPinnedResolver(selector)
 		audio.SetVKPinnedResolver(selector)
 		images.SetVKPinnedResolver(selector)
+		files.SetVKPinnedResolver(selector)
+		batches.SetVKPinnedResolver(selector)
 	}
 
 	r.POST("/v1/chat/completions", chat.Handle)
@@ -120,6 +132,15 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 	r.POST("/v1/images/generations", images.Generations)
 	r.POST("/v1/images/edits", images.Edits)
 	r.POST("/v1/images/variations", images.Variations)
+	r.POST("/v1/files", files.Upload)
+	r.GET("/v1/files", files.List)
+	r.GET("/v1/files/{file_id}", files.Retrieve)
+	r.DELETE("/v1/files/{file_id}", files.Delete)
+	r.GET("/v1/files/{file_id}/content", files.Content)
+	r.POST("/v1/batches", batches.Create)
+	r.GET("/v1/batches", batches.List)
+	r.GET("/v1/batches/{batch_id}", batches.Retrieve)
+	r.POST("/v1/batches/{batch_id}/cancel", batches.Cancel)
 	r.GET("/v1/models", models.List)
 	r.GET("/v1/models/test/{kind}", models.GetTestByKind)
 	r.GET("/v1/models/{param}", models.GetOrByKind)
