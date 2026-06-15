@@ -589,6 +589,95 @@ func TestMCPServerPostVKValidation(t *testing.T) {
 	}
 }
 
+// completeOAuthTransport answers the OAuth discovery requests AND the token
+// exchange so Engine.Complete returns a connected account without real network.
+type completeOAuthTransport struct{}
+
+func (completeOAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	var body string
+	switch {
+	case strings.Contains(req.URL.Path, "oauth-protected-resource"):
+		body = `{"authorization_servers":["https://auth.example.com"]}`
+	case strings.Contains(req.URL.Path, "oauth-authorization-server"):
+		body = `{"authorization_endpoint":"https://auth.example.com/authorize","token_endpoint":"https://auth.example.com/token"}`
+	case strings.Contains(req.URL.Path, "token"):
+		body = `{"access_token":"at-secret","refresh_token":"rt-secret","expires_in":3600,"scope":"mcp"}`
+	default:
+		body = `{}`
+	}
+	return &http.Response{
+		StatusCode: 200,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}, nil
+}
+
+// TestMCPCompleteAuthLiveEngineComplete proves CompleteInstanceAuth calls the
+// formerly-dead Engine.Complete and returns the MASKED account (no token echoed),
+// plus 404 on an unknown instance (D7).
+func TestMCPCompleteAuthLiveEngineComplete(t *testing.T) {
+	env := newMCPTestEnv(t)
+	env.handlers.SetMCPEngine(mcp.NewEngine(env.store, &http.Client{Transport: completeOAuthTransport{}}))
+
+	// Create an http instance with a server URL.
+	status, envl := call(t, env.handlers.CreateInstance, "POST", "/api/mcp/instances",
+		`{"Name":"exa","Transport":"http","URL":"https://mcp.exa.ai/mcp"}`, nil, nil)
+	if status != fasthttp.StatusCreated {
+		t.Fatalf("create status = %d err = %q", status, errMessage(t, envl))
+	}
+	id := dataField[map[string]any](t, envl)["ID"].(string)
+
+	// Start the OAuth flow to persist a flow + obtain the state.
+	status, envl = call(t, env.handlers.StartInstanceAuth, "POST",
+		"/api/mcp/instances/"+id+"/auth/start", "", map[string]any{"id": id}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("auth/start status = %d err = %q", status, errMessage(t, envl))
+	}
+	authURL := dataField[map[string]any](t, envl)["url"].(string)
+	state := extractQueryParam(t, authURL, "state")
+
+	// Complete the flow.
+	status, envl = call(t, env.handlers.CompleteInstanceAuth, "POST",
+		"/api/mcp/instances/"+id+"/auth/complete",
+		`{"state":"`+state+`","code":"auth-code"}`, map[string]any{"id": id}, nil)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("auth/complete status = %d err = %q", status, errMessage(t, envl))
+	}
+	acct := dataField[map[string]json.RawMessage](t, envl)
+	raw, _ := json.Marshal(acct)
+	for _, leak := range []string{"at-secret", "rt-secret", "access_token", "refresh_token", state, "verifier"} {
+		if strings.Contains(string(raw), leak) {
+			t.Fatalf("complete-oauth leaked %q: %s", leak, raw)
+		}
+	}
+	if !strings.Contains(string(raw), "connected") {
+		t.Fatalf("complete-oauth account not connected: %s", raw)
+	}
+
+	// 404 on unknown instance.
+	status, _ = call(t, env.handlers.CompleteInstanceAuth, "POST",
+		"/api/mcp/instances/nope/auth/complete",
+		`{"state":"x","code":"y"}`, map[string]any{"id": "nope"}, nil)
+	if status != fasthttp.StatusNotFound {
+		t.Fatalf("unknown instance status = %d, want 404", status)
+	}
+}
+
+// extractQueryParam pulls a query param value out of a URL string.
+func extractQueryParam(t *testing.T, raw, key string) string {
+	t.Helper()
+	i := strings.Index(raw, key+"=")
+	if i < 0 {
+		t.Fatalf("url %q missing %s", raw, key)
+	}
+	rest := raw[i+len(key)+1:]
+	if j := strings.IndexAny(rest, "&"); j >= 0 {
+		rest = rest[:j]
+	}
+	return rest
+}
+
 // auditCount returns the number of mcp_server.tools_call audit entries.
 func mcpAuditCount(t *testing.T, env *testEnv) int {
 	t.Helper()
