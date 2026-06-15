@@ -156,5 +156,89 @@ func TestVirtualKeyCRUD(t *testing.T) {
 	}
 }
 
+// TestVirtualKeyTeamIDRoundTrip verifies the additive team_id column round-trips
+// through Create/Get/List/Update, and that a VK created without a team has an
+// empty team_id (the empty-string "un-teamed" sentinel, D4).
+func TestVirtualKeyTeamIDRoundTrip(t *testing.T) {
+	st := newTestStore(t)
+
+	// Created with a team_id round-trips.
+	withTeam := &VirtualKey{
+		VirtualKey: schemas.VirtualKey{
+			Name: "vk-teamed",
+			ProviderConfigs: []schemas.ProviderConfig{
+				{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+			},
+		},
+		TeamID: "team-123",
+	}
+	created, err := st.CreateVirtualKey(withTeam)
+	if err != nil {
+		t.Fatalf("CreateVirtualKey with team: %v", err)
+	}
+	if created.TeamID != "team-123" {
+		t.Fatalf("created TeamID = %q, want %q", created.TeamID, "team-123")
+	}
+
+	got, err := st.GetVirtualKeyByID(created.ID)
+	if err != nil {
+		t.Fatalf("GetVirtualKeyByID: %v", err)
+	}
+	if got.TeamID != "team-123" {
+		t.Fatalf("GetVirtualKeyByID TeamID = %q, want %q", got.TeamID, "team-123")
+	}
+
+	byKey, err := st.GetVirtualKeyByKey(created.Key)
+	if err != nil {
+		t.Fatalf("GetVirtualKeyByKey: %v", err)
+	}
+	if byKey.TeamID != "team-123" {
+		t.Fatalf("GetVirtualKeyByKey TeamID = %q, want %q", byKey.TeamID, "team-123")
+	}
+
+	// Created without a team has an empty team_id.
+	noTeam := &VirtualKey{
+		VirtualKey: schemas.VirtualKey{Name: "vk-unteamed"},
+	}
+	createdNoTeam, err := st.CreateVirtualKey(noTeam)
+	if err != nil {
+		t.Fatalf("CreateVirtualKey without team: %v", err)
+	}
+	if createdNoTeam.TeamID != "" {
+		t.Fatalf("un-teamed created TeamID = %q, want empty", createdNoTeam.TeamID)
+	}
+	gotNoTeam, err := st.GetVirtualKeyByID(createdNoTeam.ID)
+	if err != nil {
+		t.Fatalf("GetVirtualKeyByID un-teamed: %v", err)
+	}
+	if gotNoTeam.TeamID != "" {
+		t.Fatalf("un-teamed TeamID = %q, want empty", gotNoTeam.TeamID)
+	}
+
+	// List preserves team_id.
+	list, err := st.ListVirtualKeys()
+	if err != nil {
+		t.Fatalf("ListVirtualKeys: %v", err)
+	}
+	for _, vk := range list {
+		if vk.ID == created.ID && vk.TeamID != "team-123" {
+			t.Fatalf("list TeamID for teamed vk = %q, want %q", vk.TeamID, "team-123")
+		}
+	}
+
+	// Update mutates team_id.
+	got.TeamID = "team-456"
+	if err := st.UpdateVirtualKey(got); err != nil {
+		t.Fatalf("UpdateVirtualKey: %v", err)
+	}
+	reread, err := st.GetVirtualKeyByID(created.ID)
+	if err != nil {
+		t.Fatalf("GetVirtualKeyByID after update: %v", err)
+	}
+	if reread.TeamID != "team-456" {
+		t.Fatalf("TeamID after update = %q, want %q", reread.TeamID, "team-456")
+	}
+}
+
 func ptrFloat64(v float64) *float64 { return &v }
 func ptrInt(v int) *int             { return &v }

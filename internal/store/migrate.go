@@ -394,6 +394,10 @@ func migrate(db *sql.DB) error {
 		// type (openai/anthropic); non-node providers keep the '' defaults.
 		{"providers", "prefix", "TEXT NOT NULL DEFAULT ''"},
 		{"providers", "api_type", "TEXT NOT NULL DEFAULT ''"},
+		// VK→Team governance link (bf-gov-1, PAR-BF-GOV-001/D4). Empty string is
+		// the "un-teamed" sentinel; the hierarchy check skips the Team tier when
+		// team_id == ''.
+		{"virtual_keys", "team_id", "TEXT NOT NULL DEFAULT ''"},
 	} {
 		if err := ensureColumn(db, col.table, col.column, col.decl); err != nil {
 			return fmt.Errorf("ensure column %s.%s: %w", col.table, col.column, err)
