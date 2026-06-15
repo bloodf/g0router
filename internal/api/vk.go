@@ -1,13 +1,17 @@
 package api
 
+import "github.com/bloodf/g0router/internal/schemas"
+
 // VKProviderConfig binds a provider to the models a virtual key may use.
 // AllowAllKeys=true means any provider key is allowed: the gate returns no
 // pinned KeyIDs and falls through to normal selection (bf-gov-1, D5).
+// BlacklistedModels blocks models even when allowlisted (bf-gov-2, D3).
 type VKProviderConfig struct {
-	Provider      string
-	AllowedModels []string
-	KeyIDs        []string
-	AllowAllKeys  bool
+	Provider          string
+	AllowedModels     []string
+	BlacklistedModels schemas.BlackList
+	KeyIDs            []string
+	AllowAllKeys      bool
 }
 
 // VKInfo is the subset of virtual key state needed by VKGate. The Team* fields
@@ -96,20 +100,28 @@ func (g *VKGate) AllowVK(key, model, providerID string) (ok bool, status int, re
 }
 
 // matchProviderConfig returns the first matching provider config and whether a match
-// was found.
+// was found. It runs a two-pass filter per provider-matching config (bf-gov-2, D3):
+//  1. Blacklist pass (FIRST): a model in cfg.BlacklistedModels is blocked, so the
+//     config does not match — blacklist wins over allowlist.
+//  2. Allowlist pass (SECOND): an empty OR nil AllowedModels is legacy match-all
+//     (backward-compat VAR, D1 — the gate does NOT adopt empty=deny-all); a
+//     non-empty AllowedModels restricts to the listed models via WhiteList.IsAllowed.
 func matchProviderConfig(configs []VKProviderConfig, model, providerID string) (*VKProviderConfig, bool) {
 	for i := range configs {
 		cfg := &configs[i]
 		if cfg.Provider != providerID {
 			continue
 		}
+		// Blacklist pass first: a blocked model can never match this config.
+		if cfg.BlacklistedModels.IsBlocked(model) {
+			continue
+		}
+		// Allowlist pass: legacy match-all on empty/nil AllowedModels (VAR, D1).
 		if len(cfg.AllowedModels) == 0 {
 			return cfg, true
 		}
-		for _, m := range cfg.AllowedModels {
-			if m == model {
-				return cfg, true
-			}
+		if schemas.WhiteList(cfg.AllowedModels).IsAllowed(model) {
+			return cfg, true
 		}
 	}
 	return nil, false
