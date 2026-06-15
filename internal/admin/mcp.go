@@ -3,6 +3,8 @@ package admin
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -1199,5 +1201,197 @@ func (h *Handlers) DeleteToolGroup(ctx *fasthttp.RequestCtx) {
 		return
 	}
 	h.recordAudit(ctx, "mcp_tool_group.delete", existing.Name, "Deleted MCP tool group "+existing.Name)
+	writeData(ctx, fasthttp.StatusOK, map[string]any{})
+}
+
+// --- VK↔MCP assignment CRUD (bf-mcp-2 D-routes; serial-held route surface) ---
+
+// vkMCPConfigDTO is the assignment shape with snake_case json tags. It carries
+// only tool patterns + flags + the drift-detection config_hash — never a secret
+// (the no-leak DTO discipline). config_hash is the live drift-detection reader
+// (D8/079): it is RETURNED on read so an operator/client can detect config drift.
+type vkMCPConfigDTO struct {
+	ID                 int64    `json:"id"`
+	VirtualKeyID       string   `json:"virtual_key_id"`
+	MCPClientID        string   `json:"mcp_client_id"`
+	ToolsToExecute     []string `json:"tools_to_execute"`
+	ToolsToAutoExecute []string `json:"tools_to_auto_execute"`
+	ConfigHash         string   `json:"config_hash"`
+	CreatedAt          string   `json:"created_at,omitempty"`
+	UpdatedAt          string   `json:"updated_at,omitempty"`
+}
+
+func toVKMCPConfigDTO(c *store.VKMCPConfig) vkMCPConfigDTO {
+	exec := c.ToolsToExecute
+	if exec == nil {
+		exec = []string{}
+	}
+	auto := c.ToolsToAutoExecute
+	if auto == nil {
+		auto = []string{}
+	}
+	return vkMCPConfigDTO{
+		ID:                 c.ID,
+		VirtualKeyID:       c.VirtualKeyID,
+		MCPClientID:        c.MCPClientID,
+		ToolsToExecute:     exec,
+		ToolsToAutoExecute: auto,
+		ConfigHash:         c.ConfigHash,
+		CreatedAt:          isoFromUnix(c.CreatedAt),
+		UpdatedAt:          isoFromUnix(c.UpdatedAt),
+	}
+}
+
+// vkMCPConfigRequest is the assignment create/update body (snake_case).
+type vkMCPConfigRequest struct {
+	VirtualKeyID       string   `json:"virtual_key_id"`
+	MCPClientID        string   `json:"mcp_client_id"`
+	ToolsToExecute     []string `json:"tools_to_execute"`
+	ToolsToAutoExecute []string `json:"tools_to_auto_execute"`
+}
+
+// vkMCPConfigHash computes the deterministic drift-detection hash (D8/079): a
+// SHA-256 over the canonicalized assignment fields (VK, client, both pattern
+// lists). The hash changes iff the assignment changed, so a reader can detect
+// drift. PURE over its inputs.
+func vkMCPConfigHash(c *store.VKMCPConfig) string {
+	payload, _ := json.Marshal([]any{c.VirtualKeyID, c.MCPClientID, c.ToolsToExecute, c.ToolsToAutoExecute})
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
+}
+
+// ListVKMCPConfigs handles GET /api/mcp/vk-configs?virtual_key_id=. It lists the
+// assignments for a virtual key (the {data} array carries the DTO incl.
+// config_hash).
+func (h *Handlers) ListVKMCPConfigs(ctx *fasthttp.RequestCtx) {
+	vk := string(ctx.QueryArgs().Peek("virtual_key_id"))
+	rows, err := h.store.ListVKMCPConfigsByVK(vk)
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "list vk mcp configs")
+		return
+	}
+	out := make([]vkMCPConfigDTO, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, toVKMCPConfigDTO(r))
+	}
+	writeData(ctx, fasthttp.StatusOK, out)
+}
+
+// CreateVKMCPConfig handles POST /api/mcp/vk-configs. It runs the D5 subset
+// validation (rejecting an autoExecute ⊄ execute assignment with a 4xx {error}
+// BEFORE storage) and computes the D8 config_hash on write.
+func (h *Handlers) CreateVKMCPConfig(ctx *fasthttp.RequestCtx) {
+	var req vkMCPConfigRequest
+	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.VirtualKeyID == "" || req.MCPClientID == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "virtual_key_id and mcp_client_id are required")
+		return
+	}
+	if err := mcp.ValidateAutoExecuteSubset(req.ToolsToExecute, req.ToolsToAutoExecute); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+		return
+	}
+	rec := &store.VKMCPConfig{
+		VirtualKeyID:       req.VirtualKeyID,
+		MCPClientID:        req.MCPClientID,
+		ToolsToExecute:     req.ToolsToExecute,
+		ToolsToAutoExecute: req.ToolsToAutoExecute,
+	}
+	rec.ConfigHash = vkMCPConfigHash(rec)
+	created, err := h.store.CreateVKMCPConfig(rec)
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "create vk mcp config")
+		return
+	}
+	h.recordAudit(ctx, "mcp_vk_config.create", created.VirtualKeyID, "Created VK↔MCP assignment for "+created.VirtualKeyID)
+	writeData(ctx, fasthttp.StatusCreated, toVKMCPConfigDTO(created))
+}
+
+// GetVKMCPConfig handles GET /api/mcp/vk-configs/{id}. The DTO carries the
+// config_hash for drift-detection (D8/079 live reader).
+func (h *Handlers) GetVKMCPConfig(ctx *fasthttp.RequestCtx) {
+	id, ok := flagID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
+	c, err := h.store.GetVKMCPConfig(id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(ctx, fasthttp.StatusNotFound, "vk mcp config not found")
+		return
+	}
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "load vk mcp config")
+		return
+	}
+	writeData(ctx, fasthttp.StatusOK, toVKMCPConfigDTO(c))
+}
+
+// UpdateVKMCPConfig handles PUT /api/mcp/vk-configs/{id}. It re-runs the D5 subset
+// validation and re-computes the D8 config_hash so a change is reflected in the
+// drift-detection hash.
+func (h *Handlers) UpdateVKMCPConfig(ctx *fasthttp.RequestCtx) {
+	id, ok := flagID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
+	var req vkMCPConfigRequest
+	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.VirtualKeyID == "" || req.MCPClientID == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "virtual_key_id and mcp_client_id are required")
+		return
+	}
+	if err := mcp.ValidateAutoExecuteSubset(req.ToolsToExecute, req.ToolsToAutoExecute); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, err.Error())
+		return
+	}
+	rec := &store.VKMCPConfig{
+		VirtualKeyID:       req.VirtualKeyID,
+		MCPClientID:        req.MCPClientID,
+		ToolsToExecute:     req.ToolsToExecute,
+		ToolsToAutoExecute: req.ToolsToAutoExecute,
+	}
+	rec.ConfigHash = vkMCPConfigHash(rec)
+	updated, err := h.store.UpdateVKMCPConfig(id, rec)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(ctx, fasthttp.StatusNotFound, "vk mcp config not found")
+		return
+	}
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "update vk mcp config")
+		return
+	}
+	h.recordAudit(ctx, "mcp_vk_config.update", updated.VirtualKeyID, "Updated VK↔MCP assignment for "+updated.VirtualKeyID)
+	writeData(ctx, fasthttp.StatusOK, toVKMCPConfigDTO(updated))
+}
+
+// DeleteVKMCPConfig handles DELETE /api/mcp/vk-configs/{id}.
+func (h *Handlers) DeleteVKMCPConfig(ctx *fasthttp.RequestCtx) {
+	id, ok := flagID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
+	existing, err := h.store.GetVKMCPConfig(id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(ctx, fasthttp.StatusNotFound, "vk mcp config not found")
+		return
+	}
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "load vk mcp config")
+		return
+	}
+	if err := h.store.DeleteVKMCPConfig(id); err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "delete vk mcp config")
+		return
+	}
+	h.recordAudit(ctx, "mcp_vk_config.delete", existing.VirtualKeyID, "Deleted VK↔MCP assignment for "+existing.VirtualKeyID)
 	writeData(ctx, fasthttp.StatusOK, map[string]any{})
 }

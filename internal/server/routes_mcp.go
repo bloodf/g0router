@@ -18,4 +18,13 @@ func RegisterMCPRoutes(r *router.Router, h *admin.Handlers) {
 	r.POST("/mcp", h.MCPServerPost)
 	r.GET("/mcp", h.MCPServerSSE)
 	r.POST("/api/mcp/instances/{id}/auth/complete", h.RequireSession(h.CompleteInstanceAuth))
+
+	// bf-mcp-2: additive VK↔MCP assignment CRUD (session-gated, {data,error}
+	// envelope). The create/update handlers run the subset validation (D5/049)
+	// and compute the drift-detection config_hash (D8/079).
+	r.GET("/api/mcp/vk-configs", h.RequireSession(h.ListVKMCPConfigs))
+	r.POST("/api/mcp/vk-configs", h.RequireSession(h.CreateVKMCPConfig))
+	r.GET("/api/mcp/vk-configs/{id}", h.RequireSession(h.GetVKMCPConfig))
+	r.PUT("/api/mcp/vk-configs/{id}", h.RequireSession(h.UpdateVKMCPConfig))
+	r.DELETE("/api/mcp/vk-configs/{id}", h.RequireSession(h.DeleteVKMCPConfig))
 }
