@@ -116,6 +116,19 @@ type ComboDispatcher interface {
 	ExecuteCombo(name string, fn func(model, connID, credential string) (inference.Verdict, error)) error
 }
 
+// SemanticCache is the api-local seam for the exact-key response cache
+// (bf-core-2). It is wired via SetSemanticCache so the api package does not
+// import internal/semcache or internal/store directly (mirrors modelResolver /
+// ComboDispatcher). Enabled() reports the [semantic_cache] feature flag;
+// Lookup/Store implement read-through/write-through over a deterministic
+// (model, prompt) key. The semantic-similarity half is deferred (D2): there is
+// no embedder here.
+type SemanticCache interface {
+	Enabled() bool
+	Lookup(ctx context.Context, model, prompt string) ([]byte, bool, error)
+	Store(ctx context.Context, model, prompt string, response []byte) error
+}
+
 // ChatHandler handles POST /v1/chat/completions.
 type ChatHandler struct {
 	router           modelResolver
@@ -126,6 +139,7 @@ type ChatHandler struct {
 	detailCapture    DetailCapture
 	vkGate           *VKGate
 	pinnedResolver   VKPinnedKeyResolver
+	semanticCache    SemanticCache
 }
 
 // NewChatHandler creates a chat completion handler.
@@ -161,6 +175,12 @@ func (h *ChatHandler) SetVKGate(g *VKGate) { h.vkGate = g }
 // PinnedResolver setter wires the resolver for virtual-key KeyID pinning
 // (PAR-ROUTE-030).
 func (h *ChatHandler) SetVKPinnedResolver(r VKPinnedKeyResolver) { h.pinnedResolver = r }
+
+// SetSemanticCache wires the exact-key response cache (bf-core-2). When unset
+// (nil) or with the [semantic_cache] flag off, the chat path is byte-identical
+// to pre-bf-core-2 (clean no-op). Read-through/write-through runs ONLY in the
+// non-streaming branch (D6).
+func (h *ChatHandler) SetSemanticCache(c SemanticCache) { h.semanticCache = c }
 
 // classifyProviderError maps a provider error to the verdict used by the
 // account-fallback and combo engines. It reuses the w4-b classifier.
@@ -458,6 +478,22 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
+	// Exact-key semantic-cache read-through (bf-core-2, D4/D6): non-stream branch
+	// only, positioned where a guardrail check would sit (after the VK gate,
+	// before dispatch). On a hit the cached bytes are returned and the provider
+	// is short-circuited; flag-off or nil-cache is a clean no-op.
+	cachePrompt := ""
+	cacheActive := h.semanticCache != nil && h.semanticCache.Enabled()
+	if cacheActive {
+		cachePrompt = semanticCachePrompt(&req)
+		if cached, hit, err := h.semanticCache.Lookup(context.Background(), req.Model, cachePrompt); err == nil && hit {
+			ctx.SetStatusCode(fasthttp.StatusOK)
+			ctx.SetContentTypeBytes([]byte("application/json"))
+			ctx.SetBody(cached)
+			return
+		}
+	}
+
 	resp, perr := provider.ChatCompletion(gatewayCtx, key, &req)
 	// Refresh-retry: up to 3 refresh+dispatch cycles on 401/403 (PAR-ROUTE-023).
 	if perr != nil && (perr.StatusCode == 401 || perr.StatusCode == 403) && h.refresher != nil {
@@ -487,12 +523,34 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	ctx.SetContentTypeBytes([]byte("application/json"))
 	ctx.SetBody(b)
 
+	// Exact-key write-through on a miss (bf-core-2): persist the marshaled
+	// response under the (model, prompt) key so an identical follow-up
+	// short-circuits the provider. Best-effort — a cache write failure must not
+	// fail the request that already succeeded.
+	if cacheActive {
+		_ = h.semanticCache.Store(context.Background(), req.Model, cachePrompt, b)
+	}
+
 	var pt, ct int64
 	if resp != nil && resp.Usage != nil {
 		pt = int64(resp.Usage.PromptTokens)
 		ct = int64(resp.Usage.CompletionTokens)
 	}
 	g.recordNonStream("/v1/chat/completions", req.Model, key.Provider, key.ID, raw, headers, pt, ct, resp)
+}
+
+// semanticCachePrompt builds a deterministic prompt string for the exact-key
+// cache from the request messages (bf-core-2 D1). Go marshals struct fields in
+// declaration order and slices in order, so identical message lists yield an
+// identical string; the semcache key layer then normalizes + hashes it. A
+// marshal failure (unexpected for a request that already unmarshaled) yields ""
+// — a stable but low-entropy key, which the caller still gates on the flag.
+func semanticCachePrompt(req *schemas.ChatRequest) string {
+	b, err := json.Marshal(req.Messages)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 // recordGlue assembles the shared usage-recording dependencies for this handler.
