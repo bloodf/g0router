@@ -532,3 +532,91 @@ func TestSumCostByAPIKey(t *testing.T) {
 		t.Errorf("SumCostByAPIKey(vk-1) with inclusive boundary = %v, want 1.25", got)
 	}
 }
+
+// TestSumCostByTeam verifies the team-scoped aggregate (bf-gov-1, D8): cost is
+// summed over every VK belonging to the team (joining through virtual_keys.team_id),
+// filtered by timestamp window, with unknown teams and pre-window rows excluded.
+func TestSumCostByTeam(t *testing.T) {
+	st := newTestStore(t)
+
+	sinceISO := "2026-06-12T09:00:00Z"
+
+	// Two VKs on team "T", one VK on a different team "U", and one un-teamed VK.
+	vkT1, err := st.CreateVirtualKey(&VirtualKey{TeamID: "T"})
+	if err != nil {
+		t.Fatalf("create vkT1: %v", err)
+	}
+	vkT2, err := st.CreateVirtualKey(&VirtualKey{TeamID: "T"})
+	if err != nil {
+		t.Fatalf("create vkT2: %v", err)
+	}
+	vkU, err := st.CreateVirtualKey(&VirtualKey{TeamID: "U"})
+	if err != nil {
+		t.Fatalf("create vkU: %v", err)
+	}
+	vkNone, err := st.CreateVirtualKey(&VirtualKey{})
+	if err != nil {
+		t.Fatalf("create vkNone: %v", err)
+	}
+
+	rows := []struct {
+		timestamp string
+		apiKey    string
+		cost      float64
+	}{
+		{"2026-06-12T09:30:00Z", vkT1.Key, 0.4},  // team T, in window
+		{"2026-06-12T10:30:00Z", vkT2.Key, 0.6},  // team T, in window
+		{"2026-06-12T08:30:00Z", vkT1.Key, 9.9},  // team T, before window (excluded)
+		{"2026-06-12T10:00:00Z", vkU.Key, 5.0},   // team U (excluded by team filter)
+		{"2026-06-12T10:00:00Z", vkNone.Key, 7.0}, // un-teamed (excluded by team filter)
+	}
+	for _, r := range rows {
+		if _, err := st.DB().Exec(
+			`INSERT INTO request_log (
+				timestamp, provider, model, connection_id, api_key, endpoint,
+				prompt_tokens, completion_tokens, cost, status, tokens, meta
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.timestamp, "openai", "gpt-4o", "conn-1", r.apiKey, "/v1",
+			0, 0, r.cost, "ok", "{}", "{}",
+		); err != nil {
+			t.Fatalf("insert seed row (%s, %q): %v", r.timestamp, r.apiKey, err)
+		}
+	}
+
+	// Team T in window: 0.4 + 0.6 = 1.0.
+	got, err := st.SumCostByTeam("T", sinceISO)
+	if err != nil {
+		t.Fatalf("SumCostByTeam(T): %v", err)
+	}
+	if got != 1.0 {
+		t.Errorf("SumCostByTeam(T) = %v, want 1.0", got)
+	}
+
+	// Unknown team: 0.
+	got, err = st.SumCostByTeam("unknown", sinceISO)
+	if err != nil {
+		t.Fatalf("SumCostByTeam(unknown): %v", err)
+	}
+	if got != 0.0 {
+		t.Errorf("SumCostByTeam(unknown) = %v, want 0.0", got)
+	}
+
+	// Boundary inclusivity: a row at exactly sinceISO is counted.
+	if _, err := st.DB().Exec(
+		`INSERT INTO request_log (
+			timestamp, provider, model, connection_id, api_key, endpoint,
+			prompt_tokens, completion_tokens, cost, status, tokens, meta
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sinceISO, "openai", "gpt-4o", "conn-1", vkT1.Key, "/v1",
+		0, 0, 0.25, "ok", "{}", "{}",
+	); err != nil {
+		t.Fatalf("insert boundary row: %v", err)
+	}
+	got, err = st.SumCostByTeam("T", sinceISO)
+	if err != nil {
+		t.Fatalf("SumCostByTeam(T) after boundary insert: %v", err)
+	}
+	if got != 1.25 {
+		t.Errorf("SumCostByTeam(T) with inclusive boundary = %v, want 1.25", got)
+	}
+}
