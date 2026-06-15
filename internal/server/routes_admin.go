@@ -191,6 +191,10 @@ func RegisterAdminRoutes(r *router.Router, h *admin.Handlers) {
 	r.PUT("/api/mcp/tool-groups/{id}", h.RequireSession(h.UpdateToolGroup))
 	r.DELETE("/api/mcp/tool-groups/{id}", h.RequireSession(h.DeleteToolGroup))
 
+	// MCP server mode (bf-mcp-1, serial slot): NEW public POST/GET /mcp JSON-RPC
+	// + SSE surface, plus the session-gated complete-oauth route.
+	RegisterMCPRoutes(r, h)
+
 	// Skills catalog (read-only). NOT under /api/mcp/, so a normal session route.
 	r.GET("/api/skills", h.RequireSession(h.ListSkills))
 

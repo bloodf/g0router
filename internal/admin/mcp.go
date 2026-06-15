@@ -809,12 +809,21 @@ func (h *Handlers) MCPServerSSE(ctx *fasthttp.RequestCtx) {
 	ctx.Response.Header.Set("Cache-Control", "no-cache")
 	ctx.Response.Header.Set("Connection", "keep-alive")
 
-	clientDone := ctx.Done()
+	clientDone := safeCtxDone(ctx)
 	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		h.serveMCPSSE(ctx, w, vk, ticker.C, clientDone, nil)
 	})
+}
+
+// safeCtxDone returns ctx.Done(), recovering from the panic a bare
+// *fasthttp.RequestCtx (no live server) raises so the handler stays callable in
+// unit tests (mirrors api/chat.go tryDeriveCancel). A nil channel never fires,
+// so the SSE loop relies on the heartbeat-channel close to exit in that case.
+func safeCtxDone(ctx *fasthttp.RequestCtx) (done <-chan struct{}) {
+	defer func() { _ = recover() }()
+	return ctx.Done()
 }
 
 // mcpSSEWriter is the flushable sink the SSE loop writes to. It is the same
