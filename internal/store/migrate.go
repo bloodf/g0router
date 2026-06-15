@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"regexp"
+	"time"
 )
 
 var identifierRe = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
@@ -409,6 +410,21 @@ func migrate(db *sql.DB) error {
 		stmt := fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s(%s)", idx.name, idx.table, idx.columns)
 		if _, err := db.Exec(stmt); err != nil {
 			return fmt.Errorf("create index %s: %w", idx.name, err)
+		}
+	}
+
+	// Seed feature flags (bf-core-2 / D8). Idempotent INSERT OR IGNORE on the
+	// UNIQUE key: the row is created OFF by default on a fresh store and never
+	// overwritten on subsequent migrations, so an admin toggle persists.
+	for _, f := range []struct{ key, description string }{
+		{"semantic_cache", "Exact-key-hash semantic response cache for non-streaming chat"},
+	} {
+		if _, err := db.Exec(
+			`INSERT OR IGNORE INTO feature_flags (key, enabled, description, created_at)
+			 VALUES (?, 0, ?, ?)`,
+			f.key, f.description, time.Now().UTC().Format(time.RFC3339),
+		); err != nil {
+			return fmt.Errorf("seed feature flag %s: %w", f.key, err)
 		}
 	}
 

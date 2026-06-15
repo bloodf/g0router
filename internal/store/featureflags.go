@@ -62,6 +62,22 @@ func (s *Store) SetFeatureFlagEnabled(id int64, enabled bool) (*FeatureFlag, err
 	return s.GetFeatureFlagByID(id)
 }
 
+// IsFeatureEnabled reports whether the flag with the given key is enabled.
+// A missing flag fails OFF — it returns (false, nil) so callers (e.g. the
+// semantic-cache hook, bf-core-2/D8) degrade to a clean no-op rather than an
+// error. A real query error is returned.
+func (s *Store) IsFeatureEnabled(key string) (bool, error) {
+	var enabled int
+	err := s.db.QueryRow("SELECT enabled FROM feature_flags WHERE key = ?", key).Scan(&enabled)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("is feature enabled %s: %w", key, err)
+	}
+	return enabled != 0, nil
+}
+
 func scanFeatureFlag(row interface {
 	Scan(dest ...any) error
 }) (*FeatureFlag, error) {
