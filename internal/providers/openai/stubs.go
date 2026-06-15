@@ -14,22 +14,6 @@ func (p *Provider) ResponsesStream(ctx *schemas.GatewayContext, postHookRunner s
 	return nil, notImplemented("responses_stream")
 }
 
-func (p *Provider) ImageGeneration(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.ImageGenerationRequest) (*schemas.ImageGenerationResponse, *schemas.ProviderError) {
-	return nil, notImplemented("image_generation")
-}
-
-func (p *Provider) ImageGenerationStream(ctx *schemas.GatewayContext, postHookRunner schemas.PostHookRunner, key schemas.Key, request *schemas.ImageGenerationRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
-	return nil, notImplemented("image_generation_stream")
-}
-
-func (p *Provider) ImageEdit(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.ImageEditRequest) (*schemas.ImageGenerationResponse, *schemas.ProviderError) {
-	return nil, notImplemented("image_edit")
-}
-
-func (p *Provider) ImageVariation(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.ImageVariationRequest) (*schemas.ImageGenerationResponse, *schemas.ProviderError) {
-	return nil, notImplemented("image_variation")
-}
-
 func (p *Provider) FileUpload(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.FileUploadRequest) (*schemas.FileObject, *schemas.ProviderError) {
 	return nil, notImplemented("file_upload")
 }
