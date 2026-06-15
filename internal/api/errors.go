@@ -16,6 +16,16 @@ var jsonMarshal = json.Marshal
 // If JSON marshaling fails (e.g. an unrepresentable value), falls back
 // to a plain-text 500 response instead of silently dropping the error.
 func writeError(ctx *fasthttp.RequestCtx, status int, errType, message string, code *string) {
+	writeErrorWithParam(ctx, status, errType, message, code, nil)
+}
+
+// writeErrorWithParam is writeError plus the optional OpenAI error `param` field.
+// When param is non-nil it is surfaced under error.param (the upstream openai
+// error object includes param on validation errors); writeError delegates here
+// with a nil param so all existing call sites keep their stable signature
+// (PAR-BF-OAI-302 variant-augment — the existing APIError.Param surfaced; the
+// envelope shape is otherwise unchanged).
+func writeErrorWithParam(ctx *fasthttp.RequestCtx, status int, errType, message string, code, param *string) {
 	resp := map[string]any{
 		"error": map[string]any{
 			"message": message,
