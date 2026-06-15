@@ -101,6 +101,11 @@ func RegisterOpenAIRoutes(r *router.Router, router_ *inference.Router, st *store
 		// x-g0-vk virtual-key gate (PAR-ROUTE-030/031): resolver and quota
 		// adapters keep the api package free of store/governance imports.
 		vkGate := api.NewVKGate(newVKResolverAdapter(st), newVKQuotaAdapter(governance.NewQuotaEngine(st, time.Now)))
+		// VK mandatory mode (bf-gov-4, D3): read the vk_mandatory flag FRESH per
+		// request so an operator toggle takes effect immediately. Fail-OFF — a
+		// read error degrades to "not mandatory" (the backward-compatible default),
+		// so the discarded error is intentional, not sloppy.
+		vkGate.SetMandatoryChecker(func() bool { ok, _ := st.IsFeatureEnabled("vk_mandatory"); return ok })
 		chat.SetVKGate(vkGate)
 		messages.SetVKGate(vkGate)
 		responses.SetVKGate(vkGate)

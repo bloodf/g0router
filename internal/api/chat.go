@@ -381,25 +381,29 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before dispatch.
+	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before
+	// dispatch. AllowVK is called unconditionally so the injected mandatory
+	// predicate (bf-gov-4, D2/Option-A) can reject an absent VK when the
+	// vk_mandatory flag is ON. AllowVK("") short-circuits at its own key==""
+	// branch — when mandatory OFF it returns (true,0,"",nil) and the blocks
+	// below are no-ops; when mandatory ON it returns (false,401,...) and we
+	// reject. Byte- and perf-identical to pre-bf-gov-4 when the flag is OFF.
 	vkHeader := string(ctx.Request.Header.Peek("x-g0-vk"))
-	if vkHeader != "" {
-		ok, status, reason, keyIDs := h.vkGate.AllowVK(vkHeader, req.Model, key.Provider)
-		if !ok {
-			errType := "invalid_request_error"
-			if status == 429 {
-				errType = "rate_limit_exceeded"
-			}
-			// Surface the typed governance Decision as error.code (bf-gov-3, D8):
-			// a token/request/budget/rate denial carries its snake_case code.
-			writeError(ctx, status, errType, reason, DecisionCodeForReason(reason))
-			return
+	ok, status, reason, keyIDs := h.vkGate.AllowVK(vkHeader, req.Model, key.Provider)
+	if !ok {
+		errType := "invalid_request_error"
+		if status == 429 {
+			errType = "rate_limit_exceeded"
 		}
-		if len(keyIDs) > 0 && h.pinnedResolver != nil {
-			if connID, credential, ok := h.pinnedResolver.ResolvePinned(key.Provider, req.Model, keyIDs); ok {
-				key.ID = connID
-				key.Value = credential
-			}
+		// Surface the typed governance Decision as error.code (bf-gov-3, D8):
+		// a token/request/budget/rate denial carries its snake_case code.
+		writeError(ctx, status, errType, reason, DecisionCodeForReason(reason))
+		return
+	}
+	if len(keyIDs) > 0 && h.pinnedResolver != nil {
+		if connID, credential, ok := h.pinnedResolver.ResolvePinned(key.Provider, req.Model, keyIDs); ok {
+			key.ID = connID
+			key.Value = credential
 		}
 	}
 

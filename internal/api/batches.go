@@ -57,26 +57,27 @@ func (h *BatchesHandler) resolveAndGate(ctx *fasthttp.RequestCtx, raw []byte, he
 		return nil, schemas.Key{}, &schemas.ProviderError{StatusCode: 400}
 	}
 
+	// x-g0-vk gate: unconditional so AllowVK("") reaches the mandatory branch
+	// (bf-gov-4 Option-A). When mandatory OFF and vkHeader=="": returns
+	// (true,0,"",nil) — all blocks below are no-ops, byte-identical to before.
 	vkHeader := string(ctx.Request.Header.Peek("x-g0-vk"))
-	if vkHeader != "" {
-		ok, status, reason, keyIDs := h.vkGate.AllowVK(vkHeader, model, key.Provider)
-		if !ok {
-			errType := "invalid_request_error"
-			if status == 429 {
-				errType = "rate_limit_exceeded"
-			}
-			g.recordError(endpoint, model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: status, Message: reason, Type: errType})
-			writeError(ctx, status, errType, reason, nil)
-			return nil, schemas.Key{}, &schemas.ProviderError{StatusCode: status}
+	ok, status, reason, keyIDs := h.vkGate.AllowVK(vkHeader, model, key.Provider)
+	if !ok {
+		errType := "invalid_request_error"
+		if status == 429 {
+			errType = "rate_limit_exceeded"
 		}
-		if len(keyIDs) > 0 && h.pinnedResolver != nil {
-			if connID, credential, ok := h.pinnedResolver.ResolvePinned(key.Provider, model, keyIDs); ok {
-				key.ID = connID
-				key.Value = credential
-			}
-		}
-		g.apiKey = vkHeader
+		g.recordError(endpoint, model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: status, Message: reason, Type: errType})
+		writeError(ctx, status, errType, reason, nil)
+		return nil, schemas.Key{}, &schemas.ProviderError{StatusCode: status}
 	}
+	if len(keyIDs) > 0 && h.pinnedResolver != nil {
+		if connID, credential, ok := h.pinnedResolver.ResolvePinned(key.Provider, model, keyIDs); ok {
+			key.ID = connID
+			key.Value = credential
+		}
+	}
+	g.apiKey = vkHeader
 	return provider, key, nil
 }
 

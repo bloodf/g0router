@@ -68,27 +68,28 @@ func (h *CompletionsHandler) Handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before dispatch.
+	// x-g0-vk virtual-key gate (PAR-ROUTE-030): after model resolution, before
+	// dispatch. Unconditional so AllowVK("") reaches the mandatory branch
+	// (bf-gov-4 Option-A). When mandatory OFF and vkHeader=="": returns
+	// (true,0,"",nil) — all blocks below are no-ops, byte-identical to before.
 	vkHeader := string(ctx.Request.Header.Peek("x-g0-vk"))
-	if vkHeader != "" {
-		ok, status, reason, keyIDs := h.vkGate.AllowVK(vkHeader, req.Model, key.Provider)
-		if !ok {
-			errType := "invalid_request_error"
-			if status == 429 {
-				errType = "rate_limit_exceeded"
-			}
-			g.recordError("/v1/completions", req.Model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: status, Message: reason, Type: errType})
-			writeError(ctx, status, errType, reason, nil)
-			return
+	ok, status, reason, keyIDs := h.vkGate.AllowVK(vkHeader, req.Model, key.Provider)
+	if !ok {
+		errType := "invalid_request_error"
+		if status == 429 {
+			errType = "rate_limit_exceeded"
 		}
-		if len(keyIDs) > 0 && h.pinnedResolver != nil {
-			if connID, credential, ok := h.pinnedResolver.ResolvePinned(key.Provider, req.Model, keyIDs); ok {
-				key.ID = connID
-				key.Value = credential
-			}
-		}
-		g.apiKey = vkHeader
+		g.recordError("/v1/completions", req.Model, key.Provider, key.ID, raw, headers, &schemas.ProviderError{StatusCode: status, Message: reason, Type: errType})
+		writeError(ctx, status, errType, reason, nil)
+		return
 	}
+	if len(keyIDs) > 0 && h.pinnedResolver != nil {
+		if connID, credential, ok := h.pinnedResolver.ResolvePinned(key.Provider, req.Model, keyIDs); ok {
+			key.ID = connID
+			key.Value = credential
+		}
+	}
+	g.apiKey = vkHeader
 
 	// Pending-tracker start (PAR-USAGE-018 wiring half).
 	if h.pendingTracker != nil {
