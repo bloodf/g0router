@@ -129,6 +129,76 @@ func TestVirtualKeysAdminCRUD(t *testing.T) {
 	}
 }
 
+// TestVirtualKeyListValidation verifies bf-gov-2 D5: the VK create/update path
+// calls WhiteList/BlackList.Validate on each provider config and rejects (400) a
+// list that mixes "*" with explicit models; a valid blacklisted_models round-trips
+// through config_json.
+func TestVirtualKeyListValidation(t *testing.T) {
+	env := newTestEnv(t)
+	token := loginToken(t, env)
+	authHeader := map[string]string{"Authorization": "Bearer " + token}
+
+	// Invalid allowed_models (mixes "*" with explicit) is rejected on create.
+	badAllow := `{
+		"name":"bad-allow",
+		"provider_configs":[{"provider":"openai","allowed_models":["*","gpt-4o"],"key_ids":["conn-1"]}]
+	}`
+	status, _ := call(t, env.handlers.RequireSession(env.handlers.CreateVirtualKey), "POST", "/api/virtual-keys",
+		badAllow, nil, authHeader)
+	if status != fasthttp.StatusBadRequest {
+		t.Fatalf("invalid allowed_models status = %d, want 400", status)
+	}
+
+	// Invalid blacklisted_models (mixes "*" with explicit) is rejected on create.
+	badBlock := `{
+		"name":"bad-block",
+		"provider_configs":[{"provider":"openai","allowed_models":["gpt-4o"],"blacklisted_models":["*","gpt-4o"],"key_ids":["conn-1"]}]
+	}`
+	status, _ = call(t, env.handlers.RequireSession(env.handlers.CreateVirtualKey), "POST", "/api/virtual-keys",
+		badBlock, nil, authHeader)
+	if status != fasthttp.StatusBadRequest {
+		t.Fatalf("invalid blacklisted_models status = %d, want 400", status)
+	}
+
+	// Valid blacklisted_models round-trips through config_json.
+	good := `{
+		"name":"good-vk",
+		"provider_configs":[{"provider":"openai","allowed_models":["gpt-4o","gpt-4"],"blacklisted_models":["gpt-4"],"key_ids":["conn-1"]}]
+	}`
+	status, envl := call(t, env.handlers.RequireSession(env.handlers.CreateVirtualKey), "POST", "/api/virtual-keys",
+		good, nil, authHeader)
+	if status != fasthttp.StatusCreated {
+		t.Fatalf("valid blacklist create status = %d err = %q", status, errMessage(t, envl))
+	}
+	createdWrap := dataField[map[string]any](t, envl)
+	created, _ := createdWrap["virtual_key"].(map[string]any)
+	id, _ := created["id"].(string)
+
+	status, envl = call(t, env.handlers.RequireSession(env.handlers.GetVirtualKey), "GET", "/api/virtual-keys/"+id, "",
+		map[string]any{"id": id}, authHeader)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("get status = %d err = %q", status, errMessage(t, envl))
+	}
+	getPayload := dataField[map[string]any](t, envl)
+	gotVK, _ := getPayload["virtual_key"].(map[string]any)
+	pcs, _ := gotVK["provider_configs"].([]any)
+	if len(pcs) != 1 {
+		t.Fatalf("provider_configs length = %d, want 1", len(pcs))
+	}
+	pc0, _ := pcs[0].(map[string]any)
+	bl, _ := pc0["blacklisted_models"].([]any)
+	if len(bl) != 1 || bl[0] != "gpt-4" {
+		t.Fatalf("blacklisted_models = %v, want [gpt-4]", bl)
+	}
+
+	// Update with an invalid list is rejected (400).
+	status, _ = call(t, env.handlers.RequireSession(env.handlers.UpdateVirtualKey), "PUT", "/api/virtual-keys/"+id,
+		badBlock, map[string]any{"id": id}, authHeader)
+	if status != fasthttp.StatusBadRequest {
+		t.Fatalf("update invalid blacklisted_models status = %d, want 400", status)
+	}
+}
+
 // TestVirtualKeyTeamIDAssignment verifies the VK→Team link is accepted, persisted,
 // and surfaced by the admin API (bf-gov-1, D2/D4): a create/update carrying
 // team_id round-trips, and the budget-owner assignment passes ValidateBudgetOwner.
