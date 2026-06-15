@@ -718,6 +718,14 @@ func TestVKSpendAttribution(t *testing.T) {
 // TestRecordStreamClaudeUsageKeys verifies that recordStream maps Claude-shaped
 // usage keys (input_tokens/output_tokens) onto the OpenAI-shaped entry fields,
 // preserving the raw key set in entry.Tokens.
+//
+// This is also the bf-gov-3 021/022 streaming-finalization VAR proof: a
+// completed streamed request produces exactly ONE request_log row with final
+// usage (recorder entries == 1, PromptTokens/CompletionTokens carry the final
+// totals), never a per-chunk row. g0router's SaveUsage IS the streaming-aware
+// finalized write, so the dual-dimension SQL-live aggregates (SumTokensByAPIKey
+// / SumRequestsByAPIKey) honor finalization inherently — no UsageUpdate struct
+// and no Accrue method are built (bf-gov-3, D4).
 func TestRecordStreamClaudeUsageKeys(t *testing.T) {
 	recorder := &fakeUsageRecorder{}
 	g := &recordGlue{recorder: recorder}
