@@ -35,11 +35,6 @@ func TestNotImplementedStubs(t *testing.T) {
 	}{
 		{"Responses", func() *schemas.ProviderError { _, e := p.Responses(ctx, key, nil); return e }()},
 		{"ResponsesStream", func() *schemas.ProviderError { _, e := p.ResponsesStream(ctx, nil, key, nil); return e }()},
-		{"FileUpload", func() *schemas.ProviderError { _, e := p.FileUpload(ctx, key, nil); return e }()},
-		{"FileList", func() *schemas.ProviderError { _, e := p.FileList(ctx, key); return e }()},
-		{"FileRetrieve", func() *schemas.ProviderError { _, e := p.FileRetrieve(ctx, key, "f-1"); return e }()},
-		{"FileDelete", func() *schemas.ProviderError { _, e := p.FileDelete(ctx, key, "f-1"); return e }()},
-		{"FileContent", func() *schemas.ProviderError { _, e := p.FileContent(ctx, key, "f-1"); return e }()},
 		{"BatchCreate", func() *schemas.ProviderError { _, e := p.BatchCreate(ctx, key, nil); return e }()},
 		{"BatchList", func() *schemas.ProviderError { _, e := p.BatchList(ctx, key); return e }()},
 		{"BatchRetrieve", func() *schemas.ProviderError { _, e := p.BatchRetrieve(ctx, key, "b-1"); return e }()},

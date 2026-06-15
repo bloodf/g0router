@@ -14,26 +14,6 @@ func (p *Provider) ResponsesStream(ctx *schemas.GatewayContext, postHookRunner s
 	return nil, notImplemented("responses_stream")
 }
 
-func (p *Provider) FileUpload(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.FileUploadRequest) (*schemas.FileObject, *schemas.ProviderError) {
-	return nil, notImplemented("file_upload")
-}
-
-func (p *Provider) FileList(ctx *schemas.GatewayContext, key schemas.Key) (*schemas.FileListResponse, *schemas.ProviderError) {
-	return nil, notImplemented("file_list")
-}
-
-func (p *Provider) FileRetrieve(ctx *schemas.GatewayContext, key schemas.Key, fileID string) (*schemas.FileObject, *schemas.ProviderError) {
-	return nil, notImplemented("file_retrieve")
-}
-
-func (p *Provider) FileDelete(ctx *schemas.GatewayContext, key schemas.Key, fileID string) (*schemas.FileDeleteResponse, *schemas.ProviderError) {
-	return nil, notImplemented("file_delete")
-}
-
-func (p *Provider) FileContent(ctx *schemas.GatewayContext, key schemas.Key, fileID string) ([]byte, *schemas.ProviderError) {
-	return nil, notImplemented("file_content")
-}
-
 func (p *Provider) BatchCreate(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.BatchCreateRequest) (*schemas.Batch, *schemas.ProviderError) {
 	return nil, notImplemented("batch_create")
 }
