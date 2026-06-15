@@ -352,6 +352,21 @@ func migrate(db *sql.DB) error {
 			id INTEGER PRIMARY KEY,
 			oidc_secret_enc TEXT NOT NULL DEFAULT ''
 		)`},
+		// Semantic cache (bf-core-2 / phase-19:34-46). Backs the exact-key-hash
+		// read-through/write-through cache. cache_key = sha256(normalized prompt +
+		// model). embedding_json is retained for forward-compatibility (the
+		// deferred semantic-similarity half populates it; the hash-only cache
+		// writes "[]"). DDL is verbatim from phase-19 — no invented columns.
+		{"semantic_cache", `CREATE TABLE IF NOT EXISTS semantic_cache (
+			id INTEGER PRIMARY KEY,
+			cache_key TEXT NOT NULL,
+			embedding_json TEXT NOT NULL,
+			model TEXT NOT NULL,
+			response_json TEXT NOT NULL,
+			expires_at DATETIME,
+			hit_count INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`},
 	}
 
 	for _, t := range tables {
@@ -370,6 +385,14 @@ func migrate(db *sql.DB) error {
 
 	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp DESC)"); err != nil {
 		return fmt.Errorf("create audit_log timestamp index: %w", err)
+	}
+
+	// Semantic-cache indexes (bf-core-2 / phase-19:45-46). Additive, IF NOT EXISTS.
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_semantic_cache_model ON semantic_cache(model)"); err != nil {
+		return fmt.Errorf("create semantic_cache model index: %w", err)
+	}
+	if _, err := db.Exec("CREATE INDEX IF NOT EXISTS idx_semantic_cache_expires ON semantic_cache(expires_at)"); err != nil {
+		return fmt.Errorf("create semantic_cache expires index: %w", err)
 	}
 
 	usageIndexes := []struct{ name, table, columns string }{
