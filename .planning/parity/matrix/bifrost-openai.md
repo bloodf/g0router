@@ -78,7 +78,7 @@ Target: `/Users/heitor/Developer/github.com/bloodf/g0router`
 | PAR-BF-OAI-116 | Large-payload pre-hook back-fills `model` and `stream` when body skipped | `transports/bifrost-http/integrations/openai.go:60-100` | MISSING | g0router has no large-payload mode |
 | PAR-BF-OAI-117 | Azure endpoint pre-hook parses deployment path and sets `azure/<deploymentID>` model | `transports/bifrost-http/integrations/openai.go:533` | MISSING | g0router `router.Resolve` (`internal/inference/router.go:14-63`) has no Azure deployment path logic |
 | PAR-BF-OAI-118 | Azure SDK detection via `User-Agent` substring `AzureOpenAI` | `transports/bifrost-http/integrations/openai.go:56-58` | MISSING | g0router has no Azure SDK detection |
-| PAR-BF-OAI-119 | `isModelBlockedByList` logic moved into `BlackList.IsBlocked` | `core/schemas/blacklist.go` (ref SHA ca21298) | EXTRA | g0router has no blacklist / model-block feature |
+| PAR-BF-OAI-119 | `isModelBlockedByList` logic moved into `BlackList.IsBlocked` | `core/schemas/blacklist.go` (ref SHA ca21298) | HAVE | bf-gov-2: the block decision is a method on the type — `func (b BlackList) IsBlocked(value string) bool` (`internal/schemas/lists.go:51`), not free-floating gate code (D2). Folds into PAR-BF-GOV-027. |
 
 ---
 
