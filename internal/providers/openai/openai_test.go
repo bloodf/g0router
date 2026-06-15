@@ -33,8 +33,6 @@ func TestNotImplementedStubs(t *testing.T) {
 		name string
 		err  *schemas.ProviderError
 	}{
-		{"TextCompletion", func() *schemas.ProviderError { _, e := p.TextCompletion(ctx, key, nil); return e }()},
-		{"TextCompletionStream", func() *schemas.ProviderError { _, e := p.TextCompletionStream(ctx, nil, key, nil); return e }()},
 		{"Responses", func() *schemas.ProviderError { _, e := p.Responses(ctx, key, nil); return e }()},
 		{"ResponsesStream", func() *schemas.ProviderError { _, e := p.ResponsesStream(ctx, nil, key, nil); return e }()},
 		{"ImageGeneration", func() *schemas.ProviderError { _, e := p.ImageGeneration(ctx, key, nil); return e }()},

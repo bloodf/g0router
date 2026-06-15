@@ -6,14 +6,6 @@ import (
 	"github.com/bloodf/g0router/internal/schemas"
 )
 
-func (p *Provider) TextCompletion(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.TextCompletionRequest) (*schemas.TextCompletionResponse, *schemas.ProviderError) {
-	return nil, notImplemented("text_completion")
-}
-
-func (p *Provider) TextCompletionStream(ctx *schemas.GatewayContext, postHookRunner schemas.PostHookRunner, key schemas.Key, request *schemas.TextCompletionRequest) (chan *schemas.StreamChunk, *schemas.ProviderError) {
-	return nil, notImplemented("text_completion_stream")
-}
-
 func (p *Provider) Responses(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.ResponsesRequest) (*schemas.ResponsesResponse, *schemas.ProviderError) {
 	return nil, notImplemented("responses")
 }
