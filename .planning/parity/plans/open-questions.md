@@ -276,3 +276,26 @@ PAR-USAGE-032: remaining 6 provider usage fetchers (GitHub, Antigravity, Codex, 
 - **ESC-KIRO-SIGV4 — OUTCOME: DEFER.** No signer imported; kiro ships the graceful fallback arm.
 - **ESC-OAUTH-DEP — confirmed runtime-only.** All arms compile+test hermetically with canned/absent tokens; antigravity returns the graceful `{plan,message}` when token/project is absent (mirrors the gemini guard).
 - **Built-vs-deferred split (PAR-USAGE-032):** BUILT = {claude, gemini (w5-e), antigravity (w7)}; DEFERRED-with-tested-fallback = {github, codex, kiro, glm, minimax}. Matrix kept **PARTIAL** (not flipped to HAVE) because 5/8 providers still return a fallback rather than a real external-quota fetch; flip to HAVE when route.js confirms the deferred endpoints. All 6 arms are present and the dispatch table (`TestProviderUsageDispatch`) asserts each routes away from the generic `default`.
+
+## BIFROST-MAP (bifrost parity program) - 2026-06-15
+- [ ] ESC-REF-ABSENT (BINDING) — Bifrost ref `@ca21298` absent at `/Users/heitor/Developer/github.com/bloodf/_refs/bifrost` on this host — clone it (or run from a host that has it) before bf-mcp-1 / bf-core-2 / bf-openai-4 protocol-detail rows; until then build to matrix text only, STOP-escalate on undocumented detail.
+- [ ] Plugin pipeline (PAR-BF-CORE-004..018, 049, 050) — fund the runtime re-architecture or record permanently-deferred. (RECOMMEND defer.)
+- [ ] Clustering + in-memory store + CAS + ghost-node reconciliation (core 039..042; gov 004, 013, 025, 041, 049, 050) — product-category change for a single-binary SQLite gateway. (RECOMMEND permanent escalation.)
+- [ ] MCP per-user OAuth/header credential + sessions surface (~22 mcp rows) — is multi-tenant MCP a product goal? Build server-mode + per-VK (bf-mcp-1/2) first regardless. (RECOMMEND defer the per-user surface.)
+- [ ] OpenAI extension surface (video/containers/async/WS-responses/rerank/OCR/non-/v1-aliases/Azure, ~37 rows) — any in scope? rerank/OCR are deferred-buildable if a provider is funded. (RECOMMEND defer.)
+- [ ] Request-normalization layer (PAR-BF-OAI-101..118) — fund a multi-format passthrough/normalization plan or defer. (RECOMMEND defer.)
+- [ ] Customer governance tier (gov 008, 046, 047) + VK hash-index+AES (gov 006) — g0router phase-18 is VK+Team only; add Customer tier? (RECOMMEND defer; treat 006 as variant.)
+- [ ] Error-envelope labeling (PAR-BF-OAI-301/302/303) — record `{data,error}` as variant vs augment `APIError` with `param`/`event_id`. (RECOMMEND variant + optional tiny augment in bf-openai-4.)
+- [ ] AllowFallbacks / per-attempt fallback (core 019/020) — g0router has account-level fallback (`WithAccountFallback`); add an `AllowFallbacks`-equivalent flag (rides bf-core-1) or label variant-HAVE?
+
+### bf-openai-1 outcomes (2026-06-15) — CLOSED
+- **ESC-TEXTCOMP — OUTCOME: Option A taken.** openai `TextCompletion`/`TextCompletionStream` implemented for real
+  (`internal/providers/openai/completions.go`) as a copy of the in-tree embedding+chat transport; closed PAR-BF-OAI-002
+  + 207 hermetically. The 42 other providers keep their 501 stub (route surfaces their 501 cleanly). No fallback to Option B.
+- **ESC-MODELSGET-STALE — OUTCOME: stale note confirmed, NO code change.** Live `ModelsHandler.Get` already filters one
+  model by id + 404s. Added a green-confirming regression test; flipped PAR-BF-OAI-019 PARTIAL→HAVE; corrected the stale cite.
+- **ESC-OPENAI-SHAPE — OUTCOME: honored.** `/v1/completions` returns bare OpenAI shapes (no `{data,error}` admin envelope).
+- **ESC-STREAMCHUNK-FIELD — OUTCOME: forward raw, no schema edit.** `schemas.StreamChunk`/`completions.go` UNCHANGED.
+- **P0 dirty-tree note (deferred to program author):** at bf-openai-1 P0 the tree carried pre-existing uncommitted changes to
+  `ui/dist/index.html` (built artifact) and this `open-questions.md` (BIFROST-MAP section). bf-openai-1 left both untouched
+  beyond its own sanctioned append here. Program author should decide whether the stray `ui/dist/index.html` edit is intended.

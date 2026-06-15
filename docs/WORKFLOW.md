@@ -8665,3 +8665,49 @@ NO UI, NO store/auth/providers/inference touch (route + DTO unchanged). NO seria
   still return a fallback rather than a real external-quota fetch; flip when route.js confirms the deferred
   endpoints. Built-vs-deferred split + ESC outcomes recorded in matrix note + open-questions.md. NOT committed:
   `.planning/parity/plans/w7-usage-quota.md`, `ui/dist/index.html`.
+
+## bf-openai-1 (`/v1/completions` +stream + GET /v1/models/{id} regression) — 2026-06-15
+OpenAI-surface track, FIRST in the `internal/server/routes_openai.go` serial chain; TOOK the slot at T-routes,
+RELEASES to bf-openai-2 on close. BUILDABLE-additive only (no ESC rows). Strict TDD (RED before impl per file).
+- **P0 base:** `00768173206447f0300e3207c4d88f2a8ed8c589`. Base GREEN+HERMETIC (1820 passed / 43 pkgs).
+- **P0 tree-state surprise (reported, non-blocking):** working tree was NOT clean at P0 — pre-existing dirty
+  `.planning/parity/plans/open-questions.md` (program BIFROST-MAP open-questions, expected; T-close appends here)
+  and `ui/dist/index.html` (built artifact, FORBIDDEN to touch — left untouched, never `git add`ed). My plan
+  contract `.planning/parity/plans/bf-openai-1.md` is untracked (per plan: do NOT commit it). All commits used
+  explicit `git add <file>` of sanctioned files only; the dirty artifacts were never swept in.
+- **ESC-TEXTCOMP → Option A (RECOMMENDED) TAKEN.** Implemented openai `Provider.TextCompletion` +
+  `TextCompletionStream` (`internal/providers/openai/completions.go`) as a near-verbatim copy of the in-tree
+  `embedding.go` (non-stream) + `chat.go` (stream) transport: POST `p.baseURL + "/v1/completions"`, Bearer auth,
+  JSON body, status-check → `errorConverter.Convert`, `ReadJSONBody` into `TextCompletionResponse`; stream sets
+  `Stream=true`, drains `NewSSEScanner`, `[DONE]` terminates, malformed chunk → `streamError` (AUD-045), post-hook
+  honored (AUD-047). Reused the package-local `streamError` (chat.go:15). Hermetic via `httptest.NewServer` +
+  `p.baseURL=srv.URL`. The two `stubs.go` text-completion stubs were DELETED (moved+implemented); the 17 other
+  stubs preserved; the 2 sub-cases removed from `TestNotImplementedStubs` (the only edit to a pre-existing openai
+  test). Both PAR-BF-OAI-002 and 207 close soundly. NO Bifrost-internal claim (ESC-REF-ABSENT-safe).
+- **ESC-OPENAI-SHAPE honored.** `/v1/completions` returns BARE OpenAI shapes: success = marshalled
+  `*schemas.TextCompletionResponse` via `jsonMarshal`; errors = `writeError` (OpenAI `{"error":{}}`). NO
+  `internal/admin` import, NO `{data,error}` admin envelope (test asserts no top-level `data`/`error` on success).
+- **ESC-STREAMCHUNK-FIELD → forward raw, NO schema edit.** Legacy completion chunks carry `choices[].text`;
+  `schemas.StreamChunk` decodes them fine (the typed `text` field is simply not in StreamChoice — irrelevant for
+  the SSE passthrough which forwards via `ProcessPassthroughStream`). `internal/schemas/completions.go` UNCHANGED.
+- **ESC-MODELSGET-STALE → CONFIRMED stale, NO code change.** The live `ModelsHandler.Get`
+  (`internal/api/models.go:449-482`), reached via `GetOrByKind` (`:387`, route `routes_openai.go:101`), ALREADY
+  filters to one model by id and 404s on miss. PAR-BF-OAI-019 was already-HAVE behaviorally but mislabeled
+  PARTIAL with no test. Added regression `TestModelsGetByID_RegressionSingleAndMiss` (known→exactly one, not the
+  full list; unknown→404) — passed first run (green-confirming, no filter added). Stale matrix note corrected.
+- **Handler.** `CompletionsHandler` (`internal/api/completions.go`) mirrors `EmbeddingsHandler` non-stream +
+  `ChatHandler` stream: parse → `router.Resolve(model)` → x-g0-vk gate + pinned-key override → pending-tracker →
+  dispatch. `stream:true` sets `text/event-stream`+`Cache-Control`+`Connection`, `provider.TextCompletionStream`,
+  `writeSSEStream` with `withRequestCancel`. Usage glue wired via the same additive setters as embeddings;
+  recorded under endpoint `/v1/completions`. Marshal failure → plain 500 (AUD-010). `NewCompletionsHandler`
+  constructed inside `RegisterOpenAIRoutes` (reuses `vkGate`/`selector`/`recorder`/`tracker`/`detail`) — NO
+  `New(...)`/`RegisterOpenAIRoutes(...)` signature change.
+- **Commits (in order):** failing openai TextCompletion(+stream) tests (red) → implement openai TextCompletion +
+  TextCompletionStream → failing /v1/completions handler tests (red) → /v1/completions handler → pin
+  GET /v1/models/{id} single-model filter (regression) → register POST /v1/completions (serial slot) → close.
+- **Gates GREEN + HERMETIC.** `go build ./... && go vet ./... && go test ./...` exit 0 (1830 passed / 43 pkgs,
+  +10 over base, no net/sleep). Targeted: `Completion|Models` (api+server) and `Completion|NotImplemented`
+  (openai) all pass.
+- **Closeout.** Matrix `bifrost-openai.md` flipped: PAR-BF-OAI-002 → HAVE, PAR-BF-OAI-207 → HAVE (Option A),
+  PAR-BF-OAI-019 → HAVE (stale cite corrected). NOT committed: `.planning/parity/plans/bf-openai-1.md`,
+  `ui/dist/index.html`. SERIAL SLOT released to bf-openai-2 on this close commit.
