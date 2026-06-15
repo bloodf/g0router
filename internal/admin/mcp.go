@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,12 @@ import (
 	"github.com/bloodf/g0router/internal/store"
 	"github.com/valyala/fasthttp"
 )
+
+// mcpSSEHeartbeatInterval is the GET /mcp SSE heartbeat interval (PAR-BF-MCP-053:
+// ": ping\n\n" every 15s). It is constructed into a real ticker ONLY in
+// production wiring (MCPServerSSE); every unit test drives serveMCPSSE's injected
+// tick channel so go test opens no socket and sleeps for no real interval (D5).
+const mcpSSEHeartbeatInterval = 15 * time.Second
 
 // isoFromUnix renders a unix-second timestamp as an ISO-8601 string (mirroring
 // the w6-l mock created_at), or "" for a zero timestamp.
@@ -715,6 +722,81 @@ func mcpAuditDetails(tool, vk string) string {
 		who = "anonymous"
 	}
 	return "MCP server tools/call " + tool + " (vk=" + who + ")"
+}
+
+// MCPServerSSE handles GET /mcp: the SSE stream (heartbeat + deferred frames).
+// It validates any supplied VK (D4 — a provided-but-invalid VK is rejected by
+// closing the connection before streaming) and then streams via fasthttp's
+// SetBodyStreamWriter, driving the heartbeat from a real ticker. The
+// trace/audit completion is DEFERRED until the stream sink closes (D8 — avoids
+// the fasthttp body-materialization deadlock). The hermetic seam is serveMCPSSE,
+// which the unit tests drive with an injected tick channel (no real timing).
+func (h *Handlers) MCPServerSSE(ctx *fasthttp.RequestCtx) {
+	vk, admitted := h.admitMCPVK(ctx)
+	if !admitted {
+		// Reject the connection before streaming (no SSE body).
+		writeError(ctx, fasthttp.StatusUnauthorized, "virtual key unknown or inactive")
+		return
+	}
+
+	interval := h.mcpSSEBeat
+	if interval <= 0 {
+		interval = mcpSSEHeartbeatInterval
+	}
+
+	ctx.SetContentType("text/event-stream")
+	ctx.Response.Header.Set("Cache-Control", "no-cache")
+	ctx.Response.Header.Set("Connection", "keep-alive")
+
+	clientDone := ctx.Done()
+	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		h.serveMCPSSE(ctx, w, vk, ticker.C, clientDone, nil)
+	})
+}
+
+// mcpSSEWriter is the flushable sink the SSE loop writes to. It is the same
+// shape as the chat.go streamWriter seam (Write/WriteString) plus Flush so a
+// test injects an in-memory recorder and asserts the bytes written — no real
+// socket. *bufio.Writer satisfies it.
+type mcpSSEWriter interface {
+	WriteString(s string) (int, error)
+	Flush() error
+}
+
+// serveMCPSSE runs the SSE loop against the injected sink and heartbeat channel.
+// On each tick it emits the literal ": ping\n\n" SSE comment frame (D5). When the
+// loop exits (client disconnect / channel close) it runs the DEFERRED finalizer
+// (D8): a best-effort recordAudit("mcp_server.tools_call", …) stamping the
+// resolved VK — written AFTER the sink closes, never during frame emission,
+// avoiding the fasthttp body-materialization deadlock. If done is non-nil it is
+// closed on exit so tests can observe termination. PURE of real timing — the
+// heartbeat channel is injected.
+func (h *Handlers) serveMCPSSE(ctx *fasthttp.RequestCtx, w mcpSSEWriter, vk string, heartbeat <-chan time.Time, clientDone <-chan struct{}, done chan<- struct{}) {
+	if done != nil {
+		defer close(done)
+	}
+	// DEFERRED trace/audit completion (D8): runs only after the loop returns,
+	// i.e. after the sink closes — a REAL payload, not a no-op.
+	defer h.recordAudit(ctx, "mcp_server.tools_call", "sse_session", mcpAuditDetails("sse_session", vk))
+
+	for {
+		select {
+		case <-clientDone:
+			return
+		case _, ok := <-heartbeat:
+			if !ok {
+				return
+			}
+			if _, err := w.WriteString(": ping\n\n"); err != nil {
+				return
+			}
+			if err := w.Flush(); err != nil {
+				return
+			}
+		}
+	}
 }
 
 // executeRequest is the tool-execute body.

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/bloodf/g0router/internal/auth"
 	"github.com/bloodf/g0router/internal/governance"
@@ -30,6 +31,7 @@ type Handlers struct {
 	mcpLauncher  *mcp.Launcher
 	mcpEngine    *mcp.Engine
 	mcpProbe     *mcp.Probe
+	mcpSSEBeat   time.Duration
 	console      *logging.ConsoleLog
 	modelProber  ModelProber
 	version      string
@@ -155,6 +157,16 @@ func (h *Handlers) SetMCPEngine(e *mcp.Engine) {
 // Nil-able: an unset probe degrades the tools list to the static catalog.
 func (h *Handlers) SetMCPProbe(p *mcp.Probe) {
 	h.mcpProbe = p
+}
+
+// SetMCPServerHeartbeat injects the GET /mcp SSE heartbeat interval (bf-mcp-1,
+// D5). Production wires the default mcpSSEHeartbeatInterval; an integration
+// deployment may override it. A non-positive value falls back to the default.
+// Mirrors SetMCPProbe. The unit tests drive serveMCPSSE's injected tick channel
+// directly, so the real ticker constructed in MCPServerSSE is never exercised by
+// a test (hermetic).
+func (h *Handlers) SetMCPServerHeartbeat(d time.Duration) {
+	h.mcpSSEBeat = d
 }
 
 // SetConsoleLog injects the in-process console-log capture buffer that
