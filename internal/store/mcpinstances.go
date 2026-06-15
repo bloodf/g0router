@@ -43,6 +43,7 @@ func (s *Store) CreateMCPClient(c *MCPClient) (*MCPClient, error) {
 	if err != nil {
 		return nil, err
 	}
+	normalizeMCPClientConfig(c)
 	configJSON, err := marshalJSONObject(c.Config)
 	if err != nil {
 		return nil, fmt.Errorf("marshal mcp client config: %w", err)
@@ -91,6 +92,7 @@ func (s *Store) ListMCPClients() ([]*MCPClient, error) {
 // UpsertMCPClient inserts or updates a client by id (custom-plugin persistence —
 // PAR-MCP-006). The caller supplies the id (e.g. from a prior CreateMCPClient).
 func (s *Store) UpsertMCPClient(c *MCPClient) error {
+	normalizeMCPClientConfig(c)
 	configJSON, err := marshalJSONObject(c.Config)
 	if err != nil {
 		return fmt.Errorf("marshal mcp client config: %w", err)
