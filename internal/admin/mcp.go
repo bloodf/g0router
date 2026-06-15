@@ -491,6 +491,67 @@ func (h *Handlers) StartInstanceAuth(ctx *fasthttp.RequestCtx) {
 	writeData(ctx, fasthttp.StatusOK, map[string]any{"url": result.AuthURL})
 }
 
+// completeAuthRequest is the complete-oauth body: the callback state + code.
+type completeAuthRequest struct {
+	State string `json:"state"`
+	Code  string `json:"code"`
+}
+
+// CompleteInstanceAuth handles POST /api/mcp/instances/{id}/auth/complete. It is
+// the FIRST live caller of the shipped-but-dead Engine.Complete (oauth.go:88,
+// D7): it consumes the persisted PKCE flow, exchanges {state, code} for tokens
+// at the discovered token endpoint, and returns the MASKED account (tokens
+// STRIPPED; state/verifier NEVER echoed). The create-vs-update distinction is
+// ESC (g0router has a single create flow). Session-gated /api/mcp surface.
+func (h *Handlers) CompleteInstanceAuth(ctx *fasthttp.RequestCtx) {
+	id, ok := pathID(ctx.UserValue("id"))
+	if !ok {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid route parameter")
+		return
+	}
+	if h.mcpEngine == nil {
+		writeError(ctx, fasthttp.StatusServiceUnavailable, "mcp oauth engine unavailable")
+		return
+	}
+	in, err := h.store.GetMCPInstance(id)
+	if errors.Is(err, store.ErrNotFound) {
+		writeError(ctx, fasthttp.StatusNotFound, "mcp instance not found")
+		return
+	}
+	if err != nil {
+		writeError(ctx, fasthttp.StatusInternalServerError, "load mcp instance")
+		return
+	}
+	if in.URL == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "instance has no server url")
+		return
+	}
+	var req completeAuthRequest
+	if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+		writeError(ctx, fasthttp.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.State == "" || req.Code == "" {
+		writeError(ctx, fasthttp.StatusBadRequest, "state and code are required")
+		return
+	}
+	redirectURI := h.mcpRedirectURI(ctx)
+	acct, err := h.mcpEngine.Complete(context.Background(), in.URL, req.State, req.Code, redirectURI)
+	if err != nil {
+		writeError(ctx, fasthttp.StatusBadGateway, "complete mcp oauth")
+		return
+	}
+	h.recordAudit(ctx, "mcp_instance.auth_complete", in.Name, "Completed MCP OAuth for "+in.Name)
+	writeData(ctx, fasthttp.StatusOK, accountDTO{
+		ID:         acct.ID,
+		InstanceID: acct.InstanceID,
+		ServerURL:  acct.ServerURL,
+		Status:     acct.Status,
+		Scope:      acct.Scope,
+		ExpiresAt:  acct.ExpiresAt,
+	})
+}
+
 // mcpRedirectURI derives the OAuth callback the same way the provider flow does
 // (settings override → request Origin → scheme+host), with the MCP callback path
 // (ESC-OAUTH-REDIRECT).
