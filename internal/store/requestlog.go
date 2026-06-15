@@ -261,6 +261,28 @@ func (s *Store) SumCostByAPIKey(key, sinceISO string) (float64, error) {
 	return total.Float64, nil
 }
 
+// SumCostByTeam returns the sum of cost for request_log rows attributed to any
+// virtual key owning team teamID (joined via virtual_keys.team_id) with
+// timestamp >= sinceISO. It is the live team-budget aggregate used by the quota
+// engine's 2-level hierarchy check (bf-gov-1, D8); it does not read the
+// display-only teams.budget_used_usd accumulator.
+func (s *Store) SumCostByTeam(teamID, sinceISO string) (float64, error) {
+	var total sql.NullFloat64
+	err := s.db.QueryRow(
+		`SELECT SUM(cost) FROM request_log
+		 WHERE api_key IN (SELECT key FROM virtual_keys WHERE team_id = ?)
+		   AND timestamp >= ?`,
+		teamID, sinceISO,
+	).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("sum cost by team: %w", err)
+	}
+	if !total.Valid {
+		return 0, nil
+	}
+	return total.Float64, nil
+}
+
 func localDateKey(timestamp string) string {
 	t, err := time.Parse(time.RFC3339, timestamp)
 	if err != nil {
