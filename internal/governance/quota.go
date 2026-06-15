@@ -16,6 +16,64 @@ type SpendReader interface {
 	SumRequestsByAPIKey(key, sinceISO string) (int64, error)
 }
 
+// Decision is the typed governance outcome of an Evaluate call (bf-gov-3, D8).
+// It maps to g0router's {data,error} envelope via a snake_case error.code. The
+// Model/Provider/MCP values are declared as the shared enum the bf-gov-2 list
+// tier and the bf-mcp tier emit; bf-gov-3 emits only the budget/RPM/token/
+// request subset.
+type Decision int
+
+const (
+	DecisionAllow Decision = iota
+	DecisionVirtualKeyNotFound
+	DecisionVirtualKeyBlocked
+	DecisionRateLimited
+	DecisionBudgetExceeded
+	DecisionTokenLimited
+	DecisionRequestLimited
+	DecisionModelBlocked    // emitted by bf-gov-2 list tier (declared, not emitted here)
+	DecisionProviderBlocked // declared, not emitted here
+	DecisionMCPToolBlocked  // declared, not emitted here
+)
+
+// Code returns the snake_case error.code for the decision, surfaced live in the
+// gate's {data,error} response (bf-gov-3, D8). DecisionAllow has no code.
+func (d Decision) Code() string {
+	switch d {
+	case DecisionVirtualKeyNotFound:
+		return "virtual_key_not_found"
+	case DecisionVirtualKeyBlocked:
+		return "virtual_key_blocked"
+	case DecisionRateLimited:
+		return "rate_limited"
+	case DecisionBudgetExceeded:
+		return "budget_exceeded"
+	case DecisionTokenLimited:
+		return "token_limited"
+	case DecisionRequestLimited:
+		return "request_limited"
+	case DecisionModelBlocked:
+		return "model_blocked"
+	case DecisionProviderBlocked:
+		return "provider_blocked"
+	case DecisionMCPToolBlocked:
+		return "mcp_tool_blocked"
+	default:
+		return ""
+	}
+}
+
+// EvaluationResult is the typed outcome returned by Evaluate (bf-gov-3, D8).
+// Reason is the human-readable denial message (preserved from the shipped Allow
+// tuple); Status is the HTTP status (429 for gov-3 denials, 0 on allow). The
+// richer Bifrost sub-structs (RateLimitInfo/BudgetInfo/UsageInfo) are
+// ESC-REF-ABSENT and not carried.
+type EvaluationResult struct {
+	Decision Decision
+	Reason   string
+	Status   int
+}
+
 // VirtualKeyInfo is the subset of virtual key state needed by the quota engine.
 // The Team* fields carry the optional owning team's budget/RPM for the 2-level
 // hierarchy check (bf-gov-1, D3); they are zero/empty for un-teamed keys.
@@ -82,22 +140,33 @@ type rpmWindow struct {
 
 // Allow returns true if the request is within the virtual key's budget and RPM limits.
 // On denial it returns false, an HTTP status code (429), and a human-readable reason.
+// It is a thin, signature-preserving wrapper over Evaluate (bf-gov-3, D8): every
+// existing caller keeps the exact (bool,int,string) contract.
 func (e *QuotaEngine) Allow(vk *VirtualKeyInfo, model string) (ok bool, status int, reason string) {
+	r := e.Evaluate(vk, model)
+	return r.Decision == DecisionAllow, r.Status, r.Reason
+}
+
+// Evaluate runs the fail-closed governance chain and returns a typed
+// EvaluationResult (bf-gov-3, D8). Precedence (D3): VK budget -> VK RPM ->
+// VK request-limit -> VK token-limit -> Team budget -> Team RPM. The first
+// failing level wins; all denials carry HTTP 429.
+func (e *QuotaEngine) Evaluate(vk *VirtualKeyInfo, model string) EvaluationResult {
 	if err := e.checkBudget(vk); err != nil {
-		return false, 429, err.Error()
+		return EvaluationResult{Decision: DecisionBudgetExceeded, Reason: err.Error(), Status: 429}
 	}
 	if err := e.checkRPM(vk); err != nil {
-		return false, 429, err.Error()
+		return EvaluationResult{Decision: DecisionRateLimited, Reason: err.Error(), Status: 429}
 	}
 	// 2-level hierarchy (bf-gov-1, D3): when the VK owns a team, the Team budget
 	// and RPM must ALSO pass. Un-teamed VKs skip these steps.
 	if err := e.checkTeamBudget(vk); err != nil {
-		return false, 429, err.Error()
+		return EvaluationResult{Decision: DecisionBudgetExceeded, Reason: err.Error(), Status: 429}
 	}
 	if err := e.checkTeamRPM(vk); err != nil {
-		return false, 429, err.Error()
+		return EvaluationResult{Decision: DecisionRateLimited, Reason: err.Error(), Status: 429}
 	}
-	return true, 0, ""
+	return EvaluationResult{Decision: DecisionAllow}
 }
 
 func (e *QuotaEngine) checkBudget(vk *VirtualKeyInfo) error {
