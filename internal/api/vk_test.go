@@ -133,6 +133,68 @@ func TestDecisionCodeForReason(t *testing.T) {
 	}
 }
 
+// TestVKGateMandatoryMode verifies PAR-BF-GOV-034 (bf-gov-4, D2): an injected
+// mandatory predicate gates the empty-key branch. Flag OFF (predicate false or
+// nil) ⇒ an absent VK is ALLOWED, byte-identical to pre-bf-gov-4. Flag ON
+// (predicate true) ⇒ an absent VK is REJECTED (false, 401, "virtual key
+// required", nil). A present/valid VK is unaffected (the mandatory check is
+// bypassed once key != ""). Hermetic: the predicate is a direct fake — no flag
+// store, no network, no sleep.
+func TestVKGateMandatoryMode(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-valid", &VKInfo{
+		Key:      "vk-valid",
+		Configs:  []VKProviderConfig{{Provider: "openai", AllowedModels: []string{"gpt-4o"}}},
+		IsActive: true,
+	})
+
+	t.Run("flag OFF + no VK allowed", func(t *testing.T) {
+		gate := NewVKGate(resolver, nil)
+		gate.SetMandatoryChecker(func() bool { return false })
+		ok, status, reason, keyIDs := gate.AllowVK("", "gpt-4o", "openai")
+		if !ok || status != 0 || reason != "" || keyIDs != nil {
+			t.Fatalf("flag OFF + no VK: got ok=%v status=%d reason=%q keyIDs=%v, want allowed", ok, status, reason, keyIDs)
+		}
+	})
+
+	t.Run("nil predicate + no VK allowed", func(t *testing.T) {
+		gate := NewVKGate(resolver, nil) // no SetMandatoryChecker ⇒ nil predicate
+		ok, status, reason, keyIDs := gate.AllowVK("", "gpt-4o", "openai")
+		if !ok || status != 0 || reason != "" || keyIDs != nil {
+			t.Fatalf("nil predicate + no VK: got ok=%v status=%d reason=%q keyIDs=%v, want allowed (no-op)", ok, status, reason, keyIDs)
+		}
+	})
+
+	t.Run("flag ON + no VK rejected 401", func(t *testing.T) {
+		gate := NewVKGate(resolver, nil)
+		gate.SetMandatoryChecker(func() bool { return true })
+		ok, status, reason, keyIDs := gate.AllowVK("", "gpt-4o", "openai")
+		if ok || status != 401 || reason != "virtual key required" || keyIDs != nil {
+			t.Fatalf("flag ON + no VK: got ok=%v status=%d reason=%q keyIDs=%v, want (false, 401, \"virtual key required\", nil)", ok, status, reason, keyIDs)
+		}
+	})
+
+	t.Run("flag ON + valid VK allowed", func(t *testing.T) {
+		gate := NewVKGate(resolver, nil)
+		gate.SetMandatoryChecker(func() bool { return true })
+		ok, status, reason, _ := gate.AllowVK("vk-valid", "gpt-4o", "openai")
+		if !ok {
+			t.Fatalf("flag ON + valid VK: got ok=false status=%d reason=%q, want allowed (mandatory check bypassed for present key)", status, reason)
+		}
+	})
+
+	t.Run("flag ON but nil resolver no-op", func(t *testing.T) {
+		// The g.resolver==nil guard must keep its fast no-op return even when the
+		// mandatory predicate would reject — the guard precedes the empty-key branch.
+		gate := NewVKGate(nil, nil)
+		gate.SetMandatoryChecker(func() bool { return true })
+		ok, status, _, _ := gate.AllowVK("", "gpt-4o", "openai")
+		if !ok || status != 0 {
+			t.Fatalf("nil resolver guard: got ok=%v status=%d, want allowed (guard precedes mandatory branch)", ok, status)
+		}
+	})
+}
+
 // TestVKGateUnknownKeyDenied verifies Fix 1: a non-empty x-g0-vk header that
 // resolves to nil is denied with 401 and the provider/quota layer is never called.
 func TestVKGateUnknownKeyDenied(t *testing.T) {
