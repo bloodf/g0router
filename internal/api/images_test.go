@@ -96,7 +96,7 @@ func TestImagesGenerationsSuccess(t *testing.T) {
 	if !prov.genCalled {
 		t.Fatal("provider ImageGeneration not called")
 	}
-	assertNoEnvelope(t, ctx.Response.Body())
+	assertBareImageResponse(t, ctx.Response.Body())
 	var resp schemas.ImageGenerationResponse
 	if err := json.Unmarshal(ctx.Response.Body(), &resp); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -225,7 +225,31 @@ func TestImagesEditsMultipartSuccess(t *testing.T) {
 	if prov.capturedPrompt != "make it blue" {
 		t.Errorf("prompt = %q", prov.capturedPrompt)
 	}
-	assertNoEnvelope(t, ctx.Response.Body())
+	assertBareImageResponse(t, ctx.Response.Body())
+}
+
+// assertBareImageResponse verifies the body is the bare OpenAI
+// ImageGenerationResponse — a top-level {created, data:[...]} object — and NOT
+// the {data:<obj>,error} admin envelope. The OpenAI shape legitimately has a
+// top-level "data" array, so the proof is: it decodes to the bare object, "data"
+// is a JSON array, and there is no top-level "error" key.
+func assertBareImageResponse(t *testing.T, body []byte) {
+	t.Helper()
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(body, &top); err != nil {
+		t.Fatalf("unmarshal top-level: %v", err)
+	}
+	if _, ok := top["error"]; ok {
+		t.Error("response has top-level 'error' key on success")
+	}
+	if _, ok := top["created"]; !ok {
+		t.Error("response missing top-level 'created' (not the bare OpenAI image shape)")
+	}
+	if dataRaw, ok := top["data"]; ok {
+		if len(dataRaw) == 0 || dataRaw[0] != '[' {
+			t.Errorf("'data' is %s, want a JSON array (admin envelope wraps an object here)", dataRaw)
+		}
+	}
 }
 
 // TestImagesEditsNonMultipart verifies a non-multipart edit returns 400.
@@ -294,7 +318,7 @@ func TestImagesVariationsMultipartSuccess(t *testing.T) {
 	if string(prov.capturedImage) != string(imgBytes) {
 		t.Errorf("image = %q, want round-trip", prov.capturedImage)
 	}
-	assertNoEnvelope(t, ctx.Response.Body())
+	assertBareImageResponse(t, ctx.Response.Body())
 }
 
 // TestImagesVariationsNonMultipart verifies a non-multipart variation returns 400.
