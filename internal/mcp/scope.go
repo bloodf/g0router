@@ -72,6 +72,18 @@ func matchesExactPrefixed(exact map[string]bool, owner, bare string) bool {
 	return false
 }
 
+// ScopeTools is the exported form of scopeTools for the admin transport's per-VK
+// scoped CatalogSource (bf-mcp-2 D3/D4).
+func ScopeTools(global []ServerTool, patterns []string, clientOf func(string) string) []ServerTool {
+	return scopeTools(global, patterns, clientOf)
+}
+
+// ValidateAutoExecuteSubset is the exported form of validateAutoExecuteSubset for
+// the admin transport's live assignment write path (bf-mcp-2 D5/049).
+func ValidateAutoExecuteSubset(execute, autoExecute []string) error {
+	return validateAutoExecuteSubset(execute, autoExecute)
+}
+
 // validateAutoExecuteSubset returns a non-nil error when any autoExecute entry is
 // not admitted by the execute patterns (PAR-BF-MCP-018/049, D5). The two lists
 // share the D4 pattern vocabulary: a "*" execute admits any auto-execute; an

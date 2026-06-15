@@ -590,6 +590,11 @@ type catalogEntry struct {
 	Name        string
 	Description string
 	Unavailable bool
+	// Client is the owning MCP client/plugin name for this tool (bf-mcp-2). It is
+	// the join key the per-VK scope filter (D4/D6) matches "<client>-*" /
+	// "<client>-<tool>" patterns and the AllowOnAllVirtualKeys bypass against. The
+	// antigravity ride-along carries an empty Client (no owning client).
+	Client string
 }
 
 // mcpToolCatalog aggregates the global tool surface ONCE (D3): discovered tools
@@ -613,7 +618,7 @@ func (h *Handlers) mcpToolCatalog() []catalogEntry {
 					continue
 				}
 				seen[name] = true
-				out = append(out, catalogEntry{Name: name, Description: pt.Description})
+				out = append(out, catalogEntry{Name: name, Description: pt.Description, Client: in.Name})
 			}
 		}
 	}
@@ -627,7 +632,7 @@ func (h *Handlers) mcpToolCatalog() []catalogEntry {
 				continue
 			}
 			seen[name] = true
-			out = append(out, catalogEntry{Name: name})
+			out = append(out, catalogEntry{Name: name, Client: p.Name})
 		}
 	}
 
@@ -678,16 +683,141 @@ func (s serverCatalogSource) ListServerTools() []mcp.ServerTool {
 	return s.h.assembleServerCatalog()
 }
 
+// fixedCatalogSource is a CatalogSource over a pre-computed (already-scoped) tool
+// slice — the request-time "lazy creation" output for a resolved VK (D1/D3).
+type fixedCatalogSource struct {
+	tools []mcp.ServerTool
+}
+
+func (s fixedCatalogSource) ListServerTools() []mcp.ServerTool { return s.tools }
+
+// scopedDispatcher gates tools/call to a set of admitted tool names before
+// delegating to the wrapped dispatcher (D3 — the scope is enforced on BOTH
+// tools/list and tools/call so a VK cannot call a tool it cannot see). An
+// out-of-scope tool returns an error, surfaced as a JSON-RPC error by the server.
+type scopedDispatcher struct {
+	allowed map[string]bool
+	inner   mcp.ToolDispatcher
+}
+
+func (d scopedDispatcher) Execute(ctx context.Context, name string, args map[string]any) (string, error) {
+	if !d.allowed[name] {
+		return "", errors.New("tool out of scope for virtual key")
+	}
+	if d.inner == nil {
+		return "", errors.New("no tool dispatcher")
+	}
+	return d.inner.Execute(ctx, name, args)
+}
+
+// scopedServerTools computes the request-time tool surface a resolved VK sees
+// (D1/D3/D4/D6): it reads the global catalog ONCE, looks up the VK's assignment
+// rows (ListVKMCPConfigsByVK), narrows the global slice to the union of the per-
+// client executeOnlyTools patterns (scopeTools), and UNIONs every tool whose
+// owning client is AllowOnAllVirtualKeys (the D6 bypass) and is not marked
+// DisableAutoToolInject (D7). An empty VK or a VK with no assignment rows keeps
+// the full global catalog (the un-scoped path is unchanged). The boolean reports
+// whether scoping applied (so callers gate tools/call only for a scoped VK).
+func (h *Handlers) scopedServerTools(vk string) (tools []mcp.ServerTool, scoped bool) {
+	entries := h.mcpToolCatalog()
+	global := make([]mcp.ServerTool, 0, len(entries))
+	clientOf := make(map[string]string, len(entries))
+	for _, e := range entries {
+		global = append(global, mcp.ServerTool{Name: e.Name, Description: e.Description})
+		clientOf[e.Name] = e.Client
+	}
+
+	if vk == "" {
+		return global, false
+	}
+	rec, err := h.store.GetVirtualKeyByKey(vk)
+	if err != nil || rec == nil {
+		return global, false
+	}
+	rows, err := h.store.ListVKMCPConfigsByVK(rec.ID)
+	if err != nil || len(rows) == 0 {
+		return global, false // no assignment: un-scoped (full catalog).
+	}
+
+	// AllowOnAllVirtualKeys bypass set (D6) + DisableAutoToolInject suppression
+	// set (D7), read from the per-client config blob.
+	bypassClients, suppressedClients := h.mcpClientFlagSets()
+
+	// Union the per-client executeOnlyTools patterns across the VK's rows.
+	patterns := make([]string, 0)
+	for _, r := range rows {
+		patterns = append(patterns, r.ToolsToExecute...)
+	}
+
+	clientFn := func(tool string) string { return clientOf[tool] }
+	admitted := mcp.ScopeTools(global, patterns, clientFn)
+	admittedSet := map[string]bool{}
+	for _, t := range admitted {
+		admittedSet[t.Name] = true
+	}
+
+	out := make([]mcp.ServerTool, 0, len(global))
+	for _, t := range global {
+		owner := clientOf[t.Name]
+		if suppressedClients[owner] {
+			continue // D7: omit a disable-auto-inject client's tools.
+		}
+		if admittedSet[t.Name] || bypassClients[owner] {
+			out = append(out, t)
+		}
+	}
+	return out, true
+}
+
+// mcpClientFlagSets reads the per-client config-blob flags into the bypass
+// (AllowOnAllVirtualKeys, D6) and suppression (DisableAutoToolInject, D7) sets,
+// keyed by client name. A best-effort read: a store error yields empty sets.
+func (h *Handlers) mcpClientFlagSets() (bypass, suppressed map[string]bool) {
+	bypass = map[string]bool{}
+	suppressed = map[string]bool{}
+	clients, err := h.store.ListMCPClients()
+	if err != nil {
+		return bypass, suppressed
+	}
+	for _, c := range clients {
+		if store.MCPClientAllowOnAllVKs(c) {
+			bypass[c.Name] = true
+		}
+		if store.MCPClientDisableAutoToolInject(c) {
+			suppressed[c.Name] = true
+		}
+	}
+	return bypass, suppressed
+}
+
 // newMCPServer constructs a per-request server-mode dispatcher over the shared
-// catalog (D3) and the running plugin bridge (the shipped dispatch path). When
-// no plugin bridge is running, a nil dispatcher makes tools/call return a
-// JSON-RPC internal error while initialize/tools/list still serve.
-func (h *Handlers) newMCPServer() *mcp.Server {
+// catalog (D3) and the running plugin bridge (the shipped dispatch path),
+// SCOPED to the resolved VK (D1/D3): a VK with an assignment sees only its
+// narrowed tool surface on tools/list AND can only tools/call a tool in that
+// surface (the scopedDispatcher gate). An empty/un-assigned VK keeps the full
+// global catalog. When no plugin bridge is running, a nil inner dispatcher makes
+// an in-scope tools/call return a JSON-RPC internal error while
+// initialize/tools/list still serve.
+func (h *Handlers) newMCPServer(vk string) *mcp.Server {
 	var disp mcp.ToolDispatcher
 	if bridge, ok := h.resolveToolBridge(); ok {
 		disp = mcp.NewBridgeDispatcher(bridge)
 	}
-	return mcp.NewServer(serverCatalogSource{h: h}, disp)
+	// Anonymous (absent-VK) path preserves the bf-mcp-1 one-source adapter exactly
+	// — no assignment lookup, no extra catalog assembly.
+	if vk == "" {
+		return mcp.NewServer(serverCatalogSource{h: h}, disp)
+	}
+	tools, scoped := h.scopedServerTools(vk)
+	if !scoped {
+		// A provided-but-un-assigned VK keeps the full catalog (one-source adapter).
+		return mcp.NewServer(serverCatalogSource{h: h}, disp)
+	}
+	allowed := make(map[string]bool, len(tools))
+	for _, t := range tools {
+		allowed[t.Name] = true
+	}
+	return mcp.NewServer(fixedCatalogSource{tools: tools}, scopedDispatcher{allowed: allowed, inner: disp})
 }
 
 // ctxHeaderGetter wraps a fasthttp request's header peek into a HeaderGetter so
@@ -736,7 +866,7 @@ func (h *Handlers) MCPServerPost(ctx *fasthttp.RequestCtx) {
 	}
 
 	body := ctx.PostBody()
-	resp := h.newMCPServer().Dispatch(context.Background(), body)
+	resp := h.newMCPServer(vk).Dispatch(context.Background(), body)
 
 	// Best-effort audit per tools/call, stamping the resolved VK (D8 payload).
 	if name, ok := mcpToolCallName(body); ok {
