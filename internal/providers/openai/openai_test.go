@@ -35,10 +35,6 @@ func TestNotImplementedStubs(t *testing.T) {
 	}{
 		{"Responses", func() *schemas.ProviderError { _, e := p.Responses(ctx, key, nil); return e }()},
 		{"ResponsesStream", func() *schemas.ProviderError { _, e := p.ResponsesStream(ctx, nil, key, nil); return e }()},
-		{"BatchCreate", func() *schemas.ProviderError { _, e := p.BatchCreate(ctx, key, nil); return e }()},
-		{"BatchList", func() *schemas.ProviderError { _, e := p.BatchList(ctx, key); return e }()},
-		{"BatchRetrieve", func() *schemas.ProviderError { _, e := p.BatchRetrieve(ctx, key, "b-1"); return e }()},
-		{"BatchCancel", func() *schemas.ProviderError { _, e := p.BatchCancel(ctx, key, "b-1"); return e }()},
 		{"CountTokens", func() *schemas.ProviderError { _, e := p.CountTokens(ctx, key, nil); return e }()},
 	}
 

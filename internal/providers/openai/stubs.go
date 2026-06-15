@@ -14,22 +14,6 @@ func (p *Provider) ResponsesStream(ctx *schemas.GatewayContext, postHookRunner s
 	return nil, notImplemented("responses_stream")
 }
 
-func (p *Provider) BatchCreate(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.BatchCreateRequest) (*schemas.Batch, *schemas.ProviderError) {
-	return nil, notImplemented("batch_create")
-}
-
-func (p *Provider) BatchList(ctx *schemas.GatewayContext, key schemas.Key) (*schemas.BatchListResponse, *schemas.ProviderError) {
-	return nil, notImplemented("batch_list")
-}
-
-func (p *Provider) BatchRetrieve(ctx *schemas.GatewayContext, key schemas.Key, batchID string) (*schemas.Batch, *schemas.ProviderError) {
-	return nil, notImplemented("batch_retrieve")
-}
-
-func (p *Provider) BatchCancel(ctx *schemas.GatewayContext, key schemas.Key, batchID string) (*schemas.Batch, *schemas.ProviderError) {
-	return nil, notImplemented("batch_cancel")
-}
-
 func (p *Provider) CountTokens(ctx *schemas.GatewayContext, key schemas.Key, request *schemas.ChatRequest) (*schemas.TokenCountResponse, *schemas.ProviderError) {
 	return nil, notImplemented("count_tokens")
 }
