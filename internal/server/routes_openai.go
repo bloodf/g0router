@@ -195,10 +195,11 @@ func storeVKToAPI(st *store.Store, vk *store.VirtualKey) *api.VKInfo {
 	}
 	for _, pc := range vk.ProviderConfigs {
 		info.Configs = append(info.Configs, api.VKProviderConfig{
-			Provider:      pc.Provider,
-			AllowedModels: pc.AllowedModels,
-			KeyIDs:        pc.KeyIDs,
-			AllowAllKeys:  pc.AllowAllKeys,
+			Provider:          pc.Provider,
+			AllowedModels:     pc.AllowedModels,
+			BlacklistedModels: pc.BlacklistedModels,
+			KeyIDs:            pc.KeyIDs,
+			AllowAllKeys:      pc.AllowAllKeys,
 		})
 	}
 	if vk.TeamID != "" && st != nil {
