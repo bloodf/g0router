@@ -69,6 +69,15 @@ func validateVirtualKeyRequest(req *virtualKeyRequest) error {
 		if len(pc.KeyIDs) == 0 {
 			return fmt.Errorf("provider_configs[%d].key_ids is required", i)
 		}
+		// Validate the typed allow/block-list semantics (bf-gov-2, D5): reject a
+		// list that mixes "*" with explicit models. This is the live consumer of
+		// WhiteList/BlackList.Validate (no-leftovers).
+		if err := schemas.WhiteList(pc.AllowedModels).Validate(); err != nil {
+			return fmt.Errorf("provider_configs[%d].allowed_models: %w", i, err)
+		}
+		if err := pc.BlacklistedModels.Validate(); err != nil {
+			return fmt.Errorf("provider_configs[%d].blacklisted_models: %w", i, err)
+		}
 	}
 	if req.Budget != nil {
 		if req.Budget.Limit < 0 {
