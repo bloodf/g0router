@@ -124,17 +124,24 @@ func (h *ResponsesHandler) Handle(ctx *fasthttp.RequestCtx) {
 
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
 
-	// Streaming-only: no non-streaming branch.
-	ctx.SetContentTypeBytes([]byte("text/event-stream"))
-	ctx.Response.Header.Set("Cache-Control", "no-cache")
-	ctx.Response.Header.Set("Connection", "keep-alive")
-
+	// Streaming-only: no non-streaming branch. Open the provider stream BEFORE
+	// setting SSE headers so a stream-open *ProviderError returns an
+	// application/json error (with the provider's real status), not a
+	// text/event-stream framing mismatch (PAR-BF-OAI-201).
 	ch, perr := provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
 	if perr != nil {
 		g.recordError("/v1/responses", req.Model, key.Provider, key.ID, raw, headers, perr)
-		writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
+		status := perr.StatusCode
+		if status == 0 {
+			status = fasthttp.StatusBadGateway
+		}
+		writeError(ctx, status, perr.Type, perr.Message, perr.Code)
 		return
 	}
+
+	ctx.SetContentTypeBytes([]byte("text/event-stream"))
+	ctx.Response.Header.Set("Cache-Control", "no-cache")
+	ctx.Response.Header.Set("Connection", "keep-alive")
 
 	streamCtx, cancel := withRequestCancel(ctx)
 	defer cancel()

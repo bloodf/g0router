@@ -98,10 +98,9 @@ func (h *CompletionsHandler) Handle(ctx *fasthttp.RequestCtx) {
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
 
 	if req.Stream {
-		ctx.SetContentTypeBytes([]byte("text/event-stream"))
-		ctx.Response.Header.Set("Cache-Control", "no-cache")
-		ctx.Response.Header.Set("Connection", "keep-alive")
-
+		// Open the provider stream BEFORE setting SSE headers so a stream-open
+		// *ProviderError returns an application/json error, not a
+		// text/event-stream framing mismatch (PAR-BF-OAI-201).
 		ch, perr := provider.TextCompletionStream(gatewayCtx, nil, key, &req)
 		if perr != nil {
 			g.recordError("/v1/completions", req.Model, key.Provider, key.ID, raw, headers, perr)
@@ -112,6 +111,10 @@ func (h *CompletionsHandler) Handle(ctx *fasthttp.RequestCtx) {
 			writeError(ctx, status, perr.Type, perr.Message, perr.Code)
 			return
 		}
+
+		ctx.SetContentTypeBytes([]byte("text/event-stream"))
+		ctx.Response.Header.Set("Cache-Control", "no-cache")
+		ctx.Response.Header.Set("Connection", "keep-alive")
 
 		streamCtx, cancel := withRequestCancel(ctx)
 		defer cancel()

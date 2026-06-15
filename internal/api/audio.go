@@ -82,16 +82,20 @@ func (h *AudioHandler) Speech(ctx *fasthttp.RequestCtx) {
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
 
 	if stream {
-		ctx.SetContentTypeBytes([]byte("text/event-stream"))
-		ctx.Response.Header.Set("Cache-Control", "no-cache")
-		ctx.Response.Header.Set("Connection", "keep-alive")
-
+		// Open the provider stream BEFORE setting SSE headers so a stream-open
+		// *ProviderError returns an application/json error, not a
+		// text/event-stream framing mismatch (PAR-BF-OAI-201).
 		ch, sperr := provider.SpeechStream(gatewayCtx, nil, key, &req)
 		if sperr != nil {
 			g.recordError(endpoint, req.Model, key.Provider, key.ID, raw, headers, sperr)
 			writeProviderError(ctx, sperr)
 			return
 		}
+
+		ctx.SetContentTypeBytes([]byte("text/event-stream"))
+		ctx.Response.Header.Set("Cache-Control", "no-cache")
+		ctx.Response.Header.Set("Connection", "keep-alive")
+
 		streamCtx, cancel := withRequestCancel(ctx)
 		defer cancel()
 		if sErr := writeSSEStream(streamCtx, ctx, ch); sErr != nil {
@@ -184,16 +188,20 @@ func (h *AudioHandler) Transcription(ctx *fasthttp.RequestCtx) {
 	gatewayCtx := &schemas.GatewayContext{RequestID: fmt.Sprintf("%d", ctx.ID())}
 
 	if stream {
-		ctx.SetContentTypeBytes([]byte("text/event-stream"))
-		ctx.Response.Header.Set("Cache-Control", "no-cache")
-		ctx.Response.Header.Set("Connection", "keep-alive")
-
+		// Open the provider stream BEFORE setting SSE headers so a stream-open
+		// *ProviderError returns an application/json error, not a
+		// text/event-stream framing mismatch (PAR-BF-OAI-201).
 		ch, sperr := provider.TranscriptionStream(gatewayCtx, nil, key, &req)
 		if sperr != nil {
 			g.recordError(endpoint, req.Model, key.Provider, key.ID, raw, headers, sperr)
 			writeProviderError(ctx, sperr)
 			return
 		}
+
+		ctx.SetContentTypeBytes([]byte("text/event-stream"))
+		ctx.Response.Header.Set("Cache-Control", "no-cache")
+		ctx.Response.Header.Set("Connection", "keep-alive")
+
 		streamCtx, cancel := withRequestCancel(ctx)
 		defer cancel()
 		if sErr := writeSSEStream(streamCtx, ctx, ch); sErr != nil {

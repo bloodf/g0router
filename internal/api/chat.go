@@ -414,10 +414,9 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 	headers := requestHeadersFromCtx(ctx)
 
 	if useStream {
-		ctx.SetContentTypeBytes([]byte("text/event-stream"))
-		ctx.Response.Header.Set("Cache-Control", "no-cache")
-		ctx.Response.Header.Set("Connection", "keep-alive")
-
+		// Open the provider stream BEFORE setting SSE headers so a stream-open
+		// *ProviderError returns an application/json error (with the provider's
+		// real status), not a text/event-stream framing mismatch (PAR-BF-OAI-201).
 		ch, perr := provider.ChatCompletionStream(gatewayCtx, nil, key, &req)
 		// Refresh-retry: up to 3 refresh+dispatch cycles on 401/403 (PAR-ROUTE-023).
 		if perr != nil && (perr.StatusCode == 401 || perr.StatusCode == 403) && h.refresher != nil {
@@ -435,9 +434,17 @@ func (h *ChatHandler) Handle(ctx *fasthttp.RequestCtx) {
 		}
 		if perr != nil {
 			g.recordError("/v1/chat/completions", req.Model, key.Provider, key.ID, raw, headers, perr)
-			writeError(ctx, fasthttp.StatusBadGateway, perr.Type, perr.Message, perr.Code)
+			status := perr.StatusCode
+			if status == 0 {
+				status = fasthttp.StatusBadGateway
+			}
+			writeError(ctx, status, perr.Type, perr.Message, perr.Code)
 			return
 		}
+
+		ctx.SetContentTypeBytes([]byte("text/event-stream"))
+		ctx.Response.Header.Set("Cache-Control", "no-cache")
+		ctx.Response.Header.Set("Connection", "keep-alive")
 
 		streamCtx, cancel := withRequestCancel(ctx)
 		defer cancel()
