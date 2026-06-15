@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/valyala/fasthttp"
@@ -30,7 +31,7 @@ func seedFeatureFlag(t *testing.T, env *testEnv, key, description string, enable
 
 func TestListFeatureFlags(t *testing.T) {
 	env := newTestEnv(t)
-	seedFeatureFlag(t, env, "mcp_gateway", "Enable MCP gateway", true)
+	mcpID := seedFeatureFlag(t, env, "mcp_gateway", "Enable MCP gateway", true)
 	seedFeatureFlag(t, env, "rtk_compression", "Enable RTK compression", false)
 
 	status, envl := call(t, env.handlers.ListFeatureFlags, "GET", "/api/feature-flags", "", nil, nil)
@@ -38,31 +39,39 @@ func TestListFeatureFlags(t *testing.T) {
 		t.Fatalf("list status = %d err = %q", status, errMessage(t, envl))
 	}
 	list := dataField[[]map[string]any](t, envl)
-	if len(list) != 2 {
-		t.Fatalf("len(list) = %d, want 2", len(list))
+	// 2 inserted here + the migration-seeded semantic_cache flag (bf-core-2, D8).
+	if len(list) != 3 {
+		t.Fatalf("len(list) = %d, want 3", len(list))
 	}
-	first := list[0]
-	if first["key"] != "mcp_gateway" || first["description"] != "Enable MCP gateway" {
-		t.Fatalf("first = %v", first)
+	// Locate the seeded mcp_gateway row by id rather than assuming list order.
+	var mcp map[string]any
+	for _, f := range list {
+		if id, ok := f["id"].(float64); ok && int64(id) == mcpID {
+			mcp = f
+			break
+		}
 	}
-	if first["enabled"] != true {
-		t.Fatalf("first enabled = %v, want true", first["enabled"])
+	if mcp == nil {
+		t.Fatalf("mcp_gateway flag (id=%d) not in list: %v", mcpID, list)
 	}
-	if _, ok := first["created_at"]; !ok {
-		t.Fatalf("first missing created_at: %v", first)
+	if mcp["key"] != "mcp_gateway" || mcp["description"] != "Enable MCP gateway" {
+		t.Fatalf("mcp = %v", mcp)
 	}
-	// id is numeric in the JSON (decoded as float64).
-	if _, ok := first["id"].(float64); !ok {
-		t.Fatalf("id is not numeric: %v", first["id"])
+	if mcp["enabled"] != true {
+		t.Fatalf("mcp enabled = %v, want true", mcp["enabled"])
+	}
+	if _, ok := mcp["created_at"]; !ok {
+		t.Fatalf("mcp missing created_at: %v", mcp)
 	}
 }
 
 func TestGetFeatureFlag(t *testing.T) {
 	env := newTestEnv(t)
 	id := seedFeatureFlag(t, env, "new_dashboard", "New React dashboard", false)
+	idStr := strconv.FormatInt(id, 10)
 
-	status, envl := call(t, env.handlers.GetFeatureFlag, "GET", "/api/feature-flags/1", "",
-		map[string]any{"id": "1"}, nil)
+	status, envl := call(t, env.handlers.GetFeatureFlag, "GET", "/api/feature-flags/"+idStr, "",
+		map[string]any{"id": idStr}, nil)
 	if status != fasthttp.StatusOK {
 		t.Fatalf("get status = %d err = %q", status, errMessage(t, envl))
 	}
@@ -70,7 +79,6 @@ func TestGetFeatureFlag(t *testing.T) {
 	if flag["key"] != "new_dashboard" {
 		t.Fatalf("flag = %v", flag)
 	}
-	_ = id
 
 	// Missing → 404.
 	status, _ = call(t, env.handlers.GetFeatureFlag, "GET", "/api/feature-flags/99", "",
@@ -83,15 +91,15 @@ func TestGetFeatureFlag(t *testing.T) {
 func TestToggleFeatureFlag(t *testing.T) {
 	env := newTestEnv(t)
 	id := seedFeatureFlag(t, env, "mcp_gateway", "Enable MCP gateway", false)
-	_ = id
+	idStr := strconv.FormatInt(id, 10)
 
 	admin, err := env.store.GetUserByUsername("admin")
 	if err != nil {
 		t.Fatalf("GetUserByUsername: %v", err)
 	}
 
-	status, envl := call(t, env.handlers.ToggleFeatureFlag, "PUT", "/api/feature-flags/1",
-		`{"enabled":true}`, map[string]any{"id": "1", userKey: admin}, nil)
+	status, envl := call(t, env.handlers.ToggleFeatureFlag, "PUT", "/api/feature-flags/"+idStr,
+		`{"enabled":true}`, map[string]any{"id": idStr, userKey: admin}, nil)
 	if status != fasthttp.StatusOK {
 		t.Fatalf("toggle status = %d err = %q", status, errMessage(t, envl))
 	}
@@ -101,8 +109,8 @@ func TestToggleFeatureFlag(t *testing.T) {
 	}
 
 	// Persisted.
-	status, envl = call(t, env.handlers.GetFeatureFlag, "GET", "/api/feature-flags/1", "",
-		map[string]any{"id": "1"}, nil)
+	status, envl = call(t, env.handlers.GetFeatureFlag, "GET", "/api/feature-flags/"+idStr, "",
+		map[string]any{"id": idStr}, nil)
 	if status != fasthttp.StatusOK {
 		t.Fatalf("get after toggle status = %d", status)
 	}
