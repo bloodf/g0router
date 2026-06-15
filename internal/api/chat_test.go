@@ -768,6 +768,52 @@ func TestChatVKQuotaDenied(t *testing.T) {
 	}
 }
 
+// TestChatVKTokenLimitedSurfacesErrorCode verifies the Decision enum is surfaced
+// LIVE through the gate (bf-gov-3, D8): a token-limit denial reaches the chat
+// response with error.code = "token_limited" (the snake_case Decision name),
+// alongside the human reason and 429 status.
+func TestChatVKTokenLimitedSurfacesErrorCode(t *testing.T) {
+	resolver := newFakeVKResolver()
+	resolver.set("vk-token", &VKInfo{
+		Key: "vk-token",
+		Configs: []VKProviderConfig{
+			{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+		},
+		IsActive: true,
+	})
+	quota := newFakeVKQuotaChecker(struct {
+		ok     bool
+		status int
+		reason string
+	}{ok: false, status: 429, reason: "token limit exceeded"})
+
+	prov := &testDispatchProvider{
+		fakeMessagesProvider: fakeMessagesProvider{
+			response: &schemas.ChatResponse{ID: "r1", Object: "chat.completion"},
+		},
+	}
+	h := &ChatHandler{router: &testProviderResolver{prov: prov}}
+	h.SetVKGate(NewVKGate(resolver, quota))
+
+	var ctx fasthttp.RequestCtx
+	ctx.Request.Header.SetMethod(http.MethodPost)
+	ctx.Request.SetRequestURI("/v1/chat/completions")
+	ctx.Request.Header.Set("x-g0-vk", "vk-token")
+	ctx.Request.SetBody([]byte(`{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}]}`))
+	h.Handle(&ctx)
+
+	if ctx.Response.StatusCode() != fasthttp.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", ctx.Response.StatusCode())
+	}
+	body := string(ctx.Response.Body())
+	if !strings.Contains(body, `"code":"token_limited"`) {
+		t.Fatalf("body = %q, want error.code token_limited", body)
+	}
+	if !strings.Contains(body, "token limit exceeded") {
+		t.Fatalf("body = %q, want human reason token limit exceeded", body)
+	}
+}
+
 func TestChatNoVKHeaderUnchanged(t *testing.T) {
 	resolver := newFakeVKResolver()
 	resolver.set("vk-allowed", &VKInfo{

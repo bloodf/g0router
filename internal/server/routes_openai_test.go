@@ -380,6 +380,57 @@ func TestVKGateDeniesOnTeamBudgetExhaustion(t *testing.T) {
 	}
 }
 
+// TestVKGateDeniesOnTokenLimit is the end-to-end proof of the SQL-live token
+// dimension (bf-gov-3, D1/D8): a VK whose live SumTokensByAPIKey over the window
+// exceeds its TokenMax is DENIED 429 "token limit exceeded" through the real
+// resolver + Evaluate-calling quota adapter, and the snake_case Decision name
+// maps to the gate error.code via api.DecisionCodeForReason.
+func TestVKGateDeniesOnTokenLimit(t *testing.T) {
+	st := newTestStore(t)
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	vk, err := st.CreateVirtualKey(&store.VirtualKey{
+		VirtualKey: schemas.VirtualKey{
+			Name: "vk-token-capped",
+			ProviderConfigs: []schemas.ProviderConfig{
+				{Provider: "openai", AllowedModels: []string{"gpt-4o"}},
+			},
+			RateLimit: &schemas.RateLimit{TokenMax: 100, TokenResetPeriod: "daily"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+
+	// Seed request_log tokens for this VK within the day, exceeding TokenMax.
+	for _, ts := range []string{"2026-06-15T09:00:00Z", "2026-06-15T10:00:00Z"} {
+		if _, err := st.DB().Exec(
+			`INSERT INTO request_log (
+				timestamp, provider, model, connection_id, api_key, endpoint,
+				prompt_tokens, completion_tokens, cost, status, tokens, meta
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			ts, "openai", "gpt-4o", "conn-1", vk.Key, "/v1/chat/completions",
+			60, 10, 0.0, "ok", "{}", "{}",
+		); err != nil {
+			t.Fatalf("seed request_log: %v", err)
+		}
+	}
+
+	gate := api.NewVKGate(
+		newVKResolverAdapter(st),
+		newVKQuotaAdapter(governance.NewQuotaEngine(st, func() time.Time { return now })),
+	)
+
+	ok, status, reason, _ := gate.AllowVK(vk.Key, "gpt-4o", "openai")
+	if ok || status != 429 || reason != "token limit exceeded" {
+		t.Fatalf("token-limit gate: ok=%v status=%d reason=%q, want deny 429 token limit exceeded", ok, status, reason)
+	}
+	code := api.DecisionCodeForReason(reason)
+	if code == nil || *code != "token_limited" {
+		t.Fatalf("DecisionCodeForReason(%q) = %v, want token_limited", reason, code)
+	}
+}
+
 // TestVKPinnedSelector_PinsEligibleKeyID verifies a KeyID that matches an eligible
 // connection is returned with its credential.
 func TestVKPinnedSelector_PinsEligibleKeyID(t *testing.T) {

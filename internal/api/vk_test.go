@@ -101,6 +101,38 @@ func (f *fakePinnedKeyResolver) ResolvePinned(providerID, model string, keyIDs [
 	return f.connID, f.credential, f.ok
 }
 
+// TestDecisionCodeForReason verifies the gate maps a governance denial reason to
+// the snake_case error.code surfaced in the {data,error} response (bf-gov-3, D8).
+// The new token/request denials map to token_limited/request_limited; the shipped
+// reasons keep their codes; an allow (empty reason) yields no code.
+func TestDecisionCodeForReason(t *testing.T) {
+	cases := []struct {
+		reason string
+		want   string // "" means nil code
+	}{
+		{"token limit exceeded", "token_limited"},
+		{"request limit exceeded", "request_limited"},
+		{"budget exhausted", "budget_exceeded"},
+		{"team budget exhausted", "budget_exceeded"},
+		{"rate limit exceeded", "rate_limited"},
+		{"team rate limit exceeded", "rate_limited"},
+		{"", ""},
+		{"some unmapped reason", ""},
+	}
+	for _, tc := range cases {
+		got := DecisionCodeForReason(tc.reason)
+		if tc.want == "" {
+			if got != nil {
+				t.Errorf("DecisionCodeForReason(%q) = %q, want nil", tc.reason, *got)
+			}
+			continue
+		}
+		if got == nil || *got != tc.want {
+			t.Errorf("DecisionCodeForReason(%q) = %v, want %q", tc.reason, got, tc.want)
+		}
+	}
+}
+
 // TestVKGateUnknownKeyDenied verifies Fix 1: a non-empty x-g0-vk header that
 // resolves to nil is denied with 401 and the provider/quota layer is never called.
 func TestVKGateUnknownKeyDenied(t *testing.T) {
