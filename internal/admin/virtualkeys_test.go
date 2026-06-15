@@ -128,3 +128,47 @@ func TestVirtualKeysAdminCRUD(t *testing.T) {
 		t.Fatalf("delete missing status = %d, want 404", status)
 	}
 }
+
+// TestVirtualKeyTeamIDAssignment verifies the VK→Team link is accepted, persisted,
+// and surfaced by the admin API (bf-gov-1, D2/D4): a create/update carrying
+// team_id round-trips, and the budget-owner assignment passes ValidateBudgetOwner.
+func TestVirtualKeyTeamIDAssignment(t *testing.T) {
+	env := newTestEnv(t)
+	token := loginToken(t, env)
+	authHeader := map[string]string{"Authorization": "Bearer " + token}
+
+	createBody := `{
+		"name":"teamed-vk",
+		"team_id":"team-abc",
+		"provider_configs":[{"provider":"openai","allowed_models":["gpt-4o"],"key_ids":["conn-1"]}],
+		"budget":{"limit":100,"period":"daily","used":0}
+	}`
+	status, envl := call(t, env.handlers.RequireSession(env.handlers.CreateVirtualKey), "POST", "/api/virtual-keys",
+		createBody, nil, authHeader)
+	if status != fasthttp.StatusCreated {
+		t.Fatalf("create teamed vk status = %d err = %q", status, errMessage(t, envl))
+	}
+	createdWrap := dataField[map[string]any](t, envl)
+	created, _ := createdWrap["virtual_key"].(map[string]any)
+	if created["team_id"] != "team-abc" {
+		t.Fatalf("created team_id = %v, want team-abc", created["team_id"])
+	}
+	id, _ := created["id"].(string)
+
+	// Re-assign the team via update.
+	updateBody := `{
+		"name":"teamed-vk",
+		"team_id":"team-xyz",
+		"provider_configs":[{"provider":"openai","allowed_models":["gpt-4o"],"key_ids":["conn-1"]}]
+	}`
+	status, envl = call(t, env.handlers.RequireSession(env.handlers.UpdateVirtualKey), "PUT", "/api/virtual-keys/"+id,
+		updateBody, map[string]any{"id": id}, authHeader)
+	if status != fasthttp.StatusOK {
+		t.Fatalf("update team_id status = %d err = %q", status, errMessage(t, envl))
+	}
+	updatePayload := dataField[map[string]any](t, envl)
+	updated, _ := updatePayload["virtual_key"].(map[string]any)
+	if updated["team_id"] != "team-xyz" {
+		t.Fatalf("updated team_id = %v, want team-xyz", updated["team_id"])
+	}
+}
