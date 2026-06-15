@@ -270,6 +270,20 @@ func migrate(db *sql.DB) error {
 			created_at TEXT NOT NULL,
 			updated_at TEXT NOT NULL DEFAULT ''
 		)`},
+		// virtual_key_mcp_configs is the additive VK↔MCP assignment junction
+		// (bf-mcp-2 / PAR-BF-MCP-033): a many-to-many scope binding read at
+		// request time to narrow a VK's server-mode tools/list+tools/call. Mirrors
+		// the mcp_tool_groups INTEGER-PK additive-table shape.
+		{"virtual_key_mcp_configs", `CREATE TABLE IF NOT EXISTS virtual_key_mcp_configs (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			virtual_key_id TEXT NOT NULL DEFAULT '',
+			mcp_client_id TEXT NOT NULL DEFAULT '',
+			tools_to_execute_json TEXT NOT NULL DEFAULT '[]',
+			tools_to_auto_execute_json TEXT NOT NULL DEFAULT '[]',
+			config_hash TEXT NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0
+		)`},
 		// Aliases admin table (w7-route-a, ESC-ALIAS-SHAPE). Distinct from the
 		// gateway model_aliases resolver table: this carries the id-keyed UI
 		// {id,alias,provider,model} shape the frozen /aliases page reads.
