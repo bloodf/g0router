@@ -51,7 +51,17 @@ func Open(path string, secret []byte) (*Store, error) {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 
-	return &Store{db: db, cipher: cipher, apiKeyGenerator: defaultAPIKeyGenerator}, nil
+	s := &Store{db: db, cipher: cipher, apiKeyGenerator: defaultAPIKeyGenerator}
+
+	// One-time migration of legacy plaintext VK values to hash+enc at rest.
+	// Runs after Store construction because it needs the cipher (migrate() has
+	// no cipher); idempotent via the key_enc='' guard. No-op on fresh DBs.
+	if err := s.backfillVirtualKeyEncryption(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("backfill virtual key encryption: %w", err)
+	}
+
+	return s, nil
 }
 
 // Close closes the underlying database.

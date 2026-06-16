@@ -183,6 +183,48 @@ func (s *Store) DeleteVirtualKey(id string) error {
 	return nil
 }
 
+// backfillVirtualKeyEncryption migrates legacy rows (raw plaintext in `key`,
+// empty `key_enc`) to the at-rest scheme: key_enc = Encrypt(raw), key =
+// sha256hex(raw). It is idempotent via the key_enc='' guard (rows already
+// migrated are skipped), runs once per legacy row across all future boots, and
+// is invoked from Open() after Store construction. Rows are collected before
+// updating to avoid iterating a result set while writing on the single-conn DB.
+func (s *Store) backfillVirtualKeyEncryption() error {
+	rows, err := s.db.Query("SELECT id, key FROM virtual_keys WHERE key_enc = ''")
+	if err != nil {
+		return fmt.Errorf("query legacy virtual keys: %w", err)
+	}
+	type legacy struct{ id, raw string }
+	var pending []legacy
+	for rows.Next() {
+		var l legacy
+		if err := rows.Scan(&l.id, &l.raw); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan legacy virtual key: %w", err)
+		}
+		pending = append(pending, l)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate legacy virtual keys: %w", err)
+	}
+	rows.Close()
+
+	for _, l := range pending {
+		enc, err := s.cipher.Encrypt(l.raw)
+		if err != nil {
+			return fmt.Errorf("encrypt legacy virtual key %s: %w", l.id, err)
+		}
+		if _, err := s.db.Exec(
+			"UPDATE virtual_keys SET key_enc = ?, key = ? WHERE id = ?",
+			enc, sha256hex(l.raw), l.id,
+		); err != nil {
+			return fmt.Errorf("backfill virtual key %s: %w", l.id, err)
+		}
+	}
+	return nil
+}
+
 // scanVirtualKey is a method so it can decrypt key_enc with s.cipher. The `key`
 // column (sha256hex lookup hash) is scanned into a throwaway local and never
 // surfaced; .Key is always the decrypted plaintext raw value (bf-gov-5).
