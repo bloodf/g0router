@@ -61,6 +61,14 @@ func Open(path string, secret []byte) (*Store, error) {
 		return nil, fmt.Errorf("backfill virtual key encryption: %w", err)
 	}
 
+	// One-time migration of legacy plaintext MCP instance env to env_json_enc at
+	// rest (bf-mcp-3, PAR-BF-MCP-080); idempotent via the env_json_enc='' guard.
+	// No-op on fresh DBs. Sibling of the VK backfill above (no Open signature change).
+	if err := s.backfillMCPInstanceEnvEncryption(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("backfill mcp instance env encryption: %w", err)
+	}
+
 	return s, nil
 }
 
