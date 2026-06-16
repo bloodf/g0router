@@ -452,6 +452,11 @@ func migrate(db *sql.DB) error {
 		// the "un-teamed" sentinel; the hierarchy check skips the Team tier when
 		// team_id == ''.
 		{"virtual_keys", "team_id", "TEXT NOT NULL DEFAULT ''"},
+		// VK bearer value encrypted at rest (bf-gov-5, PAR-BF-GOV-006). The
+		// reversible AES ciphertext of the raw VK value; the `key` column is
+		// repurposed to hold sha256hex(raw) for lookup. Empty string default
+		// marks a legacy un-migrated row for the one-time backfill on Open().
+		{"virtual_keys", "key_enc", "TEXT NOT NULL DEFAULT ''"},
 	} {
 		if err := ensureColumn(db, col.table, col.column, col.decl); err != nil {
 			return fmt.Errorf("ensure column %s.%s: %w", col.table, col.column, err)
