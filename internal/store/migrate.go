@@ -457,6 +457,12 @@ func migrate(db *sql.DB) error {
 		// repurposed to hold sha256hex(raw) for lookup. Empty string default
 		// marks a legacy un-migrated row for the one-time backfill on Open().
 		{"virtual_keys", "key_enc", "TEXT NOT NULL DEFAULT ''"},
+		// MCP instance env secrets encrypted at rest (bf-mcp-3, PAR-BF-MCP-080).
+		// The reversible AES ciphertext of the instance env map (stdio MCP server
+		// process env vars routinely carry API tokens/keys). Empty string default
+		// marks a legacy un-migrated row for the one-time backfill on Open(); the
+		// legacy plaintext env_json column is drained to '{}' on write/backfill.
+		{"mcp_instances", "env_json_enc", "TEXT NOT NULL DEFAULT ''"},
 	} {
 		if err := ensureColumn(db, col.table, col.column, col.decl); err != nil {
 			return fmt.Errorf("ensure column %s.%s: %w", col.table, col.column, err)
