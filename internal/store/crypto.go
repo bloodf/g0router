@@ -4,9 +4,19 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 )
+
+// sha256hex returns the lowercase hex-encoded SHA-256 digest of s. It is the
+// deterministic lookup hash stored in virtual_keys.key (the reversible AES
+// ciphertext of the raw value lives in key_enc).
+func sha256hex(s string) string {
+	sum := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
 
 // Cipher encrypts and decrypts secret values stored in *_enc columns.
 // AES-256-GCM with a random nonce prefixed to the ciphertext, base64-encoded.
