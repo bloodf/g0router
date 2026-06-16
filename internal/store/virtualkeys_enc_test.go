@@ -178,3 +178,81 @@ func TestSumCostByTeamSurvivesEncryption(t *testing.T) {
 		t.Fatalf("SumCostByTeam = %v, want %v (team budget would silently zero)", total, wantCost)
 	}
 }
+
+// TestUpdateDoesNotClobberKeyOrEnc is a regression guard: UpdateVirtualKey must
+// leave the `key` (hash) and `key_enc` (ciphertext) columns intact so the raw
+// key keeps resolving. UpdateVirtualKey's UPDATE omits both columns; if that
+// ever changes, this guard trips.
+func TestUpdateDoesNotClobberKeyOrEnc(t *testing.T) {
+	st := newTestStore(t)
+
+	created, err := st.CreateVirtualKey(&VirtualKey{
+		VirtualKey: schemas.VirtualKey{Name: "vk-update"},
+	})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+	raw := created.Key
+
+	var keyBefore, encBefore string
+	if err := st.DB().QueryRow(
+		"SELECT key, key_enc FROM virtual_keys WHERE id = ?", created.ID,
+	).Scan(&keyBefore, &encBefore); err != nil {
+		t.Fatalf("scan before update: %v", err)
+	}
+
+	created.Name = "vk-update-renamed"
+	if err := st.UpdateVirtualKey(created); err != nil {
+		t.Fatalf("UpdateVirtualKey: %v", err)
+	}
+
+	var keyAfter, encAfter string
+	if err := st.DB().QueryRow(
+		"SELECT key, key_enc FROM virtual_keys WHERE id = ?", created.ID,
+	).Scan(&keyAfter, &encAfter); err != nil {
+		t.Fatalf("scan after update: %v", err)
+	}
+	if keyAfter != keyBefore {
+		t.Fatalf("key column clobbered: %q -> %q", keyBefore, keyAfter)
+	}
+	if encAfter != encBefore {
+		t.Fatalf("key_enc clobbered: %q -> %q", encBefore, encAfter)
+	}
+
+	got, err := st.GetVirtualKeyByKey(raw)
+	if err != nil {
+		t.Fatalf("GetVirtualKeyByKey(raw) after update: %v", err)
+	}
+	if got.ID != created.ID || got.Name != "vk-update-renamed" {
+		t.Fatalf("after update resolved = %+v", got)
+	}
+}
+
+// TestSpendAttributionKeyIsRaw documents that .Key stays the raw g0vk- value at
+// every read, so quota.go's SumCostByAPIKey(vk.Key, ...) keeps summing on the
+// raw key written to request_log.api_key (no budget reset). Cross-refs
+// internal/api/usage_glue_test.go:713 (entry.APIKey == vkKey).
+func TestSpendAttributionKeyIsRaw(t *testing.T) {
+	st := newTestStore(t)
+
+	created, err := st.CreateVirtualKey(&VirtualKey{
+		VirtualKey: schemas.VirtualKey{Name: "vk-spend"},
+	})
+	if err != nil {
+		t.Fatalf("CreateVirtualKey: %v", err)
+	}
+	if !strings.HasPrefix(created.Key, "g0vk-") {
+		t.Fatalf("created .Key = %q, want g0vk- prefix", created.Key)
+	}
+
+	got, err := st.GetVirtualKeyByID(created.ID)
+	if err != nil {
+		t.Fatalf("GetVirtualKeyByID: %v", err)
+	}
+	if got.Key != created.Key {
+		t.Fatalf("re-read .Key = %q, want raw %q", got.Key, created.Key)
+	}
+	if !strings.HasPrefix(got.Key, "g0vk-") {
+		t.Fatalf("re-read .Key = %q, want g0vk- prefix", got.Key)
+	}
+}
