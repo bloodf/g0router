@@ -134,6 +134,13 @@ func (s *Store) CreateMCPInstance(in *MCPInstance) (*MCPInstance, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal mcp instance env: %w", err)
 	}
+	// Env carries secrets (stdio MCP server process env vars). Encrypt at rest in
+	// env_json_enc and drain the legacy plaintext env_json column to '{}' so the
+	// secret never persists in plaintext (bf-mcp-3, mirrors bf-gov-5).
+	envEnc, err := s.cipher.Encrypt(envJSON)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt mcp instance env: %w", err)
+	}
 	transport := in.Transport
 	if transport == "" {
 		transport = "stdio"
@@ -145,9 +152,9 @@ func (s *Store) CreateMCPInstance(in *MCPInstance) (*MCPInstance, error) {
 	now := time.Now().Unix()
 	_, err = s.db.Exec(
 		`INSERT INTO mcp_instances
-		 (id, client_id, name, transport, url, command, args_json, env_json, status, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		id, in.ClientID, in.Name, transport, in.URL, in.Command, argsJSON, envJSON, status, now, now,
+		 (id, client_id, name, transport, url, command, args_json, env_json, env_json_enc, status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, in.ClientID, in.Name, transport, in.URL, in.Command, argsJSON, "{}", envEnc, status, now, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert mcp instance %s: %w", in.Name, err)
@@ -158,14 +165,14 @@ func (s *Store) CreateMCPInstance(in *MCPInstance) (*MCPInstance, error) {
 // GetMCPInstance returns the instance with the given id.
 func (s *Store) GetMCPInstance(id string) (*MCPInstance, error) {
 	return s.scanMCPInstance(s.db.QueryRow(
-		`SELECT id, client_id, name, transport, url, command, args_json, env_json, status, created_at, updated_at
+		`SELECT id, client_id, name, transport, url, command, args_json, env_json_enc, status, created_at, updated_at
 		 FROM mcp_instances WHERE id = ?`, id))
 }
 
 // ListMCPInstances returns all instances ordered by creation time.
 func (s *Store) ListMCPInstances() ([]*MCPInstance, error) {
 	rows, err := s.db.Query(
-		`SELECT id, client_id, name, transport, url, command, args_json, env_json, status, created_at, updated_at
+		`SELECT id, client_id, name, transport, url, command, args_json, env_json_enc, status, created_at, updated_at
 		 FROM mcp_instances ORDER BY created_at, id`)
 	if err != nil {
 		return nil, fmt.Errorf("query mcp instances: %w", err)
@@ -196,10 +203,16 @@ func (s *Store) UpdateMCPInstance(in *MCPInstance) error {
 	if err != nil {
 		return fmt.Errorf("marshal mcp instance env: %w", err)
 	}
+	// Re-encrypt the (possibly rotated) env and drain plaintext env_json to '{}'
+	// so an update never leaves a plaintext secret behind (bf-mcp-3).
+	envEnc, err := s.cipher.Encrypt(envJSON)
+	if err != nil {
+		return fmt.Errorf("encrypt mcp instance env: %w", err)
+	}
 	res, err := s.db.Exec(
 		`UPDATE mcp_instances SET client_id = ?, name = ?, transport = ?, url = ?, command = ?,
-		 args_json = ?, env_json = ?, status = ?, updated_at = ? WHERE id = ?`,
-		in.ClientID, in.Name, in.Transport, in.URL, in.Command, argsJSON, envJSON, in.Status,
+		 args_json = ?, env_json = '{}', env_json_enc = ?, status = ?, updated_at = ? WHERE id = ?`,
+		in.ClientID, in.Name, in.Transport, in.URL, in.Command, argsJSON, envEnc, in.Status,
 		time.Now().Unix(), in.ID,
 	)
 	if err != nil {
@@ -247,9 +260,9 @@ func (s *Store) scanMCPClient(row rowScanner) (*MCPClient, error) {
 
 func (s *Store) scanMCPInstance(row rowScanner) (*MCPInstance, error) {
 	var in MCPInstance
-	var argsJSON, envJSON string
+	var argsJSON, envEnc string
 	err := row.Scan(&in.ID, &in.ClientID, &in.Name, &in.Transport, &in.URL, &in.Command,
-		&argsJSON, &envJSON, &in.Status, &in.CreatedAt, &in.UpdatedAt)
+		&argsJSON, &envEnc, &in.Status, &in.CreatedAt, &in.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -258,6 +271,17 @@ func (s *Store) scanMCPInstance(row rowScanner) (*MCPInstance, error) {
 	}
 	if in.Args, err = unmarshalJSONArray(argsJSON); err != nil {
 		return nil, fmt.Errorf("unmarshal mcp instance args: %w", err)
+	}
+	// Empty-string env_json_enc means "no env" (degenerate pre-backfill / never
+	// saved); treat as empty rather than calling Decrypt("") which would error.
+	// Create/Update always encrypt and the backfill always seals legacy rows, so
+	// '' only ever means empty. Otherwise decrypt is fail-closed (mirror mcpoauth.go).
+	if envEnc == "" {
+		return &in, nil
+	}
+	envJSON, err := s.cipher.Decrypt(envEnc)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt mcp instance env: %w", err)
 	}
 	if in.Env, err = unmarshalJSONStringMap(envJSON); err != nil {
 		return nil, fmt.Errorf("unmarshal mcp instance env: %w", err)
