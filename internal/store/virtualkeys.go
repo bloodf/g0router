@@ -86,9 +86,17 @@ func (s *Store) CreateVirtualKey(in *VirtualKey) (*VirtualKey, error) {
 		UpdatedAt: now,
 	}
 
+	// Store the VK value encrypted at rest: `key` holds sha256hex(raw) for
+	// lookup, `key_enc` holds the reversible AES ciphertext (bf-gov-5). The
+	// returned struct keeps .Key = raw (one-time reveal in the create response).
+	keyEnc, err := s.cipher.Encrypt(vk.Key)
+	if err != nil {
+		return nil, fmt.Errorf("encrypt virtual key value: %w", err)
+	}
+
 	_, err = s.db.Exec(
-		"INSERT INTO virtual_keys (id, key, name, config_json, is_active, team_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		vk.ID, vk.Key, vk.Name, cfgJSON, boolToInt(vk.IsActive), vk.TeamID, vk.CreatedAt, vk.UpdatedAt,
+		"INSERT INTO virtual_keys (id, key, key_enc, name, config_json, is_active, team_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		vk.ID, sha256hex(vk.Key), keyEnc, vk.Name, cfgJSON, boolToInt(vk.IsActive), vk.TeamID, vk.CreatedAt, vk.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert virtual key %s: %w", vk.Name, err)
@@ -99,7 +107,7 @@ func (s *Store) CreateVirtualKey(in *VirtualKey) (*VirtualKey, error) {
 // ListVirtualKeys returns all virtual keys ordered by creation time (newest first).
 func (s *Store) ListVirtualKeys() ([]*VirtualKey, error) {
 	rows, err := s.db.Query(
-		"SELECT id, key, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys ORDER BY created_at DESC",
+		"SELECT id, key, key_enc, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys ORDER BY created_at DESC",
 	)
 	if err != nil {
 		return nil, fmt.Errorf("query virtual keys: %w", err)
@@ -108,7 +116,7 @@ func (s *Store) ListVirtualKeys() ([]*VirtualKey, error) {
 
 	var out []*VirtualKey
 	for rows.Next() {
-		vk, err := scanVirtualKey(rows)
+		vk, err := s.scanVirtualKey(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -122,14 +130,16 @@ func (s *Store) ListVirtualKeys() ([]*VirtualKey, error) {
 
 // GetVirtualKeyByID returns the virtual key with the given id.
 func (s *Store) GetVirtualKeyByID(id string) (*VirtualKey, error) {
-	return scanVirtualKey(s.db.QueryRow(
-		"SELECT id, key, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys WHERE id = ?", id))
+	return s.scanVirtualKey(s.db.QueryRow(
+		"SELECT id, key, key_enc, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys WHERE id = ?", id))
 }
 
-// GetVirtualKeyByKey returns the virtual key with the exact key value.
+// GetVirtualKeyByKey returns the virtual key with the given raw key value. The
+// raw value is hashed before the lookup, since the `key` column stores
+// sha256hex(raw), not the plaintext (bf-gov-5).
 func (s *Store) GetVirtualKeyByKey(key string) (*VirtualKey, error) {
-	return scanVirtualKey(s.db.QueryRow(
-		"SELECT id, key, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys WHERE key = ?", key))
+	return s.scanVirtualKey(s.db.QueryRow(
+		"SELECT id, key, key_enc, name, config_json, is_active, team_id, created_at, updated_at FROM virtual_keys WHERE key = ?", sha256hex(key)))
 }
 
 // UpdateVirtualKey updates all mutable fields of the virtual key with the given id.
@@ -173,18 +183,28 @@ func (s *Store) DeleteVirtualKey(id string) error {
 	return nil
 }
 
-func scanVirtualKey(row interface {
+// scanVirtualKey is a method so it can decrypt key_enc with s.cipher. The `key`
+// column (sha256hex lookup hash) is scanned into a throwaway local and never
+// surfaced; .Key is always the decrypted plaintext raw value (bf-gov-5).
+func (s *Store) scanVirtualKey(row interface {
 	Scan(dest ...any) error
 }) (*VirtualKey, error) {
 	var vk VirtualKey
 	var isActive int
 	var cfgJSON string
-	err := row.Scan(&vk.ID, &vk.Key, &vk.Name, &cfgJSON, &isActive, &vk.TeamID, &vk.CreatedAt, &vk.UpdatedAt)
+	var keyHash, keyEnc string
+	err := row.Scan(&vk.ID, &keyHash, &keyEnc, &vk.Name, &cfgJSON, &isActive, &vk.TeamID, &vk.CreatedAt, &vk.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("scan virtual key: %w", err)
+	}
+	// Fail-closed: a non-empty key_enc that fails to decrypt (wrong secret /
+	// corruption) makes the VK unreadable rather than silently succeeding,
+	// matching every other *_enc column (oauthsessions, connections).
+	if vk.Key, err = s.cipher.Decrypt(keyEnc); err != nil {
+		return nil, fmt.Errorf("decrypt virtual key value: %w", err)
 	}
 	vk.IsActive = isActive != 0
 	if err := unmarshalVirtualKeyConfig(cfgJSON, &vk); err != nil {

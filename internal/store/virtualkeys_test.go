@@ -134,14 +134,16 @@ func TestVirtualKeyCRUD(t *testing.T) {
 		t.Fatalf("len(list) after delete = %d, want 1", len(list))
 	}
 
-	// Duplicate key value rejected.
+	// Duplicate key value rejected. The `key` column now holds sha256hex(raw)
+	// (bf-gov-5), so colliding on the UNIQUE constraint requires inserting the
+	// hash of an existing VK's raw key, not the raw key itself.
 	id, err := newID()
 	if err != nil {
 		t.Fatalf("newID: %v", err)
 	}
 	_, err = st.DB().Exec(
 		"INSERT INTO virtual_keys (id, key, name, config_json, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		id, created1.Key, "duplicate", "{}", 1, created1.CreatedAt, created1.UpdatedAt,
+		id, sha256hex(created1.Key), "duplicate", "{}", 1, created1.CreatedAt, created1.UpdatedAt,
 	)
 	if err == nil {
 		t.Fatal("duplicate key value accepted")

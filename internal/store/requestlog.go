@@ -266,15 +266,52 @@ func (s *Store) SumCostByAPIKey(key, sinceISO string) (float64, error) {
 // timestamp >= sinceISO. It is the live team-budget aggregate used by the quota
 // engine's 2-level hierarchy check (bf-gov-1, D8); it does not read the
 // display-only teams.budget_used_usd accumulator.
+//
+// Since virtual_keys.key now holds sha256hex(raw) while request_log.api_key
+// holds the raw VK value (bf-gov-5), the correlation can no longer be a raw-SQL
+// subquery (SQLite has no sha256). Instead it decrypts the team's key_enc
+// values in Go and binds the resulting raw keys into an IN list.
 func (s *Store) SumCostByTeam(teamID, sinceISO string) (float64, error) {
-	var total sql.NullFloat64
-	err := s.db.QueryRow(
-		`SELECT SUM(cost) FROM request_log
-		 WHERE api_key IN (SELECT key FROM virtual_keys WHERE team_id = ?)
-		   AND timestamp >= ?`,
-		teamID, sinceISO,
-	).Scan(&total)
+	rows, err := s.db.Query("SELECT key_enc FROM virtual_keys WHERE team_id = ?", teamID)
 	if err != nil {
+		return 0, fmt.Errorf("query team virtual keys: %w", err)
+	}
+	defer rows.Close()
+
+	var rawKeys []string
+	for rows.Next() {
+		var keyEnc string
+		if err := rows.Scan(&keyEnc); err != nil {
+			return 0, fmt.Errorf("scan team key_enc: %w", err)
+		}
+		raw, err := s.cipher.Decrypt(keyEnc)
+		if err != nil {
+			return 0, fmt.Errorf("decrypt team virtual key value: %w", err)
+		}
+		rawKeys = append(rawKeys, raw)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("iterate team virtual keys: %w", err)
+	}
+
+	// No team VKs ⇒ no spend. Guard against the invalid `api_key IN ()` SQL.
+	if len(rawKeys) == 0 {
+		return 0, nil
+	}
+
+	placeholders := make([]string, len(rawKeys))
+	args := make([]any, 0, len(rawKeys)+1)
+	for i, k := range rawKeys {
+		placeholders[i] = "?"
+		args = append(args, k)
+	}
+	args = append(args, sinceISO)
+
+	query := "SELECT SUM(cost) FROM request_log WHERE api_key IN (" +
+		strings.Join(placeholders, ",") + ") AND timestamp >= ?"
+
+	var total sql.NullFloat64
+	if err := s.db.QueryRow(query, args...).Scan(&total); err != nil {
 		return 0, fmt.Errorf("sum cost by team: %w", err)
 	}
 	if !total.Valid {
