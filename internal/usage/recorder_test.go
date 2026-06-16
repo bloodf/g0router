@@ -2,6 +2,7 @@ package usage
 
 import (
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -40,7 +41,7 @@ func TestRecorderComputesCost(t *testing.T) {
 	}
 	got := us.entries[0]
 	wantCost := 1000*2.5/1e6 + 500*10.0/1e6
-	if got.Cost != wantCost {
+	if math.Abs(got.Cost-wantCost) > 1e-9 {
 		t.Errorf("Cost = %v, want %v", got.Cost, wantCost)
 	}
 	if got.PromptTokens != 1000 {
