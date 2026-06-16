@@ -77,3 +77,68 @@ func TestBackfillNoLockout(t *testing.T) {
 		t.Fatalf("resolved .Key = %q, want original raw %q", got.Key, rawKey)
 	}
 }
+
+// TestBackfillIdempotent proves a second backfill pass is a no-op: an already
+// migrated row (non-empty key_enc) is skipped by the key_enc='' guard, so its
+// key and key_enc columns are byte-identical (no re-encrypt, no re-hash).
+func TestBackfillIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	secret, err := LoadOrCreateSecret(dir)
+	if err != nil {
+		t.Fatalf("LoadOrCreateSecret: %v", err)
+	}
+	path := filepath.Join(dir, "g0router.db")
+
+	st, err := Open(path, secret)
+	if err != nil {
+		t.Fatalf("first Open: %v", err)
+	}
+
+	const rawKey = "g0vk-idempotent"
+	id, err := newID()
+	if err != nil {
+		t.Fatalf("newID: %v", err)
+	}
+	now := time.Now().Unix()
+	if _, err := st.DB().Exec(
+		"INSERT INTO virtual_keys (id, key, name, config_json, is_active, team_id, created_at, updated_at) VALUES (?, ?, ?, ?, 1, '', ?, ?)",
+		id, rawKey, "legacy", "{}", now, now,
+	); err != nil {
+		t.Fatalf("insert legacy row: %v", err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	// Reopen: first backfill migrates the row.
+	st2, err := Open(path, secret)
+	if err != nil {
+		t.Fatalf("second Open (backfill): %v", err)
+	}
+	defer st2.Close()
+
+	var keyBefore, encBefore string
+	if err := st2.DB().QueryRow(
+		"SELECT key, key_enc FROM virtual_keys WHERE id = ?", id,
+	).Scan(&keyBefore, &encBefore); err != nil {
+		t.Fatalf("scan after first backfill: %v", err)
+	}
+
+	// Second backfill pass must skip the now-migrated row.
+	if err := st2.backfillVirtualKeyEncryption(); err != nil {
+		t.Fatalf("second backfillVirtualKeyEncryption: %v", err)
+	}
+
+	var keyAfter, encAfter string
+	if err := st2.DB().QueryRow(
+		"SELECT key, key_enc FROM virtual_keys WHERE id = ?", id,
+	).Scan(&keyAfter, &encAfter); err != nil {
+		t.Fatalf("scan after second backfill: %v", err)
+	}
+	if keyAfter != keyBefore {
+		t.Fatalf("key column changed: %q -> %q", keyBefore, keyAfter)
+	}
+	if encAfter != encBefore {
+		t.Fatalf("key_enc changed (re-encrypted): %q -> %q", encBefore, encAfter)
+	}
+}
