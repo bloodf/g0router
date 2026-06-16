@@ -66,3 +66,47 @@ func (c *Cipher) Decrypt(encoded string) (string, error) {
 	}
 	return string(plain), nil
 }
+
+// backfillEnc migrates legacy rows in `table` whose `encCol` is empty (''): it
+// reads the plaintext `srcCol`, applies transform to produce the new src value
+// and a reversible ciphertext, then writes both back in one UPDATE (encCol
+// first, then srcCol). Idempotent via the encCol='' guard (already-migrated rows
+// are skipped). Rows are collected before updating to avoid iterating a result
+// set while writing on the single-conn DB. table/srcCol/encCol are compile-time
+// constants at the call sites (not user input), so interpolating them is safe
+// (SQL cannot bind identifiers).
+func (s *Store) backfillEnc(table, srcCol, encCol string, transform func(raw string) (newSrc, enc string, err error)) error {
+	rows, err := s.db.Query(fmt.Sprintf("SELECT id, %s FROM %s WHERE %s = ''", srcCol, table, encCol))
+	if err != nil {
+		return fmt.Errorf("query legacy %s: %w", table, err)
+	}
+	type legacy struct{ id, raw string }
+	var pending []legacy
+	for rows.Next() {
+		var l legacy
+		if err := rows.Scan(&l.id, &l.raw); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan legacy %s: %w", table, err)
+		}
+		pending = append(pending, l)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate legacy %s: %w", table, err)
+	}
+	rows.Close()
+
+	for _, l := range pending {
+		newSrc, enc, err := transform(l.raw)
+		if err != nil {
+			return fmt.Errorf("encrypt legacy %s %s: %w", table, l.id, err)
+		}
+		if _, err := s.db.Exec(
+			fmt.Sprintf("UPDATE %s SET %s = ?, %s = ? WHERE id = ?", table, encCol, srcCol),
+			enc, newSrc, l.id,
+		); err != nil {
+			return fmt.Errorf("backfill %s %s: %w", table, l.id, err)
+		}
+	}
+	return nil
+}

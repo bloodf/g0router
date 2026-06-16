@@ -260,45 +260,14 @@ func (s *Store) scanMCPClient(row rowScanner) (*MCPClient, error) {
 
 // backfillMCPInstanceEnvEncryption migrates legacy instance rows (plaintext in
 // env_json, empty env_json_enc) to the at-rest scheme: env_json_enc =
-// Encrypt(env_json), env_json = '{}'. It is idempotent via the env_json_enc=''
-// guard (rows already migrated are skipped), runs once per legacy row across all
-// future boots, and is invoked from Open() after Store construction. Rows are
-// collected before updating to avoid iterating a result set while writing on the
-// single-conn DB. Mirrors backfillVirtualKeyEncryption (bf-gov-5).
+// Encrypt(env_json), env_json = '{}'. Idempotent via the env_json_enc='' guard;
+// invoked from Open(). See backfillEnc for the shared collect-then-update
+// mechanics. Mirrors backfillVirtualKeyEncryption (bf-gov-5).
 func (s *Store) backfillMCPInstanceEnvEncryption() error {
-	rows, err := s.db.Query("SELECT id, env_json FROM mcp_instances WHERE env_json_enc = ''")
-	if err != nil {
-		return fmt.Errorf("query legacy mcp instances: %w", err)
-	}
-	type legacy struct{ id, envJSON string }
-	var pending []legacy
-	for rows.Next() {
-		var l legacy
-		if err := rows.Scan(&l.id, &l.envJSON); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan legacy mcp instance: %w", err)
-		}
-		pending = append(pending, l)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("iterate legacy mcp instances: %w", err)
-	}
-	rows.Close()
-
-	for _, l := range pending {
-		enc, err := s.cipher.Encrypt(l.envJSON)
-		if err != nil {
-			return fmt.Errorf("encrypt legacy mcp instance env %s: %w", l.id, err)
-		}
-		if _, err := s.db.Exec(
-			"UPDATE mcp_instances SET env_json_enc = ?, env_json = '{}' WHERE id = ?",
-			enc, l.id,
-		); err != nil {
-			return fmt.Errorf("backfill mcp instance env %s: %w", l.id, err)
-		}
-	}
-	return nil
+	return s.backfillEnc("mcp_instances", "env_json", "env_json_enc", func(raw string) (string, string, error) {
+		enc, err := s.cipher.Encrypt(raw)
+		return "{}", enc, err // legacy env_json drained to '{}'
+	})
 }
 
 func (s *Store) scanMCPInstance(row rowScanner) (*MCPInstance, error) {
