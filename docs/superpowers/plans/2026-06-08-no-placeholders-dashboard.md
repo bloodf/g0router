@@ -399,7 +399,7 @@ After all subagents report complete:
 
 2. **Full test suite**
    ```bash
-   cd /Users/heitor/Developer/github.com/bloodf/g0router
+   cd $HOME/Developer/github.com/bloodf/g0router
    go test ./... -count=1
    go vet ./...
    cd ui && npm run build

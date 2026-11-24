@@ -37,7 +37,7 @@ ref-source: 9router frozen @ 827e5c3 — the provider-usage route
   Antigravity, Codex, Kiro, GLM, MiniMax.
   ⚠ EVIDENCE CONSTRAINT (binding — §8 ESC-REF-ABSENT): the frozen 9router JS source
   is NOT present on this machine (it lives at the macOS path
-  /Users/heitor/Developer/github.com/bloodf/_refs/9router; this Linux tree carries
+  $HOME/Developer/github.com/bloodf/_refs/9router; this Linux tree carries
   only the parity matrix + the SHIPPED Go). The exact per-provider usage endpoint
   URL / auth scheme / response shape for the 6 remaining providers CANNOT be read
   from route.js here. Therefore the per-provider endpoint table (§1.4) is authored
@@ -278,7 +278,7 @@ grep -nE 'Provider:\s*"codex"|Provider:\s*"github"' internal/auth/oauth_provider
 grep -nE 'AccessToken|Secret|Metadata|ExpiresAt' internal/store/connections.go | head
 
 # P5 — the frozen 9router ref for route.js (§8 ESC-REF-ABSENT)
-test -e /Users/heitor/Developer/github.com/bloodf/_refs/9router/src/app/api/usage/\[connectionId\]/route.js \
+test -e $HOME/Developer/github.com/bloodf/_refs/9router/src/app/api/usage/\[connectionId\]/route.js \
   && echo "ref present — read :122-188 per provider" \
   || echo "REF ABSENT on this host — apply ESC-REF-ABSENT: confirm each provider endpoint vs the frozen ref BEFORE DEFER→BUILD; do NOT fabricate"
 
@@ -526,7 +526,7 @@ an automatic REJECT.
 
 - **ESC-REF-ABSENT (BINDING — the frozen 9router JS ref is not on this host).** The
   per-provider usage endpoint URL/auth/response-shape (route.js:122-188) cannot be
-  read here (the ref lives at the macOS `/Users/heitor/.../_refs/9router` path). The
+  read here (the ref lives at the macOS `$HOME/.../_refs/9router` path). The
   §1.4 table is the AUTHORING-TIME best determination from the matrix + the catalog
   auth facts + public docs. **Decision/protocol:** at impl, the executor MUST read
   `route.js:122-188` against the frozen ref and, per provider, confirm the concrete

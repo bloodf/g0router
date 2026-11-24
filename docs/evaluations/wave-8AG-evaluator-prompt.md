@@ -1,6 +1,6 @@
 # g0router Wave 8.AG Evaluation
 
-Evaluate completed wave `8.AG` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed wave `8.AG` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Review:
 - `AGENTS.md`

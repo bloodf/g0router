@@ -16,7 +16,7 @@ const homeDir = os.homedir();
 const cwd = process.cwd();
 
 // Derive the harness config dir name from this file's location.
-// e.g. /home/user/.claude/hooks/gsd-check-update.js -> '.claude'
+// e.g. /example/user/.claude/hooks/gsd-check-update.js -> '.claude'
 // Falls back to the CLAUDE_CONFIG_DIR env var, then a full filesystem search.
 const harnessDir = path.basename(path.dirname(path.dirname(__filename)));
 

@@ -130,7 +130,7 @@ func TestUsersListCreateDelete(t *testing.T) {
 	}
 
 	// Delete missing → 404.
-	status, _ = call(t, env.handlers.DeleteUser, "DELETE", "/api/auth/users/missing", "",
+	status, _ = call(t, env.handlers.DeleteUser, "DELETE", "/api/auth/example/user", "",
 		map[string]any{"id": "missing", userKey: admin}, nil)
 	if status != fasthttp.StatusNotFound {
 		t.Fatalf("delete missing status = %d, want 404", status)

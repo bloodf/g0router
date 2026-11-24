@@ -242,4 +242,4 @@ Evidence: `internal/schemas/provider.go:68-107`.
 
 ---
 
-ANALYSIS-COMPLETE /Users/heitor/Developer/github.com/bloodf/g0router/.planning/parity/matrix/9router-providers.md
+ANALYSIS-COMPLETE $HOME/Developer/github.com/bloodf/g0router/.planning/parity/matrix/9router-providers.md

@@ -1,6 +1,6 @@
 # g0router Wave 7.G Remediation Evaluation Prompt
 
-Evaluate the Wave `7.G` evaluator remediation in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate the Wave `7.G` evaluator remediation in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit files.
 

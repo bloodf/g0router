@@ -1,7 +1,7 @@
 # 9router Translation Engine Parity Matrix
 
-Reference: `/Users/heitor/Developer/github.com/bloodf/_refs/9router` @ `827e5c3`
-Target: `/Users/heitor/Developer/github.com/bloodf/g0router`
+Reference: `$HOME/Developer/github.com/bloodf/_refs/9router` @ `827e5c3`
+Target: `$HOME/Developer/github.com/bloodf/g0router`
 
 ## Row Table
 

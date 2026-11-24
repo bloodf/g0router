@@ -1,6 +1,6 @@
 # g0router Wave 8.AU Evaluation
 
-Evaluate completed wave `8.AU` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed wave `8.AU` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit files.
 

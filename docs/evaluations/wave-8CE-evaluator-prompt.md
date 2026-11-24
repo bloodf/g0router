@@ -1,6 +1,6 @@
 # g0router Wave 8.CE Evaluation
 
-Evaluate completed wave `8.CE` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed wave `8.CE` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Review:
 - AGENTS.md

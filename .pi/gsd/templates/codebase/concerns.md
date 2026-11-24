@@ -163,7 +163,7 @@ Template for `.planning/codebase/CONCERNS.md` - captures known issues and areas 
 
 **Admin role check client-side only:**
 - Risk: Admin dashboard pages check isAdmin from Supabase client, no server verification
-- Files: `app/admin/page.tsx`, `app/admin/users/page.tsx`, `components/AdminGuard.tsx`
+- Files: `app/admin/page.tsx`, `app/admin$HOME`, `components/AdminGuard.tsx`
 - Current mitigation: None (relying on UI hiding)
 - Recommendations: Add middleware to admin routes in `middleware.ts`, verify role server-side
 

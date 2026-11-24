@@ -1,6 +1,6 @@
 # g0router Wave 8.BB Evaluation
 
-Evaluate completed wave `8.BB` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed wave `8.BB` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit files.
 
@@ -15,7 +15,7 @@ Review:
 - `internal/provider/oauth/cursor.go`
 - `internal/provider/oauth/cursor_test.go`
 - `internal/provider/matrix.go`
-- OMP reference: `/Users/heitor/Developer/github.com/bloodf/oh-my-pi/packages/ai/src/utils/oauth/cursor.ts`
+- OMP reference: `$HOME/Developer/github.com/bloodf/oh-my-pi/packages/ai/src/utils/oauth/cursor.ts`
 - Diff/commit for Wave 8.BB
 
 Check:

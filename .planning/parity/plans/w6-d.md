@@ -22,7 +22,7 @@ Serial slot: `internal/server/routes_admin.go` — w6-d is the 2nd w6 holder (af
 
 ## 2. Precondition checks (run before writing any code)
 
-1. **Read the ref locale list FIRST:** `/home/cortexos/Developer/github.com/bloodf/_refs/9router/src/i18n/config.js` — extract the LOCALES array. Count MUST be exactly 33. If the count differs, STOP and report; do not invent or trim locales.
+1. **Read the ref locale list FIRST:** `$HOME/Developer/github.com/bloodf/_refs/9router/src/i18n/config.js` — extract the LOCALES array. Count MUST be exactly 33. If the count differs, STOP and report; do not invent or trim locales.
 2. Confirm w6-a is merged: `ui/src/lib/apiFetch` and the stores exist on `main`.
 3. Confirm `internal/server/routes_admin.go` has w6-pre's routes and no uncommitted edits (`git status` clean for that file) — serial-slot handoff is clean.
 4. Read 3 existing admin handlers (e.g., w6-pre's additions in `internal/admin/`) to match handler + envelope patterns before writing `locale.go`.

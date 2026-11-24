@@ -1,6 +1,6 @@
 # g0router Wave 8.AN-FIX Evaluation
 
-Evaluate the API shuffled gate stabilization for completed Wave `8.AN-FIX` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate the API shuffled gate stabilization for completed Wave `8.AN-FIX` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit files.
 

@@ -1,6 +1,6 @@
 # g0router Wave 8.AT Release-Lock Evaluation
 
-Evaluate completed wave `8.AT` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed wave `8.AT` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit files except for the explicit generated-artifact cleanup command listed below after build gates.
 

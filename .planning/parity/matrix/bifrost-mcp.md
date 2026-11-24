@@ -1,7 +1,7 @@
 # BF-MCP Parity Matrix
 
-Reference: Bifrost SHA `ca21298` (frozen clone at `/Users/heitor/Developer/github.com/bloodf/_refs/bifrost`).
-Target: g0router (`/Users/heitor/Developer/github.com/bloodf/g0router`).
+Reference: Bifrost SHA `ca21298` (frozen clone at `$HOME/Developer/github.com/bloodf/_refs/bifrost`).
+Target: g0router (`$HOME/Developer/github.com/bloodf/g0router`).
 
 ---
 

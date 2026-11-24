@@ -88,3 +88,15 @@ agentic-engineering-profile: strict
 - Do NOT include `.agentic/preferences.json` or `.claude/settings.local.json` in the "missing" list - both are gitignored per-developer files.
 - If `.agentic/preferences.json` exists and contains `"skipScaffoldingCheck": true`, skip the check entirely.
 - If anything is missing, prompt the user ONCE per session on one line: `Scaffolding check: missing [list]. Re-run /init-project to fix? [y/N/never]`. `never` performs a read-modify-write on `.agentic/preferences.json` setting `skipScaffoldingCheck: true` without clobbering other keys.
+
+## Privacy
+
+Keep the owner's private setup out of source, tests, fixtures, docs, commits,
+branch names, issues, pull requests and comments. Do not include machine names,
+home or worktree paths, private network details, service ports or hostnames,
+thread and task IDs, personal email or provider accounts, quota or credit data,
+device identifiers, Wi-Fi names, or secrets.
+
+Use RFC 5737 addresses such as `192.0.2.10`, example domains, `printer-1`,
+`<serial>`, and `$HOME/...`. Keep hardware findings and redact the identifying
+details. Run `sh scripts/check-privacy.sh` before submitting changes.

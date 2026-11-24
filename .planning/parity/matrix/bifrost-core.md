@@ -1,7 +1,7 @@
 # Bifrost Core Architecture Parity Matrix
 
-Reference: `/Users/heitor/Developer/github.com/bloodf/_refs/bifrost` @ `ca21298`
-Target: `/Users/heitor/Developer/github.com/bloodf/g0router`
+Reference: `$HOME/Developer/github.com/bloodf/_refs/bifrost` @ `ca21298`
+Target: `$HOME/Developer/github.com/bloodf/g0router`
 
 ## Behavior Matrix
 

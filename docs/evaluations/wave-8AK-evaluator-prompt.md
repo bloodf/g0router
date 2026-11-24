@@ -1,6 +1,6 @@
 # g0router Wave 8.AK Evaluation
 
-Evaluate completed wave `8.AK` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed wave `8.AK` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit files.
 

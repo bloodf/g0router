@@ -1,6 +1,6 @@
 # ROUTE parity matrix: 9router → g0router
 
-Reference: `/Users/heitor/Developer/github.com/bloodf/_refs/9router` (SHA `827e5c3`)
+Reference: `$HOME/Developer/github.com/bloodf/_refs/9router` (SHA `827e5c3`)
 
 ## Behavior rows
 

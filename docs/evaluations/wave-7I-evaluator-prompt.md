@@ -1,6 +1,6 @@
 # g0router Wave 7.I Evaluation
 
-Evaluate completed wave `7.I` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed wave `7.I` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit, stage, commit, clean files, remove worktrees, or archive threads. Existing local dirt `.DS_Store`, `docs/.DS_Store`, `.pi/`, and untracked `AGENTS.md` must be ignored and not cleaned.
 

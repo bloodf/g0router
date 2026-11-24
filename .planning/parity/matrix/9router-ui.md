@@ -1,7 +1,7 @@
 # UI Parity Matrix: 9Router Reference → g0router
 
-Reference: `/Users/heitor/Developer/github.com/bloodf/_refs/9router` (SHA `827e5c3`)
-Target: `/Users/heitor/Developer/github.com/bloodf/g0router/ui`
+Reference: `$HOME/Developer/github.com/bloodf/_refs/9router` (SHA `827e5c3`)
+Target: `$HOME/Developer/github.com/bloodf/g0router/ui`
 
 ---
 
