@@ -6681,7 +6681,7 @@ T1: `internal/admin/locale.go` + `locale_test.go` + append-only `routes_admin.go
 (`Path=/; SameSite=Lax`), returns snake_case `{data,error}` envelope.
 
 T2: `ui/src/i18n/locales.ts` with `{code,name,flag}` ×33 mirrored from
-`/home/cortexos/Developer/github.com/bloodf/_refs/9router/src/i18n/config.js`;
+`$HOME/Developer/github.com/bloodf/_refs/9router/src/i18n/config.js`;
 33 minimal JSON files under `ui/src/i18n/locales/`.
 
 T3: `ui/src/i18n/index.ts` initializes `i18next` + `react-i18next` with eager
@@ -8639,7 +8639,7 @@ extension: additive switch arms before `default` + one new fetcher file; NO admi
 NO UI, NO store/auth/providers/inference touch (route + DTO unchanged). NO serial slot.
 - **P0 base:** `048df9a05dd45a1cf04ccf34cbdbcc07aa39d503`. Base GREEN+HERMETIC (1807 passed / 43 pkgs).
 - **ESC-REF-ABSENT (BINDING) — CONFIRMED at impl.** P5 verified the frozen 9router `route.js` is NOT on
-  this Linux host (`/Users/heitor/.../_refs/9router` absent). No per-provider usage endpoint could be read
+  this Linux host (`$HOME/.../_refs/9router` absent). No per-provider usage endpoint could be read
   from the ref; NO endpoint was fabricated. Verdicts were made on in-tree evidence only.
 - **Built vs deferred (the split):**
   - **BUILT (1):** **antigravity** — `fetchAntigravityUsage` (`internal/usage/quota_antigravity.go`), the

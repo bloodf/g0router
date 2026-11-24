@@ -1,6 +1,6 @@
 # g0router Wave 7.L Evaluation Prompt
 
-Evaluate completed Wave `7.L` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed Wave `7.L` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit files.
 

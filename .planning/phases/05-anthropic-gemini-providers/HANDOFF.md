@@ -225,7 +225,7 @@ A "working V1.0" means:
 
 ```bash
 # Verify current state
-cd /Users/heitor/Developer/github.com/bloodf/g0router
+cd $HOME/Developer/github.com/bloodf/g0router
 go test ./... && go vet ./...
 
 # Check GSD progress

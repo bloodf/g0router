@@ -74,7 +74,7 @@ process.stdin.on('end', () => {
         let task = '';
         const homeDir = os.homedir();
         // Derive harness config dir from this file's location at runtime.
-        // e.g. /home/user/.claude/hooks/gsd-statusline.js -> /home/user/.claude
+        // e.g. /example/user/.claude/hooks/gsd-statusline.js -> /example/user/.claude
         // Respects CLAUDE_CONFIG_DIR for custom config directory setups (#870)
         const harnessDir = path.basename(path.dirname(path.dirname(__filename)));
         const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(homeDir, harnessDir);

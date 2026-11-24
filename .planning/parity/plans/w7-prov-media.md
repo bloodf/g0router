@@ -240,8 +240,8 @@ grep -n 'notImplemented("embedding")' internal/providers/generic/stubs.go      #
 # factory micro-serial: who else is editing factory.go right now?
 git log --oneline <base>..HEAD -- internal/inference/factory.go   # coordinate if non-empty
 # confirm the ref embedding base url + voyage-ai compat membership:
-grep -n 'voyage-ai' /home/cortexos/Developer/github.com/bloodf/_refs/9router/open-sse/handlers/embeddingProviders/openai.js   # :8 base url
-grep -n 'voyage-ai' /home/cortexos/Developer/github.com/bloodf/_refs/9router/open-sse/handlers/embeddingProviders/index.js    # OPENAI_COMPAT list
+grep -n 'voyage-ai' $HOME/Developer/github.com/bloodf/_refs/9router/open-sse/handlers/embeddingProviders/openai.js   # :8 base url
+grep -n 'voyage-ai' $HOME/Developer/github.com/bloodf/_refs/9router/open-sse/handlers/embeddingProviders/index.js    # OPENAI_COMPAT list
 ```
 
 ---

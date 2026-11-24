@@ -178,7 +178,7 @@ for a in glm-cn alicode alicode-intl gitlab codebuddy nvidia cerebras nebius \
 done
 # confirm format:"claude" providers are NOT to be added as openai (ESC-1):
 grep -nE '(glm|kimi|minimax|minimax-cn|agentrouter):.*format:.*"claude"' \
-  /home/cortexos/Developer/github.com/bloodf/_refs/9router/open-sse/config/providers.js
+  $HOME/Developer/github.com/bloodf/_refs/9router/open-sse/config/providers.js
 ```
 
 ---

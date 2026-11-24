@@ -1,6 +1,6 @@
 # g0router Wave 8.M Evaluation
 
-Evaluate completed wave `8.M` in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate completed wave `8.M` in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Review:
 - `CLAUDE.md`

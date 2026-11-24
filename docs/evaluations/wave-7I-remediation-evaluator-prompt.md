@@ -1,6 +1,6 @@
 # g0router Wave 7.I Remediation Evaluation
 
-Evaluate Wave 7.I quota remediation in `/Users/heitor/Developer/github.com/bloodf/g0router`.
+Evaluate Wave 7.I quota remediation in `$HOME/Developer/github.com/bloodf/g0router`.
 
 Start read-only. Do not edit, stage, commit, clean files, remove worktrees, archive threads, or change branches. Existing local dirt `.DS_Store`, `docs/.DS_Store`, `.pi/`, and untracked `AGENTS.md` must be ignored and not cleaned.
 

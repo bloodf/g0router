@@ -47,7 +47,7 @@ This is a **strategic map only**. No micro-plans, no code.
 ## BINDING BLOCKER (read first) — ESC-REF-ABSENT
 
 **The frozen Bifrost reference is NOT on this host.**
-`/Users/heitor/Developer/github.com/bloodf/_refs/bifrost` (the `@ca21298`
+`$HOME/Developer/github.com/bloodf/_refs/bifrost` (the `@ca21298`
 checkout every matrix cites) is **absent** on this Linux machine — verified
 2026-06-15. This is the *same* blocker that constrained `w7-usage-quota`
 (`docs/WORKFLOW.md`: ESC-REF-ABSENT, where the 9router ref was likewise absent

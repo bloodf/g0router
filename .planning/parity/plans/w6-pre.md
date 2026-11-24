@@ -17,7 +17,7 @@ TDD throughout: every task is STEP(a) failing test → STEP(b) minimum code to g
 | PAR-ROUTE-058 | Sub-config model exposure (`ttsConfig.models` / `embeddingConfig.models`) | HAVE |
 | PAR-ROUTE-030 | VK `ProviderConfig.KeyIDs` threading to dispatch (KeyIDs half; gate half shipped w5-g) | HAVE |
 
-Frozen ref: `/home/cortexos/Developer/github.com/bloodf/_refs/9router` @ 827e5c3.
+Frozen ref: `$HOME/Developer/github.com/bloodf/_refs/9router` @ 827e5c3.
 057 ref: `src/app/api/v1/models/route.js:316-348`. 058 ref: `route.js:364-383`.
 
 PAR-ROUTE-057 requires ONLY the `GET /v1/models` list endpoint to merge custom/alias/static
@@ -77,7 +77,7 @@ grep -rn "AllowVK(" internal/ --include=*.go
 # STOP if any other non-test caller appears: ownership violation.
 
 # P5 — REF-CHECK (MANDATORY, blocking; no defaults):
-sed -n '300,395p' /home/cortexos/Developer/github.com/bloodf/_refs/9router/src/app/api/v1/models/route.js
+sed -n '300,395p' $HOME/Developer/github.com/bloodf/_refs/9router/src/app/api/v1/models/route.js
 # MUST extract, with ref:line citations recorded in the T1/T2 commit bodies:
 #   (1) ORDER — position of custom and alias entries relative to combos and catalog
 #       models in the merged list (route.js:316-348), and where sub-config (tts/embedding)

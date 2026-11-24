@@ -9,7 +9,7 @@
 
 Single-binary Go LLM gateway/proxy with 43+ providers, OAuth flows, RTK compression, MCP gateway, embedded React dashboard. Stage 0–8 complete. Stage 12B–19 pending.
 
-**Repo**: `/Users/heitor/Developer/github.com/bloodf/g0router`
+**Repo**: `$HOME/Developer/github.com/bloodf/g0router`
 **Tech**: Go 1.22+, SQLite (WAL), fasthttp, embedded React UI (out of scope until Phase 20)
 **Architecture**: Layered DDD-lite enforced by arch test (§1.8 below)
 
